@@ -1,0 +1,35 @@
+{
+  "id": "UG-TSM-2004",
+  "name": "Uganda Traffic Signs Manual",
+  "source": "MoWHC Traffic Signs Manual Vol.2, July 2004, Appendix 1",
+  "textSizes": [
+    { "speedMaxKph": 50,   "xHeightMm": 100, "swMm": 25.0, "capHeightMm": 140 },
+    { "speedMaxKph": 80,   "xHeightMm": 150, "swMm": 37.5, "capHeightMm": 210 },
+    { "speedMaxKph": null, "xHeightMm": 200, "swMm": 50.0, "capHeightMm": 280 }
+  ],
+  "panel": {
+    "borderWidth": 1.5, "cornerRadius": 1.5,
+    "padTop": 2.5, "padSide": 2.5, "padBottom": 1.5,
+    "wordSpacing": 2.5, "textTileHeight": 8.0
+  },
+  "routeArms": {
+    "widthPrimary": 6.0, "widthSecondary": 4.0, "widthLocal": 2.5,
+    "minLengthVertical": 12.0, "minLengthHorizontal": 12.0,
+    "armToTopBorder": 4.0, "armToBottomBorder": 1.5
+  },
+  "mapTypeSpacing": {
+    "tileToVerticalArmTop": 0.0, "tileToVerticalArmSide": 4.0,
+    "tileToHorizontalArmBottom": 1.5, "tileToArmTop": 2.5,
+    "tileToDiagonalArmEnd": 2.5
+  },
+  "roundabout": { "innerDiameter": 14.0, "outerDiameter": 24.0 },
+  "embeddedSigns": { "heightSw": 20.0, "whiteEdgeOnGreen": 0.5 },
+  "fonts": {
+    "onDark":  { "face": "Transport Medium", "file": "tranm___.TTF" },
+    "onLight": { "face": "Transport Heavy",  "file": "tranh___.TTF" }
+  },
+  "constraints": {
+    "maxDestinations": 4, "maxDestinationsPerDirection": 2,
+    "nearerDestinationAbove": true, "uniformTextSize": true
+  }
+}
