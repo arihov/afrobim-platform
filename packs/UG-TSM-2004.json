@@ -54,8 +54,20 @@
   },
   "symbols": {
     "symbols": [
-      { "id": "aircraft",   "name": "Aircraft symbol", "sizeSw": 10.0, "group": "pictogram", "artworkRef": "aircraft" },
-      { "id": "parking-p",  "name": "Parking (P)",     "sizeSw": 14.0, "group": "pictogram", "artworkRef": "parking-p" }
+      { "id": "aircraft",    "name": "Aircraft symbol",     "sizeSw": 10.0, "group": "pictogram", "artworkRef": "aircraft" },
+      { "id": "parking-p",   "name": "Parking (P)",         "sizeSw": 14.0, "group": "pictogram", "artworkRef": "parking-p" },
+      { "id": "telephone",   "name": "Telephone",           "sizeSw": 14.0, "group": "pictogram", "artworkRef": "telephone" },
+      { "id": "first-aid",   "name": "First aid (red cross)","sizeSw": 14.0, "group": "pictogram", "artworkRef": "first-aid" },
+      { "id": "pump",        "name": "Filling station",     "sizeSw": 14.0, "group": "pictogram", "artworkRef": "pump" },
+      { "id": "wrench",      "name": "Workshop",            "sizeSw": 14.0, "group": "pictogram", "artworkRef": "wrench" },
+      { "id": "cup",         "name": "Refreshments",        "sizeSw": 14.0, "group": "pictogram", "artworkRef": "cup" },
+      { "id": "fork-knife",  "name": "Restaurant",          "sizeSw": 14.0, "group": "pictogram", "artworkRef": "fork-knife" },
+      { "id": "bed",         "name": "Hotel / accommodation","sizeSw": 14.0, "group": "pictogram", "artworkRef": "bed" },
+      { "id": "table-tree",  "name": "Rest area",           "sizeSw": 14.0, "group": "pictogram", "artworkRef": "table-tree" },
+      { "id": "tent",        "name": "Camp site",           "sizeSw": 14.0, "group": "pictogram", "artworkRef": "tent" },
+      { "id": "bus",         "name": "Bus stop",            "sizeSw": 14.0, "group": "pictogram", "artworkRef": "bus" },
+      { "id": "pedestrian",  "name": "Pedestrian crossing", "sizeSw": 14.0, "group": "pictogram", "artworkRef": "pedestrian" },
+      { "id": "hump",        "name": "Road hump",           "sizeSw": 14.0, "group": "pictogram", "artworkRef": "hump" }
     ]
   },
   "catalog": {
@@ -77,7 +89,33 @@
       { "key": "G22.1", "name": "Place identification — entry","family": "place-id",       "series": "G", "scheme": "secondary" },
       { "key": "G22.2", "name": "Place identification — exit", "family": "place-id",       "series": "G", "scheme": "secondary" },
       { "key": "G31",   "name": "Diversion ahead (temporary)", "family": "diversion",      "series": "G", "scheme": "temporary" },
-      { "key": "G32",   "name": "Diverted traffic (temporary)","family": "diversion",      "series": "G", "scheme": "temporary" }
+      { "key": "G32",   "name": "Diverted traffic (temporary)","family": "diversion",      "series": "G", "scheme": "temporary" },
+
+      { "key": "I01", "name": "Pedestrian crossing",       "family": "information", "series": "I", "scheme": "information", "symbolId": "pedestrian" },
+      { "key": "I02", "name": "Road hump",                 "family": "information", "series": "I", "scheme": "information", "symbolId": "hump" },
+      { "key": "I03", "name": "No through road",           "family": "information", "series": "I", "scheme": "information", "symbolId": "no-through-road" },
+      { "key": "I04", "name": "Car park",                  "family": "information", "series": "I", "scheme": "information", "symbolId": "parking-p" },
+      { "key": "I05", "name": "Bus stop",                  "family": "information", "series": "I", "scheme": "information", "symbolId": "bus" },
+      { "key": "I06", "name": "Priority over oncoming vehicles", "family": "information", "series": "I", "scheme": "information", "symbolId": "priority" },
+      { "key": "I07", "name": "One-way route",             "family": "information", "series": "I", "scheme": "information", "symbolId": "one-way" },
+      { "key": "I08", "name": "Police control (temporary)","family": "information", "series": "I", "scheme": "information", "symbolId": "police" },
+      { "key": "I09", "name": "Start of extra lane",       "family": "information", "series": "I", "scheme": "secondary",   "symbolId": "lane-start" },
+      { "key": "I10", "name": "End of extra lane",         "family": "information", "series": "I", "scheme": "secondary",   "symbolId": "lane-end" },
+
+      { "key": "I21", "name": "Hospital",                  "family": "information", "series": "I", "scheme": "information", "symbolId": "hospital" },
+      { "key": "I22", "name": "First aid",                 "family": "information", "series": "I", "scheme": "information", "symbolId": "first-aid" },
+      { "key": "I23", "name": "Telephone",                 "family": "information", "series": "I", "scheme": "information", "symbolId": "telephone" },
+      { "key": "I24", "name": "Information",               "family": "information", "series": "I", "scheme": "information", "symbolId": "information" },
+      { "key": "I25", "name": "Filling station",           "family": "information", "series": "I", "scheme": "information", "symbolId": "pump" },
+      { "key": "I26", "name": "Vehicle repairs",           "family": "information", "series": "I", "scheme": "information", "symbolId": "wrench" },
+      { "key": "I27", "name": "Refreshments",              "family": "information", "series": "I", "scheme": "information", "symbolId": "cup" },
+      { "key": "I28", "name": "Restaurant",                "family": "information", "series": "I", "scheme": "information", "symbolId": "fork-knife" },
+      { "key": "I29", "name": "Hotel / accommodation",     "family": "information", "series": "I", "scheme": "information", "symbolId": "bed" },
+      { "key": "I30", "name": "Rest area",                 "family": "information", "series": "I", "scheme": "information", "symbolId": "table-tree" },
+      { "key": "I31", "name": "Camp site",                 "family": "information", "series": "I", "scheme": "information", "symbolId": "tent" },
+      { "key": "I32", "name": "Airport",                   "family": "information", "series": "I", "scheme": "information", "symbolId": "aircraft" },
+
+      { "key": "I51", "name": "Tourist attraction",        "family": "tourist",     "series": "I", "scheme": "tourist",     "symbolId": "tourist" }
     ]
   }
 }
