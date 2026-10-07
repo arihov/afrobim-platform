@@ -31,5 +31,53 @@
   "constraints": {
     "maxDestinations": 4, "maxDestinationsPerDirection": 2,
     "nearerDestinationAbove": true, "uniformTextSize": true
+  },
+  "arrows": {
+    "shaftLength": 12.0, "shaftWidth": 3.0,
+    "headLength": 12.0, "headFlare": 3.0,
+    "flareAngleDeg": 70.0, "pointHalfAngleDeg": 45.0,
+    "innerCornerRadius": 2.0, "tipRadius": 0.2
+  },
+  "embeddedShapes": {
+    // triangle border / roundel ring are provisional 1/8-of-height proportions,
+    // to be confirmed against Vol.2 §Warning / §Regulatory in S8.
+    "triangleBorderWidth": 2.5, "roundelRingWidth": 2.5, "roundelDiameter": 20.0
+  },
+  "palettes": {
+    "entries": [
+      { "scheme": "primary",     "ground": "Green",  "lettering": "White", "arm": "White", "face": "TransportMedium" },
+      { "scheme": "secondary",   "ground": "White",  "lettering": "Black", "arm": "Black", "face": "TransportHeavy"  },
+      { "scheme": "information", "ground": "Blue",   "lettering": "White", "arm": "White", "face": "TransportMedium" },
+      { "scheme": "tourist",     "ground": "Brown",  "lettering": "White", "arm": "White", "face": "TransportMedium" },
+      { "scheme": "temporary",   "ground": "Yellow", "lettering": "Black", "arm": "Black", "face": "TransportHeavy"  }
+    ]
+  },
+  "symbols": {
+    "symbols": [
+      { "id": "aircraft",   "name": "Aircraft symbol", "sizeSw": 10.0, "group": "pictogram", "artworkRef": "aircraft" },
+      { "id": "parking-p",  "name": "Parking (P)",     "sizeSw": 14.0, "group": "pictogram", "artworkRef": "parking-p" }
+    ]
+  },
+  "catalog": {
+    "entries": [
+      { "key": "G01.1", "name": "Map-type ADS — roundabout",   "family": "map-roundabout", "series": "G", "scheme": "primary" },
+      { "key": "G01.2", "name": "Map-type ADS — roundabout",   "family": "map-roundabout", "series": "G", "scheme": "secondary" },
+      { "key": "G02.1", "name": "Map-type ADS — crossroads",   "family": "map-crossroads", "series": "G", "scheme": "primary" },
+      { "key": "G02.2", "name": "Map-type ADS — crossroads",   "family": "map-crossroads", "series": "G", "scheme": "secondary" },
+      { "key": "G03.1", "name": "Map-type ADS — T-intersection","family": "map-tee",       "series": "G", "scheme": "primary" },
+      { "key": "G03.2", "name": "Map-type ADS — T-intersection","family": "map-tee",       "series": "G", "scheme": "secondary" },
+      { "key": "G04.1", "name": "Stack-type ADS",              "family": "stack",          "series": "G", "scheme": "primary" },
+      { "key": "G04.2", "name": "Stack-type ADS",              "family": "stack",          "series": "G", "scheme": "secondary" },
+      { "key": "G05.1", "name": "Lane pre-selection",          "family": "lane",           "series": "G", "scheme": "primary" },
+      { "key": "G05.2", "name": "Lane pre-selection",          "family": "lane",           "series": "G", "scheme": "secondary" },
+      { "key": "G11.1", "name": "Direction sign",              "family": "direction",      "series": "G", "scheme": "primary" },
+      { "key": "G11.2", "name": "Direction sign",              "family": "direction",      "series": "G", "scheme": "secondary" },
+      { "key": "G21.1", "name": "Confirmatory sign",           "family": "confirmatory",   "series": "G", "scheme": "primary" },
+      { "key": "G21.2", "name": "Confirmatory sign",           "family": "confirmatory",   "series": "G", "scheme": "secondary" },
+      { "key": "G22.1", "name": "Place identification — entry","family": "place-id",       "series": "G", "scheme": "secondary" },
+      { "key": "G22.2", "name": "Place identification — exit", "family": "place-id",       "series": "G", "scheme": "secondary" },
+      { "key": "G31",   "name": "Diversion ahead (temporary)", "family": "diversion",      "series": "G", "scheme": "temporary" },
+      { "key": "G32",   "name": "Diverted traffic (temporary)","family": "diversion",      "series": "G", "scheme": "temporary" }
+    ]
   }
 }
