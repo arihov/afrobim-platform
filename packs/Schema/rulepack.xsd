@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignCore rule-pack schema (XML only, no target namespace).
+
+  Covers the folder-pack manifest (<rulePack> + <sections>/<section>) and the root
+  element of every per-concern section file a pack may carry. RulePackLoader resolves
+  this file as <packDirectory>/../Schema/rulepack.xsd and validates the manifest and
+  every section against it when it is found; when it is absent (e.g. a temporary
+  fixture pack) XSD validation is skipped and the semantic checks in the loader still
+  run.
+
+  Deliberate strictness: required attributes and value types are enforced here so a
+  typo fails at load. Enumerated token lists mirror the SignCore.Model enums exactly.
+  Value ranges (positive lengths, angle bounds, sign-page key syntax, duplicate
+  schemes/ids, catalog-to-palette cross references) stay in the loader so they can
+  report a SignCore-specific message.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+  <!-- ─── shared types ───────────────────────────────────────────────────── -->
+
+  <!-- An "sw" multiples-of-a-stroke-width dimension, or a diameter in sw. -->
+  <xs:simpleType name="sw">
+    <xs:restriction base="xs:decimal"/>
+  </xs:simpleType>
+
+  <!-- A plain length/radius in the same unit family as sw. -->
+  <xs:simpleType name="length">
+    <xs:restriction base="xs:decimal"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="angleDeg">
+    <xs:restriction base="xs:decimal"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="millimetres">
+    <xs:restriction base="xs:decimal"/>
+  </xs:simpleType>
+
+  <!-- SignCore.Model.Colour -->
+  <xs:simpleType name="colourToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="White"/>
+      <xs:enumeration value="Black"/>
+      <xs:enumeration value="Green"/>
+      <xs:enumeration value="Blue"/>
+      <xs:enumeration value="Brown"/>
+      <xs:enumeration value="Yellow"/>
+      <xs:enumeration value="Red"/>
+      <xs:enumeration value="Grey"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- SignCore.Model.FontFace -->
+  <xs:simpleType name="fontFaceToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="TransportMedium"/>
+      <xs:enumeration value="TransportHeavy"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Layout family token consumed by SignCore.Layout (map-tee, stack, place-id, ...). -->
+  <xs:simpleType name="familyToken">
+    <xs:restriction base="xs:string">
+      <xs:minLength value="1"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="fontRefType">
+    <xs:attribute name="face" type="xs:string" use="required"/>
+    <xs:attribute name="file" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <!-- ─── manifest ───────────────────────────────────────────────────────── -->
+
+  <xs:element name="rulePack">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="sections" minOccurs="0"/>
+      </xs:sequence>
+      <xs:attribute name="id" type="xs:string" use="required"/>
+      <xs:attribute name="name" type="xs:string" use="required"/>
+      <xs:attribute name="source" type="xs:string" use="required"/>
+      <xs:attribute name="version" type="xs:string" use="optional"/>
+      <xs:attribute name="standardsYear" type="xs:gYear" use="optional"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="sections">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="section" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- One per-concern XML file inside the pack folder, in load order. -->
+  <xs:element name="section">
+    <xs:complexType>
+      <xs:attribute name="file" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── textSizes (App.1 §2.1.1 Table 1) ───────────────────────────────── -->
+
+  <xs:element name="textSizesSection">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="textSize" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="textSize">
+    <xs:complexType>
+      <!-- An omitted speedMaxKph means the open-ended top band. -->
+      <xs:attribute name="speedMaxKph" type="xs:int" use="optional"/>
+      <xs:attribute name="xHeightMm" type="millimetres" use="required"/>
+      <xs:attribute name="swMm" type="millimetres" use="required"/>
+      <xs:attribute name="capHeightMm" type="millimetres" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── panel (App.1 §1.3) ─────────────────────────────────────────────── -->
+
+  <xs:element name="panelSection">
+    <xs:complexType>
+      <xs:attribute name="borderWidth" type="sw" use="required"/>
+      <xs:attribute name="cornerRadius" type="sw" use="required"/>
+      <xs:attribute name="padTop" type="sw" use="required"/>
+      <xs:attribute name="padSide" type="sw" use="required"/>
+      <xs:attribute name="padBottom" type="sw" use="required"/>
+      <xs:attribute name="wordSpacing" type="sw" use="required"/>
+      <xs:attribute name="textTileHeight" type="sw" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── routeArms (App.1 §2.2.1) ───────────────────────────────────────── -->
+
+  <xs:element name="routeArmsSection">
+    <xs:complexType>
+      <xs:attribute name="widthPrimary" type="sw" use="required"/>
+      <xs:attribute name="widthSecondary" type="sw" use="required"/>
+      <xs:attribute name="widthLocal" type="sw" use="required"/>
+      <xs:attribute name="minLengthVertical" type="sw" use="required"/>
+      <xs:attribute name="minLengthHorizontal" type="sw" use="required"/>
+      <xs:attribute name="armToTopBorder" type="sw" use="required"/>
+      <xs:attribute name="armToBottomBorder" type="sw" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── mapTypeSpacing (App.1 §2.2.1) ──────────────────────────────────── -->
+
+  <xs:element name="mapTypeSpacingSection">
+    <xs:complexType>
+      <xs:attribute name="tileToVerticalArmTop" type="sw" use="required"/>
+      <xs:attribute name="tileToVerticalArmSide" type="sw" use="required"/>
+      <xs:attribute name="tileToHorizontalArmBottom" type="sw" use="required"/>
+      <xs:attribute name="tileToArmTop" type="sw" use="required"/>
+      <xs:attribute name="tileToDiagonalArmEnd" type="sw" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── roundabout (App.1 Figure 2) ────────────────────────────────────── -->
+
+  <xs:element name="roundaboutSection">
+    <xs:complexType>
+      <xs:attribute name="innerDiameter" type="sw" use="required"/>
+      <xs:attribute name="outerDiameter" type="sw" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── embeddedSigns (App.1 §2.1.3) ───────────────────────────────────── -->
+
+  <xs:element name="embeddedSignsSection">
+    <xs:complexType>
+      <xs:attribute name="heightSw" type="sw" use="required"/>
+      <xs:attribute name="whiteEdgeOnGreen" type="sw" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── fonts (App.1 §1.2) ─────────────────────────────────────────────── -->
+
+  <xs:element name="fontsSection">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="onDark" type="fontRefType"/>
+        <xs:element name="onLight" type="fontRefType"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── constraints (App.1 §2.1.2) ─────────────────────────────────────── -->
+
+  <xs:element name="constraintsSection">
+    <xs:complexType>
+      <xs:attribute name="maxDestinations" type="xs:int" use="required"/>
+      <xs:attribute name="maxDestinationsPerDirection" type="xs:int" use="required"/>
+      <xs:attribute name="nearerDestinationAbove" type="xs:boolean" use="required"/>
+      <xs:attribute name="uniformTextSize" type="xs:boolean" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── arrows (App.1 §2.6 Figure 5) ───────────────────────────────────── -->
+
+  <xs:element name="arrowsSection">
+    <xs:complexType>
+      <xs:attribute name="shaftLength" type="length" use="required"/>
+      <xs:attribute name="shaftWidth" type="length" use="required"/>
+      <xs:attribute name="headLength" type="length" use="required"/>
+      <xs:attribute name="headFlare" type="length" use="required"/>
+      <xs:attribute name="flareAngleDeg" type="angleDeg" use="required"/>
+      <xs:attribute name="pointHalfAngleDeg" type="angleDeg" use="required"/>
+      <xs:attribute name="innerCornerRadius" type="length" use="required"/>
+      <xs:attribute name="tipRadius" type="length" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── embeddedShapes (App.1 §2.1.3 proportions) ──────────────────────── -->
+
+  <xs:element name="embeddedShapesSection">
+    <xs:complexType>
+      <xs:attribute name="triangleBorderWidth" type="sw" use="required"/>
+      <xs:attribute name="roundelRingWidth" type="sw" use="required"/>
+      <xs:attribute name="roundelDiameter" type="sw" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── palettes (App.1 §1.2 + App.3 scheme table) ─────────────────────── -->
+
+  <xs:element name="palettesSection">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="palette" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="palette">
+    <xs:complexType>
+      <xs:attribute name="scheme" type="xs:string" use="required"/>
+      <xs:attribute name="ground" type="colourToken" use="required"/>
+      <xs:attribute name="lettering" type="colourToken" use="required"/>
+      <xs:attribute name="arm" type="colourToken" use="required"/>
+      <xs:attribute name="face" type="fontFaceToken" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── symbols (spec §10) ─────────────────────────────────────────────── -->
+
+  <xs:element name="symbolsSection">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="symbol" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="symbol">
+    <xs:complexType>
+      <xs:attribute name="id" type="xs:string" use="required"/>
+      <xs:attribute name="name" type="xs:string" use="required"/>
+      <xs:attribute name="sizeSw" type="sw" use="required"/>
+      <xs:attribute name="group" type="xs:string" use="required"/>
+      <xs:attribute name="artworkRef" type="xs:string" use="optional"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── catalog (App.3 sign pages) ─────────────────────────────────────── -->
+
+  <xs:element name="catalogSection">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="signPage" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="signPage">
+    <xs:complexType>
+      <xs:attribute name="key" type="xs:string" use="required"/>
+      <xs:attribute name="name" type="xs:string" use="required"/>
+      <xs:attribute name="family" type="familyToken" use="required"/>
+      <xs:attribute name="series" type="xs:string" use="required"/>
+      <xs:attribute name="scheme" type="xs:string" use="required"/>
+      <xs:attribute name="symbolId" type="xs:string" use="optional"/>
+      <!-- Whitespace-separated EmbeddedType/symbol ids carried by this page. -->
+      <xs:attribute name="embeddedSymbols" type="xs:string" use="optional"/>
+      <xs:attribute name="template" type="xs:string" use="optional"/>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

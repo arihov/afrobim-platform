@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignCore sign-schedule schema (XML only, no target namespace).
+
+  This is the canonical schedule document: the shape ScheduleXmlExporter writes and
+  XmlSignScheduleImporter reads. Both <sign-schedule> and the camelCase alias
+  <signSchedule> are declared because the importer accepts either root.
+
+  The importer stays deliberately more permissive than this schema (hyphen and
+  underscore attribute aliases are interchangeable, background/scheme/variant default
+  when absent, unknown attributes and elements are ignored) so third party exports
+  keep working. Use this schema to check SignCore's own output and hand authored
+  schedules.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+  <xs:simpleType name="kindToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="stack"/>
+      <xs:enumeration value="map-crossroads"/>
+      <xs:enumeration value="map-tee"/>
+      <xs:enumeration value="map-roundabout"/>
+      <xs:enumeration value="direction"/>
+      <xs:enumeration value="confirmatory"/>
+      <xs:enumeration value="place-id"/>
+      <xs:enumeration value="lane"/>
+      <xs:enumeration value="information"/>
+      <xs:enumeration value="diversion"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="approachToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="primary"/>
+      <xs:enumeration value="secondary"/>
+      <xs:enumeration value="local"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="colourToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="white"/>
+      <xs:enumeration value="black"/>
+      <xs:enumeration value="green"/>
+      <xs:enumeration value="blue"/>
+      <xs:enumeration value="brown"/>
+      <xs:enumeration value="yellow"/>
+      <xs:enumeration value="red"/>
+      <xs:enumeration value="grey"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="schemeToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="auto"/>
+      <xs:enumeration value="primary"/>
+      <xs:enumeration value="secondary"/>
+      <xs:enumeration value="information"/>
+      <xs:enumeration value="tourist"/>
+      <xs:enumeration value="temporary"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="variantToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="primary"/>
+      <xs:enumeration value="secondary"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="directionToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ahead"/>
+      <xs:enumeration value="left"/>
+      <xs:enumeration value="right"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="destinationType">
+    <xs:attribute name="name" type="xs:string" use="required"/>
+    <xs:attribute name="direction" type="directionToken" use="required"/>
+    <!-- Proximity rank within the direction; 0 is nearer (App.1 §2.1.2). -->
+    <xs:attribute name="order" type="xs:int" use="optional" default="0"/>
+    <xs:attribute name="symbol" type="xs:string" use="optional"/>
+    <xs:attribute name="distance" type="xs:string" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="scheduleType">
+    <xs:sequence>
+      <xs:element ref="sign" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="standard" type="xs:string" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="signType">
+    <xs:sequence>
+      <xs:element ref="destination" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="code" type="xs:string" use="required"/>
+    <xs:attribute name="kind" type="kindToken" use="required"/>
+    <xs:attribute name="speed-kph" type="xs:int" use="required"/>
+    <xs:attribute name="approach-class" type="approachToken" use="required"/>
+    <xs:attribute name="background" type="colourToken" use="optional" default="green"/>
+    <xs:attribute name="scheme" type="schemeToken" use="optional"/>
+    <xs:attribute name="variant" type="variantToken" use="optional"/>
+  </xs:complexType>
+
+  <xs:element name="sign-schedule" type="scheduleType"/>
+  <xs:element name="signSchedule" type="scheduleType"/>
+  <xs:element name="sign" type="signType"/>
+  <xs:element name="destination" type="destinationType"/>
+
+</xs:schema>

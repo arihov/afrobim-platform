@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spec §10: the named vector symbols the artwork library can draw. sizeSw is the
+  nominal box side (aircraft 10, P 14) where the standard fixes one; artworkRef
+  keys into the vector artwork registry resolved in S10.
+-->
+<symbolsSection>
+  <symbol id="aircraft"   name="Aircraft symbol"      sizeSw="10.0" group="pictogram" artworkRef="aircraft"/>
+  <symbol id="parking-p"  name="Parking (P)"          sizeSw="14.0" group="pictogram" artworkRef="parking-p"/>
+  <symbol id="telephone"  name="Telephone"            sizeSw="14.0" group="pictogram" artworkRef="telephone"/>
+  <symbol id="first-aid"  name="First aid (red cross)" sizeSw="14.0" group="pictogram" artworkRef="first-aid"/>
+  <symbol id="pump"       name="Filling station"      sizeSw="14.0" group="pictogram" artworkRef="pump"/>
+  <symbol id="wrench"     name="Workshop"             sizeSw="14.0" group="pictogram" artworkRef="wrench"/>
+  <symbol id="cup"        name="Refreshments"         sizeSw="14.0" group="pictogram" artworkRef="cup"/>
+  <symbol id="fork-knife" name="Restaurant"           sizeSw="14.0" group="pictogram" artworkRef="fork-knife"/>
+  <symbol id="bed"        name="Hotel / accommodation" sizeSw="14.0" group="pictogram" artworkRef="bed"/>
+  <symbol id="table-tree" name="Rest area"            sizeSw="14.0" group="pictogram" artworkRef="table-tree"/>
+  <symbol id="tent"       name="Camp site"            sizeSw="14.0" group="pictogram" artworkRef="tent"/>
+  <symbol id="bus"        name="Bus stop"             sizeSw="14.0" group="pictogram" artworkRef="bus"/>
+  <symbol id="pedestrian" name="Pedestrian crossing"  sizeSw="14.0" group="pictogram" artworkRef="pedestrian"/>
+  <symbol id="hump"       name="Road hump"            sizeSw="14.0" group="pictogram" artworkRef="hump"/>
+</symbolsSection>

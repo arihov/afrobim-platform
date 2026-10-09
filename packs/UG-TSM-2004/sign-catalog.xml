@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  App.3 sign-page catalogue: every registered Appendix 3 page. key is the canonical
+  sign-page reference (e.g. "G02.1"); family is the layout token consumed by the
+  layout/CLI/app layers; scheme must resolve against palettes.xml.
+  18 guidance (G) + 23 information (I) pages = 41 entries.
+-->
+<catalogSection>
+  <!-- Guidance: map-type / stack-type ADS (App.3 §1, App.1 §2.2) -->
+  <signPage key="G01.1" name="Map-type ADS — roundabout"    family="map-roundabout" series="G" scheme="primary"/>
+  <signPage key="G01.2" name="Map-type ADS — roundabout"    family="map-roundabout" series="G" scheme="secondary"/>
+  <signPage key="G02.1" name="Map-type ADS — crossroads"    family="map-crossroads" series="G" scheme="primary"/>
+  <signPage key="G02.2" name="Map-type ADS — crossroads"    family="map-crossroads" series="G" scheme="secondary"/>
+  <signPage key="G03.1" name="Map-type ADS — T-intersection" family="map-tee"       series="G" scheme="primary"/>
+  <signPage key="G03.2" name="Map-type ADS — T-intersection" family="map-tee"       series="G" scheme="secondary"/>
+  <signPage key="G04.1" name="Stack-type ADS"               family="stack"          series="G" scheme="primary"/>
+  <signPage key="G04.2" name="Stack-type ADS"               family="stack"          series="G" scheme="secondary"/>
+  <signPage key="G05.1" name="Lane pre-selection"           family="lane"           series="G" scheme="primary"/>
+  <signPage key="G05.2" name="Lane pre-selection"           family="lane"           series="G" scheme="secondary"/>
+
+  <!-- Guidance: direction, confirmatory, place identification -->
+  <signPage key="G11.1" name="Direction sign"               family="direction"      series="G" scheme="primary"/>
+  <signPage key="G11.2" name="Direction sign"               family="direction"      series="G" scheme="secondary"/>
+  <signPage key="G21.1" name="Confirmatory sign"            family="confirmatory"   series="G" scheme="primary"/>
+  <signPage key="G21.2" name="Confirmatory sign"            family="confirmatory"   series="G" scheme="secondary"/>
+  <signPage key="G22.1" name="Place identification — entry" family="place-id"       series="G" scheme="secondary"/>
+  <signPage key="G22.2" name="Place identification — exit"  family="place-id"       series="G" scheme="secondary"/>
+
+  <!-- Temporary diversion (App.3 G31/G32) -->
+  <signPage key="G31"   name="Diversion ahead (temporary)"  family="diversion"      series="G" scheme="temporary"/>
+  <signPage key="G32"   name="Diverted traffic (temporary)" family="diversion"      series="G" scheme="temporary"/>
+
+  <!-- Information §5: road and traffic symbols (I01-I10, symbol plates) -->
+  <signPage key="I01" name="Pedestrian crossing"            family="information" series="I" scheme="information" symbolId="pedestrian"/>
+  <signPage key="I02" name="Road hump"                      family="information" series="I" scheme="information" symbolId="hump"/>
+  <signPage key="I03" name="No through road"                family="information" series="I" scheme="information" symbolId="no-through-road"/>
+  <signPage key="I04" name="Car park"                       family="information" series="I" scheme="information" symbolId="parking-p"/>
+  <signPage key="I05" name="Bus stop"                       family="information" series="I" scheme="information" symbolId="bus"/>
+  <signPage key="I06" name="Priority over oncoming vehicles" family="information" series="I" scheme="information" symbolId="priority"/>
+  <signPage key="I07" name="One-way route"                  family="information" series="I" scheme="information" symbolId="one-way"/>
+  <signPage key="I08" name="Police control (temporary)"     family="information" series="I" scheme="information" symbolId="police"/>
+  <signPage key="I09" name="Start of extra lane"            family="information" series="I" scheme="secondary"   symbolId="lane-start"/>
+  <signPage key="I10" name="End of extra lane"              family="information" series="I" scheme="secondary"   symbolId="lane-end"/>
+
+  <!-- Information §5: services, places and tourist attraction plates -->
+  <signPage key="I21" name="Hospital"                       family="information" series="I" scheme="information" symbolId="hospital"/>
+  <signPage key="I22" name="First aid"                      family="information" series="I" scheme="information" symbolId="first-aid"/>
+  <signPage key="I23" name="Telephone"                      family="information" series="I" scheme="information" symbolId="telephone"/>
+  <signPage key="I24" name="Information"                    family="information" series="I" scheme="information" symbolId="information"/>
+  <signPage key="I25" name="Filling station"                family="information" series="I" scheme="information" symbolId="pump"/>
+  <signPage key="I26" name="Vehicle repairs"                family="information" series="I" scheme="information" symbolId="wrench"/>
+  <signPage key="I27" name="Refreshments"                   family="information" series="I" scheme="information" symbolId="cup"/>
+  <signPage key="I28" name="Restaurant"                     family="information" series="I" scheme="information" symbolId="fork-knife"/>
+  <signPage key="I29" name="Hotel / accommodation"          family="information" series="I" scheme="information" symbolId="bed"/>
+  <signPage key="I30" name="Rest area"                      family="information" series="I" scheme="information" symbolId="table-tree"/>
+  <signPage key="I31" name="Camp site"                      family="information" series="I" scheme="information" symbolId="tent"/>
+  <signPage key="I32" name="Airport"                        family="information" series="I" scheme="information" symbolId="aircraft"/>
+
+  <signPage key="I51" name="Tourist attraction"             family="tourist"     series="I" scheme="tourist"     symbolId="tourist"/>
+</catalogSection>

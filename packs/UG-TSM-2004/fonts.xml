@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  App.1 §1.2. Transport Medium on dark grounds, Transport Heavy on white.
+  SignCore never redistributes these faces: the file names are resolved against
+  the user's own font directory (see FontLocator).
+-->
+<fontsSection>
+  <onDark  face="Transport Medium" file="tranm___.TTF"/>
+  <onLight face="Transport Heavy"  file="tranh___.TTF"/>
+</fontsSection>
