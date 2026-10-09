@@ -3,7 +3,10 @@
   App.3 sign-page catalogue: every registered Appendix 3 page. key is the canonical
   sign-page reference (e.g. "G02.1"); family is the layout token consumed by the
   layout/CLI/app layers; scheme must resolve against palettes.xml.
-  18 guidance (G) + 23 information (I) pages = 41 entries.
+  18 guidance (G) + 23 information (I) pages = 41 entries. The Warning / Regulatory /
+  Supplementary families are registered in the model + codec (S7b); their plates are
+  authored in S8/S9/S10 and only then added here, so the shipped catalog lists real
+  Uganda pages only (no placeholder tiles that would render a not-yet-drawn sign).
 -->
 <catalogSection>
   <!-- Guidance: map-type / stack-type ADS (App.3 §1, App.1 §2.2) -->

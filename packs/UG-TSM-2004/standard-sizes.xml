@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  S7b — standard body-size ladders by traffic speed class (inventory §6.2, plan §2.7).
+
+  These are the plate body sizes the Warning (S8), Regulatory (S9) and Supplementary (S10)
+  engines read back per road speed class. Every number here is transcribed from the Uganda
+  Traffic Signs Manual Vol.1 — the warning-triangle side, regulatory-disc diameter and the
+  supplementary x-height / stroke-width (sw) / cap-height ladder — NOT invented. Speed bands
+  follow Vol.1 Table D.1/D.3/D.4:
+
+    low     = built-up / lower-speed roads  (≤ 50 km/h)
+    medium  = single carriageway / higher   (≤ 80 km/h)
+    high    = open / highest-speed class    (top band: speedMaxKph omitted)
+
+  lowSpeedRegulatoryDiameterMm is the Vol.1 p.21 space-limited / low-speed 400 mm regulatory
+  disc that sits alongside the three main bands. This section is OPTIONAL: a pack that does
+  not carry it still loads; S8/S9/S10 fall back to guidance when it is absent.
+-->
+<standardSizesSection lowSpeedRegulatoryDiameterMm="400">
+  <!-- Vol.1 Table D.1 (warning triangles) / D.3 (regulatory discs) / supplementary Table 2. -->
+  <sizeBand class="low"    speedMaxKph="50"
+            warningTriangleSideMm="720"  regulatoryDiameterMm="600"
+            supplementaryXHeightMm="50"  supplementarySwMm="12.5" supplementaryCapMm="70"/>
+  <sizeBand class="medium" speedMaxKph="80"
+            warningTriangleSideMm="900"  regulatoryDiameterMm="750"
+            supplementaryXHeightMm="75"  supplementarySwMm="18.75" supplementaryCapMm="105"/>
+  <!-- Open-ended top band: omitted speedMaxKph means "no upper limit". -->
+  <sizeBand class="high"
+            warningTriangleSideMm="1100" regulatoryDiameterMm="900"
+            supplementaryXHeightMm="90"  supplementarySwMm="22.5" supplementaryCapMm="126"/>
+</standardSizesSection>

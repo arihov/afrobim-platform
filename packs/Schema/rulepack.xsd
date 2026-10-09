@@ -290,4 +290,67 @@
     </xs:complexType>
   </xs:element>
 
+  <!-- ─── standardSizes (S7b: Vol.1 Table D.1/D.3/D.4 + App.1 Table 2) ────── -->
+
+  <xs:element name="standardSizesSection">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="sizeBand" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <!-- The D.4 low-speed / space-limited regulatory circle diameter, in mm. -->
+      <xs:attribute name="lowSpeedRegulatoryDiameterMm" type="millimetres" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="sizeBand">
+    <xs:complexType>
+      <!-- An omitted speedMaxKph means the open-ended top band. -->
+      <xs:attribute name="class" type="xs:string" use="required"/>
+      <xs:attribute name="speedMaxKph" type="xs:int" use="optional"/>
+      <xs:attribute name="warningTriangleSideMm" type="millimetres" use="required"/>
+      <xs:attribute name="regulatoryDiameterMm" type="millimetres" use="required"/>
+      <xs:attribute name="supplementaryXHeightMm" type="millimetres" use="required"/>
+      <xs:attribute name="supplementarySwMm" type="millimetres" use="required"/>
+      <xs:attribute name="supplementaryCapMm" type="millimetres" use="required"/>
+      <xs:attribute name="source" type="xs:string" use="optional"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── roundelsTriangles (S7b: W/R body outlines + stated slash forms) ──── -->
+
+  <xs:element name="roundelsTrianglesSection">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="slash" minOccurs="0" maxOccurs="unbounded"/>
+        <xs:element ref="proportional" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+      <xs:attribute name="warningShape" type="xs:string" use="required"/>
+      <xs:attribute name="giveWayShape" type="xs:string" use="required"/>
+      <xs:attribute name="stopShape" type="xs:string" use="required"/>
+      <xs:attribute name="regulatoryDiscShape" type="xs:string" use="required"/>
+      <!-- stopOrientation is a labelled GAP (assume across-corners); see the file comments. -->
+      <xs:attribute name="stopOrientation" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- Slash / bar FORM: colour + direction + count are STATED; width is a GAP. -->
+  <xs:element name="slash">
+    <xs:complexType>
+      <xs:attribute name="id" type="xs:string" use="required"/>
+      <xs:attribute name="appliesTo" type="xs:string" use="required"/>
+      <xs:attribute name="colour" type="xs:string" use="required"/>
+      <xs:attribute name="direction" type="xs:string" use="required"/>
+      <xs:attribute name="count" type="xs:int" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- A provisional, non-manual proportion (labelled UK-derived in the source attribute). -->
+  <xs:element name="proportional">
+    <xs:complexType>
+      <xs:attribute name="key" type="xs:string" use="required"/>
+      <xs:attribute name="fraction" type="xs:decimal" use="required"/>
+      <xs:attribute name="source" type="xs:string" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
 </xs:schema>

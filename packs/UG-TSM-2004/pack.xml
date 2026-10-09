@@ -41,5 +41,9 @@
     <section file="symbols.xml"/>
     <!-- App.3 sign-page catalogue: 18 guidance + 23 information pages. Optional (S2). -->
     <section file="sign-catalog.xml"/>
+    <!-- Vol.1 Table D.1/D.3/D.4 + App.1 Table 2: speed-class body-size ladders (mm). Optional (S7b). -->
+    <section file="standard-sizes.xml"/>
+    <!-- Vol.1/2 §Warning/§Regulatory: W/R body outlines + stated slash forms. Optional (S7b). -->
+    <section file="roundels-triangles.xml"/>
   </sections>
 </rulePack>
