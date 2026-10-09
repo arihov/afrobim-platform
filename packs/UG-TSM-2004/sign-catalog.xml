@@ -3,11 +3,11 @@
   App.3 sign-page catalogue: every registered Appendix 3 page. key is the canonical
   sign-page reference (e.g. "G02.1"); family is the layout token consumed by the
   layout/CLI/app layers; scheme must resolve against palettes.xml.
-  18 guidance (G) + 23 information (I) + 21 warning (W) + 33 regulatory (R) pages = 95
-  entries. The warning triangles were registered in S8; the regulatory family (prohibitory
-  discs, mandatory blue discs, the Stop octagon and the Give-Way point-down triangle) in S9;
-  Supplementary is authored in S10 and only then added, so the shipped catalog lists real
-  Uganda pages only (no placeholder tiles that would render a not-yet-drawn sign).
+  18 guidance (G) + 23 information (I) + 21 warning (W) + 33 regulatory (R) + 10 supplementary
+  (S) pages = 105 entries. The warning triangles were registered in S8; the regulatory family
+  (prohibitory discs, mandatory blue discs, the Stop octagon and the Give-Way point-down triangle)
+  in S9; the supplementary plates (a black-bordered white/yellow text, arrow, category or variable
+  plate) in S10, so the shipped catalog lists only real Uganda pages that render for real.
 -->
 <catalogSection>
   <!-- Guidance: map-type / stack-type ADS (App.3 §1, App.1 §2.2) -->
@@ -132,4 +132,28 @@
   <signPage key="R81"   name="Route for buses only"                    family="regulatory-mandatory"   series="R" scheme="primary" symbolId="bus"/>
   <signPage key="R82"   name="Route for cycles only"                   family="regulatory-mandatory"   series="R" scheme="primary" symbolId="bicycle"/>
   <signPage key="R83"   name="Route for pedestrians only"              family="regulatory-mandatory"   series="R" scheme="primary" symbolId="pedestrian"/>
+
+  <!-- Supplementary family (Vol.1 §D.9 p.31 / Vol.2 App.1 §3.2 + App.3 S01–S21). A plate that
+       clarifies a MAIN sign, never used alone, mounting ~75 mm below the parent. Body is STATED:
+       a rounded rectangle with a BLACK border (unlike the red W/R families) around a permanent
+       WHITE / temporary YELLOW ground, all content BLACK. Each plate lays out for real through
+       SupplementaryPlateLayout: text plates (S01 distance, S02 "For …", S21 variable 1–3 lines)
+       render centred TextRuns; S03 draws the reversible direction arrow (base points left; the
+       S-key suffix is a line count, not a mirror — reversibility is an editor SignMirror flag);
+       S11 reuses the real bus pictogram, while S12/S13/S14 (figurative truck / car / motorcycle)
+       resolve through the honest SYMBOL_UNRESOLVED placeholder on the drawn bordered ground —
+       never a blank tile, never a throw. Representative text uses the standard's own sign-page
+       examples (S01 "800" m, S02 "For 3.2 km", S21 "Except buses" / "School buses" / "Except
+       buses and taxis"); an editor overrides them. Temporary variants are handled by the engine
+       via the sign scheme (yellow ground, black border), so no duplicate temp rows are listed. -->
+  <signPage key="S01"   name="Distance to hazard or regulation"  family="supplementary" series="S" scheme="primary" symbolId="distance"/>
+  <signPage key="S02"   name="Extension of hazard or regulation" family="supplementary" series="S" scheme="primary" symbolId="extension"/>
+  <signPage key="S03"   name="Direction in which message applies" family="supplementary" series="S" scheme="primary" symbolId="direction"/>
+  <signPage key="S11"   name="Vehicle category — buses"          family="supplementary" series="S" scheme="primary" symbolId="bus"/>
+  <signPage key="S12"   name="Vehicle category — goods vehicles" family="supplementary" series="S" scheme="primary" symbolId="truck"/>
+  <signPage key="S13"   name="Vehicle category — cars"           family="supplementary" series="S" scheme="primary" symbolId="car"/>
+  <signPage key="S14"   name="Vehicle category — motorcycles"    family="supplementary" series="S" scheme="primary" symbolId="motorcycle"/>
+  <signPage key="S21.1" name="Variable text message — 1 line"    family="supplementary" series="S" scheme="primary" symbolId="text"/>
+  <signPage key="S21.2" name="Variable text message — 2 lines"   family="supplementary" series="S" scheme="primary" symbolId="text"/>
+  <signPage key="S21.3" name="Variable text message — 3 lines"   family="supplementary" series="S" scheme="primary" symbolId="text"/>
 </catalogSection>
