@@ -3,10 +3,11 @@
   App.3 sign-page catalogue: every registered Appendix 3 page. key is the canonical
   sign-page reference (e.g. "G02.1"); family is the layout token consumed by the
   layout/CLI/app layers; scheme must resolve against palettes.xml.
-  18 guidance (G) + 23 information (I) + 21 warning (W) pages = 62 entries. The warning
-  triangles were registered in S8; the Regulatory / Supplementary families are authored in
-  S9/S10 and only then added here, so the shipped catalog lists real Uganda pages only
-  (no placeholder tiles that would render a not-yet-drawn sign).
+  18 guidance (G) + 23 information (I) + 21 warning (W) + 33 regulatory (R) pages = 95
+  entries. The warning triangles were registered in S8; the regulatory family (prohibitory
+  discs, mandatory blue discs, the Stop octagon and the Give-Way point-down triangle) in S9;
+  Supplementary is authored in S10 and only then added, so the shipped catalog lists real
+  Uganda pages only (no placeholder tiles that would render a not-yet-drawn sign).
 -->
 <catalogSection>
   <!-- Guidance: map-type / stack-type ADS (App.3 §1, App.1 §2.2) -->
@@ -87,4 +88,48 @@
   <signPage key="W24"   name="Hump"                         family="warning" series="W" scheme="primary"   symbolId="hump"/>
   <signPage key="W46"   name="Cyclists in the road"         family="warning" series="W" scheme="primary"   symbolId="bicycle"/>
   <signPage key="W81"   name="Roadworks (temporary)"        family="warning" series="W" scheme="temporary" symbolId="roadworks"/>
+
+  <!-- Regulatory family (Vol.1 §Regulatory Signs p.21–24 / Vol.2 App.3 R01–R83). Bodies are
+       STATED and always draw: prohibitory = white disc / red ring / black symbol + red slash
+       (R01 red-outlier, R47/R48 blue ground, R51/R52 black border); mandatory = blue disc /
+       white border / white symbol; priority = Stop octagon + Give-Way point-down triangle.
+       Codes + .1=left / .2=right mirror pairs follow Vol.1 p.8. Only pages whose interior is
+       drawn for real (R01 bar, R41/R42/R65/R71/R72/R75/R76 arrows, R46/R49/R52 figures,
+       R47/R48/R51 crossbars) or reuses an existing glyph (R05/R08/R09/R81/R82/R83), or is
+       flagged with exactly one honest SYMBOL_UNRESOLVED placeholder (figurative vehicle / horn
+       silhouettes), are registered — so no shipped R plate renders an empty disc.
+       R21–R25/R44/R73/R74/R77, R63/R64 and the temporary variants are held back (see S9 report). -->
+  <signPage key="R01"   name="No entry for any vehicle"                family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-entry"/>
+  <signPage key="R02"   name="No entry for motor vehicles"             family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-vehicles"/>
+  <signPage key="R03"   name="No entry except motorcycles"             family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-motorcars"/>
+  <signPage key="R04"   name="No entry for trucks"                     family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-trucks"/>
+  <signPage key="R05"   name="No entry for buses and coaches"          family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-buses"/>
+  <signPage key="R06"   name="No entry for motorcycles"                family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-motorcycles"/>
+  <signPage key="R07"   name="No entry for tractors / slow vehicles"   family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-tractors"/>
+  <signPage key="R08"   name="No entry for cycles"                     family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-cycles"/>
+  <signPage key="R09"   name="No entry for pedestrians"                family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-pedestrians"/>
+  <signPage key="R10"   name="No entry for animal-drawn vehicles"      family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-oxcart"/>
+  <signPage key="R41.1" name="No left turn"                            family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-left-turn"/>
+  <signPage key="R41.2" name="No right turn"                           family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-left-turn"/>
+  <signPage key="R42"   name="No turning vehicle (U-turn)"             family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-u-turn"/>
+  <signPage key="R43"   name="No overtaking"                           family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-overtaking"/>
+  <signPage key="R45"   name="No use of horn"                          family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-horn"/>
+  <signPage key="R46"   name="Compulsory stop ahead"                   family="regulatory-prohibitory" series="R" scheme="primary" symbolId="stop-word"/>
+  <signPage key="R47"   name="No parking"                              family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-parking"/>
+  <signPage key="R48"   name="No stopping or waiting"                  family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-stopping"/>
+  <signPage key="R49"   name="Maximum speed limit"                     family="regulatory-prohibitory" series="R" scheme="primary" symbolId="speed-limit"/>
+  <signPage key="R51"   name="End of all prohibition"                  family="regulatory-prohibitory" series="R" scheme="primary" symbolId="end-of-restriction"/>
+  <signPage key="R52"   name="End of speed limit"                      family="regulatory-prohibitory" series="R" scheme="primary" symbolId="end-of-speed-limit"/>
+  <signPage key="R65"   name="Give way to oncoming vehicles"           family="regulatory-prohibitory" series="R" scheme="primary" symbolId="give-way-oncoming"/>
+  <signPage key="R61"   name="Stop"                                    family="stop"                   series="R" scheme="primary"/>
+  <signPage key="R62"   name="Give way"                                family="give-way"               series="R" scheme="primary"/>
+  <signPage key="R71"   name="Ahead only"                              family="regulatory-mandatory"   series="R" scheme="primary" symbolId="ahead"/>
+  <signPage key="R72.1" name="Turn left ahead"                         family="regulatory-mandatory"   series="R" scheme="primary" symbolId="turn-left"/>
+  <signPage key="R72.2" name="Turn right ahead"                        family="regulatory-mandatory"   series="R" scheme="primary" symbolId="turn-left"/>
+  <signPage key="R75.1" name="Keep left"                               family="regulatory-mandatory"   series="R" scheme="primary" symbolId="pass-left"/>
+  <signPage key="R75.2" name="Keep right"                              family="regulatory-mandatory"   series="R" scheme="primary" symbolId="pass-left"/>
+  <signPage key="R76"   name="Pass either side"                        family="regulatory-mandatory"   series="R" scheme="primary" symbolId="pass-either-side"/>
+  <signPage key="R81"   name="Route for buses only"                    family="regulatory-mandatory"   series="R" scheme="primary" symbolId="bus"/>
+  <signPage key="R82"   name="Route for cycles only"                   family="regulatory-mandatory"   series="R" scheme="primary" symbolId="bicycle"/>
+  <signPage key="R83"   name="Route for pedestrians only"              family="regulatory-mandatory"   series="R" scheme="primary" symbolId="pedestrian"/>
 </catalogSection>
