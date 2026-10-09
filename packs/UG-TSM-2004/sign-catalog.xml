@@ -3,10 +3,10 @@
   App.3 sign-page catalogue: every registered Appendix 3 page. key is the canonical
   sign-page reference (e.g. "G02.1"); family is the layout token consumed by the
   layout/CLI/app layers; scheme must resolve against palettes.xml.
-  18 guidance (G) + 23 information (I) pages = 41 entries. The Warning / Regulatory /
-  Supplementary families are registered in the model + codec (S7b); their plates are
-  authored in S8/S9/S10 and only then added here, so the shipped catalog lists real
-  Uganda pages only (no placeholder tiles that would render a not-yet-drawn sign).
+  18 guidance (G) + 23 information (I) + 21 warning (W) pages = 62 entries. The warning
+  triangles were registered in S8; the Regulatory / Supplementary families are authored in
+  S9/S10 and only then added here, so the shipped catalog lists real Uganda pages only
+  (no placeholder tiles that would render a not-yet-drawn sign).
 -->
 <catalogSection>
   <!-- Guidance: map-type / stack-type ADS (App.3 §1, App.1 §2.2) -->
@@ -60,4 +60,31 @@
   <signPage key="I32" name="Airport"                        family="information" series="I" scheme="information" symbolId="aircraft"/>
 
   <signPage key="I51" name="Tourist attraction"             family="tourist"     series="I" scheme="tourist"     symbolId="tourist"/>
+
+  <!-- Warning family (Vol.1 D.5.3 schedule / Vol.2 App.3): apex-up equilateral triangle,
+       permanent WHITE/RED/BLACK, temporary YELLOW/RED/BLACK. Codes and mirror pairs follow
+       the schedule exactly (.1 = left, .2 = right, Vol.1 p.8). Only pages whose black symbol
+       is drawn in PictogramLibrary — or, for W81, honestly flagged as unresolved — are
+       registered here, so every shipped W plate renders a real triangle body. -->
+  <signPage key="W01.1" name="Sharp curve — left"           family="warning" series="W" scheme="primary"   symbolId="bend"/>
+  <signPage key="W01.2" name="Sharp curve — right"          family="warning" series="W" scheme="primary"   symbolId="bend"/>
+  <signPage key="W02.1" name="Hairpin curve — left"         family="warning" series="W" scheme="primary"   symbolId="hairpin"/>
+  <signPage key="W02.2" name="Hairpin curve — right"        family="warning" series="W" scheme="primary"   symbolId="hairpin"/>
+  <signPage key="W03.1" name="Combined curves — left"       family="warning" series="W" scheme="primary"   symbolId="double-bend"/>
+  <signPage key="W03.2" name="Combined curves — right"      family="warning" series="W" scheme="primary"   symbolId="double-bend"/>
+  <signPage key="W04"   name="Crossroad"                    family="warning" series="W" scheme="primary"   symbolId="crossroads"/>
+  <signPage key="W05.1" name="Side road — left"             family="warning" series="W" scheme="primary"   symbolId="side-road"/>
+  <signPage key="W05.2" name="Side road — right"            family="warning" series="W" scheme="primary"   symbolId="side-road"/>
+  <signPage key="W06"   name="T-intersection"               family="warning" series="W" scheme="primary"   symbolId="t-junction"/>
+  <signPage key="W07"   name="Y-intersection"               family="warning" series="W" scheme="primary"   symbolId="y-junction"/>
+  <signPage key="W10"   name="Traffic signals"              family="warning" series="W" scheme="primary"   symbolId="traffic-signal"/>
+  <signPage key="W11"   name="Road narrows both sides"      family="warning" series="W" scheme="primary"   symbolId="narrow-both"/>
+  <signPage key="W12.1" name="Road narrows one side — left" family="warning" series="W" scheme="primary"   symbolId="narrow-one"/>
+  <signPage key="W12.2" name="Road narrows one side — right" family="warning" series="W" scheme="primary"  symbolId="narrow-one"/>
+  <signPage key="W15"   name="Two-way traffic"              family="warning" series="W" scheme="primary"   symbolId="two-way"/>
+  <signPage key="W21"   name="Other danger"                 family="warning" series="W" scheme="primary"   symbolId="other-danger"/>
+  <signPage key="W23"   name="Uneven road"                  family="warning" series="W" scheme="primary"   symbolId="uneven-road"/>
+  <signPage key="W24"   name="Hump"                         family="warning" series="W" scheme="primary"   symbolId="hump"/>
+  <signPage key="W46"   name="Cyclists in the road"         family="warning" series="W" scheme="primary"   symbolId="bicycle"/>
+  <signPage key="W81"   name="Roadworks (temporary)"        family="warning" series="W" scheme="temporary" symbolId="roadworks"/>
 </catalogSection>
