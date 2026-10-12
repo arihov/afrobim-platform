@@ -26,6 +26,50 @@
       <xs:enumeration value="lane"/>
       <xs:enumeration value="information"/>
       <xs:enumeration value="diversion"/>
+      <!-- S12a: the Warning / Regulatory / Supplementary family tokens (canonical SignKind
+           spellings the CSV and XML exporters share through SignCore.Model.ScheduleCodec). -->
+      <xs:enumeration value="warning"/>
+      <xs:enumeration value="regulatory-prohibitory"/>
+      <xs:enumeration value="regulatory-mandatory"/>
+      <xs:enumeration value="stop"/>
+      <xs:enumeration value="give-way"/>
+      <xs:enumeration value="supplementary"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- Vol.1 §B sign classification carried on a schedule row (S12a). -->
+  <xs:simpleType name="classToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="warning"/>
+      <xs:enumeration value="regulatory"/>
+      <xs:enumeration value="guidance"/>
+      <xs:enumeration value="information"/>
+      <xs:enumeration value="supplementary"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- W/R symbol handedness read back from the sign-page third digit (Vol.1 p.8). -->
+  <xs:simpleType name="mirrorToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="none"/>
+      <xs:enumeration value="left"/>
+      <xs:enumeration value="right"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- App.3 §5 information-plate template. -->
+  <xs:simpleType name="infoTemplateToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="service-panel"/>
+      <xs:enumeration value="symbol-plate"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- App.1 §2.1.3 embedded symbol geometry within a guidance panel. -->
+  <xs:simpleType name="embeddedTypeToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="warning-triangle"/>
+      <xs:enumeration value="regulatory-roundel"/>
     </xs:restriction>
   </xs:simpleType>
 
@@ -92,9 +136,15 @@
     <xs:attribute name="standard" type="xs:string" use="optional"/>
   </xs:complexType>
 
+  <xs:complexType name="embeddedType">
+    <xs:attribute name="symbol-id" type="xs:string" use="required"/>
+    <xs:attribute name="type" type="embeddedTypeToken" use="required"/>
+  </xs:complexType>
+
   <xs:complexType name="signType">
     <xs:sequence>
       <xs:element ref="destination" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element ref="embedded" minOccurs="0" maxOccurs="unbounded"/>
     </xs:sequence>
     <xs:attribute name="code" type="xs:string" use="required"/>
     <xs:attribute name="kind" type="kindToken" use="required"/>
@@ -103,11 +153,22 @@
     <xs:attribute name="background" type="colourToken" use="optional" default="green"/>
     <xs:attribute name="scheme" type="schemeToken" use="optional"/>
     <xs:attribute name="variant" type="variantToken" use="optional"/>
+    <!-- S12a: optional family / classification fields so a row round-trips every
+         catalog-inserted value. All optional → older schedules stay valid. -->
+    <xs:attribute name="symbol" type="xs:string" use="optional"/>
+    <xs:attribute name="catalog-key" type="xs:string" use="optional"/>
+    <xs:attribute name="class" type="classToken" use="optional"/>
+    <xs:attribute name="info-template" type="infoTemplateToken" use="optional"/>
+    <xs:attribute name="info-arrow" type="directionToken" use="optional"/>
+    <xs:attribute name="info-distance" type="xs:string" use="optional"/>
+    <xs:attribute name="mirror" type="mirrorToken" use="optional"/>
+    <xs:attribute name="text-lines" type="xs:int" use="optional"/>
   </xs:complexType>
 
   <xs:element name="sign-schedule" type="scheduleType"/>
   <xs:element name="signSchedule" type="scheduleType"/>
   <xs:element name="sign" type="signType"/>
   <xs:element name="destination" type="destinationType"/>
+  <xs:element name="embedded" type="embeddedType"/>
 
 </xs:schema>
