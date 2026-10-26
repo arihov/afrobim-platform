@@ -67,7 +67,14 @@
       { "id": "tent",        "name": "Camp site",           "sizeSw": 14.0, "group": "pictogram", "artworkRef": "tent" },
       { "id": "bus",         "name": "Bus stop",            "sizeSw": 14.0, "group": "pictogram", "artworkRef": "bus" },
       { "id": "pedestrian",  "name": "Pedestrian crossing", "sizeSw": 14.0, "group": "pictogram", "artworkRef": "pedestrian" },
-      { "id": "hump",        "name": "Road hump",           "sizeSw": 14.0, "group": "pictogram", "artworkRef": "hump" }
+      { "id": "hump",        "name": "Road hump",           "sizeSw": 14.0, "group": "pictogram", "artworkRef": "hump" },
+      { "id": "one-way",     "name": "One-way route",       "sizeSw": 14.0, "group": "pictogram", "artworkRef": "one-way" },
+      { "id": "no-through-road", "name": "No through road", "sizeSw": 14.0, "group": "pictogram", "artworkRef": "no-through-road" },
+      { "id": "priority",    "name": "Priority over oncoming vehicles", "sizeSw": 14.0, "group": "pictogram", "artworkRef": "priority" },
+      { "id": "police",      "name": "Police control",      "sizeSw": 14.0, "group": "pictogram", "artworkRef": "police" },
+      { "id": "lane-start",  "name": "Start of extra lane", "sizeSw": 14.0, "group": "pictogram", "artworkRef": "lane-start" },
+      { "id": "lane-end",    "name": "End of extra lane",   "sizeSw": 14.0, "group": "pictogram", "artworkRef": "lane-end" },
+      { "id": "tourist",     "name": "Tourist attraction",  "sizeSw": 14.0, "group": "pictogram", "artworkRef": "tourist" }
     ]
   },
   "catalog": {
