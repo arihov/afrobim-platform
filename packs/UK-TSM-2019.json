@@ -1,0 +1,188 @@
+{
+  // UK directional informatory signs. Every value below is quoted from DfT Traffic Signs
+  // Manual Chapter 7 "The Design of Traffic Signs" (2019) and TSRGD 2016 Schedule 12,
+  // except where a comment marks it PROVISIONAL (an engine parameter Chapter 7 does not
+  // state directly). Distances are written in km/m: the UK layout, lettering and colours
+  // are used, with metric distance legends for East African use.
+  "id": "UK-TSM-2019",
+  "name": "UK Traffic Signs Manual (Chapter 7)",
+  "source": "DfT Traffic Signs Manual Chapter 7 (2019); TSRGD 2016 Schedule 12",
+
+  // Appendix E column 3: advance direction sign x-heights by 85th percentile approach speed.
+  // The mph bands are converted to km/h by rounding the upper bound down:
+  // 20 mph = 32.2, 30 = 48.3, 40 = 64.4, 50 = 80.5, 60 = 96.6, 70 = 112.7 km/h.
+  // sw = x-height / 4 (§2.2.2); capitals are 5.6 sw = 1.4 x-height (§2.2.4).
+  "textSizes": [
+    { "speedMaxKph": 32,   "xHeightMm": 75,  "swMm": 18.75, "capHeightMm": 105 },
+    { "speedMaxKph": 48,   "xHeightMm": 100, "swMm": 25.0,  "capHeightMm": 140 },
+    { "speedMaxKph": 64,   "xHeightMm": 125, "swMm": 31.25, "capHeightMm": 175 },
+    { "speedMaxKph": 80,   "xHeightMm": 150, "swMm": 37.5,  "capHeightMm": 210 },
+    { "speedMaxKph": 96,   "xHeightMm": 200, "swMm": 50.0,  "capHeightMm": 280 },
+    { "speedMaxKph": 112,  "xHeightMm": 250, "swMm": 62.5,  "capHeightMm": 350 },
+    { "speedMaxKph": null, "xHeightMm": 300, "swMm": 75.0,  "capHeightMm": 420 }
+  ],
+
+  // Appendix E columns 7 (direction signs) and 9 (route confirmatory signs), main values.
+  // Column 9 marks the up-to-20 mph band "not normally needed", so confirmatory signs
+  // start at the 21-30 mph size.
+  "textSizesByFamily": {
+    "direction": [
+      { "speedMaxKph": 32,   "xHeightMm": 60,  "swMm": 15.0,  "capHeightMm": 84 },
+      { "speedMaxKph": 48,   "xHeightMm": 75,  "swMm": 18.75, "capHeightMm": 105 },
+      { "speedMaxKph": 64,   "xHeightMm": 100, "swMm": 25.0,  "capHeightMm": 140 },
+      { "speedMaxKph": 80,   "xHeightMm": 125, "swMm": 31.25, "capHeightMm": 175 },
+      { "speedMaxKph": 96,   "xHeightMm": 150, "swMm": 37.5,  "capHeightMm": 210 },
+      { "speedMaxKph": 112,  "xHeightMm": 200, "swMm": 50.0,  "capHeightMm": 280 },
+      { "speedMaxKph": null, "xHeightMm": 300, "swMm": 75.0,  "capHeightMm": 420 }
+    ],
+    "confirmatory": [
+      { "speedMaxKph": 48,   "xHeightMm": 75,  "swMm": 18.75, "capHeightMm": 105 },
+      { "speedMaxKph": 64,   "xHeightMm": 100, "swMm": 25.0,  "capHeightMm": 140 },
+      { "speedMaxKph": 80,   "xHeightMm": 125, "swMm": 31.25, "capHeightMm": 175 },
+      { "speedMaxKph": 96,   "xHeightMm": 150, "swMm": 37.5,  "capHeightMm": 210 },
+      { "speedMaxKph": 112,  "xHeightMm": 200, "swMm": 50.0,  "capHeightMm": 280 },
+      { "speedMaxKph": null, "xHeightMm": 300, "swMm": 75.0,  "capHeightMm": 420 }
+    ]
+  },
+
+  // §2.5.4 border 1.5 sw, inside corner radius equal to it; §2.2.3 tile height 8 sw;
+  // §2.3.2 word space 2.5 sw; §4.2.1 / Figure 2-4 legend 2.5 sw from the top border and
+  // 1.5 sw from the bottom; Figure 2-2 legend 2.5 sw from a side border.
+  "panel": {
+    "borderWidth": 1.5, "cornerRadius": 1.5,
+    "padTop": 2.5, "padSide": 2.5, "padBottom": 1.5,
+    "wordSpacing": 2.5, "textTileHeight": 8.0
+  },
+
+  // §5.2.1 arm widths: 6 sw primary/motorway, 4 sw numbered or important non-primary,
+  // 2.5 sw local. §5.3.3 vertical arm minimum 12.5 sw; §5.4.4 other arms minimum 12 sw;
+  // §5.7.2 approach arm base 1.5 sw from the bottom border.
+  // PROVISIONAL armToTopBorder: the map-type engine's gap between the vertical arm tail
+  // and the horizontal arm. Chapter 7 draws the arms as one symbol with 1 sw fillets
+  // (§5.7.3); this value is carried from the existing engine until the Figure 5-7 rework.
+  "routeArms": {
+    "widthPrimary": 6.0, "widthSecondary": 4.0, "widthLocal": 2.5,
+    "minLengthVertical": 12.5, "minLengthHorizontal": 12.0,
+    "armToTopBorder": 4.0, "armToBottomBorder": 1.5
+  },
+
+  // Figure 5-2: tiles sit directly on the vertical arm tip (0), at least 4 sw beside a
+  // vertical arm, 2.5 sw below a horizontal arm, 1.5 sw above an arm; §5.4.1 2.5 sw from
+  // an inclined arm.
+  "mapTypeSpacing": {
+    "tileToVerticalArmTop": 0.0, "tileToVerticalArmSide": 4.0,
+    "tileToHorizontalArmBottom": 2.5, "tileToArmTop": 1.5,
+    "tileToDiagonalArmEnd": 2.5
+  },
+
+  // Figure 5-13: ring inner radius 7 sw, outer radius 12 sw (§5.10.1: always 5 sw wide).
+  "roundabout": { "innerDiameter": 14.0, "outerDiameter": 24.0 },
+
+  // PROVISIONAL: warning/regulatory symbol sizes on directional signs are prescribed by
+  // TSRGD 2016 S12-20 (§3.4.1) and are not transcribed yet. §3.3.1 white edge 0.5 sw.
+  "embeddedSigns": { "heightSw": 20.0, "whiteEdgeOnGreen": 0.5 },
+  "embeddedShapes": {
+    "triangleBorderWidth": 2.5, "roundelRingWidth": 2.5, "roundelDiameter": 20.0
+  },
+
+  // §2.1.1: Transport Medium for white (and yellow route number) characters on dark
+  // grounds, Transport Heavy for black characters on white or yellow grounds.
+  "fonts": {
+    "onDark":  { "face": "Transport Medium", "file": "tranm___.TTF" },
+    "onLight": { "face": "Transport Heavy",  "file": "tranh___.TTF" }
+  },
+
+  // Appendix D: reading time limits a sign to six destinations. Chapter 7 sets no
+  // separate per-direction limit, so it is bounded by the same six.
+  "constraints": {
+    "maxDestinations": 6, "maxDestinationsPerDirection": 6,
+    "nearerDestinationAbove": true, "uniformTextSize": true
+  },
+
+  // Figure 4-4 / S12-5-1 standard arrow: 16 sw long, head 8 sw wide, 45° flanks to 4 sw
+  // square barbs, back edges at 45°, shaft one third of the head width (8/3 sw).
+  // §4.2.2: shortened to 14 sw (shaft 6 sw) beside a single-line legend.
+  "arrows": {
+    "style": "chevron",
+    "shaftLength": 8.0, "shaftWidth": 2.6666666667,
+    "headLength": 8.0, "headFlare": 2.6666666667,
+    "flareAngleDeg": 45.0, "pointHalfAngleDeg": 45.0,
+    "innerCornerRadius": 0.0, "tipRadius": 0.0,
+    "shortShaftLength": 6.0
+  },
+
+  // §4.2–4.3, Figure 4-9: 1 sw dividers between direction sections; arrow 2.5 sw from the
+  // nearer border, 2.5 sw from its legend (Figure 2-2) and at least 2.5 sw from the
+  // section top and bottom; legend 1 sw above centre when the arrow sets the height.
+  "stack": {
+    "dividerWidth": 1.0, "arrowToBorder": 2.5, "arrowToLegend": 2.5,
+    "arrowClearance": 2.5, "legendRaise": 1.0
+  },
+
+  // Destination blocks, route-number patches and panels (§3.2–3.3, §3.5–3.7).
+  // Figure 3-9: a patch's coloured area runs from 1.5 sw above the route-number tiles to
+  // their foot (9.5 sw, Figure 3-11), 1 sw clear of the tiles at each side, with 1 sw
+  // between route letter and number. §3.3.1: 0.5 sw white border on a dark ground; panels
+  // keep the sign's own tile clearances (2.5 sides and top, 1.5 below tiles), and 2.5 sw
+  // below a patch (Figure 3-11). Figure 3-16 line spacing; Figure 3-17 block spacing.
+  // §3.2.1 colour coding; §2.1.1 route numbers on dark green are yellow.
+  "blocks": {
+    "patchRise": 1.5, "patchPadSide": 1.0, "edgeBorder": 0.5, "routeLetterGap": 1.0,
+    "nameToRouteNumber": 2.5,
+    "panelPadTop": 2.5, "panelPadSide": 2.5, "panelPadBottomTiles": 1.5, "panelPadBottomPatch": 2.5,
+    "lineSpacingBracketed": 0.5, "lineSpacingPatch": 0.5, "lineSpacingPatchDescender": 1.0,
+    "blockSpacingTiles": 2.0, "blockSpacingTilesOverPatch": 2.5,
+    "blockSpacingPatchOverTiles": 4.0, "blockSpacingPatchOverPatch": 2.5,
+    "statusColours": { "motorway": "Blue", "primary": "Green", "nonPrimary": "White" },
+    "routeNumberInk": { "Green": "Yellow", "White": "Black", "Blue": "White", "Brown": "White" }
+  },
+
+  // §3.9.1: a distance is at least 7 sw clear of the place name.
+  "distances": { "minGap": 7.0 },
+
+  // §3.2.1 colour coding: dark green primary routes (white legend, yellow route numbers),
+  // white non-primary routes with black legend and border (§3.2.4), blue (motorway),
+  // brown tourist (§3.12), yellow temporary.
+  "palettes": {
+    "entries": [
+      { "scheme": "primary",     "ground": "Green",  "lettering": "White", "arm": "White", "face": "TransportMedium" },
+      { "scheme": "secondary",   "ground": "White",  "lettering": "Black", "arm": "Black", "face": "TransportHeavy"  },
+      { "scheme": "information", "ground": "Blue",   "lettering": "White", "arm": "White", "face": "TransportMedium" },
+      { "scheme": "tourist",     "ground": "Brown",  "lettering": "White", "arm": "White", "face": "TransportMedium" },
+      { "scheme": "temporary",   "ground": "Yellow", "lettering": "Black", "arm": "Black", "face": "TransportHeavy"  }
+    ]
+  },
+
+  // TSRGD 2016 builds directional signs from Schedule 12 parts rather than numbered
+  // diagrams, so these keys are SignCore's own: .1 = primary route (green), .2 =
+  // non-primary (white). Each name cites the Schedule 12 part and Chapter 7 section.
+  "catalog": {
+    "entries": [
+      { "key": "UK01.1", "name": "Map-type ADS, roundabout (S12-7-2, §5.10)",       "family": "map-roundabout", "series": "UK", "scheme": "primary" },
+      { "key": "UK01.2", "name": "Map-type ADS, roundabout (S12-7-2, §5.10)",       "family": "map-roundabout", "series": "UK", "scheme": "secondary" },
+      { "key": "UK02.1", "name": "Map-type ADS, crossroads (S12-7-1, §5.7)",        "family": "map-crossroads", "series": "UK", "scheme": "primary" },
+      { "key": "UK02.2", "name": "Map-type ADS, crossroads (S12-7-1, §5.7)",        "family": "map-crossroads", "series": "UK", "scheme": "secondary" },
+      { "key": "UK03.1", "name": "Map-type ADS, T-junction (S12-7-1 varied, §5.7)", "family": "map-tee",        "series": "UK", "scheme": "primary" },
+      { "key": "UK03.2", "name": "Map-type ADS, T-junction (S12-7-1 varied, §5.7)", "family": "map-tee",        "series": "UK", "scheme": "secondary" },
+      { "key": "UK04.1", "name": "Stack-type ADS (S12-5-1 arrows, §4)",            "family": "stack",          "series": "UK", "scheme": "primary" },
+      { "key": "UK04.2", "name": "Stack-type ADS (S12-5-1 arrows, §4)",            "family": "stack",          "series": "UK", "scheme": "secondary" },
+      { "key": "UK05",   "name": "Stack-type ADS, tourist (brown, §3.12)",          "family": "stack",          "series": "UK", "scheme": "tourist" },
+      { "key": "UK06.1", "name": "Rectangular direction sign (S12-2, §7.3)",        "family": "direction",      "series": "UK", "scheme": "primary" },
+      { "key": "UK06.2", "name": "Rectangular direction sign (S12-2, §7.3)",        "family": "direction",      "series": "UK", "scheme": "secondary" },
+      { "key": "UK07.1", "name": "Route confirmatory sign (S12-2, §8)",             "family": "confirmatory",   "series": "UK", "scheme": "primary" },
+      { "key": "UK07.2", "name": "Route confirmatory sign (S12-2, §8)",             "family": "confirmatory",   "series": "UK", "scheme": "secondary" }
+    ]
+  },
+
+  // Clauses cited in layout diagnostics.
+  "clauses": {
+    "constraints":     "UK TSM Chapter 7 Appendix D",
+    "symbolPlacement": "UK TSM Chapter 7 §4.2.6",
+    "symbolSize":      "TSRGD 2016 Schedule 12 Part 11",
+    "stackEmbedded":   "UK TSM Chapter 7 §4.4–4.6",
+    "mapTee":          "UK TSM Chapter 7 §5.7",
+    "confirmatory":    "UK TSM Chapter 7 §8",
+    "information":     "TSRGD 2016 Schedule 12 Part 11",
+    "routeNumbers":    "UK TSM Chapter 7 §3.3"
+  }
+}
