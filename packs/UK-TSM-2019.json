@@ -55,11 +55,11 @@
   },
 
   // §5.2.1 arm widths: 6 sw primary/motorway, 4 sw numbered or important non-primary,
-  // 2.5 sw local. §5.3.3 vertical arm minimum 12.5 sw; §5.4.4 other arms minimum 12 sw;
-  // §5.7.2 approach arm base 1.5 sw from the bottom border.
-  // PROVISIONAL armToTopBorder: the map-type engine's gap between the vertical arm tail
-  // and the horizontal arm. Chapter 7 draws the arms as one symbol with 1 sw fillets
-  // (§5.7.3); this value is carried from the existing engine until the Figure 5-7 rework.
+  // 2.5 sw local. §5.3.3 / Figure 5-7 vertical arm minimum 12.5 sw, from the top of the
+  // horizontal arm to the point; §5.4.4 other arms minimum 12 sw along the shortest side.
+  // Figure 5-3: on a T-junction symbol the horizontal arm is 4 sw below the top border
+  // (armToTopBorder). armToBottomBorder is only read by the original map-type engine, which
+  // this pack replaces with the mapSymbol section below.
   "routeArms": {
     "widthPrimary": 6.0, "widthSecondary": 4.0, "widthLocal": 2.5,
     "minLengthVertical": 12.5, "minLengthHorizontal": 12.0,
@@ -73,6 +73,21 @@
     "tileToVerticalArmTop": 0.0, "tileToVerticalArmSide": 4.0,
     "tileToHorizontalArmBottom": 2.5, "tileToArmTop": 1.5,
     "tileToDiagonalArmEnd": 2.5
+  },
+
+  // Figure 5-7 map-type route symbol (S12-7-1), read from the working drawing: arms joined
+  // by 1 sw fillets (§5.7.3, "1r"); pointed arm ends with flanks at 45° to the arm axis
+  // ("45°"), so the point is half the arm width long; each horizontal arm reaches two thirds
+  // along its longest destination block from the vertical arm side (§5.3.4, §5.7.4, Figure
+  // 5-2 "⅔ x L"); approach arm base 1.5 sw above the bottom border (§5.7.2). Figure 5-2,
+  // §5.7.5 and §5.7.6 d: a panel, patch or symbol, or tiles with a descender, sit 1.5 sw
+  // above the point of the vertical arm. Figure 5-5: a stub (no destinations that way) is
+  // square ended, as long as it is wide, 2.5 sw from the nearer border, and at least 4 sw
+  // above the bottom border.
+  "mapSymbol": {
+    "filletRadius": 1.0, "tipHalfAngleDeg": 45.0, "sideArmReach": 0.6666666667,
+    "approachToBottomBorder": 1.5, "panelToArmTip": 1.5,
+    "stubToBorder": 2.5, "stubToBottomBorder": 4.0
   },
 
   // Figure 5-13: ring inner radius 7 sw, outer radius 12 sw (§5.10.1: always 5 sw wide).
