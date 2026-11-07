@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App.1 §2.1.2. Nearer destination above, one text size per panel. -->
+<constraintsSection maxDestinations="4" maxDestinationsPerDirection="2"
+                    nearerDestinationAbove="true" uniformTextSize="true"/>

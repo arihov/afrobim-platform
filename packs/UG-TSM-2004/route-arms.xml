@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App.1 §2.2.1. All values in sw. -->
+<routeArmsSection widthPrimary="6.0" widthSecondary="4.0" widthLocal="2.5"
+                  minLengthVertical="12.0" minLengthHorizontal="12.0"
+                  armToTopBorder="4.0" armToBottomBorder="1.5"/>
