@@ -57,6 +57,15 @@
     </xs:restriction>
   </xs:simpleType>
 
+  <!-- Side of the road a located sign stands on (looking up-station). -->
+  <xs:simpleType name="sideToken">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="left"/>
+      <xs:enumeration value="right"/>
+      <xs:enumeration value="both"/>
+    </xs:restriction>
+  </xs:simpleType>
+
   <!-- App.3 §5 information-plate template. -->
   <xs:simpleType name="infoTemplateToken">
     <xs:restriction base="xs:string">
@@ -163,6 +172,12 @@
     <xs:attribute name="info-distance" type="xs:string" use="optional"/>
     <xs:attribute name="mirror" type="mirrorToken" use="optional"/>
     <xs:attribute name="text-lines" type="xs:int" use="optional"/>
+    <!-- Location along a road alignment (all optional): station and offset in metres,
+         offset + right / - left looking up-station; side = left | right | both. -->
+    <xs:attribute name="alignment" type="xs:string" use="optional"/>
+    <xs:attribute name="station" type="xs:double" use="optional"/>
+    <xs:attribute name="offset" type="xs:double" use="optional"/>
+    <xs:attribute name="side" type="sideToken" use="optional"/>
   </xs:complexType>
 
   <xs:element name="sign-schedule" type="scheduleType"/>
