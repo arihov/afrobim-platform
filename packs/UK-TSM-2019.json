@@ -51,7 +51,73 @@
   "panel": {
     "borderWidth": 1.5, "cornerRadius": 1.5,
     "padTop": 2.5, "padSide": 2.5, "padBottom": 1.5,
-    "wordSpacing": 2.5, "textTileHeight": 8.0
+    "wordSpacing": 2.5, "textTileHeight": 8.0,
+
+    // Appendix C "Width of alphabet tiles": the official tile width of every character, in sw
+    // (1/4 of the x-height). These, not the font file's advances, set the width of a legend.
+    // Transcribed from Table 1 (Transport Medium) and Table 3 (Transport Heavy), every value
+    // as printed, and checked value by value against the PDF text (printed pp. 147-148, PDF pp. 149-150). Heavy is
+    // narrower than Medium for some characters (e.g. b, o, z, B, D, H): that is as printed.
+    // Keys are the characters on the sign: the fractions are the single code points ¼ ½ ¾ ⅓ ⅔,
+    // the raised point is U+00B7, the inches mark is the straight double quote. The feet mark
+    // is printed as one tile "'-" (apostrophe and hyphen, as in 14'-6"), 3.40 / 3.52 sw, not
+    // the sum of its parts. "/" is listed twice (lower and upper case) with the same width.
+    // Pair rules: upper-case T, V and Y take a narrower tile when the next character is
+    // lower-case a, e, g, o, r or u; upper-case W takes a wider tile when the next character
+    // is upper-case T, V, X, Y or Z. Characters missing from a table fall back to the font's
+    // advance and raise TILE_WIDTH_FROM_FONT.
+    "tileWidths": {
+      "transportMedium": {
+        "source": "TSM Ch7 (2019) Appendix C Table 1",
+        "widths": {
+          "A": 5.44, "B": 5.88, "C": 5.92, "D": 6.16, "E": 5.28, "F": 4.76, "G": 6.20,
+          "H": 6.40, "I": 2.92, "J": 3.72, "K": 5.52, "L": 4.28, "M": 7.36, "N": 6.72,
+          "O": 6.24, "P": 5.20, "Q": 6.32, "R": 5.64, "S": 5.48, "T": 4.36, "U": 6.16,
+          "V": 5.20, "W": 7.32, "X": 5.12, "Y": 4.92, "Z": 4.76,
+          "a": 4.44, "b": 4.88, "c": 4.12, "d": 4.76, "e": 4.36, "f": 3.00, "g": 4.56,
+          "h": 4.48, "i": 2.16, "j": 2.32, "k": 4.32, "l": 2.48, "m": 6.56, "n": 4.48,
+          "o": 4.72, "p": 4.72, "q": 4.72, "r": 3.20, "s": 3.88, "t": 3.24, "u": 4.60,
+          "v": 3.92, "w": 5.88, "x": 4.16, "y": 3.92, "z": 3.88,
+          "1": 3.16, "2": 4.80, "3": 5.08, "4": 5.28, "5": 4.88,
+          "6": 5.04, "7": 4.16, "8": 5.20, "9": 5.12, "0": 5.32,
+          "¼": 4.92, "½": 5.28, "¾": 5.92, "⅓": 5.16, "⅔": 6.60,
+          "&": 5.04, "(": 4.20, ")": 4.20, "?": 5.52, ".": 2.12, "·": 2.12, ":": 2.12,
+          ",": 2.60, "'": 1.56, "-": 2.64, "'-": 3.40, "\"": 3.68, "/": 3.12, "£": 5.36,
+          "%": 6.40
+        },
+        "pairRules": [
+          { "character": "T", "followedBy": "aegoru", "width": 3.92 },
+          { "character": "V", "followedBy": "aegoru", "width": 4.52 },
+          { "character": "Y", "followedBy": "aegoru", "width": 4.44 },
+          { "character": "W", "followedBy": "TVXYZ",  "width": 7.56 }
+        ]
+      },
+      "transportHeavy": {
+        "source": "TSM Ch7 (2019) Appendix C Table 3",
+        "widths": {
+          "A": 5.68, "B": 5.84, "C": 6.04, "D": 6.00, "E": 5.44, "F": 4.84, "G": 6.24,
+          "H": 6.36, "I": 2.92, "J": 3.80, "K": 5.52, "L": 4.72, "M": 7.44, "N": 6.72,
+          "O": 6.32, "P": 5.36, "Q": 6.44, "R": 5.92, "S": 5.84, "T": 4.72, "U": 6.28,
+          "V": 5.32, "W": 7.72, "X": 5.20, "Y": 5.12, "Z": 4.76,
+          "a": 4.44, "b": 4.48, "c": 4.28, "d": 4.76, "e": 4.40, "f": 3.16, "g": 4.68,
+          "h": 4.76, "i": 2.20, "j": 2.84, "k": 4.56, "l": 2.52, "m": 6.92, "n": 4.76,
+          "o": 4.60, "p": 4.80, "q": 4.80, "r": 3.40, "s": 4.00, "t": 3.36, "u": 4.80,
+          "v": 4.28, "w": 6.40, "x": 4.40, "y": 4.24, "z": 3.72,
+          "1": 3.36, "2": 5.00, "3": 5.44, "4": 5.52, "5": 5.20,
+          "6": 5.16, "7": 4.28, "8": 5.52, "9": 5.16, "0": 5.80,
+          "¼": 5.20, "½": 5.44, "¾": 6.48, "⅓": 5.44, "⅔": 6.88,
+          "&": 5.08, "(": 4.60, ")": 4.60, "?": 5.80, ".": 2.24, "·": 2.24, ":": 2.24,
+          ",": 2.72, "'": 1.64, "-": 2.84, "'-": 3.52, "\"": 4.04, "/": 3.24, "£": 5.60,
+          "%": 6.40
+        },
+        "pairRules": [
+          { "character": "T", "followedBy": "aegoru", "width": 4.24 },
+          { "character": "V", "followedBy": "aegoru", "width": 4.80 },
+          { "character": "Y", "followedBy": "aegoru", "width": 4.72 },
+          { "character": "W", "followedBy": "TVXYZ",  "width": 8.00 }
+        ]
+      }
+    }
   },
 
   // Drawn border of single-panel signs (direction, route confirmatory and map-type; stack-type
