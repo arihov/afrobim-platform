@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  App.1 §2.2.1 and Figures 2-4: the map-type route symbol, drawn as one filled outline (the same
+  engine as UK TSM Chapter 7 Figure 5-7, with the Uganda rules below). All lengths in sw.
+  - filletRadius 0: in Figures 2-4 the arms meet each other and the ring with square corners
+    (the vector paths have no curves at the joins).
+  - tipHalfAngleDeg 45: the arm points are drawn with 45 degree flanks (Figure 3: 6.84 / 6.84 pt
+    on the left arm; Figure 2: three arms at 45, one drawn at about 49). Measured, not stated.
+  - sideArmReach 2/3 from the border ("b/3", Figures 2-3): the point of a side arm is a third of
+    the way from the inside of the border to the vertical arm (or ring), b being that space.
+  - exitMinToPoint: Figure 3 "Min 12 sw" runs from the arm's point to the vertical arm.
+  - approachToBottomBorder 1.5: §2.2.1 "space between lowest edge of vertical route arm and
+    bottom border 1.5".
+  - panelToArmTip 0: §2.2.1 "space between edge of imaginary text tile and top of vertical route
+    arm 0.0"; App.1 has no panels, patches or descender rule.
+  - Stubs (a direction with no destinations): App.1 has none. The UK Figure 5-5 values (2.5 sw
+    from the border, 4 sw above the bottom border) are borrowed and stubsCited="false" raises an
+    Info diagnostic whenever one is drawn.
+-->
+<mapSymbolSection filletRadius="0.0" tipHalfAngleDeg="45.0"
+                  sideArmReach="0.6666666667" sideArmReachFrom="border" exitMinToPoint="true"
+                  approachToBottomBorder="1.5" panelToArmTip="0.0"
+                  stubToBorder="2.5" stubToBottomBorder="4.0" stubsCited="false"
+                  provisional="App.1 Figures 2-3: the 45 degree arm points are measured from the drawings, not stated"/>

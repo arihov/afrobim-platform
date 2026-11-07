@@ -1,3 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- App.1 Figure 2. All values in sw. -->
-<roundaboutSection innerDiameter="14.0" outerDiameter="24.0"/>
+<!--
+  App.1 Figure 2 (map-type ADS for roundabouts). All lengths in sw.
+  Stated on the figure: ring D = 24 sw and d = 14 sw (so 5 sw wide); "Min12 sw" on the ahead and
+  both side exits; "Min10 sw" on the approach; side tiles "2.0 sw" outside the ring's vertical
+  tangents (legendToRingSide).
+  Measured from the Figure 2 vector drawing (1 sw = 3.345 pt from D = 24): the exits and the
+  approach are dimensioned from about the ring's tangent on the arm axis (ahead 13.3 sw drawn,
+  approach dimension line 10.0 sw starting 0.5 sw above the tangent), so both minimums are taken
+  from the tangent as in UK TSM Chapter 7 Figure 5-13. The cut-out is a radial wedge with edges at
+  about 60 and 31.5 degrees below the horizontal: 30 degrees from the approach axis, 30 degrees wide.
+  Not stated in App.1: a minimum cut-out angle (the measured 30 is used, so no smaller cut-out is
+  ever drawn) and the gap from the ring to a border where no arm leaves that side (Figure 2 shows
+  all three exits; 4 sw is borrowed from UK TSM Chapter 7 Figure 5-13). These are named in
+  'provisional' and every Uganda roundabout raises an Info diagnostic quoting it.
+-->
+<roundaboutSection innerDiameter="14.0" outerDiameter="24.0"
+                   exitMinLength="12.0" approachMinLength="10.0"
+                   cutOutFromApproachDeg="30.0" cutOutAngleDeg="30.0" cutOutMinAngleDeg="30.0"
+                   legendToRingSide="2.0" ringToBorder="4.0"
+                   provisional="App.1 Figure 2: the cut-out (30 degrees from the approach, 30 degrees wide) and the arm-length base (the ring tangent) are measured from the drawing; App.1 states no minimum cut-out angle; the 4 sw ring-to-border gap where no arm leaves is borrowed from UK TSM Chapter 7 Figure 5-13"/>

@@ -174,8 +174,30 @@
     "stubToBorder": 2.5, "stubToBottomBorder": 4.0
   },
 
-  // Figure 5-13: ring inner radius 7 sw, outer radius 12 sw (§5.10.1: always 5 sw wide).
-  "roundabout": { "innerDiameter": 14.0, "outerDiameter": 24.0 },
+  // Map-type roundabout symbol, UK TSM Chapter 7 (2013 edition, the copy in Manuals/) paras
+  // 5.39-5.40 and Figures 5-13 / 5-14. Figure 5-13: ring inner radius 7 sw ("7r"), outer radius
+  // 12 sw ("12r"); para 5.39: "The roundabout itself always has a width of 5 sw, whatever the
+  // status of the routes". Para 5.39: "the minimum length of any exit arm is 12 sw" and "the
+  // minimum length of the approach arm is 8.5 sw"; Figure 5-13 measures both from the outside of
+  // the ring on the arm's axis (the "12 min (all exit arms)" and "8.5 min" ticks are on the ring's
+  // tangent). Figure 5-13: the cut-out has radial edges 30° and 60° round from the approach axis
+  // (the "30° / 30° / 30°" between the approach axis, the two cut edges and the horizontal), so
+  // cutOutFromApproachDeg 30 and cutOutAngleDeg 30; para 5.40: "The recommended minimum angle for
+  // the cut-out is 25°". Figure 5-13 "14.5r": legend blocks (tiles, square corners of panels or
+  // patches, symbols) "shall not cross this line", 2.5 sw outside the ring. Figure 5-13 sub-figures:
+  // the ring is 4 sw from the top border with no ahead arm and 4 sw from the right border with no
+  // right arm (ringToBorder). The approach base is mapSymbol.approachToBottomBorder (Figure 5-13
+  // "1.5") and arms join the ring with mapSymbol.filletRadius (Figure 5-13 "Fillet 1r"). The vector
+  // drawing of Figure 5-13 measures 7.00r, 12.00r, 14.49r, a 0.98 sw fillet, radial cut edges at
+  // 30.0° and 60.0°, and a 12.0 sw ahead exit (1 sw = 4.34 pt from the 7r circle).
+  // Not stated anywhere: the gap from the ring to the LEFT border when there is no left arm. The
+  // engine uses ringToBorder there and raises ROUNDABOUT_LEFT_GAP_UNCITED (Info).
+  "roundabout": {
+    "innerDiameter": 14.0, "outerDiameter": 24.0,
+    "exitMinLength": 12.0, "approachMinLength": 8.5,
+    "cutOutFromApproachDeg": 30.0, "cutOutAngleDeg": 30.0, "cutOutMinAngleDeg": 25.0,
+    "legendKeepOutRadius": 14.5, "ringToBorder": 4.0
+  },
 
   // PROVISIONAL: warning/regulatory symbol sizes on directional signs are prescribed by
   // TSRGD 2016 S12-20 (§3.4.1) and are not transcribed yet. §3.3.1 white edge 0.5 sw.
@@ -721,6 +743,7 @@
     "symbolSize":      "TSRGD 2016 Schedule 12 Part 11",
     "stackEmbedded":   "UK TSM Chapter 7 §4.4–4.6",
     "mapTee":          "UK TSM Chapter 7 §5.7",
+    "mapRoundabout":   "UK TSM Chapter 7 (2013) paras 5.39-5.40, Figure 5-13",
     "confirmatory":    "UK TSM Chapter 7 §8",
     "information":     "TSRGD 2016 Schedule 12 Part 11",
     "routeNumbers":    "UK TSM Chapter 7 §3.3",

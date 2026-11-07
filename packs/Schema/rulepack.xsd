@@ -167,6 +167,41 @@
     <xs:complexType>
       <xs:attribute name="innerDiameter" type="sw" use="required"/>
       <xs:attribute name="outerDiameter" type="sw" use="required"/>
+      <!-- Optional: the filled map-type roundabout symbol (needed with a mapSymbolSection). -->
+      <xs:attribute name="exitMinLength" type="sw" use="optional"/>
+      <xs:attribute name="approachMinLength" type="sw" use="optional"/>
+      <xs:attribute name="cutOutFromApproachDeg" type="xs:double" use="optional"/>
+      <xs:attribute name="cutOutAngleDeg" type="xs:double" use="optional"/>
+      <xs:attribute name="cutOutMinAngleDeg" type="xs:double" use="optional"/>
+      <xs:attribute name="legendKeepOutRadius" type="sw" use="optional"/>
+      <xs:attribute name="legendToRingSide" type="sw" use="optional"/>
+      <xs:attribute name="ringToBorder" type="sw" use="optional"/>
+      <xs:attribute name="provisional" type="xs:string" use="optional"/>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ─── mapSymbol: the filled map-type route symbol (optional) ─────────── -->
+
+  <xs:element name="mapSymbolSection">
+    <xs:complexType>
+      <xs:attribute name="filletRadius" type="sw" use="required"/>
+      <xs:attribute name="tipHalfAngleDeg" type="xs:double" use="required"/>
+      <xs:attribute name="sideArmReach" type="xs:double" use="required"/>
+      <xs:attribute name="sideArmReachFrom" use="optional">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="block"/>
+            <xs:enumeration value="border"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+      <xs:attribute name="exitMinToPoint" type="xs:boolean" use="optional"/>
+      <xs:attribute name="approachToBottomBorder" type="sw" use="required"/>
+      <xs:attribute name="panelToArmTip" type="sw" use="required"/>
+      <xs:attribute name="stubToBorder" type="sw" use="required"/>
+      <xs:attribute name="stubToBottomBorder" type="sw" use="required"/>
+      <xs:attribute name="stubsCited" type="xs:boolean" use="optional"/>
+      <xs:attribute name="provisional" type="xs:string" use="optional"/>
     </xs:complexType>
   </xs:element>
 

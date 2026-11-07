@@ -45,5 +45,7 @@
     <section file="standard-sizes.xml"/>
     <!-- Vol.1/2 §Warning/§Regulatory: W/R body outlines + stated slash forms. Optional (S7b). -->
     <section file="roundels-triangles.xml"/>
+    <!-- App.1 §2.2.1, Figures 2-4: the filled map-type route symbol. Optional. -->
+    <section file="map-symbol.xml"/>
   </sections>
 </rulePack>
