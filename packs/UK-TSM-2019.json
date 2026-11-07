@@ -54,6 +54,19 @@
     "wordSpacing": 2.5, "textTileHeight": 8.0
   },
 
+  // Drawn border of single-panel signs (direction, route confirmatory and map-type; stack-type
+  // signs keep their own panelled border, §4.11). §2.15 / Figure 2-4: the border is panel.borderWidth
+  // (1.5 sw) wide with an inside corner radius of panel.cornerRadius (1.5 sw, "1.5r"). Chapter 7
+  // prints no outside radius. It is derived: a border of constant width round a 1.5 sw inside
+  // corner has a concentric outside corner of 1.5 + 1.5 = 3 sw. The Figure 2-4 and Figure 4-9
+  // working drawings corroborate this (measured 2.98 and 3.04 sw). Figure 2-4's 2.5 / 1.5 sw tile clearances are to the inside edge of the border,
+  // which the padTop/padSide/padBottom values above already give, and the border runs to the edge
+  // of the plate (Figure 4-9, TSRGD 2016 Schedule 12 Part 2 items 1-3). Border colour is the legend
+  // colour: white on green (§3.7) and blue (Schedule 12 Part 2 item 1), black on white (§3.8).
+  // PROVISIONAL: segmentsPerCorner is a drawing setting (each 90° corner drawn as 12 chords, under
+  // 0.25% of the radius from the true arc), not a manual value.
+  "signBorder": { "outerCornerRadius": 3.0, "segmentsPerCorner": 12 },
+
   // §5.2.1 arm widths: 6 sw primary/motorway, 4 sw numbered or important non-primary,
   // 2.5 sw local. §5.3.3 / Figure 5-7 vertical arm minimum 12.5 sw, from the top of the
   // horizontal arm to the point; §5.4.4 other arms minimum 12 sw along the shortest side.
@@ -157,14 +170,18 @@
 
   // §3.2.1 colour coding: dark green primary routes (white legend, yellow route numbers),
   // white non-primary routes with black legend and border (§3.2.4), blue (motorway),
-  // brown tourist (§3.12), yellow temporary.
+  // brown tourist (§3.12), yellow temporary. motorway: §3.5 blue motorway signs, TSRGD 2016
+  // Schedule 12 Part 2 item 1 (blue ground, white border); §2.1 white Transport Medium on blue;
+  // Schedule 12 Part 3 item 4 entry 1 route numbers white on blue. The Motorway alphabet that
+  // §10.11 uses for most route numbers on motorway signs is not modelled (see clauses).
   "palettes": {
     "entries": [
       { "scheme": "primary",     "ground": "Green",  "lettering": "White", "arm": "White", "face": "TransportMedium" },
       { "scheme": "secondary",   "ground": "White",  "lettering": "Black", "arm": "Black", "face": "TransportHeavy"  },
       { "scheme": "information", "ground": "Blue",   "lettering": "White", "arm": "White", "face": "TransportMedium" },
       { "scheme": "tourist",     "ground": "Brown",  "lettering": "White", "arm": "White", "face": "TransportMedium" },
-      { "scheme": "temporary",   "ground": "Yellow", "lettering": "Black", "arm": "Black", "face": "TransportHeavy"  }
+      { "scheme": "temporary",   "ground": "Yellow", "lettering": "Black", "arm": "Black", "face": "TransportHeavy"  },
+      { "scheme": "motorway",    "ground": "Blue",   "lettering": "White", "arm": "White", "face": "TransportMedium" }
     ]
   },
 
@@ -198,6 +215,7 @@
     "mapTee":          "UK TSM Chapter 7 §5.7",
     "confirmatory":    "UK TSM Chapter 7 §8",
     "information":     "TSRGD 2016 Schedule 12 Part 11",
-    "routeNumbers":    "UK TSM Chapter 7 §3.3"
+    "routeNumbers":    "UK TSM Chapter 7 §3.3",
+    "motorwayAlphabet": "UK TSM Chapter 7 §10.11"
   }
 }
