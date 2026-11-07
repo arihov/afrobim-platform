@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App.1 §1.3 and §1.1 Figure 1. All values in sw. -->
+<panelSection borderWidth="1.5" cornerRadius="1.5"
+              padTop="2.5" padSide="2.5" padBottom="1.5"
+              wordSpacing="2.5" textTileHeight="8.0"/>

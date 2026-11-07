@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignCore rule pack — Uganda Traffic Signs Manual Vol.2 Appendix 1.
+
+  This is a per-concern folder pack in the TrafixPLAN style: this manifest names
+  the sections in load order and each concern lives in its own XML file next to
+  it. There is exactly one source of truth; the loader reads XML only.
+
+  Validated against ../Schema/rulepack.xsd (sibling Schema folder) when present.
+  Values are transcribed from the July 2004 guidance appendix clause by clause.
+-->
+<rulePack id="UG-TSM-2004"
+          name="Uganda Traffic Signs Manual"
+          source="MoWHC Traffic Signs Manual Vol.2, July 2004, Appendix 1"
+          version="1.1.0"
+          standardsYear="2004">
+  <sections>
+    <!-- App.1 §2.1.1 Table 1: text sizes by traffic speed band. Required. -->
+    <section file="text-sizes.xml"/>
+    <!-- App.1 §1.3 / §1.1 Figure 1: panel geometry in sw. Required. -->
+    <section file="panel.xml"/>
+    <!-- App.1 §2.2.1: route-arm widths and minimum lengths. Required. -->
+    <section file="route-arms.xml"/>
+    <!-- App.1 §2.2.1: text-tile to route-arm spacing. Required. -->
+    <section file="map-type-spacing.xml"/>
+    <!-- App.1 Figure 2: roundabout symbol diameters. Required. -->
+    <section file="roundabout.xml"/>
+    <!-- App.1 §2.1.3: embedded warning/regulatory plate height. Required. -->
+    <section file="embedded-signs.xml"/>
+    <!-- App.1 §1.2: Transport faces. Required. -->
+    <section file="fonts.xml"/>
+    <!-- App.1 §2.1.2: destination count / ordering constraints. Required. -->
+    <section file="constraints.xml"/>
+    <!-- App.1 §2.6 Figure 5: the standard arrow. Optional (S2). -->
+    <section file="arrows.xml"/>
+    <!-- App.1 §2.1.3 embedded shape proportions. Optional (S2). -->
+    <section file="embedded-shapes.xml"/>
+    <!-- App.1 §1.2 + App.3 scheme table. Optional (S2). -->
+    <section file="palettes.xml"/>
+    <!-- Spec §10: named vector symbols. Optional (S2). -->
+    <section file="symbols.xml"/>
+    <!-- App.3 sign-page catalogue: 18 guidance + 23 information pages. Optional (S2). -->
+    <section file="sign-catalog.xml"/>
+    <!-- Vol.1 Table D.1/D.3/D.4 + App.1 Table 2: speed-class body-size ladders (mm). Optional (S7b). -->
+    <section file="standard-sizes.xml"/>
+    <!-- Vol.1/2 §Warning/§Regulatory: W/R body outlines + stated slash forms. Optional (S7b). -->
+    <section file="roundels-triangles.xml"/>
+  </sections>
+</rulePack>

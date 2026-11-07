@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App.1 §2.1.1 Table 1. The top band is open-ended: omit speedMaxKph. -->
+<textSizesSection>
+  <textSize speedMaxKph="50" xHeightMm="100" swMm="25.0" capHeightMm="140"/>
+  <textSize speedMaxKph="80" xHeightMm="150" swMm="37.5" capHeightMm="210"/>
+  <textSize xHeightMm="200" swMm="50.0" capHeightMm="280"/>
+</textSizesSection>

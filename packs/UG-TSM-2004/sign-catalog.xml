@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  App.3 sign-page catalogue: every registered Appendix 3 page. key is the canonical
+  sign-page reference (e.g. "G02.1"); family is the layout token consumed by the
+  layout/CLI/app layers; scheme must resolve against palettes.xml.
+  18 guidance (G) + 23 information (I) + 21 warning (W) + 33 regulatory (R) + 10 supplementary
+  (S) pages = 105 entries. The warning triangles were registered in S8; the regulatory family
+  (prohibitory discs, mandatory blue discs, the Stop octagon and the Give-Way point-down triangle)
+  in S9; the supplementary plates (a black-bordered white/yellow text, arrow, category or variable
+  plate) in S10, so the shipped catalog lists only real Uganda pages that render for real.
+-->
+<catalogSection>
+  <!-- Guidance: map-type / stack-type ADS (App.3 §1, App.1 §2.2) -->
+  <signPage key="G01.1" name="Map-type ADS — roundabout"    family="map-roundabout" series="G" scheme="primary"/>
+  <signPage key="G01.2" name="Map-type ADS — roundabout"    family="map-roundabout" series="G" scheme="secondary"/>
+  <signPage key="G02.1" name="Map-type ADS — crossroads"    family="map-crossroads" series="G" scheme="primary"/>
+  <signPage key="G02.2" name="Map-type ADS — crossroads"    family="map-crossroads" series="G" scheme="secondary"/>
+  <signPage key="G03.1" name="Map-type ADS — T-intersection" family="map-tee"       series="G" scheme="primary"/>
+  <signPage key="G03.2" name="Map-type ADS — T-intersection" family="map-tee"       series="G" scheme="secondary"/>
+  <signPage key="G04.1" name="Stack-type ADS"               family="stack"          series="G" scheme="primary"/>
+  <signPage key="G04.2" name="Stack-type ADS"               family="stack"          series="G" scheme="secondary"/>
+  <signPage key="G05.1" name="Lane pre-selection"           family="lane"           series="G" scheme="primary"/>
+  <signPage key="G05.2" name="Lane pre-selection"           family="lane"           series="G" scheme="secondary"/>
+
+  <!-- Guidance: direction, confirmatory, place identification -->
+  <signPage key="G11.1" name="Direction sign"               family="direction"      series="G" scheme="primary"/>
+  <signPage key="G11.2" name="Direction sign"               family="direction"      series="G" scheme="secondary"/>
+  <signPage key="G21.1" name="Confirmatory sign"            family="confirmatory"   series="G" scheme="primary"/>
+  <signPage key="G21.2" name="Confirmatory sign"            family="confirmatory"   series="G" scheme="secondary"/>
+  <signPage key="G22.1" name="Place identification — entry" family="place-id"       series="G" scheme="secondary"/>
+  <signPage key="G22.2" name="Place identification — exit"  family="place-id"       series="G" scheme="secondary"/>
+
+  <!-- Temporary diversion (App.3 G31/G32) -->
+  <signPage key="G31"   name="Diversion ahead (temporary)"  family="diversion"      series="G" scheme="temporary"/>
+  <signPage key="G32"   name="Diverted traffic (temporary)" family="diversion"      series="G" scheme="temporary"/>
+
+  <!-- Information §5: road and traffic symbols (I01-I10, symbol plates) -->
+  <signPage key="I01" name="Pedestrian crossing"            family="information" series="I" scheme="information" symbolId="pedestrian"/>
+  <signPage key="I02" name="Road hump"                      family="information" series="I" scheme="information" symbolId="hump"/>
+  <signPage key="I03" name="No through road"                family="information" series="I" scheme="information" symbolId="no-through-road"/>
+  <signPage key="I04" name="Car park"                       family="information" series="I" scheme="information" symbolId="parking-p"/>
+  <signPage key="I05" name="Bus stop"                       family="information" series="I" scheme="information" symbolId="bus"/>
+  <signPage key="I06" name="Priority over oncoming vehicles" family="information" series="I" scheme="information" symbolId="priority"/>
+  <signPage key="I07" name="One-way route"                  family="information" series="I" scheme="information" symbolId="one-way"/>
+  <signPage key="I08" name="Police control (temporary)"     family="information" series="I" scheme="information" symbolId="police"/>
+  <signPage key="I09" name="Start of extra lane"            family="information" series="I" scheme="secondary"   symbolId="lane-start"/>
+  <signPage key="I10" name="End of extra lane"              family="information" series="I" scheme="secondary"   symbolId="lane-end"/>
+
+  <!-- Information §5: services, places and tourist attraction plates -->
+  <signPage key="I21" name="Hospital"                       family="information" series="I" scheme="information" symbolId="hospital"/>
+  <signPage key="I22" name="First aid"                      family="information" series="I" scheme="information" symbolId="first-aid"/>
+  <signPage key="I23" name="Telephone"                      family="information" series="I" scheme="information" symbolId="telephone"/>
+  <signPage key="I24" name="Information"                    family="information" series="I" scheme="information" symbolId="information"/>
+  <signPage key="I25" name="Filling station"                family="information" series="I" scheme="information" symbolId="pump"/>
+  <signPage key="I26" name="Vehicle repairs"                family="information" series="I" scheme="information" symbolId="wrench"/>
+  <signPage key="I27" name="Refreshments"                   family="information" series="I" scheme="information" symbolId="cup"/>
+  <signPage key="I28" name="Restaurant"                     family="information" series="I" scheme="information" symbolId="fork-knife"/>
+  <signPage key="I29" name="Hotel / accommodation"          family="information" series="I" scheme="information" symbolId="bed"/>
+  <signPage key="I30" name="Rest area"                      family="information" series="I" scheme="information" symbolId="table-tree"/>
+  <signPage key="I31" name="Camp site"                      family="information" series="I" scheme="information" symbolId="tent"/>
+  <signPage key="I32" name="Airport"                        family="information" series="I" scheme="information" symbolId="aircraft"/>
+
+  <signPage key="I51" name="Tourist attraction"             family="tourist"     series="I" scheme="tourist"     symbolId="tourist"/>
+
+  <!-- Warning family (Vol.1 D.5.3 schedule / Vol.2 App.3): apex-up equilateral triangle,
+       permanent WHITE/RED/BLACK, temporary YELLOW/RED/BLACK. Codes and mirror pairs follow
+       the schedule exactly (.1 = left, .2 = right, Vol.1 p.8). Only pages whose black symbol
+       is drawn in PictogramLibrary — or, for W81, honestly flagged as unresolved — are
+       registered here, so every shipped W plate renders a real triangle body. -->
+  <signPage key="W01.1" name="Sharp curve — left"           family="warning" series="W" scheme="primary"   symbolId="bend"/>
+  <signPage key="W01.2" name="Sharp curve — right"          family="warning" series="W" scheme="primary"   symbolId="bend"/>
+  <signPage key="W02.1" name="Hairpin curve — left"         family="warning" series="W" scheme="primary"   symbolId="hairpin"/>
+  <signPage key="W02.2" name="Hairpin curve — right"        family="warning" series="W" scheme="primary"   symbolId="hairpin"/>
+  <signPage key="W03.1" name="Combined curves — left"       family="warning" series="W" scheme="primary"   symbolId="double-bend"/>
+  <signPage key="W03.2" name="Combined curves — right"      family="warning" series="W" scheme="primary"   symbolId="double-bend"/>
+  <signPage key="W04"   name="Crossroad"                    family="warning" series="W" scheme="primary"   symbolId="crossroads"/>
+  <signPage key="W05.1" name="Side road — left"             family="warning" series="W" scheme="primary"   symbolId="side-road"/>
+  <signPage key="W05.2" name="Side road — right"            family="warning" series="W" scheme="primary"   symbolId="side-road"/>
+  <signPage key="W06"   name="T-intersection"               family="warning" series="W" scheme="primary"   symbolId="t-junction"/>
+  <signPage key="W07"   name="Y-intersection"               family="warning" series="W" scheme="primary"   symbolId="y-junction"/>
+  <signPage key="W10"   name="Traffic signals"              family="warning" series="W" scheme="primary"   symbolId="traffic-signal"/>
+  <signPage key="W11"   name="Road narrows both sides"      family="warning" series="W" scheme="primary"   symbolId="narrow-both"/>
+  <signPage key="W12.1" name="Road narrows one side — left" family="warning" series="W" scheme="primary"   symbolId="narrow-one"/>
+  <signPage key="W12.2" name="Road narrows one side — right" family="warning" series="W" scheme="primary"  symbolId="narrow-one"/>
+  <signPage key="W15"   name="Two-way traffic"              family="warning" series="W" scheme="primary"   symbolId="two-way"/>
+  <signPage key="W21"   name="Other danger"                 family="warning" series="W" scheme="primary"   symbolId="other-danger"/>
+  <signPage key="W23"   name="Uneven road"                  family="warning" series="W" scheme="primary"   symbolId="uneven-road"/>
+  <signPage key="W24"   name="Hump"                         family="warning" series="W" scheme="primary"   symbolId="hump"/>
+  <signPage key="W46"   name="Cyclists in the road"         family="warning" series="W" scheme="primary"   symbolId="bicycle"/>
+  <signPage key="W81"   name="Roadworks (temporary)"        family="warning" series="W" scheme="temporary" symbolId="roadworks"/>
+
+  <!-- Regulatory family (Vol.1 §Regulatory Signs p.21–24 / Vol.2 App.3 R01–R83). Bodies are
+       STATED and always draw: prohibitory = white disc / red ring / black symbol + red slash
+       (R01 red-outlier, R47/R48 blue ground, R51/R52 black border); mandatory = blue disc /
+       white border / white symbol; priority = Stop octagon + Give-Way point-down triangle.
+       Codes + .1=left / .2=right mirror pairs follow Vol.1 p.8. Only pages whose interior is
+       drawn for real (R01 bar, R41/R42/R65/R71/R72/R75/R76 arrows, R46/R49/R52 figures,
+       R47/R48/R51 crossbars) or reuses an existing glyph (R05/R08/R09/R81/R82/R83), or is
+       flagged with exactly one honest SYMBOL_UNRESOLVED placeholder (figurative vehicle / horn
+       silhouettes), are registered — so no shipped R plate renders an empty disc.
+       R21–R25/R44/R73/R74/R77, R63/R64 and the temporary variants are held back (see S9 report). -->
+  <signPage key="R01"   name="No entry for any vehicle"                family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-entry"/>
+  <signPage key="R02"   name="No entry for motor vehicles"             family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-vehicles"/>
+  <signPage key="R03"   name="No entry except motorcycles"             family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-motorcars"/>
+  <signPage key="R04"   name="No entry for trucks"                     family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-trucks"/>
+  <signPage key="R05"   name="No entry for buses and coaches"          family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-buses"/>
+  <signPage key="R06"   name="No entry for motorcycles"                family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-motorcycles"/>
+  <signPage key="R07"   name="No entry for tractors / slow vehicles"   family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-tractors"/>
+  <signPage key="R08"   name="No entry for cycles"                     family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-cycles"/>
+  <signPage key="R09"   name="No entry for pedestrians"                family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-pedestrians"/>
+  <signPage key="R10"   name="No entry for animal-drawn vehicles"      family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-oxcart"/>
+  <signPage key="R41.1" name="No left turn"                            family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-left-turn"/>
+  <signPage key="R41.2" name="No right turn"                           family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-left-turn"/>
+  <signPage key="R42"   name="No turning vehicle (U-turn)"             family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-u-turn"/>
+  <signPage key="R43"   name="No overtaking"                           family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-overtaking"/>
+  <signPage key="R45"   name="No use of horn"                          family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-horn"/>
+  <signPage key="R46"   name="Compulsory stop ahead"                   family="regulatory-prohibitory" series="R" scheme="primary" symbolId="stop-word"/>
+  <signPage key="R47"   name="No parking"                              family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-parking"/>
+  <signPage key="R48"   name="No stopping or waiting"                  family="regulatory-prohibitory" series="R" scheme="primary" symbolId="no-stopping"/>
+  <signPage key="R49"   name="Maximum speed limit"                     family="regulatory-prohibitory" series="R" scheme="primary" symbolId="speed-limit"/>
+  <signPage key="R51"   name="End of all prohibition"                  family="regulatory-prohibitory" series="R" scheme="primary" symbolId="end-of-restriction"/>
+  <signPage key="R52"   name="End of speed limit"                      family="regulatory-prohibitory" series="R" scheme="primary" symbolId="end-of-speed-limit"/>
+  <signPage key="R65"   name="Give way to oncoming vehicles"           family="regulatory-prohibitory" series="R" scheme="primary" symbolId="give-way-oncoming"/>
+  <signPage key="R61"   name="Stop"                                    family="stop"                   series="R" scheme="primary"/>
+  <signPage key="R62"   name="Give way"                                family="give-way"               series="R" scheme="primary"/>
+  <signPage key="R71"   name="Ahead only"                              family="regulatory-mandatory"   series="R" scheme="primary" symbolId="ahead"/>
+  <signPage key="R72.1" name="Turn left ahead"                         family="regulatory-mandatory"   series="R" scheme="primary" symbolId="turn-left"/>
+  <signPage key="R72.2" name="Turn right ahead"                        family="regulatory-mandatory"   series="R" scheme="primary" symbolId="turn-left"/>
+  <signPage key="R75.1" name="Keep left"                               family="regulatory-mandatory"   series="R" scheme="primary" symbolId="pass-left"/>
+  <signPage key="R75.2" name="Keep right"                              family="regulatory-mandatory"   series="R" scheme="primary" symbolId="pass-left"/>
+  <signPage key="R76"   name="Pass either side"                        family="regulatory-mandatory"   series="R" scheme="primary" symbolId="pass-either-side"/>
+  <signPage key="R81"   name="Route for buses only"                    family="regulatory-mandatory"   series="R" scheme="primary" symbolId="bus"/>
+  <signPage key="R82"   name="Route for cycles only"                   family="regulatory-mandatory"   series="R" scheme="primary" symbolId="bicycle"/>
+  <signPage key="R83"   name="Route for pedestrians only"              family="regulatory-mandatory"   series="R" scheme="primary" symbolId="pedestrian"/>
+
+  <!-- Supplementary family (Vol.1 §D.9 p.31 / Vol.2 App.1 §3.2 + App.3 S01–S21). A plate that
+       clarifies a MAIN sign, never used alone, mounting ~75 mm below the parent. Body is STATED:
+       a rounded rectangle with a BLACK border (unlike the red W/R families) around a permanent
+       WHITE / temporary YELLOW ground, all content BLACK. Each plate lays out for real through
+       SupplementaryPlateLayout: text plates (S01 distance, S02 "For …", S21 variable 1–3 lines)
+       render centred TextRuns; S03 draws the reversible direction arrow (base points left; the
+       S-key suffix is a line count, not a mirror — reversibility is an editor SignMirror flag);
+       S11 reuses the real bus pictogram, while S12/S13/S14 (figurative truck / car / motorcycle)
+       resolve through the honest SYMBOL_UNRESOLVED placeholder on the drawn bordered ground —
+       never a blank tile, never a throw. Representative text uses the standard's own sign-page
+       examples (S01 "800" m, S02 "For 3.2 km", S21 "Except buses" / "School buses" / "Except
+       buses and taxis"); an editor overrides them. Temporary variants are handled by the engine
+       via the sign scheme (yellow ground, black border), so no duplicate temp rows are listed. -->
+  <signPage key="S01"   name="Distance to hazard or regulation"  family="supplementary" series="S" scheme="primary" symbolId="distance"/>
+  <signPage key="S02"   name="Extension of hazard or regulation" family="supplementary" series="S" scheme="primary" symbolId="extension"/>
+  <signPage key="S03"   name="Direction in which message applies" family="supplementary" series="S" scheme="primary" symbolId="direction"/>
+  <signPage key="S11"   name="Vehicle category — buses"          family="supplementary" series="S" scheme="primary" symbolId="bus"/>
+  <signPage key="S12"   name="Vehicle category — goods vehicles" family="supplementary" series="S" scheme="primary" symbolId="truck"/>
+  <signPage key="S13"   name="Vehicle category — cars"           family="supplementary" series="S" scheme="primary" symbolId="car"/>
+  <signPage key="S14"   name="Vehicle category — motorcycles"    family="supplementary" series="S" scheme="primary" symbolId="motorcycle"/>
+  <signPage key="S21.1" name="Variable text message — 1 line"    family="supplementary" series="S" scheme="primary" symbolId="text"/>
+  <signPage key="S21.2" name="Variable text message — 2 lines"   family="supplementary" series="S" scheme="primary" symbolId="text"/>
+  <signPage key="S21.3" name="Variable text message — 3 lines"   family="supplementary" series="S" scheme="primary" symbolId="text"/>
+</catalogSection>

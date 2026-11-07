@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<embeddedShapesSection triangleBorderWidth="2.5" roundelRingWidth="2.5" roundelDiameter="20.0">
+  <!-- Carried over verbatim from the old JSON pack comment:
+       triangle border / roundel ring are provisional 1/8-of-height proportions,
+       to be confirmed against Vol.2 §Warning / §Regulatory in S8. -->
+</embeddedShapesSection>

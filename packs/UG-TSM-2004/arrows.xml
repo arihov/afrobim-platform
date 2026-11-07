@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  App.1 §2.6 Figure 5: the standard route/destination arrow. Lengths, widths and
+  radii are in sw; angles are in degrees. Shaft and head share the same length
+  (12 sw) and stroke (3 sw).
+-->
+<arrowsSection shaftLength="12.0" shaftWidth="3.0"
+               headLength="12.0" headFlare="3.0"
+               flareAngleDeg="70.0" pointHalfAngleDeg="45.0"
+               innerCornerRadius="2.0" tipRadius="0.2"/>

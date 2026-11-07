@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  S7b — warning / regulatory body outlines and "no" slash forms (inventory §6.4/§6.5).
+
+  The four shape tokens and the stop orientation are the STATED forms the Uganda manual
+  describes in words (apex-up triangle, point-down give-way triangle, octagonal stop,
+  circular regulatory disc). The numeric PROPORTIONS of those bodies (border / ring / slash
+  stroke widths, prohibition numeral height, R01 bar height) are NOT stated numerically in
+  Vol.1 — the manual sizes the bodies on the Table D.1/D.3 ladder only. Every such value is
+  therefore carried below as an explicitly labelled "UK-derived (GAP)" provisional starting
+  point (a fraction of the body side / diameter) for reviewers to confirm in S8/S9, never as
+  an adopted Uganda fact (plan §2.7 / "label UK-derived, never invent Uganda facts").
+
+  stopOrientation is likewise a GAP: Vol.1 sizes the octagon against the circle ladder
+  without saying across-flats vs across-corners; the pack assumes across-corners and marks it
+  provisional. Slash colour / direction / count ARE stated per Vol.2 sign page; only stroke
+  width is missing (see proportional "slash-stroke-width"). This section is OPTIONAL.
+-->
+<roundelsTrianglesSection
+    warningShape="equilateral-triangle-apex-up"
+    giveWayShape="equilateral-triangle-point-down"
+    stopShape="regular-octagon"
+    regulatoryDiscShape="circle"
+    stopOrientation="across-corners">
+
+  <!-- STATED slash / bar forms (Vol.2): colour, direction and count only. Width is a GAP. -->
+  <slash id="R01-bar"            appliesTo="R01"      colour="White" direction="horizontal" count="1"/>
+  <slash id="end-of-restriction" appliesTo="R51,R52"  colour="Black" direction="tr-bl"      count="4"/>
+
+  <!-- Provisional, non-manual proportions — all UK-TSRD-derived, to be confirmed in S8/S9. -->
+  <proportional key="red-triangle-border-width"   fraction="0.125" source="UK-derived (GAP)"/>
+  <proportional key="roundel-ring-width"          fraction="0.125" source="UK-derived (GAP)"/>
+  <proportional key="slash-stroke-width"          fraction="0.10"  source="UK-derived (GAP)"/>
+  <proportional key="prohibition-numeral-height"  fraction="0.50"  source="UK-derived (GAP)"/>
+  <proportional key="r01-bar-height"              fraction="0.125" source="UK-derived (GAP)"/>
+</roundelsTrianglesSection>

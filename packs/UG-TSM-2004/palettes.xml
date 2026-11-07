@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  App.1 §1.2 + App.3 scheme table: how one colour scheme resolves the panel ground,
+  lettering colour, route-arm colour and lettering face. Ground/lettering/arm use the
+  Colour enum names (geometry truth); display hex lives in the renderer.
+-->
+<palettesSection>
+  <palette scheme="primary"     ground="Green" lettering="White" arm="White" face="TransportMedium"/>
+  <palette scheme="secondary"   ground="White" lettering="Black" arm="Black" face="TransportHeavy"/>
+  <palette scheme="information" ground="Blue"  lettering="White" arm="White" face="TransportMedium"/>
+  <palette scheme="tourist"     ground="Brown" lettering="White" arm="White" face="TransportMedium"/>
+  <palette scheme="temporary"   ground="Yellow" lettering="Black" arm="Black" face="TransportHeavy"/>
+</palettesSection>

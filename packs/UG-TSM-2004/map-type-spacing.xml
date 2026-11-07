@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- App.1 §2.2.1 text-to-arm spacing. All values in sw. -->
+<mapTypeSpacingSection tileToVerticalArmTop="0.0" tileToVerticalArmSide="4.0"
+                       tileToHorizontalArmBottom="1.5" tileToArmTop="2.5"
+                       tileToDiagonalArmEnd="2.5"/>
