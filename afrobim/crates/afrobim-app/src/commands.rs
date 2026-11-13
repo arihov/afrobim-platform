@@ -28,7 +28,8 @@ pub enum Action {
     ToggleCanvas,
     ToggleTheme,
     Arrange,
-    InsertStack,
+    /// Insert the sign template with this index (see `signs_glue::templates`).
+    InsertSign(u8),
     Help,
     About,
     Quit,
@@ -61,7 +62,12 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "REAL", aliases: &[], help: "Show elements in full colour", action: Action::RepReal },
     CommandInfo { name: "OUTLINED", aliases: &["WIREFRAME"], help: "Show elements as outlines", action: Action::RepOutlined },
     CommandInfo { name: "ARRANGE", aliases: &[], help: "Arrange every element in rows", action: Action::Arrange },
-    CommandInfo { name: "STACK", aliases: &["SIGN"], help: "Insert a stack-type direction sign", action: Action::InsertStack },
+    CommandInfo { name: "STACK", aliases: &["SIGN"], help: "Insert a stack-type direction sign", action: Action::InsertSign(0) },
+    CommandInfo { name: "DIRECTION", aliases: &["DS"], help: "Insert a rectangular direction sign", action: Action::InsertSign(1) },
+    CommandInfo { name: "CONFIRM", aliases: &["RC"], help: "Insert a route confirmatory sign", action: Action::InsertSign(2) },
+    CommandInfo { name: "PLACE", aliases: &[], help: "Insert a place identification sign", action: Action::InsertSign(3) },
+    CommandInfo { name: "LANE", aliases: &[], help: "Insert a lane pre-selection sign", action: Action::InsertSign(4) },
+    CommandInfo { name: "DIVERSION", aliases: &[], help: "Insert a temporary diversion sign", action: Action::InsertSign(5) },
     CommandInfo { name: "THEME", aliases: &[], help: "Switch between the light and dark themes", action: Action::ToggleTheme },
     CommandInfo { name: "HELP", aliases: &["?"], help: "List every command", action: Action::Help },
     CommandInfo { name: "ABOUT", aliases: &[], help: "About AfroBIM", action: Action::About },
@@ -84,6 +90,14 @@ mod tests {
         assert_eq!(resolve(" Co ").unwrap().action, Action::Copy);
         assert_eq!(resolve("?").unwrap().action, Action::Help);
         assert!(resolve("nonsense").is_none());
+        // Every insert command points at an existing sign template, under the same name.
+        let templates = crate::signs_glue::templates();
+        for c in COMMANDS {
+            if let Action::InsertSign(i) = c.action {
+                assert_eq!(templates[i as usize].command, c.name);
+            }
+        }
+        assert_eq!(COMMANDS.iter().filter(|c| matches!(c.action, Action::InsertSign(_))).count(), templates.len());
         let mut seen = std::collections::HashSet::new();
         for c in COMMANDS {
             assert!(seen.insert(c.name.to_ascii_uppercase()), "duplicate {}", c.name);

@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 
 use afrobim_draw::Colour;
 use afrobim_kernel::{Element, Generated, Module, Note, Severity};
-use afrobim_signs::{Destination, Direction, RoadClass, SignDefinition, SignEngine};
+use afrobim_signs::{ColourScheme, Destination, Direction, RoadClass, RouteStatus, SignDefinition, SignEngine, SignKind, SignVariant};
+
+use crate::icons::Icon;
 use serde_json::Value;
 
 pub const CATEGORY: &str = "sign";
@@ -91,17 +93,116 @@ fn to_value(def: &SignDefinition) -> Value {
     serde_json::to_value(def).expect("a sign definition always serialises")
 }
 
-pub fn new_stack_data() -> Value {
-    to_value(&SignDefinition::stack("", 60, vec![Destination::new("New destination", Direction::Ahead)]))
+/// A kind of sign the user can insert: palette entry, command name and starting definition.
+pub struct Template {
+    pub label: &'static str,
+    pub command: &'static str,
+    pub tip: &'static str,
+    pub icon: Icon,
+    /// Mark given to a new sign of this kind; made unique in the document.
+    pub mark: &'static str,
+    pub data: Value,
 }
 
-pub fn demo_data() -> Vec<Value> {
+fn with(kind: SignKind, speed: u32, background: Colour, scheme: ColourScheme, key: Option<&str>, dests: Vec<Destination>) -> SignDefinition {
+    SignDefinition {
+        kind,
+        background,
+        scheme,
+        catalog_key: key.map(str::to_string),
+        ..SignDefinition::stack("", speed, dests)
+    }
+}
+
+/// The insertable sign kinds, with the starting values the C# SignCore catalog gives each.
+pub fn templates() -> Vec<Template> {
+    use Direction::{Ahead, Left, Right};
+    let t = |label, command, tip, icon, mark, def: SignDefinition| Template { label, command, tip, icon, mark, data: to_value(&def) };
     vec![
-        to_value(&SignDefinition::stack(
-            "",
-            60,
-            vec![Destination::new("Kasese", Direction::Ahead), Destination::new("Masheruka", Direction::Right)],
-        )),
+        t(
+            "Stack-type direction",
+            "STACK",
+            "Advance direction sign, one panel per direction (TSM Ch. 7 §4)",
+            Icon::Stack,
+            "ADS-001",
+            SignDefinition::stack("", 60, vec![Destination::new("New destination", Ahead)]),
+        ),
+        t(
+            "Direction",
+            "DIRECTION",
+            "Rectangular direction sign at the junction (TSM Ch. 7 §7.11)",
+            Icon::Direction,
+            "DS-001",
+            with(
+                SignKind::DirectionSign,
+                60,
+                Colour::Green,
+                ColourScheme::Primary,
+                Some("UK06.1"),
+                vec![Destination::new("Kasese", Ahead), Destination::new("Masheruka", Right)],
+            ),
+        ),
+        t(
+            "Route confirmatory",
+            "CONFIRM",
+            "Route confirmatory sign with distances (TSM Ch. 7 §8)",
+            Icon::Confirmatory,
+            "RC-001",
+            with(
+                SignKind::Confirmatory,
+                100,
+                Colour::Green,
+                ColourScheme::Primary,
+                Some("UK07.1"),
+                vec![Destination::new("Kampala", Ahead).with_distance("40 km")],
+            ),
+        ),
+        t("Place identification", "PLACE", "Place name sign, entry or exit", Icon::Supplementary, "PL-001", {
+            let mut d = with(SignKind::PlaceIdentification, 100, Colour::White, ColourScheme::Auto, None, vec![Destination::new("Kampala", Ahead)]);
+            d.variant = SignVariant::Primary; // entry; Secondary draws the exit band
+            d
+        }),
+        t(
+            "Lane pre-selection",
+            "LANE",
+            "One arrow and name per lane",
+            Icon::Lane,
+            "LP-001",
+            with(
+                SignKind::LanePreselection,
+                80,
+                Colour::Green,
+                ColourScheme::Auto,
+                None,
+                vec![
+                    Destination::new("Left", Left).with_order(0),
+                    Destination::new("Ahead", Ahead).with_order(1),
+                    Destination::new("Right", Right).with_order(2),
+                ],
+            ),
+        ),
+        t(
+            "Diversion (temporary)",
+            "DIVERSION",
+            "Temporary diversion sign, black on yellow",
+            Icon::Warning,
+            "DV-001",
+            with(
+                SignKind::Diversion,
+                60,
+                Colour::Yellow,
+                ColourScheme::Temporary,
+                None,
+                vec![Destination::new("Forward route", Ahead), Destination::new("Diversion route", Right)],
+            ),
+        ),
+    ]
+}
+
+/// Sample content for `--demo`: one sign of every insertable kind.
+pub fn demo_data() -> Vec<(String, Value)> {
+    let mut out: Vec<(String, Value)> = vec![(
+        "ADS-001".to_string(),
         to_value(&SignDefinition::stack(
             "",
             80,
@@ -111,7 +212,18 @@ pub fn demo_data() -> Vec<Value> {
                 Destination::new("Fort Portal", Direction::Right),
             ],
         )),
-    ]
+    )];
+    out.extend(templates().into_iter().skip(1).map(|t| (t.mark.to_string(), t.data)));
+    out
+}
+
+fn route_label(r: RouteStatus) -> &'static str {
+    match r {
+        RouteStatus::Unspecified => "Route: as sign",
+        RouteStatus::Motorway => "Motorway",
+        RouteStatus::Primary => "Primary",
+        RouteStatus::NonPrimary => "Non-primary",
+    }
 }
 
 fn optional_text(ui: &mut egui::Ui, value: &mut Option<String>, hint: &str, width: f32) -> bool {
@@ -135,6 +247,17 @@ pub fn edit_ui(ui: &mut egui::Ui, data: &mut Value) -> bool {
         ui.label("Type");
         ui.label(format!("{:?}", def.kind));
         ui.end_row();
+
+        if def.kind == SignKind::PlaceIdentification {
+            ui.label("Variant");
+            egui::ComboBox::from_id_salt("variant")
+                .selected_text(if def.variant == SignVariant::Primary { "Entry" } else { "Exit" })
+                .show_ui(ui, |ui| {
+                    changed |= ui.selectable_value(&mut def.variant, SignVariant::Primary, "Entry").changed();
+                    changed |= ui.selectable_value(&mut def.variant, SignVariant::Secondary, "Exit").changed();
+                });
+            ui.end_row();
+        }
 
         ui.label("Design speed");
         changed |= ui.add(egui::DragValue::new(&mut def.speed_kph).range(10..=130).suffix(" km/h")).changed();
@@ -185,6 +308,11 @@ pub fn edit_ui(ui: &mut egui::Ui, data: &mut Value) -> bool {
                 ui.add_space(12.0);
                 changed |= optional_text(ui, &mut d.distance, "Distance", 64.0);
                 changed |= optional_text(ui, &mut d.route_number, "Route no.", 70.0);
+                egui::ComboBox::from_id_salt("route").width(86.0).selected_text(route_label(d.route)).show_ui(ui, |ui| {
+                    for r in [RouteStatus::Unspecified, RouteStatus::Motorway, RouteStatus::Primary, RouteStatus::NonPrimary] {
+                        changed |= ui.selectable_value(&mut d.route, r, route_label(r)).changed();
+                    }
+                });
             });
         });
     }

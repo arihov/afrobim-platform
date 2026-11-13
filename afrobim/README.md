@@ -65,7 +65,7 @@ The interaction follows AutoCAD conventions.
 | Move | Drag a selected element or a grip, or `M`: base point, second point |
 | Copy | `CO`: base point, a point per copy, Enter to finish. Ctrl+C / Ctrl+V also work |
 | Erase | Delete, or `E` |
-| Insert a sign | Tool Sets or `STACK`; the sign hangs from the cursor; click to place |
+| Insert a sign | Tool Sets, the Insert menu, or `STACK`, `DIRECTION`, `CONFIRM`, `PLACE`, `LANE`, `DIVERSION`; the sign hangs from the cursor; click to place |
 | Edit | Select and use Properties; the model updates as you type |
 | Zoom / pan | Wheel zooms about the cursor; middle button pans; `Z` extents; `ZW` window |
 | Undo / redo | Ctrl+Z / Ctrl+Y |
@@ -81,8 +81,8 @@ an empty Enter repeats the last one. While a command waits for a point, type `x,
 |---|---|
 | Kernel, interaction, undo, file format | Done, unit-tested |
 | Desktop shell | Done; checked by headless screenshot on Linux. Not yet run on Windows or macOS |
-| UK stack-type direction signs | Ported from the C# engine, golden-tested against it |
-| Map-type, direction, warning, regulatory, information, supplementary signs | Not ported. Use the C# app |
+| UK stack-type, direction, route confirmatory, place identification, lane pre-selection and diversion signs | Ported from the C# engine, golden-tested against it (42 fixtures) |
+| Map-type, warning, regulatory, information, supplementary signs | Not ported yet. Use the C# app |
 | Uganda rule pack (XML) | Not ported |
 | DXF export (R12, mm, one layer per sign colour) | Ported; File → Export DXF or `DXFOUT`. Matches the C# writer byte for byte on the reference files |
 | Fabrication sheets, quantities, schedules | Not ported. Use the C# CLI |

@@ -109,12 +109,11 @@ impl AfroBimApp {
         if let Some(path) = app.options.open.clone() {
             app.open_path(path);
         } else if app.options.demo && app.signs_ready {
-            for data in signs_glue::demo_data() {
-                let name = app.doc.unique_name("ADS-001");
+            for (mark, data) in signs_glue::demo_data() {
+                let name = app.doc.unique_name(&mark);
                 let at = app.doc.next_free_origin(2000.0, 1000.0);
-                let id = app.doc.add(signs_glue::CATEGORY, &name, at, 2000.0, 1000.0, signs_glue::LAYER, data);
+                app.doc.add(signs_glue::CATEGORY, &name, at, 2000.0, 1000.0, signs_glue::LAYER, data);
                 app.sync_generated();
-                let _ = id;
             }
             app.doc.arrange();
             if let Some(first) = app.doc.elements().first().map(|e| e.id) {
@@ -348,13 +347,13 @@ impl AfroBimApp {
                 self.ctl.zoom_extents(&self.doc, &mut self.view);
                 self.schedule_commit(ctx);
             }
-            Action::InsertStack => {
+            Action::InsertSign(index) => {
                 if !self.signs_ready {
                     self.status = self.module_status.clone();
-                } else {
-                    let name = self.doc.unique_name("ADS-001");
+                } else if let Some(t) = signs_glue::templates().into_iter().nth(index as usize) {
+                    let name = self.doc.unique_name(t.mark);
                     let at = self.doc.next_free_origin(2000.0, 1000.0);
-                    let id = self.doc.add(signs_glue::CATEGORY, &name, at, 2000.0, 1000.0, signs_glue::LAYER, signs_glue::new_stack_data());
+                    let id = self.doc.add(signs_glue::CATEGORY, &name, at, 2000.0, 1000.0, signs_glue::LAYER, t.data);
                     self.sync_generated();
                     self.doc.select(&[id], SelectMode::Replace);
                     self.ctl.start_place(&self.doc, &self.view, id);
@@ -518,7 +517,9 @@ impl AfroBimApp {
                     item(ui, "Dark / light theme", "", Action::ToggleTheme);
                 });
                 ui.menu_button("Insert", |ui| {
-                    item(ui, "Stack-type direction sign", "STACK", Action::InsertStack);
+                    for (i, t) in signs_glue::templates().iter().enumerate() {
+                        item(ui, t.label, t.command, Action::InsertSign(i as u8));
+                    }
                 });
                 ui.menu_button("Modify", |ui| {
                     item(ui, "Move", "M", Action::Move);
@@ -619,17 +620,17 @@ impl AfroBimApp {
             ui.separator();
             ui.label(RichText::new("Traffic signs").small().weak());
             ui.add_enabled_ui(self.signs_ready, |ui| {
-                if icons::palette_button(ui, Icon::Stack, "Stack-type direction", "Insert a stack-type direction sign, then click to place it").clicked() {
-                    pick = Some(Action::InsertStack);
+                for (i, t) in signs_glue::templates().iter().enumerate() {
+                    if icons::palette_button(ui, t.icon, t.label, t.tip).clicked() {
+                        pick = Some(Action::InsertSign(i as u8));
+                    }
                 }
             });
             ui.add_enabled_ui(false, |ui| {
                 let later = "Not yet ported to the AfroBIM engine";
                 icons::palette_button(ui, Icon::Map, "Map-type direction", later);
-                icons::palette_button(ui, Icon::Warning, "Warning", later);
-                icons::palette_button(ui, Icon::Regulatory, "Regulatory", later);
+                icons::palette_button(ui, Icon::Regulatory, "Warning and regulatory", later);
                 icons::palette_button(ui, Icon::Information, "Information", later);
-                icons::palette_button(ui, Icon::Supplementary, "Supplementary plate", later);
             });
             ui.add_space(6.0);
             ui.label(RichText::new("Modify").small().weak());
