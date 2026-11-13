@@ -1,0 +1,29 @@
+# The Python extension. It is not a member of the workspace in ../Cargo.toml (which excludes
+# this folder), so `cargo build --workspace` needs no Python. Build it with maturin.
+[package]
+name = "afrobim-python"
+description = "Python API of the AfroBIM platform: sign engine, layouts, DXF/SVG export and documents"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+authors = ["AfroBIM"]
+publish = false
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+afrobim-draw = { path = "../crates/afrobim-draw" }
+afrobim-kernel = { path = "../crates/afrobim-kernel" }
+afrobim-signs = { path = "../crates/afrobim-signs" }
+afrobim-dxf = { path = "../crates/afrobim-dxf" }
+# abi3: one wheel per platform serves every CPython from 3.9 on.
+pyo3 = { version = "0.30", features = ["abi3-py39"] }
+serde = "1"
+# float_roundtrip: a number that goes Python -> JSON -> Rust arrives bit for bit.
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"

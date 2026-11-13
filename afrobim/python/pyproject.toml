@@ -1,0 +1,30 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "afrobim"
+version = "0.1.0"
+description = "AfroBIM for Python: lay out traffic signs to the standard, export DXF and SVG, build .afrobim documents"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.maturin]
+# Mixed layout: the Python package is in python/afrobim, the compiled part is afrobim._native.
+# Only that package goes into a wheel. The rule pack and the Transport fonts are never bundled:
+# the fonts are third-party files (see README.md).
+python-source = "python"
+module-name = "afrobim._native"
+bindings = "pyo3"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
