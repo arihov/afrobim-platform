@@ -1,0 +1,18 @@
+sign #1: ADS-005 → ADS-005-sheet.dxf/.pdf (1:20)
+sign #2: ADS-008 → ADS-008-sheet.dxf/.pdf (1:20)
+sign #3: ADS-007 → ADS-007-sheet.dxf/.pdf (1:10)
+sign #4: MAP-031 → MAP-031-sheet.dxf/.pdf (1:25)
+sign #5: UK06.1 → UK06.1-sheet.dxf/.pdf (1:10)
+sign #6: UK07-3 → UK07-3-sheet.dxf/.pdf (1:20)
+sign #7: W-512-P → W-512-P-sheet.dxf/.pdf (1:10)
+  [Warning] PLATE_GAP_UNSPECIFIED: No gap between sign and plate is stated (no gap is stated in TSRGD 2016 Schedule 2 or TSM Chapter 4); the plate is butted to the sign
+sign #8: W-504.1-P → W-504.1-P-sheet.dxf/.pdf (1:5)
+  [Warning] PLATE_GAP_UNSPECIFIED: No gap between sign and plate is stated (no gap is stated in TSRGD 2016 Schedule 2 or TSM Chapter 4); the plate is butted to the sign
+sign #9: R-616 → R-616-sheet.dxf/.pdf (1:5)
+sign #10: R-670/60 → R-670_60-sheet.dxf/.pdf (1:5)
+sign #11: MAP-014 → MAP-014-sheet.dxf/.pdf (1:20)
+  [Error] MAX_DESTINATIONS: 9 destinations; maximum is 6
+  [Error] NEARER_NOT_ABOVE: Duplicate proximity order for Right; stacking order is ambiguous
+  [Warning] TILE_WIDTH_FROM_FONT: 'Park + Ride' in TransportMedium: '+' not in the tile table; the font's advance width is used
+  [Warning] TILE_WIDTH_FROM_FONT: 'Zoo!' in TransportMedium: '!' not in the tile table; the font's advance width is used
+schedule: 11 sign(s) → schedule.pdf

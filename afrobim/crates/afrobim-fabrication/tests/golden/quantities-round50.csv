@@ -1,0 +1,12 @@
+code,catalog_key,family,scheme,ground,speed_kph,x_height_mm,sw_mm,width_mm,height_mm,area_m2,legend_chars,symbols,warnings,errors
+ADS-005,,StackType,Auto,Green,60,125,31.25,2350,2650,6.228,44,0,0,0
+ADS-008,,StackType,Auto,Green,80,150,37.5,3400,3000,10.200,44,0,0,0
+ADS-007,,StackType,Auto,White,50,125,31.25,2300,1150,2.645,18,0,0,0
+MAP-031,,MapTypeRoundabout,Primary,Green,80,150,37.5,5700,2400,13.680,36,0,0,0
+UK06.1,UK06.1,DirectionSign,Primary,Green,60,100,25,1500,600,0.900,15,0,0,0
+UK07-3,,Confirmatory,Auto,Green,80,125,31.25,2150,2200,4.730,38,1,0,0
+W-512-P,D512,WarningSign,Secondary,White,64,60,15,1350,1050,1.418,13,1,1,0
+W-504.1-P,D504.1,WarningSign,Secondary,White,30,48,12,700,800,0.560,6,1,1,0
+R-616,D616,RegulatoryProhibitory,Secondary,White,60,60,15,750,750,0.563,0,1,0,0
+R-670/60,D670,RegulatoryProhibitory,Secondary,White,96,60,15,750,750,0.563,2,1,0,0
+MAP-014,,MapTypeCrossroads,Auto,Green,60,125,31.25,1900,2650,5.035,38,0,2,2
