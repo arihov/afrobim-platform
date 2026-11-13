@@ -70,6 +70,7 @@ The interaction follows AutoCAD conventions.
 | Zoom / pan | Wheel zooms about the cursor; middle button pans; `Z` extents; `ZW` window |
 | Undo / redo | Ctrl+Z / Ctrl+Y |
 | Drafting aids | F7 grid, F9 snap (50 mm), F8 ortho |
+| 3D view | `3D` or the 2D / 3D switch in the status bar: drag to orbit, Shift + drag or middle button to pan, wheel to zoom, double-click to fit |
 
 Type over the drawing to use the command line: a name or alias runs a command, `?` lists them,
 an empty Enter repeats the last one. While a command waits for a point, type `x,y` (absolute),
@@ -89,6 +90,8 @@ an empty Enter repeats the last one. While a command waits for a point, type `x,
 | Uganda rule pack (XML) | Not ported |
 | DXF export (R12, mm, one layer per sign colour) | Ported; File → Export DXF or `DXFOUT`. Matches the C# writer byte for byte on the reference files |
 | Fabrication sheets, quantities, schedules | Not ported. Use the C# CLI |
-| Python API, MCP server, IFC exchange, 3D | Not started |
+| 3D view | Done: View → 3D, the `3D` command or the status-bar switch. Orbit, pan, zoom, fit. View only; editing stays in 2D |
+| Python package | Done: `afrobim/python` (PyO3, built with maturin); see its README |
+| MCP server, IFC export | In progress |
 
 The roadmap is in `../docs/plan/2026-11-13-afrobim-platform.md`.

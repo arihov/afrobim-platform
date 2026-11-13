@@ -135,6 +135,21 @@ impl ElementMesh {
     }
 }
 
+impl ElementMesh {
+    /// The filled artwork with each local vertex (mm, from the element's lower-left corner)
+    /// placed by `place`, for the 3D view. None when any vertex cannot be shown (behind the
+    /// camera), so a face is never drawn half-projected.
+    pub fn projected(&self, place: &dyn Fn(f64, f64) -> Option<Pos2>) -> Option<Shape> {
+        let mut mesh = Mesh::default();
+        mesh.vertices.reserve(self.vertices.len());
+        for (p, c) in &self.vertices {
+            mesh.vertices.push(Vertex { pos: place(p[0] as f64, p[1] as f64)?, uv: egui::epaint::WHITE_UV, color: *c });
+        }
+        mesh.indices = self.indices.clone();
+        Some(Shape::mesh(mesh))
+    }
+}
+
 fn f(p: &Pt2) -> [f32; 2] {
     [p.x as f32, p.y as f32]
 }

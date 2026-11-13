@@ -6,6 +6,7 @@ mod commands;
 mod icons;
 mod render;
 mod signs_glue;
+mod view3d;
 
 use std::path::PathBuf;
 
@@ -17,6 +18,8 @@ use eframe::egui;
 pub struct Options {
     pub screenshot: Option<PathBuf>,
     pub demo: bool,
+    /// Start in the 3D view.
+    pub view3d: bool,
     pub open: Option<PathBuf>,
 }
 
@@ -27,6 +30,7 @@ fn parse_args() -> Options {
         match a.as_str() {
             "--screenshot" => o.screenshot = args.next().map(PathBuf::from),
             "--demo" => o.demo = true,
+            "--3d" => o.view3d = true,
             other if !other.starts_with("--") => o.open = Some(PathBuf::from(other)),
             _ => {}
         }

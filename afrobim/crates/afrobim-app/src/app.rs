@@ -55,6 +55,9 @@ pub struct AfroBimApp {
     path: Option<PathBuf>,
     status: String,
     fitted: bool,
+    pub(crate) view_3d: bool,
+    pub(crate) camera: crate::view3d::Camera,
+    pub(crate) fitted_3d: bool,
     canvas_drag: bool,
     quit: bool,
 
@@ -106,6 +109,9 @@ impl AfroBimApp {
             path: None,
             status: "Ready.".into(),
             fitted: false,
+            view_3d: false,
+            camera: crate::view3d::Camera::default(),
+            fitted_3d: false,
             canvas_drag: false,
             quit: false,
             options,
@@ -147,13 +153,14 @@ impl AfroBimApp {
         }
         app.sync_generated();
         app.history.reset(app.doc.snapshot());
+        app.view_3d = app.options.view3d;
         app
     }
 
     // ─── module output ───────────────────────────────────────────────────────
 
     /// Regenerates geometry for elements whose definition changed and drops erased ones.
-    fn sync_generated(&mut self) {
+    pub(crate) fn sync_generated(&mut self) {
         let ids: Vec<ElementId> = self.doc.elements().iter().map(|e| e.id).collect();
         self.cache.retain(|id, _| ids.contains(id));
         for id in ids {
@@ -353,8 +360,11 @@ impl AfroBimApp {
             Action::Copy => self.ctl.start_copy(&mut self.doc),
             Action::Erase => self.ctl.start_erase(&mut self.doc),
             Action::SelectAll => self.doc.select_all(),
+            Action::ZoomExtents if self.view_3d => self.fit_3d(),
             Action::ZoomExtents => self.ctl.zoom_extents(&self.doc, &mut self.view),
             Action::ZoomWindow => self.ctl.start_zoom_window(),
+            Action::ZoomIn if self.view_3d => self.camera.zoom(1.5),
+            Action::ZoomOut if self.view_3d => self.camera.zoom(1.0 / 1.5),
             Action::ZoomIn => self.ctl.zoom_by(&mut self.view, 1.5),
             Action::ZoomOut => self.ctl.zoom_by(&mut self.view, 1.0 / 1.5),
             Action::ToggleGrid => self.grid_on = !self.grid_on,
@@ -366,6 +376,13 @@ impl AfroBimApp {
             Action::ToggleTheme => {
                 self.dark_theme = !self.dark_theme;
                 ctx.set_visuals(if self.dark_theme { egui::Visuals::dark() } else { egui::Visuals::light() });
+            }
+            Action::Toggle3d => {
+                self.view_3d = !self.view_3d;
+                self.ctl.escape(&mut self.doc);
+                if self.view_3d {
+                    self.fit_3d();
+                }
             }
             Action::Arrange => {
                 self.doc.arrange();
@@ -542,6 +559,8 @@ impl AfroBimApp {
                     item(ui, "Snap", "F9", Action::ToggleSnap);
                     item(ui, "Ortho", "F8", Action::ToggleOrtho);
                     ui.separator();
+                    item(ui, "2D model space / 3D view", "3D", Action::Toggle3d);
+                    ui.separator();
                     item(ui, "Real (full colour)", "", Action::RepReal);
                     item(ui, "Outlined", "", Action::RepOutlined);
                     ui.separator();
@@ -623,6 +642,14 @@ impl AfroBimApp {
                 }
                 if ui.selectable_label(self.ctl.ortho_on, "ORTHO").on_hover_text("Hold moves to the X or Y axis (F8)").clicked() {
                     self.ctl.ortho_on = !self.ctl.ortho_on;
+                }
+                ui.separator();
+                if ui.selectable_label(!self.view_3d, "2D").on_hover_text("Model space: select, move, edit").clicked() && self.view_3d {
+                    self.view_3d = false;
+                }
+                if ui.selectable_label(self.view_3d, "3D").on_hover_text("3D view: orbit, pan, zoom").clicked() && !self.view_3d {
+                    self.view_3d = true;
+                    self.fit_3d();
                 }
                 ui.separator();
                 ui.selectable_value(&mut self.rep, Representation::Real, "Real");
@@ -872,6 +899,10 @@ impl AfroBimApp {
 
     fn canvas(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
+            if self.view_3d {
+                self.canvas_3d(ui);
+                return;
+            }
             let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
             let rect = response.rect;
             self.ctl.viewport = (rect.left() as f64, rect.top() as f64, rect.width() as f64, rect.height() as f64);

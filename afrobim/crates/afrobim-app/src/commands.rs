@@ -27,6 +27,7 @@ pub enum Action {
     RepOutlined,
     ToggleCanvas,
     ToggleTheme,
+    Toggle3d,
     Arrange,
     /// Insert the sign template with this index (see `signs_glue::templates`).
     InsertSign(u8),
@@ -73,6 +74,7 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "TEE", aliases: &[], help: "Insert a map-type T-junction sign", action: Action::InsertSign(7) },
     CommandInfo { name: "ROUNDABOUT", aliases: &["RBT"], help: "Insert a map-type roundabout sign", action: Action::InsertSign(8) },
     CommandInfo { name: "LIBRARY", aliases: &["INSERT", "LIB"], help: "Open the standard-sign library", action: Action::Library },
+    CommandInfo { name: "3D", aliases: &["ORBIT", "PLAN"], help: "Switch between the 2D model space and the 3D view", action: Action::Toggle3d },
     CommandInfo { name: "THEME", aliases: &[], help: "Switch between the light and dark themes", action: Action::ToggleTheme },
     CommandInfo { name: "HELP", aliases: &["?"], help: "List every command", action: Action::Help },
     CommandInfo { name: "ABOUT", aliases: &[], help: "About AfroBIM", action: Action::About },
