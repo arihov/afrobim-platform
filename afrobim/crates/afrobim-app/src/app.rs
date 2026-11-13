@@ -229,6 +229,36 @@ impl AfroBimApp {
         }
     }
 
+    /// Writes the selected elements (or every element when nothing is selected) to one DXF, each
+    /// at its model position, in millimetres.
+    fn export_dxf(&mut self, path: PathBuf) {
+        self.sync_generated();
+        let selected_only = !self.doc.selection().is_empty();
+        let mut dxf = afrobim_dxf::DxfDocument::new();
+        let (mut written, mut skipped) = (0, 0);
+        for e in self.doc.elements() {
+            if selected_only && !self.doc.is_selected(e.id) {
+                continue;
+            }
+            match self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()) {
+                Some(g) => {
+                    dxf.add(&g.drawing, 1.0, e.origin);
+                    written += 1;
+                }
+                None => skipped += 1,
+            }
+        }
+        match std::fs::write(&path, dxf.finish()) {
+            Ok(()) => {
+                self.status = format!("Exported {written} element(s) to {}.", path.display());
+                if skipped > 0 {
+                    self.status.push_str(&format!(" {skipped} without geometry were left out."));
+                }
+            }
+            Err(e) => self.status = format!("Could not write {}: {e}", path.display()),
+        }
+    }
+
     fn file_dialog() -> rfd::FileDialog {
         rfd::FileDialog::new().add_filter("AfroBIM document", &[FILE_EXTENSION])
     }
@@ -261,6 +291,16 @@ impl AfroBimApp {
                         path.set_extension(FILE_EXTENSION);
                     }
                     self.save_to(path);
+                }
+            }
+            Action::ExportDxf => {
+                if self.doc.elements().is_empty() {
+                    self.status = "Nothing to export.".into();
+                } else if let Some(mut path) = rfd::FileDialog::new().add_filter("AutoCAD DXF (R12)", &["dxf"]).set_file_name("signs.dxf").save_file() {
+                    if path.extension().is_none() {
+                        path.set_extension("dxf");
+                    }
+                    self.export_dxf(path);
                 }
             }
             Action::Undo => self.undo(),
@@ -446,6 +486,8 @@ impl AfroBimApp {
                     item(ui, "Open…", "Ctrl+O", Action::Open);
                     item(ui, "Save", "Ctrl+S", Action::Save);
                     item(ui, "Save as…", "Ctrl+Shift+S", Action::SaveAs);
+                    ui.separator();
+                    item(ui, "Export DXF…", "DXFOUT", Action::ExportDxf);
                     ui.separator();
                     item(ui, "Quit", "", Action::Quit);
                 });

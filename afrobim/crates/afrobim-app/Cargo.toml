@@ -14,6 +14,7 @@ path = "src/main.rs"
 afrobim-draw = { path = "../afrobim-draw" }
 afrobim-kernel = { path = "../afrobim-kernel" }
 afrobim-signs = { path = "../afrobim-signs" }
+afrobim-dxf = { path = "../afrobim-dxf" }
 serde.workspace = true
 serde_json.workspace = true
 eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }

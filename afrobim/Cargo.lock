@@ -29,6 +29,7 @@ name = "afrobim-app"
 version = "0.1.0"
 dependencies = [
  "afrobim-draw",
+ "afrobim-dxf",
  "afrobim-kernel",
  "afrobim-signs",
  "eframe",
@@ -45,6 +46,14 @@ name = "afrobim-draw"
 version = "0.1.0"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "afrobim-dxf"
+version = "0.1.0"
+dependencies = [
+ "afrobim-draw",
+ "serde_json",
 ]
 
 [[package]]

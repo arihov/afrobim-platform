@@ -1,0 +1,18 @@
+{
+  "name": "synthetic",
+  "sw_mm": 31.25,
+  "primitives": [
+    { "type": "Fill", "colour": "Blue", "outline": [[0, 0], [40, 0], [40, 20.123456], [0, 20]] },
+    { "type": "Line", "from": [2, 2], "to": [30, 14], "width": 4, "colour": "White" },
+    { "type": "Line", "from": [5, 18], "to": [35, 18], "width": 2.5, "colour": null },
+    { "type": "Line", "from": [1, 1], "to": [39, 19], "width": 0, "colour": "Red" },
+    { "type": "Line", "from": [7, 7], "to": [7, 7], "width": 1, "colour": "Red" },
+    { "type": "Arc", "centre": [20, 10], "radius": 6.5, "start_deg": 30, "end_deg": 312.5, "colour": "Yellow" },
+    { "type": "Arc", "centre": [-3.33333, 10], "radius": 2, "start_deg": 0, "end_deg": 90, "colour": null },
+    { "type": "Glyphs", "text": "x", "ink": "Black", "contours": [[[1, 1], [2, 1], [2, 2]], [[5, 5], [6, 5]], [[8, 8], [9, 8], [9, 9], [8, 9]]] },
+    { "type": "Glyphs", "text": "y", "ink": null, "contours": [[[11, 1], [12, 1], [12, 2]]] },
+    { "type": "Symbol", "origin": [30, 2], "id": "placeholder", "size": 6, "rotation_deg": -90 },
+    { "type": "Fill", "colour": "Brown", "outline": [[0.00004, 0.00005], [1, 0], [1, 1]] },
+    { "type": "Fill", "colour": "Grey", "outline": [[-0.000001, 3], [1, 3], [1, 4]] }
+  ]
+}

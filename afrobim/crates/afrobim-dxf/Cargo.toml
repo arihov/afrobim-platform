@@ -1,0 +1,13 @@
+[package]
+name = "afrobim-dxf"
+description = "DXF R12 export of AfroBIM drawings"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-draw = { path = "../afrobim-draw" }
+
+[dev-dependencies]
+serde_json = { workspace = true, features = ["float_roundtrip"] }

@@ -16,6 +16,7 @@ crates/
                    trait, and all GUI-independent editing: view, picking, window / crossing
                    selection, grips, MOVE / COPY / ERASE, snap, ortho, undo
   afrobim-signs    traffic-signs engine: rule pack, Transport font metrics, layout, glyph outlines
+  afrobim-dxf      DXF R12 export, byte-identical to the C# writer for the same primitives
   afrobim-app      the desktop application (egui): menus, toolbar, Tool Sets, model space,
                    Properties, Layers, command line
 ```
@@ -83,7 +84,8 @@ an empty Enter repeats the last one. While a command waits for a point, type `x,
 | UK stack-type direction signs | Ported from the C# engine, golden-tested against it |
 | Map-type, direction, warning, regulatory, information, supplementary signs | Not ported. Use the C# app |
 | Uganda rule pack (XML) | Not ported |
-| DXF export, fabrication sheets, quantities, schedules | Not ported. Use the C# CLI |
+| DXF export (R12, mm, one layer per sign colour) | Ported; File → Export DXF or `DXFOUT`. Matches the C# writer byte for byte on the reference files |
+| Fabrication sheets, quantities, schedules | Not ported. Use the C# CLI |
 | Python API, MCP server, IFC exchange, 3D | Not started |
 
 The roadmap is in `../docs/plan/2026-11-13-afrobim-platform.md`.
