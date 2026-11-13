@@ -60,6 +60,7 @@ enum Item {
         symbol_id: String,
         size: f64,
         rotation: f64,
+        ink: Colour,
     },
 }
 
@@ -192,13 +193,15 @@ impl DestinationColumn {
                     symbol_id,
                     size,
                     rotation,
+                    ink,
                 } => {
-                    prims.extend(symbol::resolve(
+                    prims.extend(symbol::resolve_inked(
                         symbol_id,
                         *size,
                         Pt2::new(left + x, top - down - size),
                         *rotation,
                         measurer,
+                        *ink,
                     )?);
                 }
             }
@@ -524,7 +527,7 @@ fn build_block(
 
         let mut x = 0.0;
         if sym > 0.0 && ctx.symbols_leading {
-            items.push(symbol_for(d, x, tile_down, sym));
+            items.push(symbol_for(d, x, tile_down, sym, lettering));
             x += sym + word_gap;
             any_symbol = true;
         }
@@ -542,7 +545,7 @@ fn build_block(
         }
         if sym > 0.0 && !ctx.symbols_leading {
             x += word_gap;
-            items.push(symbol_for(d, x, tile_down, sym));
+            items.push(symbol_for(d, x, tile_down, sym, lettering));
             x += sym;
             any_symbol = true;
         }
@@ -816,7 +819,7 @@ fn shape(
     })
 }
 
-fn symbol_for(d: &Destination, x: f64, tile_down: f64, size: f64) -> Item {
+fn symbol_for(d: &Destination, x: f64, tile_down: f64, size: f64, ink: Colour) -> Item {
     let rot = symbol::clamp_not_below_horizontal(symbol::rotation_for(d.direction));
     let centre_down = tile_down + TILE_HEIGHT / 2.0 - SYMBOL_RAISE;
     Item::Symbol {
@@ -825,6 +828,7 @@ fn symbol_for(d: &Destination, x: f64, tile_down: f64, size: f64) -> Item {
         symbol_id: d.symbol_id.clone().unwrap_or_default(),
         size,
         rotation: rot,
+        ink,
     }
 }
 

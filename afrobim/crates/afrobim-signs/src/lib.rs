@@ -8,6 +8,10 @@
 //! Also laid out, with the same pack and against the same reference: rectangular direction
 //! signs (§7.11), route confirmatory signs (§8), and the C# engine's place-identification,
 //! lane pre-selection and temporary diversion signs.
+//! Also ported, for the same pack: the sign catalog ([`SignEngine::catalog`] and
+//! [`SignEngine::definition_for`]), the UK warning and regulatory signs drawn from TSRGD 2016
+//! pack data with their associated plates, supplementary plates, information signs, and the
+//! drawn pictogram library for destination symbols.
 //!
 //! ```no_run
 //! use std::path::Path;
@@ -47,11 +51,19 @@ mod outliner;
 mod overlap;
 pub mod pack;
 mod place;
+pub mod pictogram_library;
 mod prim;
 mod route_head;
 mod route_numbers;
 mod sign_plate;
 mod stack;
+mod std_arrow;
+mod std_catalog;
+mod std_info;
+pub mod std_pack;
+mod std_plate;
+mod std_signs;
+mod std_tsrgd;
 mod symbol;
 
 pub use model::{
@@ -59,6 +71,8 @@ pub use model::{
     InformationTemplate, RoadClass, RouteStatus, Severity, SignClass, SignDefinition, SignKind,
     SignLocation, SignMirror, SignSide, SignVariant,
 };
+
+pub use std_catalog::{CatalogEntry, SignSizing};
 
 use font::FontMetrics;
 use measurer::TextTileMeasurer;
@@ -88,6 +102,10 @@ pub struct SignEngine {
     pack: RulePack,
     medium: FontMetrics,
     heavy: FontMetrics,
+    /// The standard-sign sections of the pack (catalog, TSRGD bodies, pictograms and sizes).
+    std: std_pack::StdRules,
+    /// The pack's sign catalog, in pack order.
+    catalog: Vec<CatalogEntry>,
 }
 
 /// A laid-out sign.
@@ -117,10 +135,14 @@ impl SignEngine {
         let pack = RulePack::load(pack_path)?;
         let medium = FontMetrics::load(&find_font(fonts_dir, &pack.fonts.on_dark.file))?;
         let heavy = FontMetrics::load(&find_font(fonts_dir, &pack.fonts.on_light.file))?;
+        let std = std_pack::StdRules::load(pack_path, &pack)?;
+        let catalog = std_catalog::entries(&std);
         Ok(SignEngine {
             pack,
             medium,
             heavy,
+            std,
+            catalog,
         })
     }
 
@@ -145,6 +167,10 @@ impl SignEngine {
         // Map-type signs (UK TSM Chapter 7 §5): map_symbol.rs.
         if map_symbol::is_map_type(sign.kind) {
             return self.layout_map_type(sign);
+        }
+        // Information, warning, regulatory and supplementary signs: std_signs.rs.
+        if std_signs::handles(sign.kind) {
+            return std_signs::layout(self, sign);
         }
         let pack = &self.pack;
         let measurer = TextTileMeasurer::new(&self.medium, &pack.panel, Some(&self.heavy));

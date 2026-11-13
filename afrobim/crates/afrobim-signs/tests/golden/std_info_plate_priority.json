@@ -1,0 +1,15 @@
+{
+  "name": "std_info_plate_priority",
+  "definition": {"code":"I-08","kind":"InformationSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Blue","class":"Information","scheme":"Information","variant":"Secondary","symbol_id":"priority","embedded":null,"catalog_key":null,"info_template":"SymbolPlate","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 31.25,
+  "x_height_mm": 125,
+  "extents": {"min":[0,0],"max":[27,26]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Blue","outline":[[0,0],[27,0],[27,26],[0,26]]},
+    {"type":"Fill","colour":"White","outline":[[9.86,7.18],[11.82,7.18],[11.82,14.74],[9.86,14.74]]},
+    {"type":"Fill","colour":"White","outline":[[8.46,14.18],[13.219999999999999,14.18],[10.84,18.1]]},
+    {"type":"Fill","colour":"Red","outline":[[15.46,11.379999999999999],[16.86,11.379999999999999],[16.86,17.82],[15.46,17.82]]},
+    {"type":"Fill","colour":"Red","outline":[[14.34,11.940000000000001],[17.979999999999997,11.940000000000001],[16.16,8.58]]}
+  ]
+}

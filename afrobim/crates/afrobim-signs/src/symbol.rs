@@ -1,86 +1,16 @@
 //! Pictogram placement inside a sign panel (App.1 §2.1.4). Port of C# `SymbolResolver`.
 //!
-//! The parking "P" is drawn here. The C# `PictogramLibrary` artwork (aircraft, telephone,
-//! fuel pump, ...) is NOT ported: a symbol the reference engine draws from that library is
-//! reported as unsupported rather than drawn differently. A symbol with no artwork in either
-//! engine resolves to a positioned placeholder, as in C#.
+//! The parking "P" is drawn here; every other symbol is real vector artwork from the
+//! [`crate::pictogram_library`] when a glyph exists, otherwise a positioned placeholder for the
+//! renderer to swap in.
 
 use afrobim_draw::Pt2;
 
 use crate::measurer::TextTileMeasurer;
 use crate::model::{Colour, Direction, FontFace};
+use crate::pictogram_library;
 use crate::prim::{rect, Prim, TextRun};
 use crate::SignError;
-
-/// Symbol ids the C# `PictogramLibrary.TryBuild` draws real artwork for.
-const PICTOGRAM_LIBRARY_IDS: &[&str] = &[
-    "aircraft",
-    "plane",
-    "aerodrome",
-    "airport",
-    "telephone",
-    "phone",
-    "telephone-kiosk",
-    "first-aid",
-    "red-cross",
-    "hospital-first-aid",
-    "pump",
-    "fuel",
-    "filling-station",
-    "wrench",
-    "spanner",
-    "workshop",
-    "cup",
-    "refreshments",
-    "fork-knife",
-    "restaurant",
-    "catering",
-    "bed",
-    "hotel",
-    "accommodation",
-    "table-tree",
-    "rest-area",
-    "tent",
-    "camp-site",
-    "campsite",
-    "bus",
-    "bus-stop",
-    "bus-station",
-    "pedestrian",
-    "crossing",
-    "pedestrian-crossing",
-    "hump",
-    "road-hump",
-    "bend",
-    "hairpin",
-    "double-bend",
-    "crossroads",
-    "side-road",
-    "t-junction",
-    "y-junction",
-    "traffic-signal",
-    "narrow-both",
-    "narrow-one",
-    "two-way",
-    "other-danger",
-    "uneven-road",
-    "bicycle",
-    "cycle",
-    "one-way",
-    "no-through-road",
-    "dead-end",
-    "cul-de-sac",
-    "priority",
-    "priority-over-oncoming",
-    "lane-start",
-    "extra-lane-start",
-    "lane-end",
-    "extra-lane-end",
-    "police",
-    "police-control",
-    "tourist",
-    "tourist-attraction",
-];
 
 /// Angle (deg) a symbol points to match its row's arrow, under the convention 0° = up/ahead,
 /// +90° = left, −90° = right.
@@ -101,7 +31,8 @@ pub(crate) fn clamp_not_below_horizontal(rot_deg: f64) -> f64 {
     a.clamp(-90.0, 90.0)
 }
 
-/// Resolves a symbol inside a `size`-square box whose bottom-left corner is `box_min`.
+/// Resolves a symbol inside a `size`-square box whose bottom-left corner is `box_min`, drawn
+/// in black.
 pub(crate) fn resolve(
     symbol_id: &str,
     size: f64,
@@ -109,18 +40,39 @@ pub(crate) fn resolve(
     rotation_deg: f64,
     measurer: &TextTileMeasurer,
 ) -> Result<Vec<Prim>, SignError> {
+    resolve_inked(
+        symbol_id,
+        size,
+        box_min,
+        rotation_deg,
+        measurer,
+        Colour::Black,
+    )
+}
+
+/// As [`resolve`], with the glyph drawn in `ink` (unless the glyph fixes its own colour).
+pub(crate) fn resolve_inked(
+    symbol_id: &str,
+    size: f64,
+    box_min: Pt2,
+    rotation_deg: f64,
+    measurer: &TextTileMeasurer,
+    ink: Colour,
+) -> Result<Vec<Prim>, SignError> {
     let key = symbol_id.trim().to_lowercase();
     match key.as_str() {
         "parking-p" | "p" => parking_square(size, box_min, measurer),
-        k if PICTOGRAM_LIBRARY_IDS.contains(&k) => Err(SignError::Unsupported(format!(
-            "symbol '{symbol_id}': the pictogram artwork library is not ported"
-        ))),
-        _ => Ok(vec![Prim::Symbol {
-            origin: box_min,
-            id: symbol_id.to_string(),
-            size,
-            rotation_deg,
-        }]),
+        _ => Ok(
+            pictogram_library::try_build(symbol_id, size, box_min, rotation_deg, ink)
+                .unwrap_or_else(|| {
+                    vec![Prim::Symbol {
+                        origin: box_min,
+                        id: symbol_id.to_string(),
+                        size,
+                        rotation_deg,
+                    }]
+                }),
+        ),
     }
 }
 

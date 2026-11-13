@@ -1,0 +1,18 @@
+{
+  "name": "std_info_panel_aircraft_right",
+  "definition": {"code":"I-01","kind":"InformationSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Blue","class":"Information","scheme":"Information","variant":"Secondary","symbol_id":"aircraft","embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":"Right","info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 31.25,
+  "x_height_mm": 125,
+  "extents": {"min":[0,0],"max":[27,36.5]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Blue","outline":[[0,0],[27,0],[27,36.5],[0,36.5]]},
+    {"type":"Fill","colour":"White","outline":[[4,13.5],[23,13.5],[23,32.5],[4,32.5]]},
+    {"type":"Fill","colour":"Black","outline":[[12.66,17.4],[14.34,17.4],[14.34,28.32],[12.66,28.32]]},
+    {"type":"Fill","colour":"Black","outline":[[13.5,24.96],[19.939999999999998,21.88],[19.939999999999998,20.76],[13.5,22.72],[7.0600000000000005,20.76],[7.0600000000000005,21.88]]},
+    {"type":"Fill","colour":"Black","outline":[[13.5,19.08],[16.86,17.4],[16.86,16.84],[13.5,17.96],[10.14,16.84],[10.14,17.4]]},
+    {"type":"Fill","colour":"Black","outline":[[12.66,28.04],[14.34,28.04],[13.5,29.439999999999998]]},
+    {"type":"Line","from":[9.499999999949999,7],"to":[12.166666666650002,7],"width":2.6666666667,"colour":"White"},
+    {"type":"Fill","colour":"White","outline":[[17.50000000005,7],[12.166666666650002,2.9999999999499996],[12.166666666650002,11.000000000050001]]}
+  ]
+}

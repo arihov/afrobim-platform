@@ -1,0 +1,12 @@
+{
+  "name": "std_info_plate_hospital",
+  "definition": {"code":"I-09","kind":"InformationSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Blue","class":"Information","scheme":"Information","variant":"Secondary","symbol_id":"H","embedded":null,"catalog_key":null,"info_template":"SymbolPlate","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 31.25,
+  "x_height_mm": 125,
+  "extents": {"min":[0,0],"max":[27,26]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Blue","outline":[[0,0],[27,0],[27,26],[0,26]]},
+    {"type":"Glyphs","text":"H","ink":"White","contours":[[[10.771062271062272,19.492673992673993],[10.771062271062272,14.181318681318682],[16.375457875457876,14.181318681318682],[16.375457875457876,19.492673992673993],[19.26923076923077,19.492673992673993],[19.26923076923077,5.5],[16.375457875457876,5.5],[16.375457875457876,11.434065934065934],[10.771062271062272,11.434065934065934],[10.771062271062272,5.5],[7.877289377289378,5.5],[7.877289377289378,19.492673992673993]]]}
+  ]
+}
