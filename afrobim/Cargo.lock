@@ -74,6 +74,8 @@ version = "0.1.0"
 dependencies = [
  "afrobim-draw",
  "afrobim-kernel",
+ "lyon_tessellation",
+ "serde_json",
 ]
 
 [[package]]

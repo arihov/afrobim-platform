@@ -9,3 +9,5 @@ publish.workspace = true
 [dependencies]
 afrobim-draw = { path = "../afrobim-draw" }
 afrobim-kernel = { path = "../afrobim-kernel" }
+lyon_tessellation = "1"
+serde_json.workspace = true
