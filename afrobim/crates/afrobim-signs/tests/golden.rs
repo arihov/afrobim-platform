@@ -22,6 +22,10 @@ const GLYPH_TOLERANCE: f64 = 1e-3;
 #[derive(Deserialize)]
 struct Fixture {
     name: String,
+    /// The rule pack the fixture was laid out with, as a path from the repository root; the UK
+    /// pack when absent.
+    #[serde(default)]
+    pack: Option<String>,
     definition: SignDefinition,
     sw_mm: f64,
     x_height_mm: f64,
@@ -85,6 +89,37 @@ fn engine() -> SignEngine {
     let root = repo_root();
     SignEngine::load(&root.join("packs/UK-TSM-2019.json"), &root.join("fonts"))
         .expect("the UK pack and the Transport fonts load")
+}
+
+/// One engine per rule pack the fixtures name.
+struct Engines {
+    uk: SignEngine,
+    others: std::collections::BTreeMap<String, SignEngine>,
+}
+
+impl Engines {
+    fn load(fixtures: &[Fixture]) -> Engines {
+        let root = repo_root();
+        let mut others = std::collections::BTreeMap::new();
+        for pack in fixtures.iter().filter_map(|fx| fx.pack.as_ref()) {
+            if !others.contains_key(pack) {
+                let engine = SignEngine::load(&root.join(pack), &root.join("fonts"))
+                    .unwrap_or_else(|e| panic!("{pack}: {e}"));
+                others.insert(pack.clone(), engine);
+            }
+        }
+        Engines {
+            uk: engine(),
+            others,
+        }
+    }
+
+    fn of(&self, fx: &Fixture) -> &SignEngine {
+        match &fx.pack {
+            Some(pack) => &self.others[pack],
+            None => &self.uk,
+        }
+    }
 }
 
 fn fixtures() -> Vec<Fixture> {
@@ -370,8 +405,8 @@ fn compare(engine: &SignEngine, fx: &Fixture) -> Report {
 
 #[test]
 fn every_fixture_matches_the_reference_engine() {
-    let engine = engine();
     let fixtures = fixtures();
+    let engines = Engines::load(&fixtures);
     assert!(
         fixtures.len() >= 7,
         "expected the golden fixtures, found {}",
@@ -381,7 +416,7 @@ fn every_fixture_matches_the_reference_engine() {
     let mut failures = Vec::new();
     let (mut worst_geometry, mut worst_glyph) = (0.0f64, 0.0f64);
     for fx in &fixtures {
-        let report = compare(&engine, fx);
+        let report = compare(engines.of(fx), fx);
         worst_geometry = worst_geometry.max(report.worst_geometry);
         worst_glyph = worst_glyph.max(report.worst_glyph);
         if !report.problems.is_empty() {

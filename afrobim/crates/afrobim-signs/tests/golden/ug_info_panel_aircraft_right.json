@@ -1,0 +1,19 @@
+{
+  "name": "ug_info_panel_aircraft_right",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"UG-I1","kind":"InformationSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Blue","class":"Information","scheme":"Information","variant":"Secondary","symbol_id":"aircraft","embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":"Right","info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[23,32.5]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Blue","outline":[[0,0],[23,0],[23,32.5],[0,32.5]]},
+    {"type":"Fill","colour":"White","outline":[[4,13.5],[19,13.5],[19,28.5],[4,28.5]]},
+    {"type":"Fill","colour":"Black","outline":[[10.9,17],[12.100000000000001,17],[12.100000000000001,24.8],[10.9,24.8]]},
+    {"type":"Fill","colour":"Black","outline":[[11.5,22.4],[16.1,20.2],[16.1,19.4],[11.5,20.8],[6.9,19.4],[6.9,20.2]]},
+    {"type":"Fill","colour":"Black","outline":[[11.5,18.2],[13.9,17],[13.9,16.6],[11.5,17.4],[9.1,16.6],[9.1,17]]},
+    {"type":"Fill","colour":"Black","outline":[[10.9,24.6],[12.100000000000001,24.6],[11.5,25.6]]},
+    {"type":"Line","from":[7,7],"to":[11.5,7],"width":1.0311711030166253,"colour":"White"},
+    {"type":"Fill","colour":"White","outline":[[11.5,7.309351330904987],[11.504408516105588,7.411691100872347],[11.51763406442235,7.512476190171101],[11.53967664495029,7.6117065988012484],[11.570536257689405,7.709382326762791],[11.8753155879335,8.546756654524938],[15.935632293945298,7.024137889770513],[15.935632293945298,6.975862110229487],[11.8753155879335,5.453243345475062],[11.570536257689405,6.290617673237209],[11.53967664495029,6.3882934011987516],[11.517634064422351,6.487523809828899],[11.504408516105586,6.588308899127653],[11.5,6.690648669095013]]}
+  ]
+}

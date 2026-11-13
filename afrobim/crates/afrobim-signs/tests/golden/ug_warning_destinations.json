@@ -1,0 +1,20 @@
+{
+  "name": "ug_warning_destinations",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"UG-W9","kind":"WarningSign","speed_kph":60,"approach_class":"Primary","destinations":[{"name":"One","direction":"Left","order":0,"symbol_id":null,"distance":null,"route_number":"A1","route":"Primary","number_status":"Unspecified"},{"name":"Two","direction":"Left","order":0,"symbol_id":null,"distance":null,"route_number":null,"route":"Unspecified","number_status":"Unspecified"},{"name":"Three","direction":"Left","order":2,"symbol_id":null,"distance":null,"route_number":null,"route":"Unspecified","number_status":"Unspecified"},{"name":"Four","direction":"Ahead","order":3,"symbol_id":null,"distance":null,"route_number":null,"route":"Unspecified","number_status":"Unspecified"},{"name":"Five","direction":"Right","order":4,"symbol_id":null,"distance":null,"route_number":null,"route":"Unspecified","number_status":"Unspecified"}],"background":"White","class":"Warning","scheme":"Auto","variant":"Secondary","symbol_id":"crossroads","embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [
+    {"severity":"Error","code":"MAX_DESTINATIONS","message":"5 destinations; maximum is 4","source":"Uganda TSM Vol.2 App.1 §2.1.2"},
+    {"severity":"Error","code":"MAX_PER_DIRECTION","message":"3 destinations for Left; maximum is 2","source":"Uganda TSM Vol.2 App.1 §2.1.2"},
+    {"severity":"Error","code":"NEARER_NOT_ABOVE","message":"Duplicate proximity order for Left; stacking order is ambiguous","source":"Uganda TSM Vol.2 App.1 §2.1.2"},
+    {"severity":"Warning","code":"ROUTE_NUMBER_NOT_DRAWN","message":"Route numbers, patches and panels are not drawn on Stack type signs yet","source":"MoWHC Traffic Signs Manual Vol.2, July 2004, Appendix 1"}
+  ],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,0],[50,0],[25,43.30127018922193]]},
+    {"type":"Fill","colour":"White","outline":[[10.825317547305483,6.25],[39.17468245269452,6.25],[25,30.80127018922193]]},
+    {"type":"Fill","colour":"Black","outline":[[24.14070554337723,9.523502691896256],[25.85929445662277,9.523502691896256],[25.85929445662277,19.344010767585033],[24.14070554337723,19.344010767585033]]},
+    {"type":"Fill","colour":"Black","outline":[[20.08974596215561,13.574462273117875],[29.91025403784439,13.574462273117875],[29.91025403784439,15.293051186363412],[20.08974596215561,15.293051186363412]]}
+  ]
+}

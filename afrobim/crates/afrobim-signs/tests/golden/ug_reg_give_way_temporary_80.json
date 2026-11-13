@@ -1,0 +1,13 @@
+{
+  "name": "ug_reg_give_way_temporary_80",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"UG-R4","kind":"GiveWay","speed_kph":80,"approach_class":"Primary","destinations":[],"background":"White","class":"Regulatory","scheme":"Temporary","variant":"Secondary","symbol_id":null,"embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,43.30127018922193],[50,43.30127018922193],[25,0]]},
+    {"type":"Fill","colour":"White","outline":[[10.825317547305483,37.05127018922193],[39.17468245269452,37.05127018922193],[25,12.5]]}
+  ]
+}

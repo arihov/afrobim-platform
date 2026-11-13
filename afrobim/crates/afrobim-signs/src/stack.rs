@@ -3,7 +3,7 @@
 //! `ConstraintValidator`.
 //!
 //! The C# engine's other stack layout (one arrow per row, for a pack without a `stack`
-//! section such as the Uganda pack) is not ported.
+//! section such as the Uganda pack) is in `ug_guidance.rs`.
 
 use afrobim_draw::Pt2;
 

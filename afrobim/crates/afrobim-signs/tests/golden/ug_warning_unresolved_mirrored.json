@@ -1,0 +1,16 @@
+{
+  "name": "ug_warning_unresolved_mirrored",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"UG-W6","kind":"WarningSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"White","class":"Warning","scheme":"Auto","variant":"Secondary","symbol_id":"cattle","embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"Right","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [
+    {"severity":"Warning","code":"SYMBOL_UNRESOLVED","message":"Symbol 'cattle' has no artwork; triangle body drawn, placeholder emitted","source":"Uganda TSM Vol.1 §Warning Signs / Vol.2 App.3"}
+  ],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,0],[50,0],[25,43.30127018922193]]},
+    {"type":"Fill","colour":"White","outline":[[10.825317547305483,6.25],[39.17468245269452,6.25],[25,30.80127018922193]]},
+    {"type":"Symbol","origin":[6.586547358083546,8.29593918243516],"id":"cattle","size":12.27563509461097,"rotation_deg":0}
+  ]
+}

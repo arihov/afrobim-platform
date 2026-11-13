@@ -1,0 +1,17 @@
+{
+  "name": "ug_cat_i09",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"I09","kind":"InformationSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"White","class":"Information","scheme":"Secondary","variant":"Secondary","symbol_id":"lane-start","embedded":null,"catalog_key":"I09","info_template":"SymbolPlate","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[27,26]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"White","outline":[[0,0],[27,0],[27,26],[0,26]]},
+    {"type":"Fill","colour":"Black","outline":[[10.07,6.9],[11.33,6.9],[11.33,14.74],[10.07,14.74]]},
+    {"type":"Fill","colour":"Black","outline":[[9.02,14.46],[12.379999999999999,14.46],[10.7,17.82]]},
+    {"type":"Line","from":[11.260000000000002,8.02],"to":[15.74,11.379999999999999],"width":1.26,"colour":"Black"},
+    {"type":"Fill","colour":"Black","outline":[[15.669999999999998,11.100000000000001],[16.93,11.100000000000001],[16.93,14.74],[15.669999999999998,14.74]]},
+    {"type":"Fill","colour":"Black","outline":[[14.62,14.46],[17.979999999999997,14.46],[16.299999999999997,17.82]]}
+  ]
+}

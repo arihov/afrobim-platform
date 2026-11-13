@@ -13,6 +13,11 @@
 //! pack data with their associated plates, supplementary plates, information signs, and the
 //! drawn pictogram library for destination symbols.
 //!
+//! The Uganda pack (`packs/UG-TSM-2004`, a folder of XML files: `xml_pack.rs`) loads too, and
+//! every sign kind lays out with it as the C# engine lays it out: `ug_guidance.rs` and
+//! `ug_signs.rs` hold the layouts only that pack takes. Embedded warning / regulatory signs on
+//! guidance signs remain [`SignError::Unsupported`].
+//!
 //! ```no_run
 //! use std::path::Path;
 //! use afrobim_signs::{Destination, Direction, SignDefinition, SignEngine};
@@ -65,6 +70,11 @@ mod std_plate;
 mod std_signs;
 mod std_tsrgd;
 mod symbol;
+mod ug_engine;
+mod ug_guidance;
+mod ug_signs;
+pub mod ug_pack;
+pub mod xml_pack;
 
 pub use model::{
     Colour, ColourScheme, Destination, Diagnostic, Direction, EmbeddedSign, EmbeddedType, FontFace,
@@ -106,6 +116,8 @@ pub struct SignEngine {
     std: std_pack::StdRules,
     /// The pack's sign catalog, in pack order.
     catalog: Vec<CatalogEntry>,
+    /// The sections only the Uganda pack carries (standard sizes, roundels and triangles).
+    extra: ug_pack::ExtraRules,
 }
 
 /// A laid-out sign.
@@ -129,13 +141,19 @@ impl SignLayout {
 }
 
 impl SignEngine {
-    /// `pack_path`: a rule pack JSON file; `fonts_dir`: folder holding the Transport TTFs named
+    /// `pack_path`: a rule pack JSON file, or a folder pack (its `pack.xml` manifest or the
+    /// folder holding one: the Uganda pack); `fonts_dir`: folder holding the Transport TTFs named
     /// in the pack (`fonts.onDark.file` and `fonts.onLight.file`).
     pub fn load(pack_path: &Path, fonts_dir: &Path) -> Result<SignEngine, SignError> {
+        // A folder pack (a `pack.xml` manifest or the folder holding one): xml_pack.rs.
+        if xml_pack::is_folder_pack(pack_path) {
+            return Self::load_folder_pack(pack_path, fonts_dir);
+        }
         let pack = RulePack::load(pack_path)?;
         let medium = FontMetrics::load(&find_font(fonts_dir, &pack.fonts.on_dark.file))?;
         let heavy = FontMetrics::load(&find_font(fonts_dir, &pack.fonts.on_light.file))?;
         let std = std_pack::StdRules::load(pack_path, &pack)?;
+        let extra = ug_pack::ExtraRules::load_json(pack_path)?;
         let catalog = std_catalog::entries(&std);
         Ok(SignEngine {
             pack,
@@ -143,6 +161,7 @@ impl SignEngine {
             heavy,
             std,
             catalog,
+            extra,
         })
     }
 
@@ -176,6 +195,16 @@ impl SignEngine {
         let measurer = TextTileMeasurer::new(&self.medium, &pack.panel, Some(&self.heavy));
 
         let mut result = match sign.kind {
+            // The layouts of a pack without the Chapter 7 sections (Uganda): ug_guidance.rs.
+            SignKind::StackType if ug_guidance::takes_stack(pack) => {
+                ug_guidance::stack(pack, &measurer, sign)?
+            }
+            SignKind::DirectionSign if ug_guidance::takes_direction(pack, sign) => {
+                ug_guidance::direction(pack, &measurer, sign)?
+            }
+            SignKind::Confirmatory if ug_guidance::takes_confirmatory(pack, sign) => {
+                ug_guidance::confirmatory(pack, &measurer, sign)?
+            }
             SignKind::StackType => stack::StackSignLayout::new(pack, &measurer)?.layout(sign)?,
             SignKind::DirectionSign => direction::layout(pack, &measurer, sign)?,
             SignKind::Confirmatory => confirmatory::layout(pack, &measurer, sign)?,

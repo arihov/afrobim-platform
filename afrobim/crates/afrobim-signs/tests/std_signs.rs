@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use afrobim_draw::{Colour, Primitive, Pt2};
 use afrobim_signs::{
     pictogram_library, CatalogEntry, ColourScheme, Destination, Direction, InformationTemplate,
-    SignClass, SignDefinition, SignEngine, SignError, SignKind, SignVariant,
+    SignClass, SignDefinition, SignEngine, SignKind, SignVariant,
 };
 use serde::Deserialize;
 
@@ -405,26 +405,81 @@ fn a_temporary_sign_has_a_yellow_ground() {
     );
 }
 
-/// The Uganda-style drawing of warning and regulatory signs is not ported: without a TSRGD
-/// pictogram for the symbol the sign is refused, not drawn differently.
+/// Without a TSRGD pictogram for the symbol the sign is drawn as the C# engine's Uganda TSM
+/// drawing on a 50 sw body. The UK pack has no `roundelsTriangles` section, so the engine's own
+/// fallback fractions apply: a border or ring of 1/8 of the size (6.25 sw) and strokes of 1/10
+/// (5 sw).
 #[test]
-fn a_warning_or_regulatory_sign_without_tsrgd_artwork_is_unsupported() {
+fn a_warning_or_regulatory_sign_without_tsrgd_artwork_takes_the_uganda_drawing() {
     let e = engine();
-    for (kind, symbol) in [
-        (SignKind::WarningSign, Some("hump")),
-        (SignKind::WarningSign, None),
-        (SignKind::RegulatoryProhibitory, Some("no-entry")),
-        (SignKind::RegulatoryMandatory, Some("turn-left")),
-        (SignKind::Stop, None),
-        (SignKind::GiveWay, Some("")),
-    ] {
+    let lay = |kind: SignKind, symbol: Option<&str>| {
         let mut sign = SignDefinition::stack("X-1", 60, Vec::new());
         sign.kind = kind;
         sign.symbol_id = symbol.map(str::to_string);
-        let err = e.layout(&sign).unwrap_err();
-        assert!(matches!(err, SignError::Unsupported(_)), "{kind:?}: {err}");
-        assert!(err.to_string().contains("no TSRGD pictogram"), "{err}");
+        e.layout(&sign).unwrap_or_else(|err| panic!("{kind:?}: {err}"))
+    };
+    let height = 25.0 * 3f64.sqrt();
+
+    // Warning: red triangle, white field one band above the base, the drawn hump.
+    let l = lay(SignKind::WarningSign, Some("hump"));
+    assert!(close(l.drawing.extents.max.x, 50.0) && close(l.drawing.extents.max.y, height));
+    let (outer, red) = fill(&l.drawing.primitives[0]);
+    assert_eq!((outer.len(), red), (3, Colour::Red));
+    let (field, white) = fill(&l.drawing.primitives[1]);
+    assert_eq!(white, Colour::White);
+    assert!(close(field[0].y, 6.25) && close(field[1].y, 6.25));
+    assert!(l.drawing.primitives.len() > 2 && l.diagnostics.is_empty());
+    assert_eq!(lay(SignKind::WarningSign, None).drawing.primitives.len(), 2);
+
+    // No entry: white border, red ground of radius 25 - 6.25, white bar 6.25 high across it.
+    let l = lay(SignKind::RegulatoryProhibitory, Some("no-entry"));
+    assert!(close(l.drawing.extents.max.x, 50.0) && close(l.drawing.extents.max.y, 50.0));
+    let (ring, c0) = fill(&l.drawing.primitives[0]);
+    let (ground, c1) = fill(&l.drawing.primitives[1]);
+    assert_eq!((ring.len(), c0, ground.len(), c1), (48, Colour::White, 48, Colour::Red));
+    assert!(close(ground[0].x, 25.0 + 18.75) && close(ground[0].y, 25.0));
+    match &l.drawing.primitives[2] {
+        Primitive::Line { from, to, width, colour } => {
+            assert!(close(from.x, 6.25) && close(to.x, 43.75) && close(from.y, 25.0));
+            assert!(close(*width, 6.25));
+            assert_eq!(*colour, Some(Colour::White));
+        }
+        other => panic!("expected the bar, got {other:?}"),
     }
+    assert_eq!(l.drawing.primitives.len(), 3);
+
+    // Turn left: white border, blue field, two 5 sw legs and the Figure 5 head.
+    let l = lay(SignKind::RegulatoryMandatory, Some("turn-left"));
+    assert_eq!(fill(&l.drawing.primitives[1]).1, Colour::Blue);
+    assert!(matches!(&l.drawing.primitives[2], Primitive::Line { width, .. } if close(*width, 5.0)));
+    assert!(matches!(&l.drawing.primitives[3], Primitive::Line { width, .. } if close(*width, 5.0)));
+    let (head, white) = fill(&l.drawing.primitives[4]);
+    assert_eq!((head.len(), white), (14, Colour::White));
+
+    // Stop: a white octagon with a vertex at the top, the red one inside it, the word.
+    let l = lay(SignKind::Stop, None);
+    let (oct, c) = fill(&l.drawing.primitives[0]);
+    assert_eq!((oct.len(), c), (8, Colour::White));
+    assert!(close(oct[0].x, 25.0) && close(oct[0].y, 50.0));
+    assert_eq!(fill(&l.drawing.primitives[1]).1, Colour::Red);
+    let (text, ink, _) = glyphs(&l.drawing.primitives[2]);
+    assert_eq!((text, ink), ("STOP", Some(Colour::White)));
+
+    // Give way: the point-down triangle, nothing inside.
+    let l = lay(SignKind::GiveWay, Some(""));
+    assert!(close(l.drawing.extents.max.y, height));
+    let (outer, _) = fill(&l.drawing.primitives[0]);
+    assert!(close(outer[2].x, 25.0) && close(outer[2].y, 0.0));
+    assert_eq!(l.drawing.primitives.len(), 2);
+
+    // A profile with no artwork keeps its disc and slash and says so.
+    let l = lay(SignKind::RegulatoryProhibitory, Some("no-horn"));
+    assert_eq!(l.diagnostics.len(), 1);
+    assert_eq!(l.diagnostics[0].code, "SYMBOL_UNRESOLVED");
+    assert_eq!(
+        l.diagnostics[0].source,
+        "Uganda TSM Vol.1 §Regulatory Signs / Vol.2 App.3"
+    );
 }
 
 // ─── sign with plate ──────────────────────────────────────────────────────────

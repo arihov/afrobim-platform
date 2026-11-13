@@ -1,0 +1,16 @@
+{
+  "name": "ug_cat_w81",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"W81","kind":"WarningSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Yellow","class":"Warning","scheme":"Temporary","variant":"Secondary","symbol_id":"roadworks","embedded":null,"catalog_key":"W81","info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [
+    {"severity":"Warning","code":"SYMBOL_UNRESOLVED","message":"Symbol 'roadworks' has no artwork; triangle body drawn, placeholder emitted","source":"Uganda TSM Vol.1 §Warning Signs / Vol.2 App.3"}
+  ],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,0],[50,0],[25,43.30127018922193]]},
+    {"type":"Fill","colour":"Yellow","outline":[[10.825317547305483,6.25],[39.17468245269452,6.25],[25,30.80127018922193]]},
+    {"type":"Symbol","origin":[18.862182452694515,8.29593918243516],"id":"roadworks","size":12.27563509461097,"rotation_deg":0}
+  ]
+}
