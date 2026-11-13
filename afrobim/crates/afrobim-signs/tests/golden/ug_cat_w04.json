@@ -1,0 +1,15 @@
+{
+  "name": "ug_cat_w04",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"W04","kind":"WarningSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Green","class":"Warning","scheme":"Primary","variant":"Secondary","symbol_id":"crossroads","embedded":null,"catalog_key":"W04","info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,0],[50,0],[25,43.30127018922193]]},
+    {"type":"Fill","colour":"White","outline":[[10.825317547305483,6.25],[39.17468245269452,6.25],[25,30.80127018922193]]},
+    {"type":"Fill","colour":"Black","outline":[[24.14070554337723,9.523502691896256],[25.85929445662277,9.523502691896256],[25.85929445662277,19.344010767585033],[24.14070554337723,19.344010767585033]]},
+    {"type":"Fill","colour":"Black","outline":[[20.08974596215561,13.574462273117875],[29.91025403784439,13.574462273117875],[29.91025403784439,15.293051186363412],[20.08974596215561,15.293051186363412]]}
+  ]
+}

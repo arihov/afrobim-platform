@@ -1,0 +1,16 @@
+{
+  "name": "ug_cat_w07",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"W07","kind":"WarningSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Green","class":"Warning","scheme":"Primary","variant":"Secondary","symbol_id":"y-junction","embedded":null,"catalog_key":"W07","info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,0],[50,0],[25,43.30127018922193]]},
+    {"type":"Fill","colour":"White","outline":[[10.825317547305483,6.25],[39.17468245269452,6.25],[25,30.80127018922193]]},
+    {"type":"Fill","colour":"Black","outline":[[24.263461894323342,9.277989990004036],[25.736538105676658,9.277989990004036],[25.736538105676658,13.451705922171767],[24.263461894323342,13.451705922171767]]},
+    {"type":"Line","from":[25,13.451705922171765],"to":[21.808334875401147,18.85298536380059],"width":1.4730762113533162,"colour":"Black"},
+    {"type":"Line","from":[25,13.451705922171765],"to":[28.191665124598853,18.85298536380059],"width":1.4730762113533162,"colour":"Black"}
+  ]
+}

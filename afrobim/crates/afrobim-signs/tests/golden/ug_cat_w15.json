@@ -1,0 +1,17 @@
+{
+  "name": "ug_cat_w15",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"W15","kind":"WarningSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Green","class":"Warning","scheme":"Primary","variant":"Secondary","symbol_id":"two-way","embedded":null,"catalog_key":"W15","info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,0],[50,0],[25,43.30127018922193]]},
+    {"type":"Fill","colour":"White","outline":[[10.825317547305483,6.25],[39.17468245269452,6.25],[25,30.80127018922193]]},
+    {"type":"Line","from":[23.281411086754463,10.014528095680696],"to":[23.281411086754463,17.13439645055506],"width":1.4730762113533162,"colour":"Black"},
+    {"type":"Fill","colour":"Black","outline":[[21.808334875401147,16.888883748662835],[24.75448729810778,16.888883748662835],[23.281411086754463,19.58952346947725]]},
+    {"type":"Line","from":[26.718588913245537,11.73311700892623],"to":[26.718588913245537,18.85298536380059],"width":1.4730762113533162,"colour":"Black"},
+    {"type":"Fill","colour":"Black","outline":[[25.24551270189222,11.97862971081845],[28.191665124598853,11.97862971081845],[26.718588913245537,9.277989990004036]]}
+  ]
+}

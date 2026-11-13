@@ -410,6 +410,24 @@ impl RulePack {
         Ok(pack)
     }
 
+    /// A pack from an already parsed document (a folder pack gathered by `xml_pack.rs`);
+    /// `path` only names the pack in error messages. The same checks as [`RulePack::from_json`].
+    pub fn from_value(value: &serde_json::Value, path: &str) -> Result<RulePack, SignError> {
+        let bad = |e: serde_json::Error| SignError::Pack(format!("Rule pack is not valid: {path}: {e}"));
+        let mut pack: RulePack = serde_json::from_value(value.clone()).map_err(bad)?;
+        pack.dir = serde_json::from_value(value.clone()).map_err(bad)?;
+        if pack.id.trim().is_empty() {
+            return Err(SignError::Pack(format!("Rule pack has no id: {path}")));
+        }
+        if pack.text_sizes.is_empty() {
+            return Err(SignError::Pack(format!(
+                "Rule pack has no textSizes: {path}"
+            )));
+        }
+        pack.validate(path)?;
+        Ok(pack)
+    }
+
     /// The checks of C# `RulePackLoader.ValidateOptionalSections` for the sections read here,
     /// so a bad hand-authored pack fails at load rather than mid-layout.
     fn validate(&self, path: &str) -> Result<(), SignError> {

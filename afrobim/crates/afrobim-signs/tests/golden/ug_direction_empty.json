@@ -1,0 +1,12 @@
+{
+  "name": "ug_direction_empty",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"UG-D4","kind":"DirectionSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Green","class":"Guidance","scheme":"Auto","variant":"Secondary","symbol_id":null,"embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[8,7]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Green","outline":[[0,0],[8,0],[8,7],[0,7]]}
+  ]
+}

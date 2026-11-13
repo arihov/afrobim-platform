@@ -1,0 +1,14 @@
+{
+  "name": "ug_cat_w11",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"W11","kind":"WarningSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Green","class":"Warning","scheme":"Primary","variant":"Secondary","symbol_id":"narrow-both","embedded":null,"catalog_key":"W11","info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,0],[50,0],[25,43.30127018922193]]},
+    {"type":"Fill","colour":"White","outline":[[10.825317547305483,6.25],[39.17468245269452,6.25],[25,30.80127018922193]]},
+    {"type":"Fill","colour":"Black","outline":[[20.580771365940052,9.523502691896256],[29.419228634059948,9.523502691896256],[26.473076211353316,19.344010767585033],[23.526923788646684,19.344010767585033]]}
+  ]
+}

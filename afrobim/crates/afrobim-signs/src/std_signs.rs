@@ -6,11 +6,10 @@
 //! shaped border (C# `LayoutOverlapCheck.CheckRegions`), the route-number note, and then
 //! lettering as glyph outlines.
 //!
-//! Warning and regulatory signs are drawn only where the pack carries TSRGD artwork for the
-//! sign's symbol ([`crate::std_tsrgd`]). The C# engine's other drawing of these kinds (the
-//! Uganda TSM triangle, discs, slashes and arrows of `WarningSignLayout` and
-//! `RegulatorySignLayout`) takes its proportions from the Uganda pack's `roundelsTriangles`
-//! section and is not ported: such a sign is [`SignError::Unsupported`].
+//! Warning and regulatory signs are drawn from TSRGD artwork where the pack carries it for the
+//! sign's symbol ([`crate::std_tsrgd`]). Otherwise they are drawn as the Uganda TSM triangle,
+//! discs, slashes and arrows of C# `WarningSignLayout` and `RegulatorySignLayout`, with the
+//! proportions of the pack's `roundelsTriangles` section ([`crate::ug_signs`]).
 
 use afrobim_draw::{Drawing, Extents, Pt2};
 
@@ -96,7 +95,8 @@ pub(crate) fn layout(engine: &SignEngine, sign: &SignDefinition) -> Result<SignL
     let std = &engine.std;
     let measurer = TextTileMeasurer::new(&engine.medium, &pack.panel, Some(&engine.heavy));
 
-    let mut result = dispatch(pack, std, &measurer, sign)?;
+    let roundels = engine.extra.roundels_triangles.as_ref();
+    let mut result = dispatch(pack, std, roundels, &measurer, sign)?;
 
     // A character the pack's tile table does not list was measured by the font; say so.
     for prim in &result.prims {
@@ -190,6 +190,7 @@ pub(crate) fn layout(engine: &SignEngine, sign: &SignDefinition) -> Result<SignL
 fn dispatch(
     pack: &RulePack,
     std: &StdRules,
+    roundels: Option<&crate::ug_pack::RoundelTriangleRules>,
     measurer: &TextTileMeasurer,
     sign: &SignDefinition,
 ) -> Result<StdLayout, SignError> {
@@ -207,15 +208,9 @@ fn dispatch(
             // body from the pack and the interior read from the diagram.
             match std_tsrgd::resolve(std, sign) {
                 Some(art) => std_tsrgd::layout(pack, std, measurer, sign, &art, diags),
-                None => Err(SignError::Unsupported(format!(
-                    "sign kind {} ('{}') with symbol '{}': rule pack '{}' has no TSRGD pictogram for it, and the \
-                     drawing of warning and regulatory signs from a 'roundelsTriangles' section (Uganda TSM) is \
-                     not ported",
-                    kind.name(),
-                    sign.code,
-                    sign.symbol_id.as_deref().unwrap_or(""),
-                    pack.id
-                ))),
+                // Otherwise the Uganda TSM drawing: the plain triangle, discs, octagon and
+                // give-way triangle (ug_signs.rs).
+                None => crate::ug_signs::layout(pack, roundels, measurer, sign, diags),
             }
         }
         kind => Err(SignError::Unsupported(format!(

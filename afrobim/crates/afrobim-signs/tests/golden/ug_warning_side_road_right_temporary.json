@@ -1,0 +1,15 @@
+{
+  "name": "ug_warning_side_road_right_temporary",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"UG-W3","kind":"WarningSign","speed_kph":50,"approach_class":"Primary","destinations":[],"background":"White","class":"Warning","scheme":"Temporary","variant":"Secondary","symbol_id":"side-road","embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"Right","text_lines":null,"location":null},
+  "sw_mm": 25,
+  "x_height_mm": 100,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,0],[50,0],[25,43.30127018922193]]},
+    {"type":"Fill","colour":"Yellow","outline":[[10.825317547305483,6.25],[39.17468245269452,6.25],[25,30.80127018922193]]},
+    {"type":"Fill","colour":"Black","outline":[[25.491025403784437,9.277989990004036],[24.01794919243112,9.277989990004036],[24.01794919243112,19.58952346947725],[25.491025403784437,19.58952346947725]]},
+    {"type":"Fill","colour":"Black","outline":[[29.419228634059948,13.697218624063986],[25,13.697218624063986],[25,15.170294835417302],[29.419228634059948,15.170294835417302]]}
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "ug_info_unresolved_with_destination",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"UG-I7","kind":"InformationSign","speed_kph":60,"approach_class":"Primary","destinations":[{"name":"Castle","direction":"Ahead","order":0,"symbol_id":null,"distance":null,"route_number":null,"route":"NonPrimary","number_status":"Unspecified"}],"background":"Blue","class":"Information","scheme":"Information","variant":"Secondary","symbol_id":"castle","embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":"Ahead","info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[27,36.5]},
+  "diagnostics": [
+    {"severity":"Warning","code":"SYMBOL_UNRESOLVED","message":"Symbol 'castle' has no artwork; placeholder emitted","source":"Uganda TSM Vol.2 App.3 §5"},
+    {"severity":"Warning","code":"ROUTE_NUMBER_NOT_DRAWN","message":"Route numbers, patches and panels are not drawn on Information signs yet","source":"MoWHC Traffic Signs Manual Vol.2, July 2004, Appendix 1"}
+  ],
+  "primitives": [
+    {"type":"Fill","colour":"Blue","outline":[[0,0],[27,0],[27,36.5],[0,36.5]]},
+    {"type":"Fill","colour":"White","outline":[[4,13.5],[23,13.5],[23,32.5],[4,32.5]]},
+    {"type":"Symbol","origin":[6.5,16],"id":"castle","size":14,"rotation_deg":0},
+    {"type":"Line","from":[13.5,3],"to":[13.5,7],"width":0.916596536014778,"colour":"White"},
+    {"type":"Fill","colour":"White","outline":[[13.225021039195566,7],[13.134052354780136,7.0039186809827445],[13.044465608736799,7.01567472393098],[12.956260801065557,7.035268128844704],[12.86943793176641,7.062698895723917],[12.125105195977833,7.333613855940888],[13.478544097981766,10.942784261284709],[13.521455902018234,10.942784261284709],[14.874894804022167,7.333613855940888],[14.13056206823359,7.062698895723917],[14.043739198934443,7.035268128844704],[13.955534391263201,7.01567472393098],[13.865947645219864,7.0039186809827445],[13.774978960804434,7]]}
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "ug_cat_i03",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"I03","kind":"InformationSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Blue","class":"Information","scheme":"Information","variant":"Secondary","symbol_id":"no-through-road","embedded":null,"catalog_key":"I03","info_template":"SymbolPlate","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[27,26]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Blue","outline":[[0,0],[27,0],[27,26],[0,26]]},
+    {"type":"Fill","colour":"White","outline":[[12.100000000000001,7.18],[14.900000000000002,7.18],[14.900000000000002,15.86],[12.100000000000001,15.86]]},
+    {"type":"Fill","colour":"Red","outline":[[9.02,15.58],[17.98,15.58],[17.98,17.82],[9.02,17.82]]}
+  ]
+}

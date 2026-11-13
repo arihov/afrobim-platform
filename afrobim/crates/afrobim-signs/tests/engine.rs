@@ -191,14 +191,21 @@ fn route_numbers_get_patches_and_inks_by_status() {
     assert_eq!(yellow, ["A", "11"]); // Figure 3-9: letter and number are separate tile groups
 }
 
+/// A warning sign the pack has no TSRGD artwork for is the plain 50 sw triangle of the C#
+/// engine's Uganda drawing (it was refused while that drawing was unported).
 #[test]
-fn other_sign_kinds_are_unsupported() {
+fn a_warning_sign_without_tsrgd_artwork_is_the_plain_triangle() {
     let mut sign =
         SignDefinition::stack("M", 60, vec![Destination::new("Kasese", Direction::Ahead)]);
     sign.kind = SignKind::WarningSign;
-    let err = engine().layout(&sign).unwrap_err();
-    assert!(matches!(err, SignError::Unsupported(_)), "{err}");
-    assert!(err.to_string().contains("WarningSign"), "{err}");
+    let layout = engine().layout(&sign).unwrap();
+    let ext = layout.drawing.extents;
+    assert!((ext.max.x - 50.0).abs() < 1e-9 && (ext.max.y - 25.0 * 3f64.sqrt()).abs() < 1e-9);
+    assert_eq!(layout.drawing.primitives.len(), 2);
+    assert!(matches!(
+        &layout.drawing.primitives[0],
+        Primitive::Fill { outline, colour: Colour::Red } if outline.len() == 3
+    ));
 }
 
 /// A destination symbol from the drawn pictogram library is real geometry, not a placeholder

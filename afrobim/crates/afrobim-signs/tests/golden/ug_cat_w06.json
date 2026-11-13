@@ -1,0 +1,15 @@
+{
+  "name": "ug_cat_w06",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"W06","kind":"WarningSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Green","class":"Warning","scheme":"Primary","variant":"Secondary","symbol_id":"t-junction","embedded":null,"catalog_key":"W06","info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,0],[50,0],[25,43.30127018922193]]},
+    {"type":"Fill","colour":"White","outline":[[10.825317547305483,6.25],[39.17468245269452,6.25],[25,30.80127018922193]]},
+    {"type":"Fill","colour":"Black","outline":[[24.263461894323342,9.769015393788475],[25.736538105676658,9.769015393788475],[25.736538105676658,16.888883748662835],[24.263461894323342,16.888883748662835]]},
+    {"type":"Fill","colour":"Black","outline":[[20.08974596215561,15.90683294109396],[29.91025403784439,15.90683294109396],[29.91025403784439,17.379909152447276],[20.08974596215561,17.379909152447276]]}
+  ]
+}

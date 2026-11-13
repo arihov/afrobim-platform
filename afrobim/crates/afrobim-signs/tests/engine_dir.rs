@@ -293,27 +293,47 @@ fn embedded_signs_on_a_direction_sign_sit_between_the_arrow_and_the_legend() {
     );
 }
 
+/// Without stack rules the C# engine's original direction layout applies (App.1 §2.4): one
+/// stroked arrow spanning the interior beside the legend. Here the UK values otherwise: the
+/// plate is 1.5 + 2.5 + 8 + 1.5 + 1.5 = 15 high, the arrow column is the 8 sw arrow width from
+/// 4 to 12, and the chevron-arrow pack caps the 8/3 sw shaft with the triangle head (two shaft
+/// widths long) under the interior top at 11.
 #[test]
-fn a_pack_without_stack_rules_has_no_ported_direction_layout() {
+fn a_pack_without_stack_rules_takes_the_original_direction_layout() {
     let engine = engine_with("no-stack", "\"stack\":", "\"stackNotRead\":");
-    let err = engine
+    let layout = engine
         .layout(&sign(
             SignKind::DirectionSign,
             60,
             vec![Destination::new("Kasese", Direction::Ahead)],
         ))
-        .unwrap_err();
-    assert!(matches!(err, SignError::Unsupported(_)), "{err}");
-    // The no-destination case does not need them.
+        .unwrap();
+    let ext = layout.drawing.extents;
+    // 1.5 + 2.5 + 8 (arrow) + 2.5 (word space) + 26.44 + 2.5 + 1.5 wide.
+    assert!(close(ext.max.x, 44.94) && close(ext.max.y, 15.0), "{ext:?}");
+    let shaft = layout
+        .drawing
+        .primitives
+        .iter()
+        .find_map(|p| match p {
+            Primitive::Line { from, to, width, .. } => Some((*from, *to, *width)),
+            _ => None,
+        })
+        .expect("a stroked shaft");
+    assert!(close(shaft.0.x, 8.0) && close(shaft.0.y, 3.0));
+    assert!(close(shaft.1.x, 8.0) && close(shaft.1.y, 11.0 - 16.0 / 3.0));
+    assert!(close(shaft.2, 8.0 / 3.0));
+    let head = fills(&layout)
+        .into_iter()
+        .find(|(o, _)| o.len() == 3)
+        .expect("the triangle head");
+    assert!(close(head.0[0].x, 8.0) && close(head.0[0].y, 11.0));
+    // The no-destination case is the plate alone.
     assert!(engine
         .layout(&sign(SignKind::DirectionSign, 60, vec![]))
         .is_ok());
 }
 
-// ─── confirmatory ─────────────────────────────────────────────────────────────
-
-/// §3.9.1–3.9.2: one centred distance column, 7 sw clear of the longest name. Two tiled lines:
-/// height 1.5 + 2.5 + 8 + 8 + 1.5 + 1.5 = 23. No arrow.
 #[test]
 fn a_confirmatory_sign_sets_distances_in_one_centred_column() {
     let layout = engine()
@@ -373,17 +393,35 @@ fn a_confirmatory_sign_without_destinations_is_the_plate_alone() {
     assert!(close(ext.max.x, 8.0) && close(ext.max.y, 7.0), "{ext:?}");
 }
 
+/// Without block rules the C# engine's plain confirmatory layout applies (App.1 §2.5): the
+/// name ranged left, its distance in a column at the right, here 7 sw clear of the name by the
+/// UK pack's `distances` section (§3.9.1).
 #[test]
-fn a_pack_without_block_rules_has_no_ported_confirmatory_layout() {
+fn a_pack_without_block_rules_takes_the_plain_confirmatory_layout() {
     let engine = engine_with("no-blocks", "\"blocks\":", "\"blocksNotRead\":");
-    let err = engine
+    let layout = engine
         .layout(&sign(
             SignKind::Confirmatory,
             100,
             vec![Destination::new("Kasese", Direction::Ahead).with_distance("7")],
         ))
-        .unwrap_err();
-    assert!(matches!(err, SignError::Unsupported(_)), "{err}");
+        .unwrap();
+    assert!(layout.diagnostics.is_empty());
+    let ext = layout.drawing.extents;
+    assert!(close(ext.max.y, 15.0), "{ext:?}");
+    // 1.5 + 2.5 + 26.44 + 7 + the 4.16 sw tile of "7" (Appendix C) + 2.5 + 1.5 wide.
+    let seven = ext.max.x - (1.5 + 2.5 + 26.44 + 7.0 + 2.5 + 1.5);
+    assert!(close(seven, 4.16), "{seven}");
+    let texts: Vec<&str> = layout
+        .drawing
+        .primitives
+        .iter()
+        .filter_map(|p| match p {
+            Primitive::Glyphs { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(texts, ["Kasese", "7"]);
 }
 
 #[test]
@@ -570,7 +608,7 @@ fn a_lane_sign_without_lanes_is_the_bare_panel() {
 }
 
 #[test]
-fn lane_and_diversion_arrows_need_a_ported_route_arm_head_and_route_arm_rules() {
+fn lane_and_diversion_arrows_take_the_packs_route_arm_head_and_need_route_arm_rules() {
     let lane = sign(
         SignKind::LanePreselection,
         80,
@@ -581,11 +619,24 @@ fn lane_and_diversion_arrows_need_a_ported_route_arm_head_and_route_arm_rules() 
         ..lane.clone()
     };
 
-    // A pack with Figure 5 (flared) arrows draws the barbed head, which is not ported.
+    // A pack with Figure 5 (flared) arrows draws the barbed head (14 outline points) and fits
+    // the stroke to the run so the head takes half of it: the lane arrow band is 12.5 sw and
+    // the diversion row 8 sw, and the head is 4 + 1 / tan 70° strokes deep.
     let flared = engine_with("flared", "\"style\": \"chevron\"", "\"style\": \"flared\"");
-    for s in [&lane, &diversion] {
-        let err = flared.layout(s).unwrap_err();
-        assert!(matches!(err, SignError::Unsupported(_)), "{err}");
+    let depth = 4.0 + 1.0 / 70f64.to_radians().tan();
+    for (s, run) in [(&lane, 12.5), (&diversion, 8.0)] {
+        let layout = flared.layout(s).unwrap();
+        assert!(fills(&layout).iter().any(|(o, _)| o.len() == 14));
+        let width = layout
+            .drawing
+            .primitives
+            .iter()
+            .find_map(|p| match p {
+                Primitive::Line { width, .. } => Some(*width),
+                _ => None,
+            })
+            .expect("a stroked shaft");
+        assert!(close(width, 0.5 * run / depth), "{width}");
     }
 
     // The lane arrow band is routeArms.minLengthVertical; the C# loader requires the section.

@@ -278,6 +278,19 @@ impl StdRules {
         Ok(rules)
     }
 
+    /// The sections from an already parsed document (a folder pack gathered by `xml_pack.rs`);
+    /// `path` only names the pack in error messages. The same checks as [`StdRules::from_json`].
+    pub fn from_value(
+        value: &serde_json::Value,
+        path: &str,
+        pack: &RulePack,
+    ) -> Result<StdRules, SignError> {
+        let rules: StdRules = serde_json::from_value(value.clone())
+            .map_err(|e| SignError::Pack(format!("Rule pack is not valid: {path}: {e}")))?;
+        rules.validate(pack, path)?;
+        Ok(rules)
+    }
+
     /// The catalog entry with this key (case is not significant).
     pub fn find_entry(&self, key: &str) -> Option<&PackCatalogEntry> {
         self.catalog

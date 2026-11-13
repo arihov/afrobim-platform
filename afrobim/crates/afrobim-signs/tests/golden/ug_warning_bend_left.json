@@ -1,0 +1,16 @@
+{
+  "name": "ug_warning_bend_left",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"UG-W1","kind":"WarningSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"White","class":"Warning","scheme":"Auto","variant":"Secondary","symbol_id":"bend","embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,0],[50,0],[25,43.30127018922193]]},
+    {"type":"Fill","colour":"White","outline":[[10.825317547305483,6.25],[39.17468245269452,6.25],[25,30.80127018922193]]},
+    {"type":"Fill","colour":"Black","outline":[[24.508974596215563,9.277989990004036],[25.98205080756888,9.277989990004036],[25.98205080756888,15.170294835417302],[24.508974596215563,15.170294835417302]]},
+    {"type":"Fill","colour":"Black","outline":[[21.562822173508927,13.942731325956206],[25.982050807568875,13.942731325956206],[25.982050807568875,15.415807537309522],[21.562822173508927,15.415807537309522]]},
+    {"type":"Fill","colour":"Black","outline":[[22.29936027918559,16.15234564298618],[22.29936027918559,12.46965511460289],[19.598720558371173,14.311000378794535]]}
+  ]
+}

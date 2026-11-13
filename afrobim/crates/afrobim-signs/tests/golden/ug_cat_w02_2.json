@@ -1,0 +1,17 @@
+{
+  "name": "ug_cat_w02_2",
+  "pack": "packs/UG-TSM-2004/pack.xml",
+  "definition": {"code":"W02.2","kind":"WarningSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Green","class":"Warning","scheme":"Primary","variant":"Secondary","symbol_id":"hairpin","embedded":null,"catalog_key":"W02.2","info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"Right","text_lines":null,"location":null},
+  "sw_mm": 37.5,
+  "x_height_mm": 150,
+  "extents": {"min":[0,0],"max":[50,43.30127018922193]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Red","outline":[[0,0],[50,0],[25,43.30127018922193]]},
+    {"type":"Fill","colour":"White","outline":[[10.825317547305483,6.25],[39.17468245269452,6.25],[25,30.80127018922193]]},
+    {"type":"Fill","colour":"Black","outline":[[24.50897459621556,9.769015393788475],[23.281411086754463,9.769015393788475],[23.281411086754463,16.888883748662835],[24.50897459621556,16.888883748662835]]},
+    {"type":"Fill","colour":"Black","outline":[[27.70063972081441,15.66132023920174],[23.281411086754463,15.66132023920174],[23.281411086754463,16.888883748662835],[27.70063972081441,16.888883748662835]]},
+    {"type":"Fill","colour":"Black","outline":[[27.70063972081441,12.960680518387328],[26.473076211353316,12.960680518387328],[26.473076211353316,16.888883748662835],[27.70063972081441,16.888883748662835]]},
+    {"type":"Fill","colour":"Black","outline":[[28.68269052838329,13.697218624063986],[25.491025403784437,13.697218624063986],[27.086857966083866,10.996578903249572]]}
+  ]
+}
