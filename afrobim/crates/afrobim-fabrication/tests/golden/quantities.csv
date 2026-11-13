@@ -1,0 +1,15 @@
+code,catalog_key,family,scheme,ground,speed_kph,x_height_mm,sw_mm,width_mm,height_mm,area_m2,legend_chars,symbols,warnings,errors
+ADS-005,,StackType,Auto,Green,60,125,31.25,2303.8,2625,6.047,44,0,0,0
+ADS-008,,StackType,Auto,Green,80,150,37.5,3370.5,3000,10.112,44,0,0,0
+ADS-007,,StackType,Auto,White,50,125,31.25,2300,1125,2.588,18,0,0,0
+MAP-031,,MapTypeRoundabout,Primary,Green,80,150,37.5,5664,2381.3,13.487,36,0,0,0
+UK06.1,UK06.1,DirectionSign,Primary,Green,60,100,25,1489.5,600,0.894,15,0,0,0
+UK07-3,,Confirmatory,Auto,Green,80,125,31.25,2128.1,2187.5,4.655,38,1,0,0
+W-512-P,D512,WarningSign,Secondary,White,64,60,15,1300.1,1031.3,1.341,13,1,1,0
+W-504.1-P,D504.1,WarningSign,Secondary,White,30,48,12,678.9,787.5,0.535,6,1,1,0
+R-616,D616,RegulatoryProhibitory,Secondary,White,60,60,15,750,750,0.563,0,1,0,0
+R-670/60,D670,RegulatoryProhibitory,Secondary,White,96,60,15,750,750,0.563,2,1,0,0
+MAP-014,,MapTypeCrossroads,Auto,Green,60,125,31.25,1885.3,2625,4.949,38,0,2,2
+LN-1,,LanePreselection,Auto,Green,100,250,62.5,7137.5,1875,13.383,23,0,0,0
+DV-2,,Diversion,Temporary,Yellow,50,125,31.25,1898.1,1218.8,2.313,26,0,0,0
+I-11,,InformationSign,Information,Blue,60,125,31.25,843.8,1140.6,0.962,0,1,2,0

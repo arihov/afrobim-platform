@@ -1,0 +1,29 @@
+{
+  "definition": {"code":"SYN-001","kind":"StackType","speed_kph":60,"approach_class":"Primary","destinations":[{"name":"Synthetic","direction":"Ahead","order":0,"symbol_id":null,"distance":null,"route_number":null,"route":"Unspecified","number_status":"Unspecified"}],"background":"Blue","class":"Guidance","scheme":"Auto","variant":"Secondary","symbol_id":null,"embedded":null,"catalog_key":"UK01.2","info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "info": {"project":"Synthétique × 2 — “quoted” project name that is far too long for the title block to hold at full size, so it is truncated","drawn_by":"","revision":"C","date":"2026-01-15","drawing_number":"FS-SYN"},
+  "sw_mm": 31.25,
+  "x_height_mm": 125,
+  "extents": {"min":[0,0],"max":[48,30]},
+  "diagnostics": [
+    {"severity":"Info","code":"INFO_NOT_LISTED","message":"An information note","source":"none"},
+    {"severity":"Warning","code":"SYNTHETIC_WARNING_WITH_A_CODE_LONG_ENOUGH_TO_NEED_FITTING_INTO_THE_COLUMN_WIDTH_AVAILABLE","message":"A warning","source":"none"},
+    {"severity":"Error","code":"SYNTHETIC_ERROR","message":"An error","source":"none"}
+  ],
+  "primitives": [
+    {"type":"Fill","colour":"White","outline":[[0,0],[48,0],[48,30],[0,30]]},
+    {"type":"Fill","colour":"Blue","outline":[[1.5,1.5],[46.5,1.5],[46.5,28.5],[1.5,28.5]]},
+    {"type":"Fill","colour":"Brown","outline":[[3,3],[22,3],[22,27],[3,27]]},
+    {"type":"Fill","colour":"Grey","outline":[[24,3],[45,3],[45,14],[24,14]]},
+    {"type":"Line","from":[5,5],"to":[20,12.123456],"width":4,"colour":"Yellow"},
+    {"type":"Line","from":[5,20],"to":[20,20],"width":2.5,"colour":null},
+    {"type":"Line","from":[4,4],"to":[21,26],"width":0,"colour":"Red"},
+    {"type":"Line","from":[7,7],"to":[7,7],"width":1,"colour":"Red"},
+    {"type":"Arc","centre":[34.5,21],"radius":6.5,"start_deg":30,"end_deg":312.5,"colour":"Yellow"},
+    {"type":"Arc","centre":[34.5,21],"radius":3.33333,"start_deg":200,"end_deg":20,"colour":null},
+    {"type":"Arc","centre":[30,8],"radius":4,"start_deg":0,"end_deg":90,"colour":"Black"},
+    {"type":"Arc","centre":[40,8],"radius":4.25,"start_deg":-45,"end_deg":405,"colour":"Red"},
+    {"type":"Glyphs","text":"AB","ink":"Black","contours":[[[26,5],[28,5],[28,11],[26,11]],[[26.5,6],[27.5,6],[27.5,10],[26.5,10]],[[29,5],[30,5]],[[31,5],[33,5],[32,11]]]},
+    {"type":"Glyphs","text":"c","ink":null,"contours":[[[35,5],[37,5],[36,11.00005]]]},
+    {"type":"Symbol","origin":[38,16],"id":"placeholder","size":6,"rotation_deg":-90}
+  ]
+}

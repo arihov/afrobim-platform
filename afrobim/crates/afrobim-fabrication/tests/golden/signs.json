@@ -1,0 +1,738 @@
+[
+  {
+    "definition": {
+      "code": "ADS-005",
+      "kind": "StackType",
+      "speed_kph": 60,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Kasese",
+          "direction": "Ahead",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "A109",
+          "route": "Primary",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Mbarara",
+          "direction": "Left",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "A11",
+          "route": "Primary",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Kabale",
+          "direction": "Left",
+          "order": 1,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "A11",
+          "route": "Primary",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Gulu",
+          "direction": "Right",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "(M11)",
+          "route": "Primary",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Lira",
+          "direction": "Right",
+          "order": 1,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "(M11)",
+          "route": "Primary",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Yumbe",
+          "direction": "Right",
+          "order": 2,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "(M11)",
+          "route": "Primary",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Green",
+      "class": "Guidance",
+      "scheme": "Auto",
+      "variant": "Secondary",
+      "symbol_id": null,
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": 2,
+    "location": "A109 / A11 junction, north approach"
+  },
+  {
+    "definition": {
+      "code": "ADS-008",
+      "kind": "StackType",
+      "speed_kph": 80,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Jinja",
+          "direction": "Ahead",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "A1",
+          "route": "Primary",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Entebbe",
+          "direction": "Left",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "M5",
+          "route": "Motorway",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Airport",
+          "direction": "Left",
+          "order": 1,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "M5",
+          "route": "Motorway",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Kyoga",
+          "direction": "Right",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "B4009",
+          "route": "NonPrimary",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Gayaza",
+          "direction": "Right",
+          "order": 1,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "A1(M)",
+          "route": "NonPrimary",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Green",
+      "class": "Guidance",
+      "scheme": "Auto",
+      "variant": "Secondary",
+      "symbol_id": null,
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": null
+  },
+  {
+    "definition": {
+      "code": "ADS-007",
+      "kind": "StackType",
+      "speed_kph": 50,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Kyenjojo",
+          "direction": "Ahead",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Town centre",
+          "direction": "Right",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "White",
+      "class": "Guidance",
+      "scheme": "Auto",
+      "variant": "Secondary",
+      "symbol_id": null,
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": 1,
+    "location": null
+  },
+  {
+    "definition": {
+      "code": "MAP-031",
+      "kind": "MapTypeRoundabout",
+      "speed_kph": 80,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Cambridge",
+          "direction": "Ahead",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "(M11)",
+          "route": "Primary",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Royston",
+          "direction": "Left",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "A505",
+          "route": "Primary",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Barton",
+          "direction": "Right",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "B1040",
+          "route": "NonPrimary",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Green",
+      "class": "Guidance",
+      "scheme": "Primary",
+      "variant": "Secondary",
+      "symbol_id": null,
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": "Roundabout R3, \"east\" arm"
+  },
+  {
+    "definition": {
+      "code": "UK06.1",
+      "kind": "DirectionSign",
+      "speed_kph": 60,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Kasese",
+          "direction": "Ahead",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Masheruka",
+          "direction": "Right",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Green",
+      "class": "Guidance",
+      "scheme": "Primary",
+      "variant": "Secondary",
+      "symbol_id": null,
+      "embedded": null,
+      "catalog_key": "UK06.1",
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": 4,
+    "location": null
+  },
+  {
+    "definition": {
+      "code": "UK07-3",
+      "kind": "Confirmatory",
+      "speed_kph": 80,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Jinja",
+          "direction": "Ahead",
+          "order": 0,
+          "symbol_id": null,
+          "distance": "12",
+          "route_number": "A1",
+          "route": "Primary",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Tororo",
+          "direction": "Ahead",
+          "order": 1,
+          "symbol_id": null,
+          "distance": "118",
+          "route_number": "A1",
+          "route": "Primary",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Entebbe",
+          "direction": "Ahead",
+          "order": 2,
+          "symbol_id": "parking-p",
+          "distance": "7",
+          "route_number": "M5",
+          "route": "Motorway",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Kyoga",
+          "direction": "Ahead",
+          "order": 3,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": "B4009",
+          "route": "NonPrimary",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Green",
+      "class": "Guidance",
+      "scheme": "Auto",
+      "variant": "Secondary",
+      "symbol_id": null,
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": null
+  },
+  {
+    "definition": {
+      "code": "W-512-P",
+      "kind": "WarningSign",
+      "speed_kph": 64,
+      "approach_class": "Primary",
+      "destinations": [],
+      "background": "White",
+      "class": "Warning",
+      "scheme": "Secondary",
+      "variant": "Secondary",
+      "symbol_id": "512",
+      "embedded": null,
+      "catalog_key": "D512",
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": "Adverse camber",
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": 3,
+    "location": "Ch. 12+400 to 13+150, both sides"
+  },
+  {
+    "definition": {
+      "code": "W-504.1-P",
+      "kind": "WarningSign",
+      "speed_kph": 30,
+      "approach_class": "Primary",
+      "destinations": [],
+      "background": "White",
+      "class": "Warning",
+      "scheme": "Secondary",
+      "variant": "Primary",
+      "symbol_id": "504.1",
+      "embedded": null,
+      "catalog_key": "D504.1",
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": "100 yds",
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": null
+  },
+  {
+    "definition": {
+      "code": "R-616",
+      "kind": "RegulatoryProhibitory",
+      "speed_kph": 60,
+      "approach_class": "Primary",
+      "destinations": [],
+      "background": "White",
+      "class": "Regulatory",
+      "scheme": "Secondary",
+      "variant": "Secondary",
+      "symbol_id": "616",
+      "embedded": null,
+      "catalog_key": "D616",
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": 0,
+    "location": null
+  },
+  {
+    "definition": {
+      "code": "R-670/60",
+      "kind": "RegulatoryProhibitory",
+      "speed_kph": 96,
+      "approach_class": "Primary",
+      "destinations": [],
+      "background": "White",
+      "class": "Regulatory",
+      "scheme": "Secondary",
+      "variant": "Secondary",
+      "symbol_id": " 670 : 60 ",
+      "embedded": null,
+      "catalog_key": "D670",
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": null
+  },
+  {
+    "definition": {
+      "code": "MAP-014",
+      "kind": "MapTypeCrossroads",
+      "speed_kph": 60,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Park + Ride",
+          "direction": "Ahead",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Six",
+          "direction": "Left",
+          "order": 5,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "One",
+          "direction": "Left",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Three",
+          "direction": "Left",
+          "order": 2,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Two",
+          "direction": "Left",
+          "order": 1,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Five",
+          "direction": "Left",
+          "order": 4,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Four",
+          "direction": "Left",
+          "order": 3,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Zoo!",
+          "direction": "Right",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Bay",
+          "direction": "Right",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Green",
+      "class": "Guidance",
+      "scheme": "Auto",
+      "variant": "Secondary",
+      "symbol_id": null,
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": null
+  },
+  {
+    "definition": {
+      "code": "LN-1",
+      "kind": "LanePreselection",
+      "speed_kph": 100,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Kasese",
+          "direction": "Left",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Masheruka",
+          "direction": "Ahead",
+          "order": 1,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Rubirizi",
+          "direction": "Right",
+          "order": 2,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Green",
+      "class": "Guidance",
+      "scheme": "Auto",
+      "variant": "Secondary",
+      "symbol_id": null,
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": null
+  },
+  {
+    "definition": {
+      "code": "DV-2",
+      "kind": "Diversion",
+      "speed_kph": 50,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Detour",
+          "direction": "Left",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Masheruka",
+          "direction": "Right",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Mukono",
+          "direction": "Ahead",
+          "order": 1,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Jinja",
+          "direction": "Ahead",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Yellow",
+      "class": "Guidance",
+      "scheme": "Temporary",
+      "variant": "Secondary",
+      "symbol_id": null,
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": "Diversion route D2 – café corner"
+  },
+  {
+    "definition": {
+      "code": "I-11",
+      "kind": "InformationSign",
+      "speed_kph": 60,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Castle",
+          "direction": "Ahead",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "NonPrimary",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Blue",
+      "class": "Information",
+      "scheme": "Information",
+      "variant": "Secondary",
+      "symbol_id": "castle",
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": "Ahead",
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": null
+  }
+]
