@@ -859,17 +859,47 @@ fn a_pack_missing_a_map_section_or_ring_value_is_a_pack_error() {
 }
 
 #[test]
-fn embedded_signs_on_a_map_type_sign_are_unsupported_not_dropped() {
+fn embedded_signs_are_drawn_over_the_vertical_arm_without_resizing_the_sign() {
     let (pack, fonts) = (uk_pack(), fonts());
     let mut sign = three_way();
+    let control = lay(&pack, &fonts, &sign);
+    sign.embedded = Some(vec![]);
+    assert_eq!(lay(&pack, &fonts, &sign).prims.len(), control.prims.len());
+
     sign.embedded = Some(vec![EmbeddedSign {
         symbol_id: "height-limit".into(),
         kind: EmbeddedType::RegulatoryRoundel,
     }]);
-    let err = try_lay(&pack, &fonts, &sign).unwrap_err();
-    assert!(matches!(err, SignError::Unsupported(_)), "{err}");
-    sign.embedded = Some(vec![]);
-    assert!(try_lay(&pack, &fonts, &sign).is_ok());
+    let with = lay(&pack, &fonts, &sign);
+    assert!(close(with.width, control.width) && close(with.height, control.height));
+    // On the green ground: the white edge, the red ring and the white field, drawn last.
+    assert_eq!(with.prims.len(), control.prims.len() + 3);
+    assert_eq!(with.prims[..control.prims.len()], control.prims[..]);
+    let discs: Vec<(&Vec<Pt2>, Colour)> = with.prims[control.prims.len()..]
+        .iter()
+        .map(|p| match p {
+            Prim::Fill { outline, colour } => (outline, *colour),
+            other => panic!("not a fill: {other:?}"),
+        })
+        .collect();
+    let colours: Vec<Colour> = discs.iter().map(|d| d.1).collect();
+    assert_eq!(colours, vec![Colour::White, Colour::Red, Colour::White]);
+
+    // Centred on the vertical arm (its apex is the symbol's highest point), between the top of
+    // the side arms and the foot of the arm's point.
+    let apex = with.symbols[0]
+        .iter()
+        .fold(Pt2::new(0.0, f64::MIN), |m, p| if p.y > m.y { *p } else { m });
+    let ring = discs[1].0;
+    let (x0, x1) = ring.iter().fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.x), b.max(p.x)));
+    assert!(close(x1 - x0, 20.0), "{}", x1 - x0);
+    assert!(close((x0 + x1) / 2.0, apex.x));
+    assert!(ring[0].y < apex.y);
+
+    // A pack without the frame proportions draws none, as in C#.
+    let mut bare = uk_pack();
+    bare.embedded.embedded_shapes = None;
+    assert_eq!(lay(&bare, &fonts, &sign).prims.len(), control.prims.len());
 }
 
 #[test]

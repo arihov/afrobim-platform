@@ -19,8 +19,10 @@
 //! Not ported:
 //! - the C# engine's original direction layout (a stroked shaft-and-head arrow beside a text
 //!   stack), which it uses for a pack without `stack` and `arrows` sections (the Uganda pack).
-//!   Only its no-destination case, which every pack takes, is ported: the plate alone;
-//! - embedded restriction signs between the arrow and the legend (C# `EmbeddedSignGeometry`).
+//!   Only its no-destination case, which every pack takes, is ported: the plate alone, and
+//!   any embedded restriction signs.
+//!
+//! Embedded restriction signs keep their place between the arrow and the legend (`embedded.rs`).
 
 use crate::measurer::TextTileMeasurer;
 use crate::model::{Destination, Direction, SignDefinition};
@@ -43,12 +45,8 @@ pub(crate) fn layout(
     measurer: &TextTileMeasurer,
     sign: &SignDefinition,
 ) -> Result<RawLayout, SignError> {
-    if sign.embedded.as_ref().is_some_and(|e| !e.is_empty()) {
-        return Err(SignError::Unsupported(format!(
-            "embedded warning/regulatory signs on a direction sign ('{}'): the embedded-sign geometry is not ported",
-            sign.code
-        )));
-    }
+    // Embedded restriction signs sit between the arrow and the destinations (App.1 §2.1.3).
+    let embedded_col_w = crate::embedded::column_width(sign, pack)?;
 
     let diags = validate_constraints(sign, pack);
     let p = &pack.panel;
@@ -57,11 +55,24 @@ pub(crate) fn layout(
 
     if sign.destinations.is_empty() {
         // The original engine with nothing to draw: no arrow, no legend, the plate alone.
-        let width = 2.0 * border + 2.0 * p.pad_side;
+        let width =
+            2.0 * border + 2.0 * p.pad_side + embedded_col_w.map_or(0.0, |w| w + p.word_spacing);
         let height = 2.0 * border + p.pad_top + p.pad_bottom;
+        // The plate: the ground, and the §2.15 border when the pack draws one.
+        let mut prims = sign_plate::draw(pack, width, height, &palette);
+        if let Some(col_w) = embedded_col_w {
+            crate::embedded::draw_stacked(
+                &mut prims,
+                sign,
+                pack,
+                border + p.pad_side + col_w / 2.0,
+                height - border - p.pad_top,
+                border + p.pad_bottom,
+                palette.ground,
+            )?;
+        }
         return Ok(RawLayout {
-            // The plate: the ground, and the §2.15 border when the pack draws one.
-            prims: sign_plate::draw(pack, width, height, &palette),
+            prims,
             diagnostics: diags,
             width,
             height,
@@ -96,7 +107,8 @@ pub(crate) fn layout(
 
     let section = engine.build_section(Direction::Ahead, &dest_refs, &palette)?;
 
-    let width = 2.0 * border + section.min_width;
+    let embedded_shift = embedded_col_w.map_or(0.0, |w| w + p.word_spacing);
+    let width = 2.0 * border + section.min_width + embedded_shift;
     let height = 2.0 * border + section.height;
 
     let mut prims = sign_plate::draw(pack, width, height, &palette);
@@ -109,8 +121,22 @@ pub(crate) fn layout(
         height - border,
         &palette,
         p,
-        0.0,
+        embedded_shift,
     )?;
+
+    if let (Some(col_w), Some(st)) = (embedded_col_w, &pack.stack) {
+        let emb_cx =
+            border + st.arrow_to_border + section.arrow_across + st.arrow_to_legend + col_w / 2.0;
+        crate::embedded::draw_stacked(
+            &mut prims,
+            sign,
+            pack,
+            emb_cx,
+            height - border - p.pad_top,
+            border + p.pad_bottom,
+            palette.ground,
+        )?;
+    }
 
     Ok(RawLayout {
         prims,

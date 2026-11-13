@@ -39,6 +39,7 @@ mod confirmatory;
 pub mod dir_rules;
 mod direction;
 mod diversion;
+mod embedded;
 mod family;
 pub mod font;
 mod lane;
@@ -73,6 +74,8 @@ pub use model::{
 };
 
 pub use std_catalog::{CatalogEntry, SignSizing};
+
+pub use embedded::{EmbeddedRules, EmbeddedShapeRules, EmbeddedSignRules, EmbeddedSupport};
 
 use font::FontMetrics;
 use measurer::TextTileMeasurer;

@@ -16,10 +16,11 @@
 //!
 //! Not ported:
 //! - the original map-type engine of C# `MapSignLayout` (stroked arms and a two-circle ring,
-//!   Uganda App.1 Figures 2-4), which a pack without a `mapSymbol` section uses;
-//! - embedded warning / regulatory signs over the vertical arm (C# `EmbeddedSignGeometry`).
+//!   Uganda App.1 Figures 2-4), which a pack without a `mapSymbol` section uses. It is
+//!   reported as [`SignError::Unsupported`].
 //!
-//! Both are reported as [`SignError::Unsupported`].
+//! Embedded warning / regulatory signs are drawn over the vertical arm or inside the ring (C#
+//! `EmbedOverArm`; `embedded.rs`).
 
 use afrobim_draw::{Drawing, Extents, Pt2};
 
@@ -266,13 +267,6 @@ impl<'a> MapSymbolLayout<'a> {
     }
 
     pub fn layout(&self, sign: &SignDefinition) -> Result<RawLayout, SignError> {
-        // C# `EmbedOverArm` draws these with `EmbeddedSignGeometry`, which is not ported.
-        if sign.embedded.as_ref().is_some_and(|e| !e.is_empty()) {
-            return Err(SignError::Unsupported(format!(
-                "embedded warning/regulatory signs on a map-type sign ('{}'): the embedded sign geometry is not ported",
-                sign.code
-            )));
-        }
         match sign.kind {
             SignKind::MapTypeCrossroads => self.junction(sign, false),
             SignKind::MapTypeTee => self.junction(sign, true),
@@ -633,8 +627,24 @@ impl<'a> MapSymbolLayout<'a> {
             )?;
         }
 
-        // C# then draws embedded restriction signs centred over the vertical arm
-        // (`EmbedOverArm`); a sign that carries any was turned away in `layout`.
+        // Embedded restriction signs sit centred over the vertical arm (§2.1.3 of the original
+        // engine): above the junction on a crossroads, on the approach of a tee.
+        let (span_top, span_bot) = if tee {
+            (l_b.min(r_b), y_base)
+        } else if ahead_col.is_none() {
+            (stub_top, arm_top)
+        } else {
+            (y_apex - ms.tip_length(wv), arm_top)
+        };
+        crate::embedded::draw_stacked(
+            &mut prims,
+            sign,
+            self.pack,
+            cx,
+            span_top,
+            span_bot,
+            palette.ground,
+        )?;
 
         Ok(RawLayout {
             prims,
@@ -937,8 +947,16 @@ impl<'a> MapSymbolLayout<'a> {
             )?;
         }
 
-        // C# then draws embedded restriction signs inside the ring (`EmbedOverArm`); a sign
-        // that carries any was turned away in `layout`.
+        // Embedded restriction signs inside the ring (C# `EmbedOverArm`).
+        crate::embedded::draw_stacked(
+            &mut prims,
+            sign,
+            self.pack,
+            cx,
+            cy + inner_r,
+            cy - inner_r,
+            palette.ground,
+        )?;
 
         Ok(RawLayout {
             prims,

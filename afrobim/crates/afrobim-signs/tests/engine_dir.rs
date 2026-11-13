@@ -221,19 +221,76 @@ fn a_direction_sign_without_destinations_is_the_plate_alone() {
 }
 
 #[test]
-fn embedded_signs_on_a_direction_sign_are_unsupported_not_dropped() {
+fn embedded_signs_on_a_direction_sign_sit_between_the_arrow_and_the_legend() {
+    let engine = engine();
     let mut s = sign(
         SignKind::DirectionSign,
         60,
         vec![Destination::new("Kasese", Direction::Ahead)],
     );
+    let control = engine.layout(&s).unwrap();
     s.embedded = Some(vec![EmbeddedSign {
         symbol_id: "height-limit".into(),
         kind: EmbeddedType::RegulatoryRoundel,
     }]);
-    let err = engine().layout(&s).unwrap_err();
-    assert!(matches!(err, SignError::Unsupported(_)), "{err}");
-    assert!(err.to_string().contains("embedded"), "{err}");
+    let layout = engine.layout(&s).unwrap();
+    let (w0, h0) = (control.drawing.extents.max.x, control.drawing.extents.max.y);
+    let (w, h) = (layout.drawing.extents.max.x, layout.drawing.extents.max.y);
+    // Wider by the 20 sw roundel and a 2.5 sw word space; the height is the arrow's, as before.
+    assert!(close(w - w0, 22.5), "{w} against {w0}");
+    assert!(close(h, h0));
+
+    // Green ground: a 0.5 sw white edge, the red ring, the white field (ring 2.5 sw).
+    let all = fills(&layout);
+    let discs: Vec<&(&[Pt2], Colour)> = all.iter().filter(|(o, _)| o.len() == 48).collect();
+    let colours: Vec<Colour> = discs.iter().map(|d| d.1).collect();
+    assert_eq!(colours, vec![Colour::White, Colour::Red, Colour::White]);
+    let widths: Vec<f64> = discs
+        .iter()
+        .map(|d| {
+            let (x0, _, x1, _) = bounds(d.0);
+            x1 - x0
+        })
+        .collect();
+    assert!(close(widths[0], 21.0) && close(widths[1], 20.0) && close(widths[2], 15.0));
+
+    // The column starts 2.5 sw right of the arrow, which is 2.5 sw inside the 1.5 sw border,
+    // and is centred between the legend's top (2.5 sw) and bottom (1.5 sw) clearances.
+    let arrow = all
+        .iter()
+        .find(|(o, c)| *c == Colour::White && o.len() != 48 && o.len() != 4 && {
+            let (x0, ..) = bounds(o);
+            close(x0, 4.0)
+        })
+        .expect("the arrow");
+    let (_, _, arrow_right, _) = bounds(arrow.0);
+    let (x0, y0, x1, y1) = bounds(discs[1].0);
+    assert!(close(x0, arrow_right + 2.5), "{x0} against {arrow_right}");
+    assert!(close((y0 + y1) / 2.0, h / 2.0 - 0.5));
+    let _ = x1;
+
+    // A white sign gets no white edge; no destinations leaves the plate and the roundel.
+    s.background = Colour::White;
+    s.destinations.clear();
+    let layout = engine.layout(&s).unwrap();
+    let reds = fills(&layout)
+        .iter()
+        .filter(|(_, c)| *c == Colour::Red)
+        .count();
+    assert_eq!(reds, 1);
+    assert!(close(layout.drawing.extents.max.x, 2.0 * 1.5 + 2.0 * 2.5 + 22.5));
+    assert_eq!(
+        engine.embedded_support(SignKind::DirectionSign),
+        afrobim_signs::EmbeddedSupport::Drawn
+    );
+    assert_eq!(
+        engine.embedded_support(SignKind::StackType),
+        afrobim_signs::EmbeddedSupport::NotPlaced
+    );
+    assert_eq!(
+        engine.embedded_support(SignKind::Confirmatory),
+        afrobim_signs::EmbeddedSupport::Ignored
+    );
 }
 
 #[test]
