@@ -1,0 +1,13 @@
+target/
+dist/
+wheels/
+*.whl
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+# The compiled module `maturin develop` drops into the source tree.
+python/afrobim/*.so
+python/afrobim/*.pyd
+python/afrobim/*.dylib

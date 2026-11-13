@@ -1,0 +1,16 @@
+# A reference writer for the Python tests: it builds a document with the Rust kernel directly,
+# the way the desktop app does, so pytest can compare the Python API's file with it. It does not
+# use Python or PyO3.
+[package]
+name = "kernel-reference"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Its own workspace root: it belongs neither to ../../../Cargo.toml nor to the extension crate.
+[workspace]
+
+[dependencies]
+afrobim-kernel = { path = "../../../crates/afrobim-kernel" }
+afrobim-signs = { path = "../../../crates/afrobim-signs" }
+serde_json = { version = "1", features = ["float_roundtrip"] }
