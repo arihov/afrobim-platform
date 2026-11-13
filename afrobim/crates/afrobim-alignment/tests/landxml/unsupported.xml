@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-built test file following the LandXML 1.2 schema. It was NOT exported by Civil 3D.
+     US survey feet; sound alignments and several that use what the importer does not support. -->
+<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.landxml.org/schema/LandXML-1.2 http://www.landxml.org/schema/LandXML-1.2/LandXML-1.2.xsd" date="2026-11-13" time="12:00:00" version="1.2" language="English" readOnly="false">
+  <Units>
+    <Imperial areaUnit="squareFoot" linearUnit="USSurveyFoot" volumeUnit="cubicYard" temperatureUnit="fahrenheit" pressureUnit="inHG" angularUnit="decimal degrees" directionUnit="decimal degrees"/>
+  </Units>
+  <CgPoints>
+    <CgPoint name="P1">2000.000000 3000.000000</CgPoint>
+    <CgPoint name="P2">2000.000000 3400.000000 101.5</CgPoint>
+  </CgPoints>
+  <Alignments>
+    <Alignment name="Feet" length="750.000000" staStart="1000.000000">
+      <CoordGeom>
+        <Line length="300.000000" staStart="1000.000000">
+          <Start>5000.000000 1000.000000</Start>
+          <End>4787.867966 1212.132034</End>
+        </Line>
+        <Curve rot="cw" crvType="arc" length="250.000000" radius="500.000000" staStart="1300.000000">
+          <Start>4787.867966 1212.132034</Start>
+          <Center>4434.314575 858.578644</Center>
+          <End>4575.084341 1338.353459</End>
+          <PI>4697.590964 1302.409036</PI>
+        </Curve>
+        <Line length="200.000000" staStart="1550.000000">
+          <Start>4575.084341 1338.353459</Start>
+          <End>4383.174415 1394.661365</End>
+        </Line>
+      </CoordGeom>
+      <StaEquation staAhead="2000.000000" staBack="1300.000000" staInternal="1300.000000" staIncrement="increasing"/>
+    </Alignment>
+    <Alignment name="Bloss" length="350.000000" staStart="0.000000">
+      <CoordGeom>
+        <Line length="100.000000" staStart="0.000000">
+          <Start>0.000000 0.000000</Start>
+          <End>0.000000 100.000000</End>
+        </Line>
+        <Spiral length="150.000000" radiusEnd="800.000000" radiusStart="INF" rot="ccw" spiType="bloss" staStart="100.000000">
+          <Start>0.000000 100.000000</Start>
+          <PI>0.000000 200.046077</PI>
+          <End>4.684558 249.868218</End>
+        </Spiral>
+        <Curve rot="ccw" crvType="arc" length="100.000000" radius="800.000000" staStart="250.000000">
+          <Start>4.684558 249.868218</Start>
+          <Center>801.171507 174.978033</Center>
+          <End>20.235928 348.585698</End>
+          <PI>9.371299 299.713572</PI>
+        </Curve>
+      </CoordGeom>
+    </Alignment>
+    <Alignment name="Irregular" length="100.000000" staStart="0.000000">
+      <CoordGeom>
+        <IrregularLine>
+          <Start>0.000000 0.000000</Start>
+          <End>0.000000 100.000000</End>
+          <PntList2D>0.000000 0.000000 1.000000 50.000000 0.000000 100.000000</PntList2D>
+        </IrregularLine>
+      </CoordGeom>
+    </Alignment>
+    <Alignment name="Chained" length="100.000000" staStart="0.000000">
+      <CoordGeom>
+        <Chain>P1 P2</Chain>
+      </CoordGeom>
+    </Alignment>
+    <Alignment name="By reference" length="410.000000" staStart="50.000000">
+      <CoordGeom>
+        <Line length="410.000000">
+          <Start pntRef="P1"/>
+          <End pntRef="P2"/>
+        </Line>
+      </CoordGeom>
+    </Alignment>
+    <Alignment name="Dangling" length="100.000000" staStart="0.000000">
+      <CoordGeom>
+        <Line>
+          <Start pntRef="P1"/>
+          <End pntRef="P9"/>
+        </Line>
+      </CoordGeom>
+    </Alignment>
+    <Alignment name="Kinked" length="200.000000" staStart="0.000000">
+      <CoordGeom>
+        <Line length="100.000000">
+          <Start>0.000000 0.000000</Start>
+          <End>0.000000 100.000000</End>
+        </Line>
+        <Line length="100.000000">
+          <Start>0.000000 100.000000</Start>
+          <End>100.000000 100.000000</End>
+        </Line>
+      </CoordGeom>
+    </Alignment>
+  </Alignments>
+</LandXML>

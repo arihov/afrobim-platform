@@ -12,3 +12,4 @@ afrobim-kernel = { path = "../afrobim-kernel" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+roxmltree = "0.20"
