@@ -196,6 +196,52 @@ pub fn templates() -> Vec<Template> {
                 vec![Destination::new("Forward route", Ahead), Destination::new("Diversion route", Right)],
             ),
         ),
+        t(
+            "Map-type crossroads",
+            "MAP",
+            "Map-type advance direction sign for a crossroads (TSM Ch. 7 §5, Figure 5-7)",
+            Icon::Map,
+            "ADS-001",
+            with(
+                SignKind::MapTypeCrossroads,
+                60,
+                Colour::Green,
+                ColourScheme::Primary,
+                Some("UK02.1"),
+                vec![Destination::new("Left", Left), Destination::new("Ahead", Ahead), Destination::new("Right", Right)],
+            ),
+        ),
+        t(
+            "Map-type T-junction",
+            "TEE",
+            "Map-type advance direction sign for a T-junction (TSM Ch. 7 §5)",
+            Icon::Tee,
+            "ADS-001",
+            // A T-junction has no ahead arm: an ahead destination is laid out but flagged.
+            with(
+                SignKind::MapTypeTee,
+                60,
+                Colour::Green,
+                ColourScheme::Primary,
+                Some("UK03.1"),
+                vec![Destination::new("Left", Left), Destination::new("Right", Right)],
+            ),
+        ),
+        t(
+            "Map-type roundabout",
+            "ROUNDABOUT",
+            "Map-type advance direction sign for a roundabout (TSM Ch. 7 §5, Figure 5-13)",
+            Icon::Roundabout,
+            "ADS-001",
+            with(
+                SignKind::MapTypeRoundabout,
+                50,
+                Colour::Green,
+                ColourScheme::Primary,
+                Some("UK01.1"),
+                vec![Destination::new("Left", Left), Destination::new("Ahead", Ahead), Destination::new("Right", Right)],
+            ),
+        ),
     ]
 }
 

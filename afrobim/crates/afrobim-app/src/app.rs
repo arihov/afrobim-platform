@@ -628,7 +628,6 @@ impl AfroBimApp {
             });
             ui.add_enabled_ui(false, |ui| {
                 let later = "Not yet ported to the AfroBIM engine";
-                icons::palette_button(ui, Icon::Map, "Map-type direction", later);
                 icons::palette_button(ui, Icon::Regulatory, "Warning and regulatory", later);
                 icons::palette_button(ui, Icon::Information, "Information", later);
             });
