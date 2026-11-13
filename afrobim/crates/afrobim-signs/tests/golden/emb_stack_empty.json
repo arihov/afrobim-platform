@@ -1,0 +1,13 @@
+{
+  "name": "emb_stack_empty",
+  "definition": {"code":"EMB-S4","kind":"StackType","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Green","class":"Guidance","scheme":"Auto","variant":"Secondary","symbol_id":null,"embedded":[{"symbol_id":"height-limit","type":"RegulatoryRoundel"}],"catalog_key":null,"info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 31.25,
+  "x_height_mm": 125,
+  "extents": {"min":[0,0],"max":[8,7]},
+  "diagnostics": [
+    {"severity":"Warning","code":"EMBEDDED_NOT_PLACED","message":"Warning/regulatory symbols on a panelled stack-type sign are not laid out yet; omitted","source":"UK TSM Chapter 7 §4.4–4.6"}
+  ],
+  "primitives": [
+    {"type":"Fill","colour":"White","outline":[[0,0],[8,0],[8,7],[0,7]]}
+  ]
+}

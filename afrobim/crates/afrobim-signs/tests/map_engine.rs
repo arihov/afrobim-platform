@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use afrobim_draw::{Colour, Primitive, Pt2};
 use afrobim_signs::{
     ColourScheme, Destination, Direction, EmbeddedSign, EmbeddedType, RoadClass, RouteStatus,
-    Severity, SignDefinition, SignEngine, SignError, SignKind,
+    Severity, SignDefinition, SignEngine, SignKind,
 };
 
 fn repo_root() -> PathBuf {
@@ -194,15 +194,44 @@ fn route_numbers_patches_and_panels_are_drawn_on_map_signs() {
 }
 
 #[test]
-fn embedded_signs_on_a_map_sign_are_unsupported_not_dropped() {
+fn embedded_signs_on_a_map_sign_are_drawn_over_the_arm() {
+    let engine = engine();
     let mut sign = app_default();
-    sign.embedded = Some(vec![EmbeddedSign {
-        symbol_id: "height-limit".into(),
-        kind: EmbeddedType::RegulatoryRoundel,
-    }]);
-    let err = engine().layout(&sign).unwrap_err();
-    assert!(matches!(err, SignError::Unsupported(_)), "{err}");
-    assert!(err.to_string().contains("embedded"), "{err}");
+    let control = engine.layout(&sign).unwrap();
+    sign.embedded = Some(vec![
+        EmbeddedSign {
+            symbol_id: "height-limit".into(),
+            kind: EmbeddedType::RegulatoryRoundel,
+        },
+        EmbeddedSign {
+            symbol_id: "crossroads-ahead".into(),
+            kind: EmbeddedType::WarningTriangle,
+        },
+    ]);
+    for kind in [
+        SignKind::MapTypeCrossroads,
+        SignKind::MapTypeTee,
+        SignKind::MapTypeRoundabout,
+    ] {
+        sign.kind = kind;
+        let layout = engine.layout(&sign).unwrap();
+        let red: Vec<usize> = fills(&layout)
+            .iter()
+            .filter(|(_, c)| *c == Colour::Red)
+            .map(|(o, _)| o.len())
+            .collect();
+        // The roundel's 48-sided ring above the three-sided triangle frame.
+        assert_eq!(red, vec![48, 3], "{kind:?}");
+        assert_eq!(
+            engine.embedded_support(kind),
+            afrobim_signs::EmbeddedSupport::Drawn
+        );
+    }
+    // The sign's size does not change.
+    sign.kind = SignKind::MapTypeCrossroads;
+    let layout = engine.layout(&sign).unwrap();
+    assert_eq!(layout.drawing.extents, control.drawing.extents);
+    assert_eq!(layout.diagnostics, control.diagnostics);
 }
 
 // ─── the map_* golden fixtures ────────────────────────────────────────────────────

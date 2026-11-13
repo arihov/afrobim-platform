@@ -360,6 +360,10 @@ pub struct RulePack {
     /// from the same text instead of competing for the keys during deserialisation.
     #[serde(skip)]
     pub dir: crate::dir_rules::DirRules,
+    /// `embeddedSigns` and `embeddedShapes` (App.1 §2.1.3), defined in `embedded.rs` and filled
+    /// in by [`RulePack::from_json`] from the same text.
+    #[serde(skip)]
+    pub embedded: crate::embedded::EmbeddedRules,
     #[serde(default)]
     pub text_sizes_by_family: Option<BTreeMap<String, Vec<TextSize>>>,
     #[serde(default)]
@@ -393,6 +397,7 @@ impl RulePack {
             .map_err(|e| SignError::Pack(format!("Rule pack is not valid JSON: {path}: {e}")))?;
         pack.dir = serde_json::from_str(&stripped)
             .map_err(|e| SignError::Pack(format!("Rule pack is not valid JSON: {path}: {e}")))?;
+        pack.embedded = crate::embedded::EmbeddedRules::from_stripped_json(&stripped, path)?;
         if pack.id.trim().is_empty() {
             return Err(SignError::Pack(format!("Rule pack has no id: {path}")));
         }
