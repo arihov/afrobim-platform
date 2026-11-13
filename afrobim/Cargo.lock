@@ -45,6 +45,7 @@ dependencies = [
  "afrobim-ifc",
  "afrobim-kernel",
  "afrobim-signs",
+ "afrobim-supports",
  "eframe",
  "egui",
  "image",

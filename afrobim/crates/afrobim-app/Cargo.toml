@@ -17,6 +17,7 @@ afrobim-signs = { path = "../afrobim-signs" }
 afrobim-dxf = { path = "../afrobim-dxf" }
 afrobim-ifc = { path = "../afrobim-ifc" }
 afrobim-fabrication = { path = "../afrobim-fabrication" }
+afrobim-supports = { path = "../afrobim-supports" }
 serde.workspace = true
 serde_json.workspace = true
 eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }

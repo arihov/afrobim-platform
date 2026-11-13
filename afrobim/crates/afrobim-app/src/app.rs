@@ -12,7 +12,7 @@ use egui::{Color32, Key, KeyboardShortcut, Modifiers, PointerButton, RichText, S
 use crate::commands::{self, Action, COMMANDS};
 use crate::icons::{self, Icon};
 use crate::render::{ElementMesh, Representation};
-use crate::{signs_glue, Options};
+use crate::{signs_glue, supports_glue, Options};
 
 /// A module's output for one element, kept until the element's definition changes.
 pub(crate) struct Cached {
@@ -46,6 +46,8 @@ pub struct AfroBimApp {
     show_library: bool,
     library: Vec<signs_glue::LibraryItem>,
     library_filter: String,
+    /// The "Add supports" dialog: sign, mounting height as typed, number of posts, edge inset.
+    supports_dialog: Option<(ElementId, String, u32, f64)>,
     new_prop_key: String,
 
     pub(crate) grid_on: bool,
@@ -74,6 +76,7 @@ impl AfroBimApp {
     pub fn new(cc: &eframe::CreationContext<'_>, options: Options) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         let mut modules = ModuleRegistry::default();
+        supports_glue::register(&mut modules);
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
             Ok(l) => {
@@ -106,6 +109,7 @@ impl AfroBimApp {
             show_library: false,
             library,
             library_filter: String::new(),
+            supports_dialog: None,
             new_prop_key: String::new(),
             grid_on: true,
             grid_spacing: 100.0,
@@ -154,6 +158,13 @@ impl AfroBimApp {
                 app.sync_generated();
             }
             app.doc.arrange();
+            // Demo only: supports under a few signs, at an arbitrary 2 m mounting height and with
+            // the placeholder dimensions, to show posts and foundations in the model.
+            let signs: Vec<ElementId> = app.doc.elements().iter().filter(|e| e.category == signs_glue::CATEGORY).map(|e| e.id).take(4).collect();
+            for (i, id) in signs.into_iter().enumerate() {
+                let _ = supports_glue::add(&mut app.doc, id, 2000.0, if i == 0 { 2 } else { 1 }, 300.0);
+            }
+            app.sync_generated();
             if let Some(first) = app.doc.elements().first().map(|e| e.id) {
                 app.doc.select(&[first], SelectMode::Replace);
             }
@@ -368,8 +379,22 @@ impl AfroBimApp {
         }
         let (csv, summary, count, area) = signs_glue::quantities(&engine, &signs);
         let summary_path = path.with_extension("summary.csv");
+        let mut supports_note = String::new();
+        match supports_glue::quantities(&self.doc) {
+            Some(Ok((posts, foundations, totals))) => {
+                let written = std::fs::write(path.with_extension("posts.csv"), posts)
+                    .and_then(|()| std::fs::write(path.with_extension("foundations.csv"), foundations))
+                    .and_then(|()| std::fs::write(path.with_extension("supports.csv"), totals));
+                supports_note = match written {
+                    Ok(()) => " Posts and foundations measured beside it.".into(),
+                    Err(e) => format!(" Support quantities not written: {e}."),
+                };
+            }
+            Some(Err(e)) => supports_note = format!(" Support quantities not written: {e}."),
+            None => {}
+        }
         match std::fs::write(&path, csv).and_then(|()| std::fs::write(&summary_path, summary)) {
-            Ok(()) => self.status = format!("Measured {count} sign face(s), {area:.3} m², to {} and {}.", path.display(), summary_path.display()),
+            Ok(()) => self.status = format!("Measured {count} sign face(s), {area:.3} m², to {} and {}.{supports_note}", path.display(), summary_path.display()),
             Err(e) => self.status = format!("Could not write {}: {e}", path.display()),
         }
     }
@@ -522,6 +547,18 @@ impl AfroBimApp {
                 }
             }
             Action::Library => self.show_library = true,
+            Action::AddSupports => match self.selected_sign() {
+                Some(id) => self.supports_dialog = Some((id, String::new(), 2, 150.0)),
+                None => self.status = "Select one sign first, then add its supports.".into(),
+            },
+            Action::RemoveSupports => match self.selected_sign() {
+                Some(id) => {
+                    let n = supports_glue::remove(&mut self.doc, id);
+                    self.status = format!("Removed {n} support element(s).");
+                    self.schedule_commit(ctx);
+                }
+                None => self.status = "Select the sign whose supports are to be removed.".into(),
+            },
             Action::Standard(index) => {
                 if let Some((id, label, _)) = signs_glue::STANDARDS.get(index as usize) {
                     self.set_standard(id);
@@ -532,6 +569,11 @@ impl AfroBimApp {
             Action::About => self.show_about = true,
             Action::Quit => self.quit = true,
         }
+    }
+
+    /// The primary selection when it is a sign.
+    fn selected_sign(&self) -> Option<ElementId> {
+        self.doc.primary().filter(|id| self.doc.find(*id).is_some_and(|e| e.category == signs_glue::CATEGORY))
     }
 
     /// Switches the design standard: reloads the rule pack and lays every sign out again under
@@ -736,6 +778,9 @@ impl AfroBimApp {
                     }
                 });
                 ui.menu_button("Modify", |ui| {
+                    item(ui, "Add supports to the sign…", "SUPPORTS", Action::AddSupports);
+                    item(ui, "Remove the sign's supports", "NOSUPPORTS", Action::RemoveSupports);
+                    ui.separator();
                     item(ui, "Move", "M", Action::Move);
                     item(ui, "Copy", "CO", Action::Copy);
                     item(ui, "Erase", "E", Action::Erase);
@@ -952,6 +997,8 @@ impl AfroBimApp {
                 ui.label(RichText::new("Definition").strong());
                 if e.category == signs_glue::CATEGORY {
                     changed |= signs_glue::edit_ui(ui, &mut e.data);
+                } else if supports_glue::is_support(&e.category) {
+                    changed |= supports_glue::edit_ui(ui, &mut e.data);
                 }
 
                 if let Some((derived, notes)) = derived {
@@ -1218,6 +1265,53 @@ impl AfroBimApp {
         if let Some((key, data)) = insert {
             self.show_library = false;
             self.insert_sign(ctx, &key, data);
+        }
+
+        if let Some((sign, mut height, mut posts, mut inset)) = self.supports_dialog.take() {
+            let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
+            let (mut keep, mut add) = (true, false);
+            egui::Window::new(format!("Supports for {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
+                egui::Grid::new("supports").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                    ui.label("Mounting height (mm)");
+                    ui.add(egui::TextEdit::singleline(&mut height).hint_text("ground to the sign's lower edge").desired_width(190.0));
+                    ui.end_row();
+                    ui.label("Number of posts");
+                    ui.add(egui::DragValue::new(&mut posts).range(1..=6));
+                    ui.end_row();
+                    ui.label("Edge inset (mm)");
+                    ui.add(egui::DragValue::new(&mut inset).speed(5.0).range(0.0..=5000.0));
+                    ui.end_row();
+                });
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Posts and foundations are added with placeholder dimensions. AfroBIM does not size them for wind load or check them against a standard: set every dimension in Properties.")
+                        .small()
+                        .weak(),
+                );
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    let valid = height.trim().parse::<f64>().is_ok_and(|h| h > 0.0);
+                    if ui.add_enabled(valid, egui::Button::new("Add supports")).clicked() {
+                        add = true;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        keep = false;
+                    }
+                });
+            });
+            if add {
+                let h: f64 = height.trim().parse().unwrap_or(0.0);
+                self.sync_generated(); // the sign's size must be current
+                match supports_glue::add(&mut self.doc, sign, h, posts, inset) {
+                    Ok(n) => {
+                        self.status = format!("Added {n} support element(s) to {mark} with placeholder dimensions.");
+                        self.schedule_commit(ctx);
+                    }
+                    Err(e) => self.status = format!("Supports not added: {e}"),
+                }
+            } else if keep {
+                self.supports_dialog = Some((sign, height, posts, inset));
+            }
         }
 
         let mut about = self.show_about;

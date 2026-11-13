@@ -35,6 +35,8 @@ pub enum Action {
     /// Insert the sign template with this index (see `signs_glue::templates`).
     InsertSign(u8),
     Library,
+    AddSupports,
+    RemoveSupports,
     /// Switch the design standard to the one with this index in `signs_glue::STANDARDS`.
     Standard(u8),
     Help,
@@ -85,6 +87,8 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "3D", aliases: &["ORBIT", "PLAN"], help: "Switch between the 2D model space and the 3D view", action: Action::Toggle3d },
     CommandInfo { name: "UK", aliases: &["UKTSM"], help: "Use the UK Traffic Signs Manual", action: Action::Standard(0) },
     CommandInfo { name: "UGANDA", aliases: &["UG", "UGTSM"], help: "Use the Uganda Traffic Signs Manual", action: Action::Standard(1) },
+    CommandInfo { name: "SUPPORTS", aliases: &["POSTS"], help: "Add posts and foundations to the selected sign", action: Action::AddSupports },
+    CommandInfo { name: "NOSUPPORTS", aliases: &[], help: "Remove the selected sign's posts and foundations", action: Action::RemoveSupports },
     CommandInfo { name: "THEME", aliases: &[], help: "Switch between the light and dark themes", action: Action::ToggleTheme },
     CommandInfo { name: "HELP", aliases: &["?"], help: "List every command", action: Action::Help },
     CommandInfo { name: "ABOUT", aliases: &[], help: "About AfroBIM", action: Action::About },

@@ -6,6 +6,7 @@ mod commands;
 mod icons;
 mod render;
 mod signs_glue;
+mod supports_glue;
 mod view3d;
 
 use std::path::PathBuf;

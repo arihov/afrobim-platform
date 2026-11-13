@@ -7,7 +7,7 @@
 //! Drawing is a software projection onto the egui painter (no GPU code of its own): elements are
 //! flat plates, so sorting them back to front is enough for a correct picture.
 
-use afrobim_kernel::{BBox, ElementId};
+use afrobim_kernel::BBox;
 use egui::{pos2, Align2, Color32, FontId, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui};
 
 use crate::app::AfroBimApp;
@@ -107,6 +107,65 @@ impl Camera {
     }
 }
 
+impl AfroBimApp {
+    /// Where a post or foundation stands in the 3D view: under the sign it belongs to. Returns
+    /// the world position of the solid's local origin (its plan corner, at ground level).
+    ///
+    /// The sign's lower edge is at its sheet height, so its ground is one mounting height below.
+    fn support_base(&self, e: &afrobim_kernel::Element) -> Option<V3> {
+        use crate::supports_glue::{PROP_MOUNTING_HEIGHT_MM, PROP_POSITION_ALONG_SIGN_MM, PROP_SETBACK_MM};
+        // A foundation is hosted by its post, the post by the sign.
+        let post = if e.category == crate::supports_glue::POST_CATEGORY { e } else { self.doc.find(e.host?)? };
+        let sign = self.doc.find(post.host?)?;
+        let number = |key: &str| post.properties.get(key).and_then(|v| v.parse::<f64>().ok());
+        let (u, setback, mounting) = (number(PROP_POSITION_ALONG_SIGN_MM)?, number(PROP_SETBACK_MM)?, number(PROP_MOUNTING_HEIGHT_MM)?);
+        // Centre the solid's plan on the post axis.
+        let solids = &self.cache.get(&e.id)?.generated.as_ref().ok()?.solids;
+        let (mut max_x, mut max_y) = (0.0f64, 0.0f64);
+        for v in solids.iter().flat_map(|m| m.vertices.iter()) {
+            max_x = max_x.max(v[0]);
+            max_y = max_y.max(v[1]);
+        }
+        Some([sign.origin.x + u - max_x / 2.0, setback - max_y / 2.0, sign.origin.y - mounting])
+    }
+
+    /// The triangles of a support's solids, flat-shaded, each with its own view depth.
+    fn support_triangles(&self, e: &afrobim_kernel::Element, rect: Rect, items: &mut Vec<(f64, Vec<Shape>)>) {
+        let Some(base) = self.support_base(e) else { return };
+        let Some(Ok(generated)) = self.cache.get(&e.id).map(|c| c.generated.as_ref()) else { return };
+        let cam = &self.camera;
+        let light = norm([-0.35, -0.75, 0.55]);
+        let selected = self.doc.is_selected(e.id);
+        for mesh in &generated.solids {
+            for t in &mesh.triangles {
+                let p: Vec<V3> = t.iter().map(|i| mesh.vertices[*i as usize]).map(|v| [base[0] + v[0], base[1] + v[1], base[2] + v[2]]).collect();
+                let normal = norm(cross(sub(p[1], p[0]), sub(p[2], p[0])));
+                // Skip faces turned away from the camera: the solids are closed.
+                if dot(normal, sub(cam.eye(), p[0])) <= 0.0 {
+                    continue;
+                }
+                let projected: Option<Vec<(Pos2, f64)>> = p.iter().map(|q| cam.project(*q, rect)).collect();
+                let Some(projected) = projected else { continue };
+                let depth = projected.iter().map(|(_, d)| *d).sum::<f64>() / 3.0;
+                let shade = (0.45 + 0.55 * dot(normal, light).max(0.0)) as f32;
+                let [r, g, b] = mesh.colour;
+                let mut colour = Color32::from_rgb((r as f32 * shade) as u8, (g as f32 * shade) as u8, (b as f32 * shade) as u8);
+                if selected {
+                    colour = Color32::from_rgb(colour.r() / 2 + 0x26, colour.g() / 2 + 0x51, colour.b() / 2 + 0x7F);
+                }
+                // A raw mesh, not a polygon shape: the painter's edge smoothing turns the sliver
+                // triangles of a round post into long spikes.
+                let mut tri = egui::Mesh::default();
+                for (q, _) in &projected {
+                    tri.vertices.push(egui::epaint::Vertex { pos: *q, uv: egui::epaint::WHITE_UV, color: colour });
+                }
+                tri.indices = vec![0, 1, 2];
+                items.push((depth, vec![Shape::mesh(tri)]));
+            }
+        }
+    }
+}
+
 /// Sheet point (x, y) on the plane at depth `y_world` → world.
 fn world(x: f64, y: f64, y_world: f64) -> V3 {
     [x, y_world, y]
@@ -182,51 +241,50 @@ impl AfroBimApp {
             y += step;
         }
 
-        // Elements, farthest first.
+        // Everything is gathered with its view depth, then painted farthest first.
         let eye = cam.eye();
         let from_front = eye[1] < 0.0;
-        let mut order: Vec<(f64, ElementId)> = self
-            .doc
-            .elements()
-            .iter()
-            .filter(|e| self.doc.layer_visible(&e.layer))
-            .filter_map(|e| {
-                let c = e.bounds().centre();
-                cam.project(world(c.x, c.y, 0.0), rect).map(|(_, depth)| (depth, e.id))
-            })
-            .collect();
-        order.sort_by(|a, b| b.0.total_cmp(&a.0));
-
         let plate = if dark { Color32::from_rgb(0x8C, 0x93, 0x9B) } else { Color32::from_rgb(0x9A, 0xA1, 0xA8) };
         let label = if dark { Color32::from_rgb(0xA8, 0xB0, 0xBA) } else { Color32::from_rgb(0x50, 0x55, 0x5C) };
-        for (_, id) in order {
-            let Some(e) = self.doc.find(id) else { continue };
+        let mut items: Vec<(f64, Vec<Shape>)> = Vec::new();
+
+        for e in self.doc.elements().iter().filter(|e| self.doc.layer_visible(&e.layer)) {
+            if crate::supports_glue::is_support(&e.category) {
+                self.support_triangles(e, rect, &mut items);
+                continue;
+            }
             let b = e.bounds();
+            let centre = b.centre();
+            let Some((_, depth)) = cam.project(world(centre.x, centre.y, 0.0), rect) else { continue };
             let corners = [(b.min.x, b.min.y), (b.max.x, b.min.y), (b.max.x, b.max.y), (b.min.x, b.max.y)];
             let quad: Option<Vec<Pos2>> = corners.iter().map(|(x, y)| cam.project(world(*x, *y, 0.0), rect).map(|(p, _)| p)).collect();
             let Some(quad) = quad else { continue };
+            let mut shapes = Vec::new();
 
-            let artwork = self.cache.get(&id).filter(|c| c.generated.is_ok()).filter(|_| from_front);
+            let artwork = self.cache.get(&e.id).filter(|c| c.generated.is_ok()).filter(|_| from_front);
             match artwork {
                 Some(cached) => {
                     // The face, just in front of the plate.
                     let place = |x: f64, y: f64| cam.project(world(e.origin.x + x, e.origin.y + y, -0.5), rect).map(|(p, _)| p);
                     if let Some(shape) = cached.mesh.projected(&place) {
-                        painter.add(shape);
+                        shapes.push(shape);
                     }
                 }
                 // Seen from behind, or without geometry: the bare plate.
-                None => {
-                    painter.add(Shape::convex_polygon(quad.clone(), plate, Stroke::NONE));
-                }
+                None => shapes.push(Shape::convex_polygon(quad.clone(), plate, Stroke::NONE)),
             }
-            if self.doc.is_selected(id) {
-                painter.add(Shape::closed_line(quad.clone(), Stroke::new(2.0_f32, Color32::from_rgb(0x4D, 0xA3, 0xFF))));
+            if self.doc.is_selected(e.id) {
+                shapes.push(Shape::closed_line(quad.clone(), Stroke::new(2.0_f32, Color32::from_rgb(0x4D, 0xA3, 0xFF))));
             }
             if self.show_labels {
                 let anchor = pos2((quad[0].x + quad[1].x) / 2.0, quad[0].y.max(quad[1].y) + 4.0);
-                painter.text(anchor, Align2::CENTER_TOP, &e.name, FontId::proportional(11.0), label);
+                shapes.push(painter.fonts(|f| Shape::text(f, anchor, Align2::CENTER_TOP, &e.name, FontId::proportional(11.0), label)));
             }
+            items.push((depth, shapes));
+        }
+        items.sort_by(|a, b| b.0.total_cmp(&a.0));
+        for (_, shapes) in items {
+            painter.extend(shapes);
         }
 
         // World axes at the model origin.
