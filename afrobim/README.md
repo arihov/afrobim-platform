@@ -83,8 +83,8 @@ an empty Enter repeats the last one. While a command waits for a point, type `x,
 | Desktop shell | Done; checked by headless screenshot on Linux. Not yet run on Windows or macOS |
 | UK direction signs: stack-type, map-type (crossroads, T-junction, roundabout), direction, route confirmatory, place identification, lane pre-selection, diversion | Ported from the C# engine, golden-tested against it |
 | UK standard signs: the pack's catalogue, the 24 TSRGD warning and regulatory diagrams with plates, supplementary plates, information signs, and the 66 destination symbols | Ported, golden-tested. Insert from Tool Sets → Standard signs, or `LIBRARY` |
-| Golden fixtures | 170 signs compared with the C# engine primitive by primitive; worst deviation about 3e-14 sw |
-| Warning signs embedded on direction and map signs | Not ported |
+| Golden fixtures | 203 signs compared with the C# engine primitive by primitive; worst deviation about 3e-14 sw |
+| Warning triangles and regulatory roundels embedded on direction and map-type signs | Ported, golden-tested. Drawn as the standard frame only, as in the C# engine: the inner symbol is not drawn |
 | Uganda-style warning and regulatory drawing (needs the Uganda pack) | Not ported |
 | Uganda rule pack (XML) | Not ported |
 | DXF export (R12, mm, one layer per sign colour) | Ported; File → Export DXF or `DXFOUT`. Matches the C# writer byte for byte on the reference files |

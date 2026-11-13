@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use afrobim_draw::Colour;
 use afrobim_kernel::{Element, Generated, Module, Note, Severity};
-use afrobim_signs::{ColourScheme, Destination, Direction, RoadClass, RouteStatus, SignDefinition, SignEngine, SignKind, SignVariant};
+use afrobim_signs::{ColourScheme, Destination, EmbeddedSign, EmbeddedType, Direction, RoadClass, RouteStatus, SignDefinition, SignEngine, SignKind, SignVariant};
 
 use crate::icons::Icon;
 use serde_json::Value;
@@ -377,6 +377,41 @@ pub fn edit_ui(ui: &mut egui::Ui, data: &mut Value) -> bool {
             *data = to_value(&def);
         }
         return changed;
+    }
+
+    // Warning triangles and regulatory roundels carried on the sign (drawn as the standard
+    // frame; the label is a note for the schedule and does not change the geometry).
+    if matches!(def.kind, SignKind::DirectionSign | SignKind::MapTypeCrossroads | SignKind::MapTypeTee | SignKind::MapTypeRoundabout) {
+        const MAX_EMBEDDED: usize = 2; // the engine sets no limit; more than two overlap on most signs
+        ui.add_space(6.0);
+        ui.label("Embedded signs");
+        let mut list = def.embedded.clone().unwrap_or_default();
+        let mut remove = None;
+        for (i, e) in list.iter_mut().enumerate() {
+            ui.push_id(("embedded", i), |ui| {
+                ui.horizontal(|ui| {
+                    let label = |t: EmbeddedType| if t == EmbeddedType::WarningTriangle { "Warning triangle" } else { "Regulatory roundel" };
+                    egui::ComboBox::from_id_salt("type").width(130.0).selected_text(label(e.kind)).show_ui(ui, |ui| {
+                        for t in [EmbeddedType::WarningTriangle, EmbeddedType::RegulatoryRoundel] {
+                            changed |= ui.selectable_value(&mut e.kind, t, label(t)).changed();
+                        }
+                    });
+                    changed |= ui.add(egui::TextEdit::singleline(&mut e.symbol_id).hint_text("Label").desired_width(96.0)).changed();
+                    if ui.add(egui::Button::new("x").small()).on_hover_text("Remove this embedded sign").clicked() {
+                        remove = Some(i);
+                    }
+                });
+            });
+        }
+        if let Some(i) = remove {
+            list.remove(i);
+            changed = true;
+        }
+        if ui.add_enabled(list.len() < MAX_EMBEDDED, egui::Button::new("Add embedded sign")).clicked() {
+            list.push(EmbeddedSign { symbol_id: String::new(), kind: EmbeddedType::WarningTriangle });
+            changed = true;
+        }
+        def.embedded = if list.is_empty() { None } else { Some(list) };
     }
 
     ui.add_space(6.0);
