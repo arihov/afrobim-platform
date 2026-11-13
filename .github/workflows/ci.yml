@@ -63,3 +63,28 @@ jobs:
 
       - name: Test
         run: dotnet test SignCore.sln -c Release --no-build
+
+      # WPF cannot be unit-tested on Linux, so load every window for real: the smoke run parses the
+      # XAML, lays the CAD workspace out with signs on the canvas and writes a screenshot.
+      - name: UI smoke test
+        shell: pwsh
+        timeout-minutes: 5
+        env:
+          SIGNCORE_FONTS_DIR: ${{ github.workspace }}\fonts
+        run: |
+          $exe = Get-ChildItem -Recurse -Path src/SignCore.App/bin/Release -Filter SignCore.App.exe | Select-Object -First 1
+          $p = Start-Process -FilePath $exe.FullName -ArgumentList '--smoke-dialogs' -Wait -PassThru
+          $dir = Split-Path $exe.FullName
+          if (Test-Path "$dir/smoke-result.txt") { Get-Content "$dir/smoke-result.txt" }
+          New-Item -ItemType Directory -Force -Path smoke-out | Out-Null
+          Copy-Item "$dir/smoke-*.*" smoke-out -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "UI smoke test failed with exit code $($p.ExitCode)" }
+
+      - name: Upload UI screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: signcore-ui-smoke
+          path: smoke-out
+          if-no-files-found: ignore
+
