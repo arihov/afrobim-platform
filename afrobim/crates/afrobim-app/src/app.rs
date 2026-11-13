@@ -727,7 +727,7 @@ impl AfroBimApp {
                     for (k, v) in e.properties.iter_mut() {
                         ui.label(k);
                         changed |= ui.text_edit_singleline(v).changed();
-                        if ui.small_button("×").on_hover_text("Remove this property").clicked() {
+                        if ui.small_button("x").on_hover_text("Remove this property").clicked() {
                             remove = Some(k.clone());
                         }
                         ui.end_row();

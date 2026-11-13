@@ -1,0 +1,11 @@
+{
+  "name": "empty",
+  "definition": {"code":"ADS-014","kind":"StackType","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Green","class":"Guidance","scheme":"Auto","variant":"Secondary","symbol_id":null,"embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 31.25,
+  "x_height_mm": 125,
+  "extents": {"min":[0,0],"max":[8,7]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"White","outline":[[0,0],[8,0],[8,7],[0,7]]}
+  ]
+}
