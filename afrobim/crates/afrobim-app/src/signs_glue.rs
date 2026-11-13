@@ -2,6 +2,7 @@
 //! definition editor shown in Properties.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use afrobim_draw::Colour;
 use afrobim_kernel::{Element, Generated, Module, Note, Severity};
@@ -20,7 +21,7 @@ pub const STANDARDS: [(&str, &str, &str); 2] = [
 pub const DEFAULT_STANDARD: &str = "UK-TSM-2019";
 
 struct SignsModule {
-    engine: SignEngine,
+    engine: Arc<SignEngine>,
 }
 
 impl Module for SignsModule {
@@ -92,15 +93,25 @@ pub struct LibraryItem {
     pub data: Value,
 }
 
-/// Loads a rule pack and the Transport fonts. Returns the module, a label for the status bar and
-/// the pack's standard-sign library. `AFROBIM_PACK` overrides the default standard's location.
-pub fn load_module(standard: &str) -> Result<(Box<dyn Module>, String, Vec<LibraryItem>), String> {
+/// A loaded standard: the kernel module, plus what exports need beyond it.
+pub struct Loaded {
+    pub module: Box<dyn Module>,
+    /// Status-bar label, e.g. "UK-TSM-2019 · UK Traffic Signs Manual (Chapter 7)".
+    pub label: String,
+    pub library: Vec<LibraryItem>,
+    pub engine: Arc<SignEngine>,
+    pub fonts_dir: PathBuf,
+}
+
+/// Loads a rule pack and the Transport fonts. `AFROBIM_PACK` overrides the default standard's
+/// location.
+pub fn load_module(standard: &str) -> Result<Loaded, String> {
     let (_, _, file) = STANDARDS.iter().find(|(id, _, _)| *id == standard).ok_or_else(|| format!("unknown standard {standard}"))?;
     let env = if standard == DEFAULT_STANDARD { "AFROBIM_PACK" } else { "AFROBIM_PACK_UNSET" };
     let pack = find(env, &Path::new("packs").join(file)).ok_or_else(|| format!("rule pack packs/{file} was not found"))?;
-    let fonts = find("AFROBIM_FONTS", Path::new("fonts"))
+    let fonts_dir = find("AFROBIM_FONTS", Path::new("fonts"))
         .ok_or_else(|| "the fonts folder was not found (set AFROBIM_FONTS to the folder holding the Transport fonts)".to_string())?;
-    let engine = SignEngine::load(&pack, &fonts).map_err(|e| e.to_string())?;
+    let engine = Arc::new(SignEngine::load(&pack, &fonts_dir).map_err(|e| e.to_string())?);
     let label = format!("{} · {}", engine.pack_id(), engine.pack_name());
     let library = engine
         .catalog()
@@ -112,7 +123,49 @@ pub fn load_module(standard: &str) -> Result<(Box<dyn Module>, String, Vec<Libra
             data: to_value(&engine.definition_for(entry)),
         })
         .collect();
-    Ok((Box::new(SignsModule { engine }), label, library))
+    Ok(Loaded { module: Box::new(SignsModule { engine: engine.clone() }), label, library, engine, fonts_dir })
+}
+
+/// The sign definitions of the given elements, each named by its mark. Elements of other
+/// categories, or whose definition cannot be read, are left out.
+pub fn definitions(elements: &[&Element]) -> Vec<SignDefinition> {
+    elements
+        .iter()
+        .filter(|e| e.category == CATEGORY)
+        .filter_map(|e| {
+            let mut def: SignDefinition = serde_json::from_value(e.data.clone()).ok()?;
+            def.code = e.name.clone();
+            Some(def)
+        })
+        .collect()
+}
+
+/// Sign-face quantities: the per-sign CSV and the per-ground-colour summary CSV, plus the
+/// number of signs measured and the total face area in m².
+pub fn quantities(engine: &SignEngine, signs: &[SignDefinition]) -> (String, String, usize, f64) {
+    let rows: Vec<afrobim_fabrication::SignQuantity> =
+        signs.iter().filter_map(|s| engine.layout(s).ok().map(|layout| afrobim_fabrication::measure(engine, s, &layout))).collect();
+    let summary = afrobim_fabrication::summarise(&rows);
+    let area: f64 = rows.iter().map(|r| r.width_mm * r.height_mm / 1.0e6).sum();
+    (afrobim_fabrication::to_csv(&rows), afrobim_fabrication::summary_to_csv(&summary), rows.len(), area)
+}
+
+/// Writes an A3 fabrication sheet per sign (DXF and PDF) and the schedule PDF into `out_dir`.
+/// Returns a one-line summary, or the reason nothing could be written.
+pub fn fabrication_sheets(engine: &SignEngine, fonts_dir: &Path, signs: Vec<SignDefinition>, out_dir: &Path, drawn_by: &str) -> Result<String, String> {
+    let fonts = afrobim_fabrication::PdfFonts::from_folder(fonts_dir, engine).map_err(|e| e.to_string())?;
+    let mut options = afrobim_fabrication::FabricationOptions::new(out_dir);
+    options.sheet.drawn_by = drawn_by.to_string();
+    let sheet_signs: Vec<afrobim_fabrication::SheetSign> = signs.into_iter().map(afrobim_fabrication::SheetSign::new).collect();
+    let result = afrobim_fabrication::run(engine, &fonts, &sheet_signs, &options);
+    if result.files_written.is_empty() {
+        return Err(result.errors.join("; "));
+    }
+    let mut summary = format!("Wrote {} file(s) for {} sign(s) to {}.", result.files_written.len(), result.rows.len(), out_dir.display());
+    if result.error_count > 0 {
+        summary.push_str(&format!(" {} layout error(s): check before cutting.", result.error_count));
+    }
+    Ok(summary)
 }
 
 fn to_value(def: &SignDefinition) -> Value {

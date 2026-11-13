@@ -17,6 +17,7 @@ crates/
                    selection, grips, MOVE / COPY / ERASE, snap, ortho, undo
   afrobim-signs    traffic-signs engine: rule pack, Transport font metrics, layout, glyph outlines
   afrobim-dxf      DXF R12 export, byte-identical to the C# writer for the same primitives
+  afrobim-fabrication  sign-face quantities, A3 fabrication sheets (DXF and PDF) and the schedule PDF
   afrobim-ifc      IFC 4.3 export (STEP file) of a document
   afrobim-mcp      MCP server (stdio) so an AI assistant can drive the engine and build documents
   afrobim-app      the desktop application (egui): menus, toolbar, Tool Sets, model space,
@@ -90,7 +91,9 @@ an empty Enter repeats the last one. While a command waits for a point, type `x,
 | Warning triangles and regulatory roundels embedded on direction and map-type signs | Ported, golden-tested. Drawn as the standard frame only, as in the C# engine: the inner symbol is not drawn |
 | Uganda rule pack (`packs/UG-TSM-2004`, XML) | Ported: loader and all 16 sign kinds, 105 catalogue entries, 241 golden fixtures. Switch with Format → standard, or `UK` / `UGANDA`. Embedded signs under the Uganda pack are not ported |
 | DXF export (R12, mm, one layer per sign colour) | Ported; File → Export DXF or `DXFOUT`. Matches the C# writer byte for byte on the reference files |
-| Fabrication sheets, quantities, schedules | Not ported. Use the C# CLI |
+| Quantities (BoQ) | Ported: per-sign CSV and per-colour summary, byte-identical to the C# output. File → Export quantities, `QUANTITIES` |
+| Fabrication sheets | Ported: an A3 sheet per sign as DXF and PDF, plus the schedule PDF. DXFs are byte-identical to C#; PDFs match object for object apart from dates, ids, the producer name and compression. File → Export fabrication sheets, `SHEETS`, or `--export-sheets folder` |
+| Schedule CSV / XML import and export | Not ported in the app (the MCP server reads schedule CSVs). Use the C# CLI |
 | 3D view | Done: View → 3D, the `3D` command or the status-bar switch. Orbit, pan, zoom, fit. View only; editing stays in 2D |
 | Python package | Done: `afrobim/python` (PyO3, built with maturin); see its README |
 | MCP server | Done: `afrobim-mcp` (11 tools: catalogue search, sign layout and checks, schedule validation, DXF export, and building `.afrobim` documents); see `crates/afrobim-mcp/README.md`. The five tools shared with the C# server returned identical results on 126 requests |

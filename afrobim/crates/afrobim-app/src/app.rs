@@ -29,6 +29,8 @@ pub struct AfroBimApp {
     signs_ready: bool,
     module_status: String,
     standard: String,
+    engine: Option<std::sync::Arc<afrobim_signs::SignEngine>>,
+    fonts_dir: PathBuf,
     pub(crate) cache: HashMap<ElementId, Cached>,
 
     history: UndoHistory<Vec<Element>>,
@@ -73,12 +75,12 @@ impl AfroBimApp {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         let mut modules = ModuleRegistry::default();
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
-        let (signs_ready, module_status, library) = match signs_glue::load_module(&standard) {
-            Ok((module, label, library)) => {
-                modules.register(module);
-                (true, label, library)
+        let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
+            Ok(l) => {
+                modules.register(l.module);
+                (true, l.label, l.library, Some(l.engine), l.fonts_dir)
             }
-            Err(e) => (false, format!("Traffic signs unavailable: {e}"), Vec::new()),
+            Err(e) => (false, format!("Traffic signs unavailable: {e}"), Vec::new(), None, PathBuf::new()),
         };
 
         let mut app = Self {
@@ -89,6 +91,8 @@ impl AfroBimApp {
             signs_ready,
             module_status,
             standard,
+            engine,
+            fonts_dir,
             cache: HashMap::new(),
             history: UndoHistory::new(Vec::new(), 100),
             commit_due: None,
@@ -157,6 +161,15 @@ impl AfroBimApp {
         app.sync_generated();
         app.history.reset(app.doc.snapshot());
         app.view_3d = app.options.view3d;
+        if let Some(dir) = app.options.export_sheets.clone() {
+            app.doc.clear_selection(); // an unattended export covers the whole model
+            let _ = std::fs::create_dir_all(&dir);
+            app.export_quantities(dir.join("sign-quantities.csv"));
+            eprintln!("AfroBIM: {}", app.status);
+            app.export_sheets(dir);
+            eprintln!("AfroBIM: {}", app.status);
+            app.quit = true;
+        }
         if let Some(path) = app.options.export_ifc.clone() {
             app.export_ifc(path);
             eprintln!("AfroBIM: {}", app.status);
@@ -335,6 +348,50 @@ impl AfroBimApp {
         }
     }
 
+    /// The signs an export covers: the selection, or every sign when nothing is selected.
+    fn export_signs(&self) -> Vec<afrobim_signs::SignDefinition> {
+        let selected_only = !self.doc.selection().is_empty();
+        let elements: Vec<&Element> = self.doc.elements().iter().filter(|e| !selected_only || self.doc.is_selected(e.id)).collect();
+        signs_glue::definitions(&elements)
+    }
+
+    /// Writes the bill-of-quantities CSV and, beside it, `<name>.summary.csv` by ground colour.
+    pub(crate) fn export_quantities(&mut self, path: PathBuf) {
+        let Some(engine) = self.engine.clone() else {
+            self.status = self.module_status.clone();
+            return;
+        };
+        let signs = self.export_signs();
+        if signs.is_empty() {
+            self.status = "Nothing to measure.".into();
+            return;
+        }
+        let (csv, summary, count, area) = signs_glue::quantities(&engine, &signs);
+        let summary_path = path.with_extension("summary.csv");
+        match std::fs::write(&path, csv).and_then(|()| std::fs::write(&summary_path, summary)) {
+            Ok(()) => self.status = format!("Measured {count} sign face(s), {area:.3} m², to {} and {}.", path.display(), summary_path.display()),
+            Err(e) => self.status = format!("Could not write {}: {e}", path.display()),
+        }
+    }
+
+    /// Writes an A3 fabrication sheet per sign (DXF and PDF) and the schedule PDF into a folder.
+    pub(crate) fn export_sheets(&mut self, dir: PathBuf) {
+        let Some(engine) = self.engine.clone() else {
+            self.status = self.module_status.clone();
+            return;
+        };
+        let signs = self.export_signs();
+        if signs.is_empty() {
+            self.status = "Nothing to draw.".into();
+            return;
+        }
+        let drawn_by = std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_default();
+        self.status = match signs_glue::fabrication_sheets(&engine, &self.fonts_dir, signs, &dir, &drawn_by) {
+            Ok(summary) => summary,
+            Err(e) => format!("Fabrication sheets failed: {e}"),
+        };
+    }
+
     fn file_dialog() -> rfd::FileDialog {
         rfd::FileDialog::new().add_filter("AfroBIM document", &[FILE_EXTENSION])
     }
@@ -387,6 +444,19 @@ impl AfroBimApp {
                         path.set_extension("ifc");
                     }
                     self.export_ifc(path);
+                }
+            }
+            Action::ExportQuantities => {
+                if let Some(mut path) = rfd::FileDialog::new().add_filter("CSV", &["csv"]).set_file_name("sign-quantities.csv").save_file() {
+                    if path.extension().is_none() {
+                        path.set_extension("csv");
+                    }
+                    self.export_quantities(path);
+                }
+            }
+            Action::ExportSheets => {
+                if let Some(dir) = rfd::FileDialog::new().set_title("Folder for the fabrication sheets").pick_folder() {
+                    self.export_sheets(dir);
                 }
             }
             Action::Undo => self.undo(),
@@ -468,11 +538,13 @@ impl AfroBimApp {
     /// it. A sign the new standard cannot lay out keeps its place and shows the reason.
     fn set_standard(&mut self, id: &str) {
         match signs_glue::load_module(id) {
-            Ok((module, label, library)) => {
-                self.modules.register(module);
+            Ok(l) => {
+                self.modules.register(l.module);
                 self.signs_ready = true;
-                self.module_status = label;
-                self.library = library;
+                self.module_status = l.label;
+                self.library = l.library;
+                self.engine = Some(l.engine);
+                self.fonts_dir = l.fonts_dir;
                 self.standard = id.to_string();
                 self.doc.standard = id.to_string();
                 self.cache.clear();
@@ -617,6 +689,8 @@ impl AfroBimApp {
                     ui.separator();
                     item(ui, "Export DXF…", "DXFOUT", Action::ExportDxf);
                     item(ui, "Export IFC 4.3…", "IFCOUT", Action::ExportIfc);
+                    item(ui, "Export quantities (BoQ)…", "QUANTITIES", Action::ExportQuantities);
+                    item(ui, "Export fabrication sheets…", "SHEETS", Action::ExportSheets);
                     ui.separator();
                     item(ui, "Quit", "", Action::Quit);
                 });

@@ -25,6 +25,8 @@ pub struct Options {
     pub standard: Option<String>,
     /// Export the starting model as IFC to this file, then exit (no window interaction needed).
     pub export_ifc: Option<PathBuf>,
+    /// Write quantities and fabrication sheets for the starting model into this folder, then exit.
+    pub export_sheets: Option<PathBuf>,
 }
 
 fn parse_args() -> Options {
@@ -37,6 +39,7 @@ fn parse_args() -> Options {
             "--3d" => o.view3d = true,
             "--standard" => o.standard = args.next(),
             "--export-ifc" => o.export_ifc = args.next().map(PathBuf::from),
+            "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),
             other if !other.starts_with("--") => o.open = Some(PathBuf::from(other)),
             _ => {}
         }

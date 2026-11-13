@@ -30,6 +30,7 @@ version = "0.1.0"
 dependencies = [
  "afrobim-draw",
  "afrobim-dxf",
+ "afrobim-fabrication",
  "afrobim-ifc",
  "afrobim-kernel",
  "afrobim-signs",
