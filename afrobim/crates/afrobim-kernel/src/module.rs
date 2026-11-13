@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use afrobim_draw::Drawing;
+use afrobim_draw::{Drawing, Mesh3};
 use serde::{Deserialize, Serialize};
 
 use crate::Element;
@@ -28,6 +28,9 @@ pub struct Generated {
     pub notes: Vec<Note>,
     /// Read-only derived values shown with the element (overall size, x-height, area...).
     pub derived: BTreeMap<String, String>,
+    /// The element as solids in its own frame (see [`Mesh3`]), when it has a 3D form of its own
+    /// beyond a flat face: posts, foundations, and the like. Empty for a plain sign face.
+    pub solids: Vec<Mesh3>,
 }
 
 /// A discipline plug-in. It owns one element category and is the only code that understands

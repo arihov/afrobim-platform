@@ -20,7 +20,7 @@ mod view;
 
 pub use afrobim_draw::Pt2 as Pt;
 pub use controller::{CanvasCommand, CanvasController, CanvasEvent, CanvasTool};
-pub use document::{Document, DocumentError, Element, ElementId, Layer, SelectMode, FILE_EXTENSION};
+pub use document::{Document, DocumentError, Element, ElementId, Layer, SelectMode, SitePlacement, FILE_EXTENSION};
 pub use drafting::{display_spacing, ortho, parse_point, snap};
 pub use geometry::BBox;
 pub use module::{Generated, Module, ModuleRegistry, Note, Severity};

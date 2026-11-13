@@ -61,7 +61,7 @@ impl Module for SignsModule {
                 message: d.message.clone(),
             })
             .collect();
-        Ok(Generated { drawing, notes, derived })
+        Ok(Generated { drawing, notes, derived, solids: Vec::new() })
     }
 }
 

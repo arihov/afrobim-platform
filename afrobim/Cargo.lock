@@ -25,6 +25,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "afrobim-alignment"
+version = "0.1.0"
+dependencies = [
+ "afrobim-draw",
+ "afrobim-kernel",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-app"
 version = "0.1.0"
 dependencies = [
@@ -111,6 +122,17 @@ dependencies = [
  "afrobim-draw",
  "regex",
  "roxmltree",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "afrobim-supports"
+version = "0.1.0"
+dependencies = [
+ "afrobim-draw",
+ "afrobim-kernel",
  "serde",
  "serde_json",
  "thiserror 2.0.21",

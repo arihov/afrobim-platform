@@ -126,6 +126,7 @@ pub fn fixture() -> Fixture {
     derived.insert("x_height_mm".to_string(), "100".to_string());
     derived.insert("area_m2".to_string(), "0.96".to_string());
     generated.push(Some(Generated {
+        solids: Vec::new(),
         drawing: drawing(
             vec![
                 Primitive::Fill { outline: background, colour: Colour::Green },
@@ -156,6 +157,7 @@ pub fn fixture() -> Fixture {
         Group { colour: Colour::White, layer: 1, area: 200.0 * 2.0_f64.sqrt() * 30.0 },
     ]);
     generated.push(Some(Generated {
+        solids: Vec::new(),
         drawing: drawing(
             vec![Primitive::Fill { outline: triangle, colour: Colour::Red }, line(200.0, 100.0, 400.0, 300.0, 30.0, Some(Colour::White))],
             600.0,
@@ -177,6 +179,7 @@ pub fn fixture() -> Fixture {
     let slab = rect(0.0, 0.0, 400.0, 200.0);
     groups.push(vec![Group { colour: Colour::Yellow, layer: 0, area: polygon_area(&slab) }]);
     generated.push(Some(Generated {
+        solids: Vec::new(),
         drawing: drawing(vec![Primitive::Fill { outline: slab, colour: Colour::Yellow }], 400.0, 200.0),
         notes: Vec::new(),
         derived: BTreeMap::new(),

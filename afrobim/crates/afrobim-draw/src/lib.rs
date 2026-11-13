@@ -86,6 +86,77 @@ pub enum Primitive {
     Symbol { origin: Pt2, id: String, size: f64, rotation_deg: f64 },
 }
 
+/// A coloured triangle mesh in three dimensions (millimetres, Z up): the solid form of an
+/// element, for the 3D view, IFC export and quantities.
+///
+/// The frame is the element's own: +X along its width from the lower-left corner, +Y into its
+/// depth (a sign face lies in the XZ plane and looks towards −Y), +Z up from its base.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct Mesh3 {
+    /// What the solid is, e.g. "Post" or "Foundation".
+    pub name: String,
+    pub vertices: Vec<[f64; 3]>,
+    /// Counter-clockwise seen from outside.
+    pub triangles: Vec<[u32; 3]>,
+    /// Display sRGB.
+    pub colour: [u8; 3],
+}
+
+impl Mesh3 {
+    /// An axis-aligned box from `min` to `max`.
+    pub fn cuboid(name: &str, min: [f64; 3], max: [f64; 3], colour: [u8; 3]) -> Mesh3 {
+        let (a, b) = (min, max);
+        let vertices = vec![
+            [a[0], a[1], a[2]], [b[0], a[1], a[2]], [b[0], b[1], a[2]], [a[0], b[1], a[2]],
+            [a[0], a[1], b[2]], [b[0], a[1], b[2]], [b[0], b[1], b[2]], [a[0], b[1], b[2]],
+        ];
+        let triangles = vec![
+            [0, 2, 1], [0, 3, 2], // bottom
+            [4, 5, 6], [4, 6, 7], // top
+            [0, 1, 5], [0, 5, 4], // front (−Y)
+            [1, 2, 6], [1, 6, 5], // right
+            [2, 3, 7], [2, 7, 6], // back
+            [3, 0, 4], [3, 4, 7], // left
+        ];
+        Mesh3 { name: name.to_string(), vertices, triangles, colour }
+    }
+
+    /// A vertical cylinder (a prism of `segments` sides) on the Z axis through (`cx`, `cy`).
+    pub fn cylinder(name: &str, cx: f64, cy: f64, z0: f64, z1: f64, radius: f64, segments: u32, colour: [u8; 3]) -> Mesh3 {
+        let n = segments.max(3);
+        let mut vertices = Vec::with_capacity(2 * n as usize + 2);
+        for z in [z0, z1] {
+            for i in 0..n {
+                let a = i as f64 / n as f64 * std::f64::consts::TAU;
+                vertices.push([cx + radius * a.cos(), cy + radius * a.sin(), z]);
+            }
+        }
+        let (bottom, top) = (2 * n, 2 * n + 1);
+        vertices.push([cx, cy, z0]);
+        vertices.push([cx, cy, z1]);
+        let mut triangles = Vec::with_capacity(4 * n as usize);
+        for i in 0..n {
+            let j = (i + 1) % n;
+            triangles.push([i, j, n + j]);
+            triangles.push([i, n + j, n + i]);
+            triangles.push([bottom, j, i]);
+            triangles.push([top, n + i, n + j]);
+        }
+        Mesh3 { name: name.to_string(), vertices, triangles, colour }
+    }
+
+    /// Enclosed volume in mm³ (signed-tetrahedron sum; exact for a closed, outward-wound mesh).
+    pub fn volume(&self) -> f64 {
+        self.triangles
+            .iter()
+            .map(|t| {
+                let [a, b, c] = [self.vertices[t[0] as usize], self.vertices[t[1] as usize], self.vertices[t[2] as usize]];
+                (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6.0
+            })
+            .sum()
+    }
+}
+
 /// Axis-aligned bounds.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct Extents {
@@ -155,6 +226,16 @@ impl Drawing {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn solids_have_the_right_volume_and_face_outwards() {
+        let b = Mesh3::cuboid("b", [1.0, 2.0, 3.0], [4.0, 6.0, 8.0], [0, 0, 0]);
+        assert!((b.volume() - 3.0 * 4.0 * 5.0).abs() < 1e-9);
+        // A 64-sided prism is within 0.2 % of the cylinder it stands for, and never larger.
+        let c = Mesh3::cylinder("c", 10.0, -5.0, 0.0, 1000.0, 50.0, 64, [0, 0, 0]);
+        let exact = std::f64::consts::PI * 50.0 * 50.0 * 1000.0;
+        assert!(c.volume() > 0.0 && c.volume() < exact && c.volume() > exact * 0.998);
+    }
 
     #[test]
     fn scaling_moves_the_lower_left_to_the_origin() {

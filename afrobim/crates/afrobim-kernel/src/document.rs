@@ -15,6 +15,31 @@ const FORMAT_VERSION: u32 = 1;
 #[serde(transparent)]
 pub struct ElementId(pub u64);
 
+/// Where an element stands on site, as opposed to where its face is laid out on the design
+/// sheet. Coordinates are millimetres in the site's plan system, Z up.
+///
+/// `rotation_deg` turns the element's own frame about +Z, counter-clockwise from site +X. For a
+/// sign, local +X is its width and the face looks towards local −Y, so a sign serving traffic
+/// that travels on heading θ has rotation θ − 90°.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SitePlacement {
+    pub x: f64,
+    pub y: f64,
+    #[serde(default)]
+    pub z: f64,
+    #[serde(default)]
+    pub rotation_deg: f64,
+    /// The alignment the position was taken from, with its station and offset in metres
+    /// (offset positive to the right looking up-station). Kept so the position can be
+    /// recomputed when the alignment changes.
+    #[serde(default)]
+    pub alignment: Option<String>,
+    #[serde(default)]
+    pub station_m: Option<f64>,
+    #[serde(default)]
+    pub offset_m: Option<f64>,
+}
+
 /// A building-information component placed in model space.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Element {
@@ -36,6 +61,13 @@ pub struct Element {
     /// Free-form property set: material, drawing reference, cost code and the like.
     #[serde(default)]
     pub properties: BTreeMap<String, String>,
+    /// Position on site, when the element has been placed there.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub site: Option<SitePlacement>,
+    /// The element this one belongs to: a post is hosted by its sign, a foundation by its post.
+    /// Erasing the host does not erase its dependants; callers decide.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host: Option<ElementId>,
 }
 
 fn default_layer() -> String {
@@ -165,6 +197,8 @@ impl Document {
             layer: layer.to_string(),
             data,
             properties: BTreeMap::new(),
+            site: None,
+            host: None,
         });
         id
     }
@@ -174,6 +208,8 @@ impl Document {
         let id = self.add(&source.category, name, origin, source.width, source.height, &source.layer, source.data.clone());
         if let Some(e) = self.find_mut(id) {
             e.properties = source.properties.clone();
+            e.site = source.site.clone();
+            e.host = source.host;
         }
         id
     }
@@ -467,6 +503,19 @@ mod tests {
         // New ids continue after the highest stored one.
         let mut back = back;
         assert_eq!(back.add("sign", "n", Pt::default(), 1.0, 1.0, "0", json!({})), ElementId(4));
+    }
+
+    #[test]
+    fn site_placement_and_host_round_trip_and_stay_out_of_old_style_files() {
+        let mut d = three();
+        // Untouched elements serialise exactly as before these fields existed.
+        assert!(!d.to_json().contains("\"site\"") && !d.to_json().contains("\"host\""));
+        let e = d.find_mut(ElementId(2)).unwrap();
+        e.site = Some(SitePlacement { x: 1.0e6, y: -2.5e5, z: 0.0, rotation_deg: 37.5, alignment: Some("A1".into()), station_m: Some(1250.0), offset_m: Some(-4.5) });
+        e.host = Some(ElementId(1));
+        let back = Document::from_json(&d.to_json()).unwrap();
+        assert_eq!(back.elements(), d.elements());
+        assert_eq!(back.find(ElementId(2)).unwrap().host, Some(ElementId(1)));
     }
 
     #[test]
