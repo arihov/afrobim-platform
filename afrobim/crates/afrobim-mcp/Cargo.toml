@@ -1,0 +1,19 @@
+[package]
+name = "afrobim-mcp"
+description = "MCP server: lets an AI assistant search the sign catalogue, lay out and check signs, and export them"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "afrobim-mcp"
+path = "src/main.rs"
+
+[dependencies]
+afrobim-draw = { path = "../afrobim-draw" }
+afrobim-kernel = { path = "../afrobim-kernel" }
+afrobim-signs = { path = "../afrobim-signs" }
+afrobim-dxf = { path = "../afrobim-dxf" }
+serde.workspace = true
+serde_json.workspace = true
