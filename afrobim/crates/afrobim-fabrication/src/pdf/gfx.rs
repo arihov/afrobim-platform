@@ -378,16 +378,17 @@ impl<'a> Gfx<'a> {
         self.out.push_str("f*\n");
     }
 
-    /// `XGraphics.DrawArc`: part of the ellipse in the box, angles in degrees clockwise on the
-    /// page from the +x axis.
-    pub fn draw_arc(&mut self, pen: &Pen, x: f64, y: f64, width: f64, height: f64, start_angle: f64, sweep_angle: f64) {
+    /// `XGraphics.DrawArc` for a circle: part of the circle in the square box at (`x`, `y`),
+    /// angles in degrees clockwise on the page from the +x axis. A sweep of a full turn or more
+    /// draws the closed circle.
+    pub fn draw_arc(&mut self, pen: &Pen, x: f64, y: f64, diameter: f64, start_angle: f64, sweep_angle: f64) {
         self.begin_graphic();
         self.realize_pen(pen);
         if sweep_angle.abs() >= 360.0 {
-            self.ellipse(x, y, width, height);
+            self.ellipse(x, y, diameter, diameter);
             self.out.push_str("h S\n");
         } else {
-            self.partial_arc(x, y, width, height, start_angle, sweep_angle);
+            self.partial_arc(x, y, diameter, start_angle, sweep_angle);
             self.out.push_str("S\n");
         }
     }
@@ -410,7 +411,7 @@ impl<'a> Gfx<'a> {
     }
 
     /// PDFsharp's arc: one Bézier segment per quadrant the arc crosses.
-    fn partial_arc(&mut self, x: f64, y: f64, width: f64, height: f64, start_angle: f64, sweep_angle: f64) {
+    fn partial_arc(&mut self, x: f64, y: f64, diameter: f64, start_angle: f64, sweep_angle: f64) {
         let mut alpha = start_angle;
         if alpha < 0.0 {
             alpha += (1.0 + (alpha.abs() / 360.0).floor()) * 360.0;
@@ -437,7 +438,7 @@ impl<'a> Gfx<'a> {
         let end_quadrant = quadrant(beta, false, clockwise);
 
         if start_quadrant == end_quadrant && small_angle {
-            self.arc_quadrant(x, y, width, height, alpha, beta, PathStart::MoveTo);
+            self.arc_quadrant(x, y, diameter, alpha, beta, PathStart::MoveTo);
             return;
         }
         let mut current = start_quadrant;
@@ -446,14 +447,14 @@ impl<'a> Gfx<'a> {
             let q = f64::from(current) * 90.0;
             if current == start_quadrant && first_loop {
                 let xi = q + if clockwise { 90.0 } else { 0.0 };
-                self.arc_quadrant(x, y, width, height, alpha, xi, PathStart::MoveTo);
+                self.arc_quadrant(x, y, diameter, alpha, xi, PathStart::MoveTo);
             } else if current == end_quadrant {
                 let xi = q + if clockwise { 0.0 } else { 90.0 };
-                self.arc_quadrant(x, y, width, height, xi, beta, PathStart::Ignore);
+                self.arc_quadrant(x, y, diameter, xi, beta, PathStart::Ignore);
             } else {
                 let xi1 = q + if clockwise { 0.0 } else { 90.0 };
                 let xi2 = q + if clockwise { 90.0 } else { 0.0 };
-                self.arc_quadrant(x, y, width, height, xi1, xi2, PathStart::Ignore);
+                self.arc_quadrant(x, y, diameter, xi1, xi2, PathStart::Ignore);
             }
 
             // Do not stop at once when the arc is longer than 270 degrees.
@@ -466,13 +467,12 @@ impl<'a> Gfx<'a> {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn arc_quadrant(&mut self, x: f64, y: f64, width: f64, height: f64, mut alpha: f64, mut beta: f64, start: PathStart) {
+    fn arc_quadrant(&mut self, x: f64, y: f64, diameter: f64, mut alpha: f64, mut beta: f64, start: PathStart) {
         if beta > 360.0 {
             beta -= (beta / 360.0).floor() * 360.0;
         }
-        let (dx, dy) = (width / 2.0, height / 2.0);
-        let (x0, y0) = (x + dx, y + dy);
+        let r = diameter / 2.0;
+        let (x0, y0) = (x + r, y + r);
 
         // In the two upper quadrants the curve is the lower one reflected in the centre.
         let mut reflect = false;
@@ -482,27 +482,13 @@ impl<'a> Gfx<'a> {
             reflect = true;
         }
 
-        if width == height {
-            alpha *= DEG2RAD;
-            beta *= DEG2RAD;
-        } else {
-            // An elliptical arc: adjust the angles for the unequal scaling.
-            alpha *= DEG2RAD;
-            let sin_a = alpha.sin();
-            if sin_a.abs() > 1e-10 {
-                alpha = std::f64::consts::PI / 2.0 - (dy * alpha.cos() / (dx * sin_a)).atan();
-            }
-            beta *= DEG2RAD;
-            let sin_b = beta.sin();
-            if sin_b.abs() > 1e-10 {
-                beta = std::f64::consts::PI / 2.0 - (dy * beta.cos() / (dx * sin_b)).atan();
-            }
-        }
+        alpha *= DEG2RAD;
+        beta *= DEG2RAD;
 
         let kappa = 4.0 * (1.0 - ((alpha - beta) / 2.0).cos()) / (3.0 * ((beta - alpha) / 2.0).sin());
         let (sin_a, cos_a, sin_b, cos_b) = (alpha.sin(), alpha.cos(), beta.sin(), beta.cos());
         let sign = if reflect { -1.0 } else { 1.0 };
-        let at = |cx: f64, cy: f64| (x0 + sign * dx * cx, y0 + sign * dy * cy);
+        let at = |cx: f64, cy: f64| (x0 + sign * r * cx, y0 + sign * r * cy);
 
         if start == PathStart::MoveTo {
             let (px, py) = at(cos_a, sin_a);
@@ -512,9 +498,10 @@ impl<'a> Gfx<'a> {
         self.curve(at(cos_a - kappa * sin_a, sin_a + kappa * cos_a), at(cos_b + kappa * sin_b, sin_b - kappa * cos_b), at(cos_b, sin_b));
     }
 
-    /// `XGraphics.DrawString` at a baseline point. `size` is the em size in page units; the text
-    /// must already be WinAnsi (the writers pass ASCII).
-    pub fn draw_string(&mut self, text: &str, face: Face, size: f64, rgb: Rgb, x: f64, y: f64, align: Align) {
+    /// `XGraphics.DrawString` at a baseline point. `font` is the face and its em size in page
+    /// units; the text must already be WinAnsi (the writers pass ASCII).
+    pub fn draw_string(&mut self, text: &str, font: (Face, f64), rgb: Rgb, x: f64, y: f64, align: Align) {
+        let (face, size) = font;
         if text.is_empty() {
             return;
         }
@@ -609,6 +596,148 @@ pub(crate) fn string_literal(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::pdf::PdfFonts;
+    use std::path::Path;
+
+    fn fonts() -> PdfFonts {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../fonts");
+        PdfFonts::load(&dir.join("tranm___.TTF"), &dir.join("tranh___.TTF")).unwrap()
+    }
+
+    /// Draws on a page 50 mm high and returns the content stream as text.
+    fn content(draw: impl FnOnce(&mut Gfx)) -> (String, DocResources, Vec<ExtGState>, Vec<Face>) {
+        let fonts = fonts();
+        let mut res = DocResources { next_object: 5, ..DocResources::default() };
+        let (text, ext, faces) = {
+            let mut g = Gfx::new(&mut res, [&fonts.regular, &fonts.bold], 50.0);
+            draw(&mut g);
+            let (ext, faces) = (g.ext_gstates.clone(), g.faces.clone());
+            (String::from_utf8(g.finish()).unwrap(), ext, faces)
+        };
+        (text, res, ext, faces)
+    }
+
+    const PAGE_START: &str = "q\n2.8346457 0 0 2.8346457 0 0 cm q\n";
+
+    // The expected streams below are what PDFsharp 6.2.4 wrote for the same calls on a
+    // 100 x 50 mm page (XGraphicsUnit.Millimeter), with the Transport fonts of this repository.
+
+    #[test]
+    fn nothing_drawn_is_an_empty_stream() {
+        let (text, res, ext, faces) = content(|_| {});
+        assert_eq!(text, "");
+        assert_eq!(res.next_object, 5);
+        assert!(ext.is_empty() && faces.is_empty());
+    }
+
+    #[test]
+    fn a_fill_alone_names_its_graphics_state_gs0() {
+        let (text, res, ext, _) = content(|g| g.fill_rectangle(BLACK, 1.0, 1.0, 5.0, 5.0));
+        assert_eq!(text, format!("{PAGE_START}0 0 0 rg\n/GS0 gs\n1 44 5 5 re\nf\nQ\nQ"));
+        assert_eq!((res.ext_fill, res.ext_stroke), (Some(6), None));
+        assert_eq!(ext, [ExtGState::Fill]);
+    }
+
+    #[test]
+    fn a_black_stroke_alone_writes_no_colour() {
+        let (text, res, ext, _) = content(|g| g.stroke_rectangle(&Pen { colour: BLACK, width: 0.5 }, 1.0, 1.0, 5.0, 5.0));
+        assert_eq!(text, format!("{PAGE_START}0.5 w\n0 J\n0 j\n[]0 d\n/GS0 gs\n1 44 5 5 re\nS\nQ\nQ"));
+        assert_eq!((res.ext_fill, res.ext_stroke), (None, Some(6)));
+        assert_eq!(ext, [ExtGState::Stroke]);
+    }
+
+    #[test]
+    fn text_lines_and_state_changes_follow_pdfsharp() {
+        let (text, res, ext, faces) = content(|g| {
+            g.draw_string("a(b)c\\d", (Face::Regular, 4.0), BLACK, 1.0, 10.0, Align::Left);
+            g.save();
+            g.draw_string("", (Face::Regular, 4.0), BLACK, 1.0, 20.0, Align::Left);
+            g.restore();
+            g.draw_string("   ", (Face::Bold, 4.0), BLACK, 1.0, 30.0, Align::Right);
+            g.draw_string("~|{}`^_@#$%", (Face::Bold, 4.0), [255, 0, 0], 50.0, 40.0, Align::Centre);
+            g.draw_line(&Pen { colour: BLACK, width: 0.123456 }, 1.0, 1.0, 2.0, 2.0);
+            g.draw_line(&Pen { colour: [1, 2, 3], width: 12345.6789 }, 1.000049, 1.00005, 2.99995, 2.999949);
+            g.draw_string("x", (Face::Regular, 4.0), BLACK, 1.0, 45.0, Align::Left);
+            g.draw_string("y", (Face::Regular, 4.0), BLACK, 10.0, 46.0, Align::Left);
+        });
+        let expected = [
+            "BT", "0 0 0 rg", "/GS0 gs", "/F0 4 Tf", "1 40 Td", "(a\\(b\\)c\\\\d) Tj", "ET", "q", "Q",
+            "BT", "/F1 4 Tf", "-2.5156 20 Td", "(   ) Tj", "1 0 0 rg", "35.1006 -10 Td", "(~|{}`^_@#$%) Tj", "ET",
+            "0.123 w", "0 J", "0 j", "[]0 d", "/GS1 gs", "1 49 m", "2 48 l", "S",
+            "12345.679 w", "0.004 0.008 0.012 RG", "1 49 m", "3 47.0001 l", "S",
+            "BT", "0 0 0 rg", "/F0 4 Tf", "1 5 Td", "(x) Tj", "9 -1 Td", "(y) Tj", "ET", "Q", "Q",
+        ];
+        assert_eq!(text, format!("{PAGE_START}{}", expected.join("\n")));
+        // Fill state 6, regular face 7 and 8, bold face 9 and 10, stroke state 11: first use.
+        assert_eq!((res.ext_fill, res.fonts[0], res.fonts[1], res.ext_stroke), (Some(6), Some((7, 8)), Some((9, 10)), Some(11)));
+        assert_eq!(ext, [ExtGState::Fill, ExtGState::Stroke]);
+        assert_eq!(faces, [Face::Regular, Face::Bold]);
+        assert_eq!(res.glyphs[0].len(), 9, "a ( ) b c \\ d x y");
+    }
+
+    #[test]
+    fn polygons_close_each_figure_and_fill_even_odd() {
+        let (text, ..) = content(|g| {
+            g.fill_polygons(
+                [0x02, 0x5C, 0x2E],
+                &[vec![(1.0, 1.0), (5.0, 1.0), (5.0, 5.0)], vec![(11.0, 1.0), (15.0, 1.0), (15.0, 5.0), (11.0, 1.0)]],
+            );
+        });
+        assert_eq!(
+            text,
+            format!("{PAGE_START}0.008 0.361 0.18 rg\n/GS0 gs\n1 49 m\n5 49 l\n5 45 l\nh\n11 49 m\n15 49 l\n15 45 l\n11 49 l\nh\nf*\nQ\nQ")
+        );
+    }
+
+    #[test]
+    fn arcs_are_one_bezier_per_quadrant() {
+        let pen = Pen { colour: BLACK, width: 0.25 };
+        let arc = |start: f64, sweep: f64| {
+            let (text, ..) = content(|g| g.draw_arc(&pen, 10.0, 10.0, 20.0, start, sweep));
+            let body = text.strip_prefix(&format!("{PAGE_START}0.25 w\n0 J\n0 j\n[]0 d\n/GS0 gs\n")).unwrap().to_string();
+            body.strip_suffix("\nQ\nQ").unwrap().to_string()
+        };
+        assert_eq!(
+            arc(-30.0, -282.5),
+            "28.6603 35 m\n26.8739 38.094 23.5727 40 20 40 c\n14.4772 40 10 35.5228 10 30 c\n\
+             10 24.4772 14.4772 20 20 20 c\n22.5013 20 24.9118 20.9374 26.7559 22.6272 c\nS"
+        );
+        assert_eq!(
+            arc(0.0, -360.0),
+            "30 30 m\n30 24.4772 25.5228 20 20 20 c\n14.4772 20 10 24.4772 10 30 c\n\
+             10 35.5228 14.4772 40 20 40 c\n25.5228 40 30 35.5228 30 30 c\nh S"
+        );
+        assert_eq!(arc(-90.0, -90.0), "20 40 m\n14.4772 40 10 35.5228 10 30 c\nS");
+        assert_eq!(
+            arc(-200.0, -180.0),
+            "10.6031 26.5798 m\n12.0409 22.6293 15.796 20 20 20 c\n25.5228 20 30 24.4772 30 30 c\n\
+             30 31.1665 29.7959 32.324 29.3969 33.4202 c\nS"
+        );
+        assert_eq!(
+            arc(-350.0, -40.0),
+            "29.8481 28.2635 m\n29.9492 28.8368 30 29.4179 30 30 c\n30 31.7554 29.5379 33.4798 28.6603 35 c\nS"
+        );
+        assert_eq!(arc(45.0, -10.0), "27.0711 22.9289 m\n27.4827 23.3406 27.8576 23.7874 28.1915 24.2642 c\nS");
+        assert_eq!(arc(-720.0, -0.5), "30 30 m\n30 30.0291 29.9999 30.0582 29.9996 30.0873 c\nS");
+    }
+
+    #[test]
+    fn rotated_text_is_placed_in_the_rotated_frame() {
+        // The overall-height dimension of the R-616 reference sheet (page 297 mm high): text
+        // "750" at cap height 3, centred on sheet point (71.3, 146), reading upwards.
+        let fonts = fonts();
+        let mut res = DocResources::default();
+        let mut g = Gfx::new(&mut res, [&fonts.regular, &fonts.bold], 297.0);
+        g.save();
+        g.rotate_at(-90.0, 71.3, 151.0);
+        g.draw_string("750", (Face::Regular, 3.0 / 0.7), [0xB0, 0x10, 0x20], 71.3, 151.0, Align::Centre);
+        g.restore();
+        let text = String::from_utf8(g.finish()).unwrap();
+        assert_eq!(
+            text,
+            format!("{PAGE_START}q\n0 1 -1 0 -79.7 222.3 cm\nBT\n0.69 0.063 0.125 rg\n/GS0 gs\n/F0 4.286 Tf\n-80.3765 -151 Td\n(750) Tj\nET\nQ\nQ\nQ")
+        );
+    }
 
     #[test]
     fn colours_are_three_decimals_of_a_fraction() {

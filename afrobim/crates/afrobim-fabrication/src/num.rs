@@ -95,7 +95,7 @@ mod tests {
     fn four_decimals_without_trailing_zeros() {
         assert_eq!(four(0.0), "0");
         assert_eq!(four(12.5), "12.5");
-        assert_eq!(four(3.14159265), "3.1416");
+        assert_eq!(four(8.12345678), "8.1235");
         assert_eq!(four(-7.25), "-7.25");
         assert_eq!(four(100.00004), "100");
         assert_eq!(four(1790.78125), "1790.7813");

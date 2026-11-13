@@ -126,6 +126,9 @@ impl<'a> Document<'a> {
                 if *face == Face::Bold { ",Bold" } else { "" }
             );
             let b = font.bbox();
+            // Flags 32 (nonsymbolic), ItalicAngle 0 and StemV 0 are what PDFsharp writes for the
+            // Transport faces; they are not derived from the font here, so another kind of face
+            // (italic, symbol) would need them worked out.
             objects.push((
                 *descriptor,
                 format!(

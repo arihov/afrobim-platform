@@ -220,7 +220,7 @@ impl<'g, 'a> Canvas<'g, 'a> {
             sweep += 360.0;
         }
         let c = self.p(centre.0, centre.1);
-        self.g.draw_arc(pen, c.0 - r, c.1 - r, 2.0 * r, 2.0 * r, -start_deg, -sweep);
+        self.g.draw_arc(pen, c.0 - r, c.1 - r, 2.0 * r, -start_deg, -sweep);
     }
 
     /// Text with its capital height as given. The font's em size is scaled from the cap height
@@ -242,7 +242,7 @@ impl<'g, 'a> Canvas<'g, 'a> {
             self.g.rotate_at(-t.rotation_deg, at.0, at.1);
         }
         let face = if t.bold { Face::Bold } else { Face::Regular };
-        self.g.draw_string(&crate::sheet_dxf::ascii(&t.text), face, size, rgb, at.0, at.1, align);
+        self.g.draw_string(&crate::sheet_dxf::ascii(&t.text), (face, size), rgb, at.0, at.1, align);
         self.g.restore();
     }
 }

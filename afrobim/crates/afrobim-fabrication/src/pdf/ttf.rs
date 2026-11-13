@@ -51,7 +51,19 @@ fn u32_at(d: &[u8], at: usize) -> Result<u32, FabricationError> {
 }
 
 impl TrueTypeFont {
+    /// Reads a font file. It must have the tables a text font has (`OS/2`, `name`, a Windows
+    /// Unicode `cmap`) besides its outlines.
     pub fn parse(data: Vec<u8>) -> Result<TrueTypeFont, FabricationError> {
+        Self::read(data, true)
+    }
+
+    /// Reads an embedded font program, which has no `OS/2` or `name` table.
+    #[cfg(test)]
+    fn parse_program(data: Vec<u8>) -> Result<TrueTypeFont, FabricationError> {
+        Self::read(data, false)
+    }
+
+    fn read(data: Vec<u8>, complete: bool) -> Result<TrueTypeFont, FabricationError> {
         let num_tables = u16_at(&data, 4)? as usize;
         let mut tables = BTreeMap::new();
         let mut checksums = BTreeMap::new();
@@ -95,14 +107,19 @@ impl TrueTypeFont {
             return Err(bad("the glyph index does not match the glyph table"));
         }
 
-        let os2 = table(b"OS/2")?;
-        let (win_ascent, win_descent) = (u16_at(os2, 74)?, u16_at(os2, 76)?);
-        let has_heights = u16_at(os2, 0)? >= 2 && os2.len() >= 90;
-        let (x_height, cap_height) = if has_heights { (i16_at(os2, 86)?, i16_at(os2, 88)?) } else { (0, 0) };
+        let (mut win_ascent, mut win_descent, mut x_height, mut cap_height, mut family) = (0, 0, 0, 0, String::new());
+        if complete {
+            let os2 = table(b"OS/2")?;
+            (win_ascent, win_descent) = (u16_at(os2, 74)?, u16_at(os2, 76)?);
+            if u16_at(os2, 0)? >= 2 && os2.len() >= 90 {
+                (x_height, cap_height) = (i16_at(os2, 86)?, i16_at(os2, 88)?);
+            }
+            family = parse_family(table(b"name")?)?;
+        }
 
         Ok(TrueTypeFont {
             cmap: parse_cmap(table(b"cmap")?)?,
-            family: parse_family(table(b"name")?)?,
+            family,
             units_per_em,
             advances,
             loca,
@@ -143,7 +160,9 @@ impl TrueTypeFont {
         text.encode_utf16().filter(|&c| c >= 32).map(|c| i64::from(self.advance(self.glyph(c)))).sum()
     }
 
-    /// A value in font units as thousandths of an em, rounded (font descriptor entries).
+    /// A value in font units as thousandths of an em, rounded (font descriptor entries). The
+    /// Transport faces have no value that lands on a half, so how PDFsharp rounds one is not
+    /// known; halves round away from zero here.
     fn milli(&self, v: i32) -> i32 {
         (f64::from(v) * 1000.0 / f64::from(self.units_per_em)).round() as i32
     }
@@ -178,7 +197,9 @@ impl TrueTypeFont {
         &self.data[start + self.loca[g] as usize..start + self.loca[g + 1] as usize]
     }
 
-    /// Adds the components of composite glyphs, recursively.
+    /// Adds the components of composite glyphs, recursively. No character of the Transport
+    /// faces is a composite glyph, so this is the one part of the subset that the comparison
+    /// with PDFsharp's font programs does not exercise.
     fn close_over_components(&self, glyphs: &mut BTreeSet<u16>) {
         let mut pending: Vec<u16> = glyphs.iter().copied().collect();
         while let Some(g) = pending.pop() {
@@ -187,8 +208,7 @@ impl TrueTypeFont {
                 continue;
             }
             let mut at = 10;
-            loop {
-                let (Ok(flags), Ok(component)) = (u16_at(d, at), u16_at(d, at + 2)) else { break };
+            while let (Ok(flags), Ok(component)) = (u16_at(d, at), u16_at(d, at + 2)) {
                 if glyphs.insert(component) {
                     pending.push(component);
                 }
@@ -385,6 +405,103 @@ mod tests {
         assert_eq!(win_ansi_to_unicode(0x81), 0x81);
         assert_eq!(win_ansi_to_unicode(0x96), 0x2013);
         assert_eq!(win_ansi_to_unicode(0xE9), 0xE9);
+    }
+
+    fn transport(file: &str) -> TrueTypeFont {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../fonts").join(file);
+        TrueTypeFont::parse(std::fs::read(path).unwrap()).unwrap()
+    }
+
+    /// (tag, checksum, offset, length) of each table of a font file.
+    fn directory(font: &[u8]) -> Vec<(String, u32, usize, usize)> {
+        let n = u16_at(font, 4).unwrap() as usize;
+        (0..n)
+            .map(|i| {
+                let rec = 12 + 16 * i;
+                let word = |at| u32_at(font, at).unwrap();
+                (String::from_utf8_lossy(&font[rec..rec + 4]).into_owned(), word(rec + 4), word(rec + 8) as usize, word(rec + 12) as usize)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn descriptor_metrics_are_the_ones_pdfsharp_quotes() {
+        // From the font descriptors PDFsharp 6.2.4 wrote for these two files.
+        let medium = transport("tranm___.TTF");
+        assert_eq!(medium.family(), "Key Transport Medium");
+        assert_eq!((medium.ascent(), medium.cap_height(), medium.descent(), medium.x_height()), (1074, 867, 212, 646));
+        assert_eq!(medium.bbox(), [-188, -236, 2254, 1074]);
+        let heavy = transport("tranh___.TTF");
+        assert_eq!(heavy.family(), "Key Transport Heavy");
+        assert_eq!((heavy.ascent(), heavy.cap_height(), heavy.descent(), heavy.x_height()), (1073, 853, 211, 638));
+        assert_eq!(heavy.bbox(), [-188, -236, 2262, 1074]);
+    }
+
+    #[test]
+    fn widths_are_truncated_thousandths_and_missing_characters_take_glyph_zero() {
+        let medium = transport("tranm___.TTF");
+        let w = medium.win_ansi_widths();
+        assert_eq!(w.len(), 224);
+        // space ! " # $ % & ' as PDFsharp lists them; 850/1000 would round up to 850.
+        assert_eq!(w[..8], [310, 449, 486, 769, 775, 849, 667, 207]);
+        // ']' has an empty, zero-width glyph in this font; 0x7F has none and takes glyph 0.
+        assert_eq!((w[(b']' - 32) as usize], w[0x7F - 32]), (0, 500));
+        assert_eq!(medium.glyph(0x7F), 0);
+        // "750" is 3896 units wide: the reference centres it with exactly that width.
+        assert_eq!(medium.text_width_units("750"), 3896);
+        assert_eq!(medium.text_width_units("7\t50"), 3896, "characters below U+0020 are not measured");
+    }
+
+    #[test]
+    fn subset_keeps_glyph_numbers_and_copies_the_other_tables() {
+        let medium = transport("tranm___.TTF");
+        let used: BTreeSet<u16> = [medium.glyph(u16::from(b'A'))].into();
+        let subset = medium.subset(&used);
+        // The font program PDFsharp embedded for the single letter "A" was 5152 bytes with
+        // this header and a 676-byte glyph table.
+        assert_eq!(subset.len(), 5152);
+        assert_eq!(subset[..12], [0, 1, 0, 0, 0, 10, 0, 0x80, 0, 3, 0, 0x20]);
+        let dir = directory(&subset);
+        let tags: Vec<&str> = dir.iter().map(|t| t.0.as_str()).collect();
+        assert_eq!(tags, ["cmap", "cvt ", "fpgm", "glyf", "head", "hhea", "hmtx", "loca", "maxp", "prep"]);
+        let glyf = dir.iter().find(|t| t.0 == "glyf").unwrap();
+        assert_eq!((glyf.1, glyf.2, glyf.3), (0xdeed_ad0c, 2528, 676));
+        let loca = dir.iter().find(|t| t.0 == "loca").unwrap();
+        assert_eq!((loca.1, loca.3), (0x8f1a_906c, 504));
+
+        // It is a font again: same glyph count, the letter's outline where the index says.
+        let again = TrueTypeFont::parse_program(subset.clone()).unwrap();
+        assert_eq!(again.loca.len(), medium.loca.len());
+        let a = medium.glyph(u16::from(b'A'));
+        assert_eq!(again.glyph_data(a), medium.glyph_data(a));
+        assert_eq!(again.glyph_data(0), medium.glyph_data(0));
+        let b = medium.glyph(u16::from(b'B'));
+        assert!(again.glyph_data(b).is_empty() && !medium.glyph_data(b).is_empty());
+        // Copied tables are the original bytes with the original checksums.
+        for (tag, sum, offset, length) in &dir {
+            if tag == "glyf" || tag == "loca" {
+                continue;
+            }
+            let key: [u8; 4] = tag.as_bytes().try_into().unwrap();
+            let (o, l) = medium.tables[&key];
+            assert_eq!(&subset[*offset..offset + length], &medium.data[o..o + l], "{tag}");
+            assert_eq!(*sum, medium.checksums[&key], "{tag}");
+        }
+    }
+
+    #[test]
+    fn subset_takes_the_components_of_a_composite_glyph() {
+        // Transport Heavy has one composite glyph (253, not mapped to a character).
+        let heavy = transport("tranh___.TTF");
+        let composite = 253u16;
+        assert!(i16_at(heavy.glyph_data(composite), 0).unwrap() < 0, "glyph 253 is expected to be composite");
+        let mut closure: BTreeSet<u16> = [composite].into();
+        heavy.close_over_components(&mut closure);
+        assert!(closure.len() > 1);
+        let again = TrueTypeFont::parse_program(heavy.subset(&[composite].into())).unwrap();
+        for g in closure {
+            assert_eq!(again.glyph_data(g), heavy.glyph_data(g), "glyph {g}");
+        }
     }
 
     #[test]
