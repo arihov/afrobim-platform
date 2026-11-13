@@ -1,0 +1,23 @@
+[package]
+name = "afrobim-app"
+description = "AfroBIM desktop application"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "afrobim"
+path = "src/main.rs"
+
+[dependencies]
+afrobim-draw = { path = "../afrobim-draw" }
+afrobim-kernel = { path = "../afrobim-kernel" }
+afrobim-signs = { path = "../afrobim-signs" }
+serde.workspace = true
+serde_json.workspace = true
+eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }
+egui = "0.31"
+lyon_tessellation = "1"
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }
+image = { version = "0.25", default-features = false, features = ["png"] }

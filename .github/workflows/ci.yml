@@ -88,3 +88,33 @@ jobs:
           path: smoke-out
           if-no-files-found: ignore
 
+  afrobim:
+    # The Rust platform: one codebase, built and tested on all three desktop systems.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: afrobim
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            afrobim/target
+          key: afrobim-${{ matrix.os }}-${{ hashFiles('afrobim/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --workspace --locked
+
+      - name: Test
+        run: cargo test --workspace --locked
+
