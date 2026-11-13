@@ -615,7 +615,7 @@ mod tests {
     fn document_new_writes_an_empty_document_the_kernel_reads() {
         let tmp = TempDir::new("doc-new");
         let mut t = tools();
-        let path = tmp.path().join("sub/model.afrobim");
+        let path = tmp.path().join("sub").join("model.afrobim"); // native separators on every system
         let r = t.document_new(path.to_str().unwrap(), None, false).unwrap();
         assert_eq!((r.standard.as_str(), r.elements), ("UK-TSM-2019", 0));
         assert_eq!(r.path, path.to_string_lossy());
