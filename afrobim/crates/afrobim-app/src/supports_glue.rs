@@ -22,8 +22,11 @@ pub fn is_support(category: &str) -> bool {
 /// Adds posts and foundations to a sign, with placeholder dimensions for the engineer to set.
 /// `mounting_height_mm` is the height of the sign's lower edge above ground, as entered.
 pub fn add(doc: &mut Document, sign: ElementId, mounting_height_mm: f64, posts: u32, edge_inset_mm: f64) -> Result<usize, String> {
-    let arrangement = SupportArrangement::new(mounting_height_mm, posts, edge_inset_mm);
-    afrobim_supports::add_supports(doc, sign, &arrangement, &PostDefinition::placeholder(), &FoundationDefinition::placeholder())
+    let post = PostDefinition::placeholder();
+    let mut arrangement = SupportArrangement::new(mounting_height_mm, posts, edge_inset_mm);
+    // Stand the post behind the plate, touching it: its axis is half its depth behind the face.
+    arrangement.setback_mm = post.section.bounding_mm().1 / 2.0;
+    afrobim_supports::add_supports(doc, sign, &arrangement, &post, &FoundationDefinition::placeholder())
         .map(|ids| ids.len())
         .map_err(|e| e.to_string())
 }

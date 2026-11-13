@@ -95,7 +95,13 @@ impl Camera {
     }
 
     pub fn zoom(&mut self, factor: f64) {
-        self.distance = (self.distance / factor).clamp(50.0, 5.0e6);
+        self.distance = (self.distance / factor).clamp(50.0, 5.0e9);
+    }
+
+    /// Frames a sphere.
+    pub fn fit_sphere(&mut self, centre: V3, radius: f64) {
+        self.target = centre;
+        self.distance = (radius.max(500.0) / (FOV / 2.0).sin() * 1.05).clamp(50.0, 5.0e9);
     }
 
     /// Frames a sheet-space box (standing in the XZ plane) with a margin.
@@ -107,38 +113,88 @@ impl Camera {
     }
 }
 
+/// Where an element's own frame sits in the world: local (u along the width, d into the depth,
+/// v up) maps to `origin + u·(cos, sin, 0) + d·(−sin, cos, 0) + v·(0, 0, 1)`.
+#[derive(Clone, Copy)]
+struct Frame {
+    origin: V3,
+    cos: f64,
+    sin: f64,
+}
+
+impl Frame {
+    fn at(&self, u: f64, d: f64, v: f64) -> V3 {
+        [self.origin[0] + u * self.cos - d * self.sin, self.origin[1] + u * self.sin + d * self.cos, self.origin[2] + v]
+    }
+    /// The direction a face in the local XZ plane looks (local −Y), in the world.
+    fn facing(&self) -> V3 {
+        [self.sin, -self.cos, 0.0]
+    }
+}
+
 impl AfroBimApp {
-    /// Where a post or foundation stands in the 3D view: under the sign it belongs to. Returns
-    /// the world position of the solid's local origin (its plan corner, at ground level).
-    ///
-    /// The sign's lower edge is at its sheet height, so its ground is one mounting height below.
-    fn support_base(&self, e: &afrobim_kernel::Element) -> Option<V3> {
-        use crate::supports_glue::{PROP_MOUNTING_HEIGHT_MM, PROP_POSITION_ALONG_SIGN_MM, PROP_SETBACK_MM};
-        // A foundation is hosted by its post, the post by the sign.
+    /// Site mode: at least one sign has been placed on site, so the 3D view shows the site (signs
+    /// at their stations, alignments on the ground) instead of the design sheet stood upright.
+    pub(crate) fn site_mode(&self) -> bool {
+        self.doc.elements().iter().any(|e| e.category == crate::signs_glue::CATEGORY && e.site.is_some())
+    }
+
+    /// The post a support hangs from (itself for a post) and the sign above it.
+    fn support_chain<'a>(&'a self, e: &'a afrobim_kernel::Element) -> Option<(&'a afrobim_kernel::Element, &'a afrobim_kernel::Element)> {
         let post = if e.category == crate::supports_glue::POST_CATEGORY { e } else { self.doc.find(e.host?)? };
-        let sign = self.doc.find(post.host?)?;
+        Some((post, self.doc.find(post.host?)?))
+    }
+
+    /// The mounting height recorded on a sign's first post, or 0 for a sign without supports.
+    fn mounting_height(&self, sign: afrobim_kernel::ElementId) -> f64 {
+        self.doc
+            .elements()
+            .iter()
+            .find(|e| e.category == crate::supports_glue::POST_CATEGORY && e.host == Some(sign))
+            .and_then(|p| p.properties.get(crate::supports_glue::PROP_MOUNTING_HEIGHT_MM))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0.0)
+    }
+
+    /// The frame of a sign face (local origin at its lower-left corner), or of a support's solids
+    /// (local origin at its plan corner, at ground level). None when the element is not shown in
+    /// the current mode.
+    fn frame_of(&self, e: &afrobim_kernel::Element, site_mode: bool) -> Option<Frame> {
+        let support = crate::supports_glue::is_support(&e.category);
+        if site_mode {
+            let s = e.site.as_ref()?;
+            let (sin, cos) = s.rotation_deg.to_radians().sin_cos();
+            // A sign's site level is the ground under it; its face starts one mounting height up.
+            let lift = if support { 0.0 } else { self.mounting_height(e.id) };
+            return Some(Frame { origin: [s.x, s.y, s.z + lift], cos, sin });
+        }
+        if !support {
+            return Some(Frame { origin: [e.origin.x, 0.0, e.origin.y], cos: 1.0, sin: 0.0 });
+        }
+        // On the upright sheet a support stands under its sign: the sign's lower edge is at its
+        // sheet height, so its ground is one mounting height below.
+        use crate::supports_glue::{PROP_MOUNTING_HEIGHT_MM, PROP_POSITION_ALONG_SIGN_MM, PROP_SETBACK_MM};
+        let (post, sign) = self.support_chain(e)?;
         let number = |key: &str| post.properties.get(key).and_then(|v| v.parse::<f64>().ok());
         let (u, setback, mounting) = (number(PROP_POSITION_ALONG_SIGN_MM)?, number(PROP_SETBACK_MM)?, number(PROP_MOUNTING_HEIGHT_MM)?);
-        // Centre the solid's plan on the post axis.
         let solids = &self.cache.get(&e.id)?.generated.as_ref().ok()?.solids;
         let (mut max_x, mut max_y) = (0.0f64, 0.0f64);
         for v in solids.iter().flat_map(|m| m.vertices.iter()) {
             max_x = max_x.max(v[0]);
             max_y = max_y.max(v[1]);
         }
-        Some([sign.origin.x + u - max_x / 2.0, setback - max_y / 2.0, sign.origin.y - mounting])
+        Some(Frame { origin: [sign.origin.x + u - max_x / 2.0, setback - max_y / 2.0, sign.origin.y - mounting], cos: 1.0, sin: 0.0 })
     }
 
     /// The triangles of a support's solids, flat-shaded, each with its own view depth.
-    fn support_triangles(&self, e: &afrobim_kernel::Element, rect: Rect, items: &mut Vec<(f64, Vec<Shape>)>) {
-        let Some(base) = self.support_base(e) else { return };
+    fn support_triangles(&self, e: &afrobim_kernel::Element, frame: Frame, rect: Rect, items: &mut Vec<(f64, Vec<Shape>)>) {
         let Some(Ok(generated)) = self.cache.get(&e.id).map(|c| c.generated.as_ref()) else { return };
         let cam = &self.camera;
         let light = norm([-0.35, -0.75, 0.55]);
         let selected = self.doc.is_selected(e.id);
         for mesh in &generated.solids {
             for t in &mesh.triangles {
-                let p: Vec<V3> = t.iter().map(|i| mesh.vertices[*i as usize]).map(|v| [base[0] + v[0], base[1] + v[1], base[2] + v[2]]).collect();
+                let p: Vec<V3> = t.iter().map(|i| mesh.vertices[*i as usize]).map(|v| frame.at(v[0], v[1], v[2])).collect();
                 let normal = norm(cross(sub(p[1], p[0]), sub(p[2], p[0])));
                 // Skip faces turned away from the camera: the solids are closed.
                 if dot(normal, sub(cam.eye(), p[0])) <= 0.0 {
@@ -164,9 +220,35 @@ impl AfroBimApp {
             }
         }
     }
+
+    /// World-space corners of everything the current mode shows, for framing and the ground grid.
+    fn shown_points(&self, site_mode: bool) -> Vec<V3> {
+        let mut points = Vec::new();
+        for e in self.doc.elements() {
+            if e.category == crate::alignment_glue::CATEGORY {
+                // Frame the alignments that carry signs; one far away with nothing on it would
+                // shrink the signs to a dot.
+                let used = self.doc.elements().iter().any(|x| x.site.as_ref().and_then(|p| p.alignment.as_deref()) == Some(e.name.as_str()));
+                if site_mode && used {
+                    if let Some(a) = crate::alignment_glue::alignment_of(&self.doc, e.id) {
+                        points.extend(a.polyline(50.0).into_iter().map(|(x, y)| [x * 1000.0, y * 1000.0, 0.0]));
+                    }
+                }
+                continue;
+            }
+            let Some(frame) = self.frame_of(e, site_mode) else { continue };
+            if crate::supports_glue::is_support(&e.category) {
+                points.push(frame.at(0.0, 0.0, 0.0));
+            } else {
+                points.extend([frame.at(0.0, 0.0, 0.0), frame.at(e.width, 0.0, e.height)]);
+            }
+        }
+        points
+    }
 }
 
 /// Sheet point (x, y) on the plane at depth `y_world` → world.
+#[cfg(test)]
 fn world(x: f64, y: f64, y_world: f64) -> V3 {
     [x, y_world, y]
 }
@@ -209,8 +291,33 @@ impl AfroBimApp {
     }
 
     pub(crate) fn fit_3d(&mut self) {
-        let ext = self.doc.extents().unwrap_or(BBox::new(0.0, 0.0, 5000.0, 3000.0));
-        self.camera.fit(&ext);
+        self.sync_generated();
+        if let Some(mark) = self.options.focus.clone() {
+            let site_mode = self.site_mode();
+            if let Some((frame, e)) = self.doc.elements().iter().find(|e| e.name == mark).and_then(|e| self.frame_of(e, site_mode).map(|f| (f, e))) {
+                let centre = frame.at(e.width / 2.0, 0.0, e.height / 2.0);
+                // Look at the face from in front of it, a little to one side.
+                let facing = frame.facing();
+                self.camera.yaw = facing[1].atan2(facing[0]) + 0.45;
+                self.camera.fit_sphere(centre, e.width.max(e.height) * 1.6);
+                return;
+            }
+        }
+        let points = self.shown_points(self.site_mode());
+        if points.is_empty() {
+            self.camera.fit(&BBox::new(0.0, 0.0, 5000.0, 3000.0));
+            return;
+        }
+        let mut lo = [f64::INFINITY; 3];
+        let mut hi = [f64::NEG_INFINITY; 3];
+        for p in &points {
+            for i in 0..3 {
+                lo[i] = lo[i].min(p[i]);
+                hi[i] = hi[i].max(p[i]);
+            }
+        }
+        let centre = [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, (lo[2] + hi[2]) / 2.0];
+        self.camera.fit_sphere(centre, dot(sub(hi, lo), sub(hi, lo)).sqrt() / 2.0);
     }
 
     fn paint_3d(&self, painter: &Painter, rect: Rect) {
@@ -223,12 +330,30 @@ impl AfroBimApp {
             }
         };
 
-        // Ground grid just below the lowest element: a depth cue, not a surveyed surface.
-        let ext = self.doc.extents().unwrap_or(BBox::new(0.0, 0.0, 5000.0, 3000.0));
-        let ground = ext.min.y - 300.0;
-        let step = 1000.0;
-        let (x0, x1) = (((ext.min.x - 2000.0) / step).floor() * step, ((ext.max.x + 2000.0) / step).ceil() * step);
-        let (y0, y1) = (-4000.0, 4000.0);
+        let site_mode = self.site_mode();
+        let points = self.shown_points(site_mode);
+        let (mut lo, mut hi) = ([0.0, -2000.0, 0.0], [5000.0, 2000.0, 3000.0]);
+        if !points.is_empty() {
+            lo = [f64::INFINITY; 3];
+            hi = [f64::NEG_INFINITY; 3];
+            for p in &points {
+                for i in 0..3 {
+                    lo[i] = lo[i].min(p[i]);
+                    hi[i] = hi[i].max(p[i]);
+                }
+            }
+        }
+        // Ground grid: at site level 0, or just below the lowest element of the upright sheet.
+        // A depth cue, not a surveyed surface. The step grows so there are never too many lines.
+        let ground = if site_mode { 0.0 } else { lo[2] - 300.0 };
+        let span = (hi[0] - lo[0]).max(hi[1] - lo[1]).max(4000.0);
+        let mut step = 1000.0;
+        while span / step > 40.0 {
+            step *= 10.0;
+        }
+        let pad = 2.0 * step;
+        let (x0, x1) = (((lo[0] - pad) / step).floor() * step, ((hi[0] + pad) / step).ceil() * step);
+        let (y0, y1) = if site_mode { (((lo[1] - pad) / step).floor() * step, ((hi[1] + pad) / step).ceil() * step) } else { (-4000.0, 4000.0) };
         let grid = Stroke::new(1.0_f32, if dark { Color32::from_rgb(0x2E, 0x34, 0x3C) } else { Color32::from_rgb(0xCF, 0xD3, 0xD8) });
         let mut x = x0;
         while x <= x1 + 0.5 {
@@ -243,29 +368,45 @@ impl AfroBimApp {
 
         // Everything is gathered with its view depth, then painted farthest first.
         let eye = cam.eye();
-        let from_front = eye[1] < 0.0;
         let plate = if dark { Color32::from_rgb(0x8C, 0x93, 0x9B) } else { Color32::from_rgb(0x9A, 0xA1, 0xA8) };
         let label = if dark { Color32::from_rgb(0xA8, 0xB0, 0xBA) } else { Color32::from_rgb(0x50, 0x55, 0x5C) };
         let mut items: Vec<(f64, Vec<Shape>)> = Vec::new();
 
-        for e in self.doc.elements().iter().filter(|e| self.doc.layer_visible(&e.layer)) {
-            if crate::supports_glue::is_support(&e.category) {
-                self.support_triangles(e, rect, &mut items);
+        for e in self.doc.elements() {
+            if e.category == crate::alignment_glue::CATEGORY {
+                // The centreline on the ground, in the site view only.
+                if site_mode {
+                    if let Some(a) = crate::alignment_glue::alignment_of(&self.doc, e.id) {
+                        let centre = Stroke::new(2.0_f32, Color32::from_rgb(0xE8, 0xC5, 0x47));
+                        let pts = a.polyline(5.0);
+                        for w in pts.windows(2) {
+                            line([w[0].0 * 1000.0, w[0].1 * 1000.0, 0.0], [w[1].0 * 1000.0, w[1].1 * 1000.0, 0.0], centre);
+                        }
+                    }
+                }
                 continue;
             }
-            let b = e.bounds();
-            let centre = b.centre();
-            let Some((_, depth)) = cam.project(world(centre.x, centre.y, 0.0), rect) else { continue };
-            let corners = [(b.min.x, b.min.y), (b.max.x, b.min.y), (b.max.x, b.max.y), (b.min.x, b.max.y)];
-            let quad: Option<Vec<Pos2>> = corners.iter().map(|(x, y)| cam.project(world(*x, *y, 0.0), rect).map(|(p, _)| p)).collect();
+            if !self.doc.layer_visible(&e.layer) {
+                continue;
+            }
+            let Some(frame) = self.frame_of(e, site_mode) else { continue };
+            if crate::supports_glue::is_support(&e.category) {
+                self.support_triangles(e, frame, rect, &mut items);
+                continue;
+            }
+            let centre = frame.at(e.width / 2.0, 0.0, e.height / 2.0);
+            let Some((_, depth)) = cam.project(centre, rect) else { continue };
+            let corners = [(0.0, 0.0), (e.width, 0.0), (e.width, e.height), (0.0, e.height)];
+            let quad: Option<Vec<Pos2>> = corners.iter().map(|(u, v)| cam.project(frame.at(*u, 0.0, *v), rect).map(|(p, _)| p)).collect();
             let Some(quad) = quad else { continue };
             let mut shapes = Vec::new();
 
+            let from_front = dot(frame.facing(), sub(eye, centre)) > 0.0;
             let artwork = self.cache.get(&e.id).filter(|c| c.generated.is_ok()).filter(|_| from_front);
             match artwork {
                 Some(cached) => {
                     // The face, just in front of the plate.
-                    let place = |x: f64, y: f64| cam.project(world(e.origin.x + x, e.origin.y + y, -0.5), rect).map(|(p, _)| p);
+                    let place = |u: f64, v: f64| cam.project(frame.at(u, -0.5, v), rect).map(|(p, _)| p);
                     if let Some(shape) = cached.mesh.projected(&place) {
                         shapes.push(shape);
                     }
@@ -294,7 +435,7 @@ impl AfroBimApp {
             ([0.0, len, 0.0], Color32::from_rgb(0x50, 0xB0, 0x60), "Y"),
             ([0.0, 0.0, len], Color32::from_rgb(0x50, 0x80, 0xE0), "Z"),
         ] {
-            let origin = [0.0, 0.0, ground];
+            let origin = if site_mode { [lo[0], lo[1], ground] } else { [0.0, 0.0, ground] };
             let tip = [origin[0] + dir[0], origin[1] + dir[1], origin[2] + dir[2]];
             line(origin, tip, Stroke::new(1.5_f32, colour));
             if let Some((p, _)) = cam.project(tip, rect) {
@@ -305,7 +446,7 @@ impl AfroBimApp {
         painter.text(
             rect.left_bottom() + egui::vec2(10.0, -8.0),
             Align2::LEFT_BOTTOM,
-            "3D view  ·  drag to orbit  ·  Shift + drag or middle button to pan  ·  wheel to zoom  ·  double-click to fit",
+            if site_mode { "3D site view  ·  drag to orbit  ·  Shift + drag or middle button to pan  ·  wheel to zoom  ·  double-click to fit" } else { "3D view of the design sheet  ·  drag to orbit  ·  Shift + drag or middle button to pan  ·  wheel to zoom  ·  double-click to fit" },
             FontId::proportional(11.0),
             label,
         );

@@ -1,5 +1,6 @@
 //! AfroBIM desktop application.
 
+mod alignment_glue;
 mod app;
 mod canvas;
 mod commands;
@@ -26,6 +27,11 @@ pub struct Options {
     pub standard: Option<String>,
     /// Export the starting model as IFC to this file, then exit (no window interaction needed).
     pub export_ifc: Option<PathBuf>,
+    /// Import the alignments of this LandXML file at start-up. With `--demo`, the demo signs that
+    /// have supports are then placed along the first alignment.
+    pub landxml: Option<PathBuf>,
+    /// Frame the 3D view on the element with this mark.
+    pub focus: Option<String>,
     /// Write quantities and fabrication sheets for the starting model into this folder, then exit.
     pub export_sheets: Option<PathBuf>,
 }
@@ -40,6 +46,8 @@ fn parse_args() -> Options {
             "--3d" => o.view3d = true,
             "--standard" => o.standard = args.next(),
             "--export-ifc" => o.export_ifc = args.next().map(PathBuf::from),
+            "--landxml" => o.landxml = args.next().map(PathBuf::from),
+            "--focus" => o.focus = args.next(),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),
             other if !other.starts_with("--") => o.open = Some(PathBuf::from(other)),
             _ => {}

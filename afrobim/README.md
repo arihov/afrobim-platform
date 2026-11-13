@@ -18,6 +18,8 @@ crates/
   afrobim-signs    traffic-signs engine: rule pack, Transport font metrics, layout, glyph outlines
   afrobim-dxf      DXF R12 export, byte-identical to the C# writer for the same primitives
   afrobim-fabrication  sign-face quantities, A3 fabrication sheets (DXF and PDF) and the schedule PDF
+  afrobim-alignment   horizontal alignments, LandXML import, station / offset placement
+  afrobim-supports    posts and foundations: definitions, solids, quantities (no structural design)
   afrobim-ifc      IFC 4.3 export (STEP file) of a document
   afrobim-mcp      MCP server (stdio) so an AI assistant can drive the engine and build documents
   afrobim-app      the desktop application (egui): menus, toolbar, Tool Sets, model space,
@@ -93,6 +95,9 @@ an empty Enter repeats the last one. While a command waits for a point, type `x,
 | DXF export (R12, mm, one layer per sign colour) | Ported; File → Export DXF or `DXFOUT`. Matches the C# writer byte for byte on the reference files |
 | Quantities (BoQ) | Ported: per-sign CSV and per-colour summary, byte-identical to the C# output. File → Export quantities, `QUANTITIES` |
 | Fabrication sheets | Ported: an A3 sheet per sign as DXF and PDF, plus the schedule PDF. DXFs are byte-identical to C#; PDFs match object for object apart from dates, ids, the producer name and compression. File → Export fabrication sheets, `SHEETS`, or `--export-sheets folder` |
+| Alignments | New (not a port): tangents, circular curves and clothoid spirals; LandXML import (File → Import LandXML, `LANDXML`); place a sign by station, offset and side (`STATION`). The placement rules are ported from C# and match it on 4,256 cases. Not tested against a file exported by Civil 3D. No vertical profile, superelevation or station equations |
+| Posts and foundations | New (not a port): elements with dimensions the engineer enters, solids, and steel, concrete and excavation quantities by geometry (`SUPPORTS`). **No structural sizing, no wind loading, no standard section tables.** New supports carry placeholder dimensions and say so |
+| 3D site view | Once a sign is placed on an alignment, the 3D view shows the site: alignments on the ground, signs at their stations facing their traffic, on their posts and foundations |
 | Schedule CSV / XML import and export | Not ported in the app (the MCP server reads schedule CSVs). Use the C# CLI |
 | 3D view | Done: View → 3D, the `3D` command or the status-bar switch. Orbit, pan, zoom, fit. View only; editing stays in 2D |
 | Python package | Done: `afrobim/python` (PyO3, built with maturin); see its README |

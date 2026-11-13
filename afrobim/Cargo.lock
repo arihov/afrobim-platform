@@ -40,6 +40,7 @@ dependencies = [
 name = "afrobim-app"
 version = "0.1.0"
 dependencies = [
+ "afrobim-alignment",
  "afrobim-draw",
  "afrobim-dxf",
  "afrobim-fabrication",

@@ -36,6 +36,8 @@ pub enum Action {
     InsertSign(u8),
     Library,
     AddSupports,
+    ImportLandXml,
+    PlaceOnAlignment,
     RemoveSupports,
     /// Switch the design standard to the one with this index in `signs_glue::STANDARDS`.
     Standard(u8),
@@ -87,6 +89,8 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "3D", aliases: &["ORBIT", "PLAN"], help: "Switch between the 2D model space and the 3D view", action: Action::Toggle3d },
     CommandInfo { name: "UK", aliases: &["UKTSM"], help: "Use the UK Traffic Signs Manual", action: Action::Standard(0) },
     CommandInfo { name: "UGANDA", aliases: &["UG", "UGTSM"], help: "Use the Uganda Traffic Signs Manual", action: Action::Standard(1) },
+    CommandInfo { name: "LANDXML", aliases: &["ALIGNMENT"], help: "Import horizontal alignments from a LandXML file", action: Action::ImportLandXml },
+    CommandInfo { name: "STATION", aliases: &["CHAINAGE"], help: "Place the selected sign on an alignment by station and offset", action: Action::PlaceOnAlignment },
     CommandInfo { name: "SUPPORTS", aliases: &["POSTS"], help: "Add posts and foundations to the selected sign", action: Action::AddSupports },
     CommandInfo { name: "NOSUPPORTS", aliases: &[], help: "Remove the selected sign's posts and foundations", action: Action::RemoveSupports },
     CommandInfo { name: "THEME", aliases: &[], help: "Switch between the light and dark themes", action: Action::ToggleTheme },

@@ -12,7 +12,7 @@ use egui::{Color32, Key, KeyboardShortcut, Modifiers, PointerButton, RichText, S
 use crate::commands::{self, Action, COMMANDS};
 use crate::icons::{self, Icon};
 use crate::render::{ElementMesh, Representation};
-use crate::{signs_glue, supports_glue, Options};
+use crate::{alignment_glue, signs_glue, supports_glue, Options};
 
 /// A module's output for one element, kept until the element's definition changes.
 pub(crate) struct Cached {
@@ -48,6 +48,8 @@ pub struct AfroBimApp {
     library_filter: String,
     /// The "Add supports" dialog: sign, mounting height as typed, number of posts, edge inset.
     supports_dialog: Option<(ElementId, String, u32, f64)>,
+    /// The "Place on alignment" dialog: sign, alignment, station (m), offset (m), right side.
+    station_dialog: Option<(ElementId, Option<ElementId>, f64, f64, bool)>,
     new_prop_key: String,
 
     pub(crate) grid_on: bool,
@@ -66,7 +68,7 @@ pub struct AfroBimApp {
     canvas_drag: bool,
     quit: bool,
 
-    options: Options,
+    pub(crate) options: Options,
     frames: u32,
 }
 
@@ -77,6 +79,7 @@ impl AfroBimApp {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         let mut modules = ModuleRegistry::default();
         supports_glue::register(&mut modules);
+        alignment_glue::register(&mut modules);
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
             Ok(l) => {
@@ -110,6 +113,7 @@ impl AfroBimApp {
             library,
             library_filter: String::new(),
             supports_dialog: None,
+            station_dialog: None,
             new_prop_key: String::new(),
             grid_on: true,
             grid_spacing: 100.0,
@@ -167,6 +171,34 @@ impl AfroBimApp {
             app.sync_generated();
             if let Some(first) = app.doc.elements().first().map(|e| e.id) {
                 app.doc.select(&[first], SelectMode::Replace);
+            }
+        }
+        if let Some(path) = app.options.landxml.clone() {
+            match alignment_glue::import_landxml(&mut app.doc, &path) {
+                Ok((added, _)) => app.status = format!("Imported {added} alignment(s) from {}.", path.display()),
+                Err(e) => app.status = format!("Could not import {}: {e}", path.display()),
+            }
+            // Demo only: stand the supported signs along the first alignment, alternating sides.
+            if app.options.demo {
+                if let Some((alignment_id, _)) = alignment_glue::alignments(&app.doc).into_iter().next() {
+                    if let Some(a) = alignment_glue::alignment_of(&app.doc, alignment_id) {
+                        let signs: Vec<ElementId> = app
+                            .doc
+                            .elements()
+                            .iter()
+                            .filter(|e| e.category == signs_glue::CATEGORY)
+                            .filter(|e| app.doc.elements().iter().any(|p| p.host == Some(e.id)))
+                            .map(|e| e.id)
+                            .collect();
+                        let step = a.length() / (signs.len() as f64 + 1.0);
+                        for (i, id) in signs.into_iter().enumerate() {
+                            let station = a.start_station_m + step * (i as f64 + 1.0);
+                            if let Err(e) = alignment_glue::place_sign(&mut app.doc, id, alignment_id, station, 4.0, i % 2 == 1) {
+                                app.status = e;
+                            }
+                        }
+                    }
+                }
             }
         }
         app.sync_generated();
@@ -547,6 +579,20 @@ impl AfroBimApp {
                 }
             }
             Action::Library => self.show_library = true,
+            Action::ImportLandXml => {
+                if let Some(path) = rfd::FileDialog::new().add_filter("LandXML", &["xml"]).pick_file() {
+                    self.import_landxml(ctx, path);
+                }
+            }
+            Action::PlaceOnAlignment => match (self.selected_sign(), alignment_glue::alignments(&self.doc).first().map(|a| a.0)) {
+                (Some(sign), Some(first)) => {
+                    let known = self.doc.find(sign).and_then(|e| e.site.as_ref()).map(|s| (s.station_m.unwrap_or(0.0), s.offset_m.unwrap_or(3.0)));
+                    let (station, offset) = known.unwrap_or((0.0, 3.0));
+                    self.station_dialog = Some((sign, Some(first), station, offset.abs(), offset > 0.0));
+                }
+                (None, _) => self.status = "Select one sign first, then place it on an alignment.".into(),
+                (_, None) => self.status = "There is no alignment yet. Import one with File → Import LandXML.".into(),
+            },
             Action::AddSupports => match self.selected_sign() {
                 Some(id) => self.supports_dialog = Some((id, String::new(), 2, 150.0)),
                 None => self.status = "Select one sign first, then add its supports.".into(),
@@ -568,6 +614,22 @@ impl AfroBimApp {
             Action::Help => self.show_help = true,
             Action::About => self.show_about = true,
             Action::Quit => self.quit = true,
+        }
+    }
+
+    pub(crate) fn import_landxml(&mut self, ctx: &egui::Context, path: PathBuf) {
+        match alignment_glue::import_landxml(&mut self.doc, &path) {
+            Ok((added, notes)) => {
+                self.status = format!("Imported {added} alignment(s) from {}.", path.display());
+                for note in notes.iter().take(6) {
+                    self.log(format!("LandXML: {note}"));
+                }
+                if !notes.is_empty() {
+                    self.status.push_str(&format!(" {} note(s) in the command history.", notes.len()));
+                }
+                self.schedule_commit(ctx);
+            }
+            Err(e) => self.status = format!("Could not import {}: {e}", path.display()),
         }
     }
 
@@ -729,6 +791,8 @@ impl AfroBimApp {
                     item(ui, "Save", "Ctrl+S", Action::Save);
                     item(ui, "Save as…", "Ctrl+Shift+S", Action::SaveAs);
                     ui.separator();
+                    item(ui, "Import LandXML alignments…", "LANDXML", Action::ImportLandXml);
+                    ui.separator();
                     item(ui, "Export DXF…", "DXFOUT", Action::ExportDxf);
                     item(ui, "Export IFC 4.3…", "IFCOUT", Action::ExportIfc);
                     item(ui, "Export quantities (BoQ)…", "QUANTITIES", Action::ExportQuantities);
@@ -778,6 +842,7 @@ impl AfroBimApp {
                     }
                 });
                 ui.menu_button("Modify", |ui| {
+                    item(ui, "Place the sign on an alignment…", "STATION", Action::PlaceOnAlignment);
                     item(ui, "Add supports to the sign…", "SUPPORTS", Action::AddSupports);
                     item(ui, "Remove the sign's supports", "NOSUPPORTS", Action::RemoveSupports);
                     ui.separator();
@@ -1311,6 +1376,64 @@ impl AfroBimApp {
                 }
             } else if keep {
                 self.supports_dialog = Some((sign, height, posts, inset));
+            }
+        }
+
+        if let Some((sign, mut alignment, mut station, mut offset, mut right)) = self.station_dialog.take() {
+            let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
+            let choices = alignment_glue::alignments(&self.doc);
+            let (mut keep, mut place) = (true, false);
+            egui::Window::new(format!("Place {mark} on an alignment")).collapsible(false).resizable(false).show(ctx, |ui| {
+                egui::Grid::new("station").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                    ui.label("Alignment");
+                    let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
+                    egui::ComboBox::from_id_salt("alignment").selected_text(current).show_ui(ui, |ui| {
+                        for (id, name) in &choices {
+                            ui.selectable_value(&mut alignment, Some(*id), name);
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Station (m)");
+                    ui.add(egui::DragValue::new(&mut station).speed(1.0));
+                    ui.end_row();
+                    ui.label("Offset from centreline (m)");
+                    ui.add(egui::DragValue::new(&mut offset).speed(0.1).range(0.0..=200.0));
+                    ui.end_row();
+                    ui.label("Side, looking up-station");
+                    ui.horizontal(|ui| {
+                        ui.selectable_value(&mut right, false, "Left");
+                        ui.selectable_value(&mut right, true, "Right");
+                    });
+                    ui.end_row();
+                });
+                ui.add_space(4.0);
+                ui.label(RichText::new("The sign faces the traffic on its own side of the road, for traffic keeping left.").small().weak());
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(alignment.is_some(), egui::Button::new("Place")).clicked() {
+                        place = true;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        keep = false;
+                    }
+                });
+            });
+            if place {
+                if let Some(a) = alignment {
+                    match alignment_glue::place_sign(&mut self.doc, sign, a, station, offset, right) {
+                        Ok(note) => {
+                            self.status = note;
+                            self.fitted_3d = false;
+                            self.schedule_commit(ctx);
+                        }
+                        Err(e) => {
+                            self.status = format!("Not placed: {e}");
+                            self.station_dialog = Some((sign, alignment, station, offset, right));
+                        }
+                    }
+                }
+            } else if keep {
+                self.station_dialog = Some((sign, alignment, station, offset, right));
             }
         }
 
