@@ -1,0 +1,11 @@
+[package]
+name = "afrobim-ifc"
+description = "IFC 4.3 export of AfroBIM documents"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-draw = { path = "../afrobim-draw" }
+afrobim-kernel = { path = "../afrobim-kernel" }

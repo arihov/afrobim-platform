@@ -69,6 +69,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-ifc"
+version = "0.1.0"
+dependencies = [
+ "afrobim-draw",
+ "afrobim-kernel",
+]
+
+[[package]]
 name = "afrobim-kernel"
 version = "0.1.0"
 dependencies = [
