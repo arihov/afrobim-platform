@@ -404,6 +404,148 @@ fn every_fixture_matches_the_reference_engine() {
     );
 }
 
+/// The `dir_` fixtures must cover the destination-column family: every kind, its diagnostics,
+/// the bordered plate, the exit band and the stroked lane and diversion arrows.
+#[test]
+fn the_dir_fixtures_cover_the_destination_column_family() {
+    use afrobim_signs::SignKind;
+
+    let fixtures: Vec<Fixture> = fixtures()
+        .into_iter()
+        .filter(|fx| fx.name.starts_with("dir_"))
+        .collect();
+    let of = |kind: SignKind| -> Vec<&Fixture> {
+        fixtures
+            .iter()
+            .filter(|fx| fx.definition.kind == kind)
+            .collect()
+    };
+    let draws = |fxs: &[&Fixture], f: &dyn Fn(&FixturePrimitive) -> bool| {
+        fxs.iter().any(|fx| fx.primitives.iter().any(f))
+    };
+    let raises = |fxs: &[&Fixture], code: &str| {
+        fxs.iter()
+            .any(|fx| fx.diagnostics.iter().any(|d| d.code == code))
+    };
+    let is_line = |p: &FixturePrimitive| matches!(p, FixturePrimitive::Line { .. });
+    // The §2.15 border: a plate ring of four 12-segment corner arcs.
+    let is_plate_ring = |p: &FixturePrimitive| matches!(p, FixturePrimitive::Fill { outline, .. } if outline.len() == 52);
+    // The Figure 4-4 arrow: one filled outline of nine vertices.
+    let is_chevron = |p: &FixturePrimitive| matches!(p, FixturePrimitive::Fill { outline, .. } if outline.len() == 9);
+
+    let kinds = [
+        SignKind::DirectionSign,
+        SignKind::Confirmatory,
+        SignKind::PlaceIdentification,
+        SignKind::LanePreselection,
+        SignKind::Diversion,
+    ];
+    for kind in kinds {
+        let fxs = of(kind);
+        assert!(fxs.len() >= 3, "{kind:?}: {} fixtures", fxs.len());
+        assert!(
+            fxs.iter().any(|fx| fx.definition.destinations.is_empty()),
+            "{kind:?}"
+        );
+        assert!(
+            fxs.iter().any(|fx| !fx.diagnostics.is_empty()),
+            "{kind:?} raises no diagnostic"
+        );
+        let speeds: std::collections::BTreeSet<u32> =
+            fxs.iter().map(|fx| fx.definition.speed_kph).collect();
+        assert!(speeds.len() >= 2, "{kind:?}: {speeds:?}");
+    }
+    assert_eq!(
+        fixtures.len(),
+        kinds.iter().map(|k| of(*k).len()).sum::<usize>()
+    );
+
+    let direction = of(SignKind::DirectionSign);
+    assert!(draws(&direction, &is_plate_ring) && draws(&direction, &is_chevron));
+    assert!(!draws(&direction, &is_line));
+    for code in [
+        "MAX_DESTINATIONS",
+        "MAX_PER_DIRECTION",
+        "NEARER_NOT_ABOVE",
+        "TILE_WIDTH_FROM_FONT",
+        "MOTORWAY_ALPHABET_NOT_MODELLED",
+    ] {
+        assert!(raises(&direction, code), "{code}");
+    }
+    for colour in [Colour::Green, Colour::White, Colour::Blue] {
+        assert!(
+            direction.iter().any(|fx| fx
+                .primitives
+                .iter()
+                .any(|p| matches!(p, FixturePrimitive::Fill { colour: c, outline } if *c == colour && outline.len() == 52))),
+            "{colour:?} direction plate"
+        );
+    }
+
+    let confirmatory = of(SignKind::Confirmatory);
+    assert!(draws(&confirmatory, &is_plate_ring));
+    assert!(!draws(&confirmatory, &is_line) && !draws(&confirmatory, &is_chevron));
+    assert!(raises(&confirmatory, "CONFIRMATORY_NO_DISTANCE"));
+    assert!(confirmatory.iter().any(|fx| fx
+        .definition
+        .destinations
+        .iter()
+        .any(|d| d.distance.is_some() && d.route_number.is_some())));
+    assert!(draws(&confirmatory, &|p| matches!(
+        p,
+        FixturePrimitive::Fill {
+            colour: Colour::Brown,
+            ..
+        }
+    )));
+
+    let place = of(SignKind::PlaceIdentification);
+    assert!(draws(&place, &|p| matches!(
+        p,
+        FixturePrimitive::Fill {
+            colour: Colour::Grey,
+            ..
+        }
+    )));
+    assert!(!draws(&place, &is_plate_ring));
+    assert!(raises(&place, "ROUTE_NUMBER_NOT_DRAWN"));
+
+    for kind in [SignKind::LanePreselection, SignKind::Diversion] {
+        let fxs = of(kind);
+        assert!(draws(&fxs, &is_line), "{kind:?}");
+        // The triangle route-arm head.
+        assert!(
+            draws(
+                &fxs,
+                &|p| matches!(p, FixturePrimitive::Fill { outline, .. } if outline.len() == 3)
+            ),
+            "{kind:?}"
+        );
+        assert!(raises(&fxs, "ROUTE_NUMBER_NOT_DRAWN"), "{kind:?}");
+        for dir in [
+            afrobim_signs::Direction::Ahead,
+            afrobim_signs::Direction::Left,
+            afrobim_signs::Direction::Right,
+        ] {
+            assert!(
+                fxs.iter().any(|fx| fx
+                    .definition
+                    .destinations
+                    .iter()
+                    .any(|d| d.direction == dir)),
+                "{kind:?} {dir:?}"
+            );
+        }
+    }
+    assert!(draws(&of(SignKind::Diversion), &|p| matches!(
+        p,
+        FixturePrimitive::Fill {
+            colour: Colour::Yellow,
+            ..
+        }
+    )));
+}
+
 /// The fixtures must cover what the port claims: glyphs in both faces, panels and patches,
 /// placeholders and diagnostics. Guards against a regenerated set that silently lost a case.
 #[test]
@@ -449,10 +591,13 @@ fn the_fixtures_cover_the_ported_features() {
     )));
     assert!(has(&|p| matches!(p, FixturePrimitive::Symbol { .. })));
     // The stack path draws no stroked lines or arcs; the fixture format still carries them.
-    assert!(!has(&|p| matches!(
-        p,
-        FixturePrimitive::Line { .. } | FixturePrimitive::Arc { .. }
-    )));
+    assert!(!fixtures
+        .iter()
+        .filter(|fx| fx.definition.kind == afrobim_signs::SignKind::StackType)
+        .any(|fx| fx.primitives.iter().any(|p| matches!(
+            p,
+            FixturePrimitive::Line { .. } | FixturePrimitive::Arc { .. }
+        ))));
     assert!(fixtures
         .iter()
         .any(|fx| fx.diagnostics.iter().any(|d| d.severity == Severity::Error)));

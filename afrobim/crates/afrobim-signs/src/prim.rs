@@ -70,6 +70,14 @@ pub(crate) enum Prim {
         colour: Colour,
     },
     Text(TextRun),
+    /// A straight band of the given width with square ends (C# `Line`). `colour` None means
+    /// black.
+    Line {
+        from: Pt2,
+        to: Pt2,
+        width: f64,
+        colour: Option<Colour>,
+    },
     /// A placeholder for artwork that is not resolved to geometry.
     Symbol {
         origin: Pt2,
