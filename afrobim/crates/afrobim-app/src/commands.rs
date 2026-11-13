@@ -32,6 +32,8 @@ pub enum Action {
     /// Insert the sign template with this index (see `signs_glue::templates`).
     InsertSign(u8),
     Library,
+    /// Switch the design standard to the one with this index in `signs_glue::STANDARDS`.
+    Standard(u8),
     Help,
     About,
     Quit,
@@ -75,6 +77,8 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "ROUNDABOUT", aliases: &["RBT"], help: "Insert a map-type roundabout sign", action: Action::InsertSign(8) },
     CommandInfo { name: "LIBRARY", aliases: &["INSERT", "LIB"], help: "Open the standard-sign library", action: Action::Library },
     CommandInfo { name: "3D", aliases: &["ORBIT", "PLAN"], help: "Switch between the 2D model space and the 3D view", action: Action::Toggle3d },
+    CommandInfo { name: "UK", aliases: &["UKTSM"], help: "Use the UK Traffic Signs Manual", action: Action::Standard(0) },
+    CommandInfo { name: "UGANDA", aliases: &["UG", "UGTSM"], help: "Use the Uganda Traffic Signs Manual", action: Action::Standard(1) },
     CommandInfo { name: "THEME", aliases: &[], help: "Switch between the light and dark themes", action: Action::ToggleTheme },
     CommandInfo { name: "HELP", aliases: &["?"], help: "List every command", action: Action::Help },
     CommandInfo { name: "ABOUT", aliases: &[], help: "About AfroBIM", action: Action::About },
@@ -98,7 +102,7 @@ mod tests {
         assert_eq!(resolve("?").unwrap().action, Action::Help);
         assert!(resolve("nonsense").is_none());
         // Every insert command points at an existing sign template, under the same name.
-        let templates = crate::signs_glue::templates();
+        let templates = crate::signs_glue::templates(crate::signs_glue::DEFAULT_STANDARD);
         for c in COMMANDS {
             if let Action::InsertSign(i) = c.action {
                 assert_eq!(templates[i as usize].command, c.name);

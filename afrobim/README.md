@@ -84,10 +84,9 @@ an empty Enter repeats the last one. While a command waits for a point, type `x,
 | Desktop shell | Done; checked by headless screenshot on Linux. Not yet run on Windows or macOS |
 | UK direction signs: stack-type, map-type (crossroads, T-junction, roundabout), direction, route confirmatory, place identification, lane pre-selection, diversion | Ported from the C# engine, golden-tested against it |
 | UK standard signs: the pack's catalogue, the 24 TSRGD warning and regulatory diagrams with plates, supplementary plates, information signs, and the 66 destination symbols | Ported, golden-tested. Insert from Tool Sets → Standard signs, or `LIBRARY` |
-| Golden fixtures | 203 signs compared with the C# engine primitive by primitive; worst deviation about 3e-14 sw |
+| Golden fixtures | 444 signs compared with the C# engine primitive by primitive; worst deviation about 3e-14 sw |
 | Warning triangles and regulatory roundels embedded on direction and map-type signs | Ported, golden-tested. Drawn as the standard frame only, as in the C# engine: the inner symbol is not drawn |
-| Uganda-style warning and regulatory drawing (needs the Uganda pack) | Not ported |
-| Uganda rule pack (XML) | Not ported |
+| Uganda rule pack (`packs/UG-TSM-2004`, XML) | Ported: loader and all 16 sign kinds, 105 catalogue entries, 241 golden fixtures. Switch with Format → standard, or `UK` / `UGANDA`. Embedded signs under the Uganda pack are not ported |
 | DXF export (R12, mm, one layer per sign colour) | Ported; File → Export DXF or `DXFOUT`. Matches the C# writer byte for byte on the reference files |
 | Fabrication sheets, quantities, schedules | Not ported. Use the C# CLI |
 | 3D view | Done: View → 3D, the `3D` command or the status-bar switch. Orbit, pan, zoom, fit. View only; editing stays in 2D |

@@ -12,7 +12,12 @@ use serde_json::Value;
 
 pub const CATEGORY: &str = "sign";
 pub const LAYER: &str = "Signs";
-const PACK_FILE: &str = "UK-TSM-2019.json";
+/// The design standards the app can switch between: id, label, path under `packs/`.
+pub const STANDARDS: [(&str, &str, &str); 2] = [
+    ("UK-TSM-2019", "UK Traffic Signs Manual (Chapter 7, TSRGD 2016)", "UK-TSM-2019.json"),
+    ("UG-TSM-2004", "Uganda Traffic Signs Manual (2004)", "UG-TSM-2004/pack.xml"),
+];
+pub const DEFAULT_STANDARD: &str = "UK-TSM-2019";
 
 struct SignsModule {
     engine: SignEngine,
@@ -87,11 +92,12 @@ pub struct LibraryItem {
     pub data: Value,
 }
 
-/// Loads the UK rule pack and the Transport fonts. Returns the module, a label for the status
-/// bar and the pack's standard-sign library.
-pub fn load_module() -> Result<(Box<dyn Module>, String, Vec<LibraryItem>), String> {
-    let pack = find("AFROBIM_PACK", &Path::new("packs").join(PACK_FILE))
-        .ok_or_else(|| format!("rule pack packs/{PACK_FILE} was not found (set AFROBIM_PACK to its path)"))?;
+/// Loads a rule pack and the Transport fonts. Returns the module, a label for the status bar and
+/// the pack's standard-sign library. `AFROBIM_PACK` overrides the default standard's location.
+pub fn load_module(standard: &str) -> Result<(Box<dyn Module>, String, Vec<LibraryItem>), String> {
+    let (_, _, file) = STANDARDS.iter().find(|(id, _, _)| *id == standard).ok_or_else(|| format!("unknown standard {standard}"))?;
+    let env = if standard == DEFAULT_STANDARD { "AFROBIM_PACK" } else { "AFROBIM_PACK_UNSET" };
+    let pack = find(env, &Path::new("packs").join(file)).ok_or_else(|| format!("rule pack packs/{file} was not found"))?;
     let fonts = find("AFROBIM_FONTS", Path::new("fonts"))
         .ok_or_else(|| "the fonts folder was not found (set AFROBIM_FONTS to the folder holding the Transport fonts)".to_string())?;
     let engine = SignEngine::load(&pack, &fonts).map_err(|e| e.to_string())?;
@@ -135,9 +141,20 @@ fn with(kind: SignKind, speed: u32, background: Colour, scheme: ColourScheme, ke
 }
 
 /// The insertable sign kinds, with the starting values the C# SignCore catalog gives each.
-pub fn templates() -> Vec<Template> {
+pub fn templates(standard: &str) -> Vec<Template> {
+    // Catalogue keys and the explicit primary scheme below are UK entries; another standard
+    // resolves its own scheme from the background.
+    let uk = standard == "UK-TSM-2019";
     use Direction::{Ahead, Left, Right};
-    let t = |label, command, tip, icon, mark, def: SignDefinition| Template { label, command, tip, icon, mark, data: to_value(&def) };
+    let t = |label, command, tip, icon, mark, mut def: SignDefinition| {
+        if !uk {
+            def.catalog_key = None;
+            if def.scheme == ColourScheme::Primary {
+                def.scheme = ColourScheme::Auto;
+            }
+        }
+        Template { label, command, tip, icon, mark, data: to_value(&def) }
+    };
     vec![
         t(
             "Stack-type direction",
@@ -266,7 +283,7 @@ pub fn templates() -> Vec<Template> {
 }
 
 /// Sample content for `--demo`: one sign of every insertable kind.
-pub fn demo_data() -> Vec<(String, Value)> {
+pub fn demo_data(standard: &str) -> Vec<(String, Value)> {
     let mut out: Vec<(String, Value)> = vec![(
         "ADS-001".to_string(),
         to_value(&SignDefinition::stack(
@@ -279,7 +296,7 @@ pub fn demo_data() -> Vec<(String, Value)> {
             ],
         )),
     )];
-    out.extend(templates().into_iter().skip(1).map(|t| (t.mark.to_string(), t.data)));
+    out.extend(templates(standard).into_iter().skip(1).map(|t| (t.mark.to_string(), t.data)));
     out
 }
 

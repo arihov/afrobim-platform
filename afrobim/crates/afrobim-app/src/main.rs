@@ -21,6 +21,8 @@ pub struct Options {
     /// Start in the 3D view.
     pub view3d: bool,
     pub open: Option<PathBuf>,
+    /// Design standard to start with, e.g. `UG-TSM-2004`.
+    pub standard: Option<String>,
 }
 
 fn parse_args() -> Options {
@@ -31,6 +33,7 @@ fn parse_args() -> Options {
             "--screenshot" => o.screenshot = args.next().map(PathBuf::from),
             "--demo" => o.demo = true,
             "--3d" => o.view3d = true,
+            "--standard" => o.standard = args.next(),
             other if !other.starts_with("--") => o.open = Some(PathBuf::from(other)),
             _ => {}
         }

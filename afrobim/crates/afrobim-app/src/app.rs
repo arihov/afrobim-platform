@@ -28,6 +28,7 @@ pub struct AfroBimApp {
     modules: ModuleRegistry,
     signs_ready: bool,
     module_status: String,
+    standard: String,
     pub(crate) cache: HashMap<ElementId, Cached>,
 
     history: UndoHistory<Vec<Element>>,
@@ -71,7 +72,8 @@ impl AfroBimApp {
     pub fn new(cc: &eframe::CreationContext<'_>, options: Options) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         let mut modules = ModuleRegistry::default();
-        let (signs_ready, module_status, library) = match signs_glue::load_module() {
+        let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
+        let (signs_ready, module_status, library) = match signs_glue::load_module(&standard) {
             Ok((module, label, library)) => {
                 modules.register(module);
                 (true, label, library)
@@ -86,6 +88,7 @@ impl AfroBimApp {
             modules,
             signs_ready,
             module_status,
+            standard,
             cache: HashMap::new(),
             history: UndoHistory::new(Vec::new(), 100),
             commit_due: None,
@@ -121,7 +124,7 @@ impl AfroBimApp {
         if let Some(path) = app.options.open.clone() {
             app.open_path(path);
         } else if app.options.demo && app.signs_ready {
-            for (mark, data) in signs_glue::demo_data() {
+            for (mark, data) in signs_glue::demo_data(&app.standard) {
                 let name = app.doc.unique_name(&mark);
                 let at = app.doc.next_free_origin(2000.0, 1000.0);
                 app.doc.add(signs_glue::CATEGORY, &name, at, 2000.0, 1000.0, signs_glue::LAYER, data);
@@ -239,6 +242,10 @@ impl AfroBimApp {
             Ok(doc) => {
                 self.doc = doc;
                 self.cache.clear();
+                let wanted = self.doc.standard.clone();
+                if !wanted.is_empty() && wanted != self.standard && signs_glue::STANDARDS.iter().any(|(id, _, _)| *id == wanted) {
+                    self.set_standard(&wanted);
+                }
                 self.sync_generated();
                 self.history.reset(self.doc.snapshot());
                 self.status = format!("Opened {} ({} elements).", path.display(), self.doc.elements().len());
@@ -392,14 +399,39 @@ impl AfroBimApp {
             Action::InsertSign(index) => {
                 if !self.signs_ready {
                     self.status = self.module_status.clone();
-                } else if let Some(t) = signs_glue::templates().into_iter().nth(index as usize) {
+                } else if let Some(t) = signs_glue::templates(&self.standard).into_iter().nth(index as usize) {
                     self.insert_sign(ctx, t.mark, t.data);
                 }
             }
             Action::Library => self.show_library = true,
+            Action::Standard(index) => {
+                if let Some((id, label, _)) = signs_glue::STANDARDS.get(index as usize) {
+                    self.set_standard(id);
+                    self.log(format!("Standard: {label}"));
+                }
+            }
             Action::Help => self.show_help = true,
             Action::About => self.show_about = true,
             Action::Quit => self.quit = true,
+        }
+    }
+
+    /// Switches the design standard: reloads the rule pack and lays every sign out again under
+    /// it. A sign the new standard cannot lay out keeps its place and shows the reason.
+    fn set_standard(&mut self, id: &str) {
+        match signs_glue::load_module(id) {
+            Ok((module, label, library)) => {
+                self.modules.register(module);
+                self.signs_ready = true;
+                self.module_status = label;
+                self.library = library;
+                self.standard = id.to_string();
+                self.doc.standard = id.to_string();
+                self.cache.clear();
+                self.sync_generated();
+                self.status = format!("Standard set to {id}.");
+            }
+            Err(e) => self.status = format!("Could not load {id}: {e}"),
         }
     }
 
@@ -568,11 +600,17 @@ impl AfroBimApp {
                     item(ui, "Dark / light theme", "", Action::ToggleTheme);
                 });
                 ui.menu_button("Insert", |ui| {
-                    for (i, t) in signs_glue::templates().iter().enumerate() {
+                    for (i, t) in signs_glue::templates(&self.standard).iter().enumerate() {
                         item(ui, t.label, t.command, Action::InsertSign(i as u8));
                     }
                     ui.separator();
                     item(ui, "Standard signs…", "LIBRARY", Action::Library);
+                });
+                ui.menu_button("Format", |ui| {
+                    for (i, (id, label, _)) in signs_glue::STANDARDS.iter().enumerate() {
+                        let mark = if *id == self.standard { "● " } else { "   " };
+                        item(ui, &format!("{mark}{label}"), id, Action::Standard(i as u8));
+                    }
                 });
                 ui.menu_button("Modify", |ui| {
                     item(ui, "Move", "M", Action::Move);
@@ -681,7 +719,7 @@ impl AfroBimApp {
             ui.separator();
             ui.label(RichText::new("Traffic signs").small().weak());
             ui.add_enabled_ui(self.signs_ready, |ui| {
-                for (i, t) in signs_glue::templates().iter().enumerate() {
+                for (i, t) in signs_glue::templates(&self.standard).iter().enumerate() {
                     if icons::palette_button(ui, t.icon, t.label, t.tip).clicked() {
                         pick = Some(Action::InsertSign(i as u8));
                     }
