@@ -448,11 +448,10 @@ fn the_fixtures_cover_the_ported_features() {
         }
     )));
     assert!(has(&|p| matches!(p, FixturePrimitive::Symbol { .. })));
-    // The stack path draws no stroked lines or arcs; the fixture format still carries them.
-    assert!(!has(&|p| matches!(
-        p,
-        FixturePrimitive::Line { .. } | FixturePrimitive::Arc { .. }
-    )));
+    // Pictogram bars and plate arrows are stroked lines. Nothing ported draws an arc; the
+    // fixture format still carries them.
+    assert!(has(&|p| matches!(p, FixturePrimitive::Line { .. })));
+    assert!(!has(&|p| matches!(p, FixturePrimitive::Arc { .. })));
     assert!(fixtures
         .iter()
         .any(|fx| fx.diagnostics.iter().any(|d| d.severity == Severity::Error)));

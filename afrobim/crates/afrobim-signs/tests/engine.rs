@@ -201,14 +201,23 @@ fn other_sign_kinds_are_unsupported() {
     assert!(err.to_string().contains("MapTypeTee"), "{err}");
 }
 
+/// A destination symbol from the drawn pictogram library is real geometry, not a placeholder
+/// (it was refused while the library was unported).
 #[test]
-fn a_symbol_drawn_from_the_unported_artwork_library_is_unsupported_not_faked() {
+fn a_symbol_from_the_artwork_library_is_drawn() {
     let mut d = Destination::new("Entebbe", Direction::Ahead);
     d.symbol_id = Some("Aircraft".into());
-    let err = engine()
+    let layout = engine()
         .layout(&SignDefinition::stack("S", 60, vec![d]))
-        .unwrap_err();
-    assert!(matches!(err, SignError::Unsupported(_)), "{err}");
+        .unwrap();
+    assert!(!layout
+        .drawing
+        .primitives
+        .iter()
+        .any(|p| matches!(p, Primitive::Symbol { .. })));
+    // Plate, ground, arrow and legend, plus the four shapes of the aircraft.
+    assert_eq!(layout.drawing.primitives.len(), 8);
+    assert!(!layout.has_errors());
 }
 
 #[test]

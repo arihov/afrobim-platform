@@ -1,0 +1,11 @@
+{
+  "name": "std_info_plate_no_symbol",
+  "definition": {"code":"I-10","kind":"InformationSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Blue","class":"Information","scheme":"Information","variant":"Secondary","symbol_id":null,"embedded":null,"catalog_key":null,"info_template":"SymbolPlate","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 31.25,
+  "x_height_mm": 125,
+  "extents": {"min":[0,0],"max":[27,26]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Blue","outline":[[0,0],[27,0],[27,26],[0,26]]}
+  ]
+}

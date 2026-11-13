@@ -1,0 +1,18 @@
+{
+  "name": "std_diag_info_unresolved",
+  "definition": {"code":"I-11","kind":"InformationSign","speed_kph":60,"approach_class":"Primary","destinations":[{"name":"Castle","direction":"Ahead","order":0,"symbol_id":null,"distance":null,"route_number":null,"route":"NonPrimary","number_status":"Unspecified"}],"background":"Blue","class":"Information","scheme":"Information","variant":"Secondary","symbol_id":"castle","embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":"Ahead","info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 31.25,
+  "x_height_mm": 125,
+  "extents": {"min":[0,0],"max":[27,36.5]},
+  "diagnostics": [
+    {"severity":"Warning","code":"SYMBOL_UNRESOLVED","message":"Symbol 'castle' has no artwork; placeholder emitted","source":"TSRGD 2016 Schedule 12 Part 11"},
+    {"severity":"Warning","code":"ROUTE_NUMBER_NOT_DRAWN","message":"Route numbers, patches and panels are not drawn on Information signs yet","source":"UK TSM Chapter 7 §3.3"}
+  ],
+  "primitives": [
+    {"type":"Fill","colour":"Blue","outline":[[0,0],[27,0],[27,36.5],[0,36.5]]},
+    {"type":"Fill","colour":"White","outline":[[4,13.5],[23,13.5],[23,32.5],[4,32.5]]},
+    {"type":"Symbol","origin":[6.5,16],"id":"castle","size":14,"rotation_deg":0},
+    {"type":"Line","from":[13.5,3],"to":[13.5,5.6666666666],"width":2.6666666667,"colour":"White"},
+    {"type":"Fill","colour":"White","outline":[[13.5,11],[17.50000000005,5.6666666666],[9.499999999949999,5.6666666666]]}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "std_info_plate_one_way",
+  "definition": {"code":"I-07","kind":"InformationSign","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Blue","class":"Information","scheme":"Information","variant":"Secondary","symbol_id":"one-way","embedded":null,"catalog_key":null,"info_template":"SymbolPlate","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 31.25,
+  "x_height_mm": 125,
+  "extents": {"min":[0,0],"max":[27,26]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Blue","outline":[[0,0],[27,0],[27,26],[0,26]]},
+    {"type":"Fill","colour":"White","outline":[[12.52,6.62],[14.48,6.62],[14.48,13.9],[12.52,13.9]]},
+    {"type":"Fill","colour":"White","outline":[[9.3,13.34],[17.700000000000003,13.34],[13.5,18.66]]}
+  ]
+}

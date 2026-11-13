@@ -93,7 +93,7 @@ pub(crate) fn check(
     Ok(diags)
 }
 
-fn signed_area(poly: &[(f64, f64)]) -> f64 {
+pub(crate) fn signed_area(poly: &[(f64, f64)]) -> f64 {
     let mut a = 0.0;
     let mut j = poly.len().wrapping_sub(1);
     for i in 0..poly.len() {
@@ -106,7 +106,7 @@ fn signed_area(poly: &[(f64, f64)]) -> f64 {
 /// Area of `poly` inside the axis-aligned box (Sutherland–Hodgman against the four box edges;
 /// correct for concave polygons, whose clipped result may carry zero-area bridging edges that
 /// do not change the area).
-fn clipped_area(poly: &[(f64, f64)], x0: f64, y0: f64, x1: f64, y1: f64) -> f64 {
+pub(crate) fn clipped_area(poly: &[(f64, f64)], x0: f64, y0: f64, x1: f64, y1: f64) -> f64 {
     if x1 <= x0 || y1 <= y0 {
         return 0.0;
     }
@@ -121,7 +121,7 @@ fn clipped_area(poly: &[(f64, f64)], x0: f64, y0: f64, x1: f64, y1: f64) -> f64 
     }
 }
 
-fn clip(
+pub(crate) fn clip(
     poly: &[(f64, f64)],
     inside: impl Fn((f64, f64)) -> bool,
     crossing: impl Fn((f64, f64), (f64, f64)) -> (f64, f64),

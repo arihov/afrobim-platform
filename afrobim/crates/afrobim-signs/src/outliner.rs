@@ -75,6 +75,20 @@ impl TextOutliner<'_> {
                     });
                     continue;
                 }
+                Prim::Line {
+                    from,
+                    to,
+                    width,
+                    colour,
+                } => {
+                    out.push(Primitive::Line {
+                        from,
+                        to,
+                        width,
+                        colour,
+                    });
+                    continue;
+                }
                 Prim::Text(t) => t,
             };
             let (contours, boxes) = self.outline_with_boxes(&t)?;

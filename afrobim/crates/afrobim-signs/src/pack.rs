@@ -569,7 +569,7 @@ impl RulePack {
 
 /// Blanks `//` line comments and `/* */` block comments outside strings, keeping every
 /// newline so a JSON error still reports the right line.
-fn strip_json_comments(text: &str) -> String {
+pub(crate) fn strip_json_comments(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
     let mut in_string = false;
