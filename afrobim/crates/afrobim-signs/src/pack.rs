@@ -330,6 +330,18 @@ pub struct RulePack {
     pub constraints: ConstraintRules,
     #[serde(default)]
     pub arrows: Option<ArrowRules>,
+    /// Map-type sections (UK TSM Chapter 7 §5), defined in `map_rules.rs`.
+    #[serde(default)]
+    pub route_arms: Option<crate::map_rules::RouteArmRules>,
+    #[serde(default)]
+    pub map_type_spacing: Option<crate::map_rules::MapTypeSpacing>,
+    #[serde(default)]
+    pub map_symbol: Option<crate::map_rules::MapSymbolRules>,
+    #[serde(default)]
+    pub roundabout: Option<crate::map_rules::RoundaboutRules>,
+    /// The drawn border of a single-panel sign (§2.15), defined in `map_rules.rs`.
+    #[serde(default)]
+    pub sign_border: Option<crate::map_rules::SignBorderRules>,
     #[serde(default)]
     pub palettes: Option<PaletteRules>,
     #[serde(default)]
@@ -342,9 +354,11 @@ pub struct RulePack {
     pub distances: Option<DistanceRules>,
     #[serde(default)]
     pub blocks: Option<BlockRules>,
-    /// `signBorder` and `routeArms`, read by the destination-column family (direction,
-    /// confirmatory, place, lane and diversion signs).
-    #[serde(flatten)]
+    /// `signBorder` and `routeArms` as the destination-column family (direction, confirmatory,
+    /// place, lane and diversion signs) reads them. The map-type layout reads the same two
+    /// sections through its own fields above, so this view is filled in by [`RulePack::load`]
+    /// from the same text instead of competing for the keys during deserialisation.
+    #[serde(skip)]
     pub dir: crate::dir_rules::DirRules,
     #[serde(default)]
     pub text_sizes_by_family: Option<BTreeMap<String, Vec<TextSize>>>,
@@ -374,7 +388,10 @@ impl RulePack {
 
     /// Parses pack JSON; `path` only names the pack in error messages.
     pub fn from_json(text: &str, path: &str) -> Result<RulePack, SignError> {
-        let pack: RulePack = serde_json::from_str(&strip_json_comments(text))
+        let stripped = strip_json_comments(text);
+        let mut pack: RulePack = serde_json::from_str(&stripped)
+            .map_err(|e| SignError::Pack(format!("Rule pack is not valid JSON: {path}: {e}")))?;
+        pack.dir = serde_json::from_str(&stripped)
             .map_err(|e| SignError::Pack(format!("Rule pack is not valid JSON: {path}: {e}")))?;
         if pack.id.trim().is_empty() {
             return Err(SignError::Pack(format!("Rule pack has no id: {path}")));
@@ -392,6 +409,7 @@ impl RulePack {
     /// so a bad hand-authored pack fails at load rather than mid-layout.
     fn validate(&self, path: &str) -> Result<(), SignError> {
         let bad = |msg: String| Err(SignError::Pack(format!("{msg}: {path}")));
+        crate::map_rules::validate(self, path)?;
 
         if let Some(tiles) = &self.panel.tile_widths {
             for (name, table) in [

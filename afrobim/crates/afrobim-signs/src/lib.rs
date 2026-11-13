@@ -38,6 +38,9 @@ mod diversion;
 mod family;
 pub mod font;
 mod lane;
+mod map_plate;
+pub mod map_rules;
+mod map_symbol;
 pub mod measurer;
 mod model;
 mod outliner;
@@ -139,6 +142,10 @@ impl SignEngine {
     /// Follows the C# desktop app: `SignLayout.Layout` with a measurer holding both faces,
     /// then `TextOutliner.Apply`.
     pub fn layout(&self, sign: &SignDefinition) -> Result<SignLayout, SignError> {
+        // Map-type signs (UK TSM Chapter 7 §5): map_symbol.rs.
+        if map_symbol::is_map_type(sign.kind) {
+            return self.layout_map_type(sign);
+        }
         let pack = &self.pack;
         let measurer = TextTileMeasurer::new(&self.medium, &pack.panel, Some(&self.heavy));
 

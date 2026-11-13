@@ -195,10 +195,10 @@ fn route_numbers_get_patches_and_inks_by_status() {
 fn other_sign_kinds_are_unsupported() {
     let mut sign =
         SignDefinition::stack("M", 60, vec![Destination::new("Kasese", Direction::Ahead)]);
-    sign.kind = SignKind::MapTypeTee;
+    sign.kind = SignKind::WarningSign;
     let err = engine().layout(&sign).unwrap_err();
     assert!(matches!(err, SignError::Unsupported(_)), "{err}");
-    assert!(err.to_string().contains("MapTypeTee"), "{err}");
+    assert!(err.to_string().contains("WarningSign"), "{err}");
 }
 
 #[test]
