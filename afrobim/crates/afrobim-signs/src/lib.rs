@@ -5,6 +5,10 @@
 //! with lettering converted to Transport glyph outlines. Other sign kinds return
 //! [`SignError::Unsupported`].
 //!
+//! Also laid out, with the same pack and against the same reference: rectangular direction
+//! signs (§7.11), route confirmatory signs (§8), and the C# engine's place-identification,
+//! lane pre-selection and temporary diversion signs.
+//!
 //! ```no_run
 //! use std::path::Path;
 //! use afrobim_signs::{Destination, Direction, SignDefinition, SignEngine};
@@ -27,14 +31,23 @@ use afrobim_draw::{Drawing, Extents, Pt2};
 
 pub mod arrow;
 mod column;
+mod confirmatory;
+pub mod dir_rules;
+mod direction;
+mod diversion;
+mod family;
 pub mod font;
+mod lane;
 pub mod measurer;
 mod model;
 mod outliner;
 mod overlap;
 pub mod pack;
+mod place;
 mod prim;
+mod route_head;
 mod route_numbers;
+mod sign_plate;
 mod stack;
 mod symbol;
 
@@ -126,17 +139,24 @@ impl SignEngine {
     /// Follows the C# desktop app: `SignLayout.Layout` with a measurer holding both faces,
     /// then `TextOutliner.Apply`.
     pub fn layout(&self, sign: &SignDefinition) -> Result<SignLayout, SignError> {
-        if sign.kind != SignKind::StackType {
-            return Err(SignError::Unsupported(format!(
-                "sign kind {} ('{}'): only stack-type signs are ported",
-                sign.kind.name(),
-                sign.code
-            )));
-        }
         let pack = &self.pack;
         let measurer = TextTileMeasurer::new(&self.medium, &pack.panel, Some(&self.heavy));
 
-        let mut result = stack::StackSignLayout::new(pack, &measurer)?.layout(sign)?;
+        let mut result = match sign.kind {
+            SignKind::StackType => stack::StackSignLayout::new(pack, &measurer)?.layout(sign)?,
+            SignKind::DirectionSign => direction::layout(pack, &measurer, sign)?,
+            SignKind::Confirmatory => confirmatory::layout(pack, &measurer, sign)?,
+            SignKind::PlaceIdentification => place::layout(pack, &measurer, sign)?,
+            SignKind::LanePreselection => lane::layout(pack, &measurer, sign)?,
+            SignKind::Diversion => diversion::layout(pack, &measurer, sign)?,
+            _ => {
+                return Err(SignError::Unsupported(format!(
+                    "sign kind {} ('{}'): its layout is not ported",
+                    sign.kind.name(),
+                    sign.code
+                )))
+            }
+        };
         let mut diags = std::mem::take(&mut result.diagnostics);
 
         // A character the pack's tile table does not list was measured by the font; say so.
@@ -166,8 +186,13 @@ impl SignEngine {
         diags.extend(overlap::check(pack, &measurer, &result)?);
 
         // Route numbers, patches and panels are drawn by the panelled (UK) stack-type layout
-        // in a pack with block rules. Anywhere else, say so rather than drop them silently.
-        let draws_route_numbers = pack.stack.is_some() && pack.blocks.is_some();
+        // and, in a pack with block rules, by direction and confirmatory signs, which reuse
+        // its destination engine. Anywhere else, say so rather than drop them silently.
+        let draws_route_numbers = match sign.kind {
+            SignKind::StackType => pack.stack.is_some() && pack.blocks.is_some(),
+            SignKind::DirectionSign | SignKind::Confirmatory => pack.blocks.is_some(),
+            _ => false,
+        };
         if !draws_route_numbers
             && sign.destinations.iter().any(|d| {
                 d.route_number.as_ref().is_some_and(|n| !n.is_empty())
@@ -176,8 +201,10 @@ impl SignEngine {
         {
             diags.push(Diagnostic::warning(
                 "ROUTE_NUMBER_NOT_DRAWN",
-                "Route numbers, patches and panels are not drawn on Stack type signs yet"
-                    .to_string(),
+                format!(
+                    "Route numbers, patches and panels are not drawn on {} signs yet",
+                    family::label(sign.kind)
+                ),
                 pack.clause("routeNumbers", &pack.source),
             ));
         }

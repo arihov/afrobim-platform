@@ -342,6 +342,10 @@ pub struct RulePack {
     pub distances: Option<DistanceRules>,
     #[serde(default)]
     pub blocks: Option<BlockRules>,
+    /// `signBorder` and `routeArms`, read by the destination-column family (direction,
+    /// confirmatory, place, lane and diversion signs).
+    #[serde(flatten)]
+    pub dir: crate::dir_rules::DirRules,
     #[serde(default)]
     pub text_sizes_by_family: Option<BTreeMap<String, Vec<TextSize>>>,
     #[serde(default)]
@@ -525,6 +529,7 @@ impl RulePack {
                 return bad("Rule pack 'distances.minGap' must be non-negative".into());
             }
         }
+        self.dir.validate(&self.panel, path)?;
 
         for (family, sizes) in self.text_sizes_by_family.iter().flatten() {
             if sizes.is_empty() {

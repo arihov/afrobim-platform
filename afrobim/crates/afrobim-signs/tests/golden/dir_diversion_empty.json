@@ -1,0 +1,11 @@
+{
+  "name": "dir_diversion_empty",
+  "definition": {"code":"DV-4","kind":"Diversion","speed_kph":60,"approach_class":"Primary","destinations":[],"background":"Yellow","class":"Guidance","scheme":"Temporary","variant":"Secondary","symbol_id":null,"embedded":null,"catalog_key":null,"info_template":"ServicePanel","info_arrow":null,"info_distance":null,"mirror":"None","text_lines":null,"location":null},
+  "sw_mm": 31.25,
+  "x_height_mm": 125,
+  "extents": {"min":[0,0],"max":[8,7]},
+  "diagnostics": [],
+  "primitives": [
+    {"type":"Fill","colour":"Yellow","outline":[[0,0],[8,0],[8,7],[0,7]]}
+  ]
+}
