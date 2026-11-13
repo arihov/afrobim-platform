@@ -1,0 +1,555 @@
+{
+  "source": "tools/GoldenPlacement: SignCore.Cli.LocationReport.Write",
+  "header": "code,alignment,station,offset,side,x,y,rotation",
+  "reports": [
+    {
+      "name": "empty",
+      "csv": "location_report_empty.csv",
+      "signs": []
+    },
+    {
+      "name": "basic",
+      "csv": "location_report_basic.csv",
+      "signs": [
+        {
+          "code": "B",
+          "alignment": "MC01",
+          "station": 200.0,
+          "offset": 3.0,
+          "side": "right",
+          "x": 10.5,
+          "y": -2.25,
+          "rotation_deg": 90.0
+        },
+        {
+          "code": "A,1",
+          "alignment": "MC01",
+          "station": 50.0,
+          "offset": -3.0,
+          "side": "left",
+          "x": 1.0,
+          "y": 2.0,
+          "rotation_deg": 270.123456
+        }
+      ]
+    },
+    {
+      "name": "sorting",
+      "csv": "location_report_sorting.csv",
+      "signs": [
+        {
+          "code": "S1",
+          "alignment": "mc02",
+          "station": 10.0,
+          "offset": 3.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S2",
+          "alignment": "MC01",
+          "station": 500.0,
+          "offset": 3.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S3",
+          "alignment": "Mc01",
+          "station": 20.0,
+          "offset": 3.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S4",
+          "alignment": "mc01",
+          "station": 20.0,
+          "offset": -3.0,
+          "side": "left",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S5",
+          "alignment": "MC01",
+          "station": 20.0,
+          "offset": -3.0,
+          "side": "left",
+          "x": 1.0,
+          "y": 1.0,
+          "rotation_deg": 1.0
+        },
+        {
+          "code": "S6",
+          "alignment": "",
+          "station": 5.0,
+          "offset": 0.0,
+          "side": "both",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S7",
+          "alignment": "MC10",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S8",
+          "alignment": "MC2",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S9",
+          "alignment": "MC_1",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S10",
+          "alignment": "mca",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S11",
+          "alignment": "MCZ",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S12",
+          "alignment": "Élysée",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S13",
+          "alignment": "élysée",
+          "station": 0.5,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S14",
+          "alignment": "Zebra",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S15",
+          "alignment": "Straße",
+          "station": 2.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S16",
+          "alignment": "STRASSE",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S17",
+          "alignment": "straße",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S18",
+          "alignment": "MC01",
+          "station": -20.0,
+          "offset": 0.0,
+          "side": "left",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S19",
+          "alignment": "MC01",
+          "station": 20.0,
+          "offset": -3.0000001,
+          "side": "left",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S20",
+          "alignment": "mc[1]",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S21",
+          "alignment": "MC 01",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S22",
+          "alignment": "ΑΒΓ",
+          "station": 2.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "S23",
+          "alignment": "αβγ",
+          "station": 1.0,
+          "offset": 1.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        }
+      ]
+    },
+    {
+      "name": "quoting",
+      "csv": "location_report_quoting.csv",
+      "signs": [
+        {
+          "code": "plain",
+          "alignment": "A",
+          "station": 1.0,
+          "offset": 0.0,
+          "side": "left",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "has,comma",
+          "alignment": "B,1",
+          "station": 2.0,
+          "offset": 0.0,
+          "side": "left",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "has \"quote\"",
+          "alignment": "C \"x\"",
+          "station": 3.0,
+          "offset": 0.0,
+          "side": "right",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "has\nnewline",
+          "alignment": "D\nE",
+          "station": 4.0,
+          "offset": 0.0,
+          "side": "both",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "",
+          "alignment": "F",
+          "station": 5.0,
+          "offset": 0.0,
+          "side": "left",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": " spaced ",
+          "alignment": " G ",
+          "station": 6.0,
+          "offset": 0.0,
+          "side": "left",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "semi;colon\ttab'apos",
+          "alignment": "H",
+          "station": 7.0,
+          "offset": 0.0,
+          "side": "left",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "cr\rreturn",
+          "alignment": "I",
+          "station": 8.0,
+          "offset": 0.0,
+          "side": "left",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        },
+        {
+          "code": "ünïcödé 标志",
+          "alignment": "J",
+          "station": 9.0,
+          "offset": 0.0,
+          "side": "left",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation_deg": 0.0
+        }
+      ]
+    },
+    {
+      "name": "numbers",
+      "csv": "location_report_numbers.csv",
+      "signs": [
+        {
+          "code": "N01",
+          "alignment": "N",
+          "station": 0.0005,
+          "offset": 0.0005,
+          "side": "right",
+          "x": 0.0005,
+          "y": -0.0005,
+          "rotation_deg": 5E-05
+        },
+        {
+          "code": "N02",
+          "alignment": "N",
+          "station": 1.0005,
+          "offset": 2.0005,
+          "side": "right",
+          "x": 2.0015,
+          "y": 2.0025,
+          "rotation_deg": 0.00015
+        },
+        {
+          "code": "N03",
+          "alignment": "N",
+          "station": 2.0625,
+          "offset": -0.0625,
+          "side": "left",
+          "x": 0.0625,
+          "y": 0.1875,
+          "rotation_deg": 0.03125
+        },
+        {
+          "code": "N04",
+          "alignment": "N",
+          "station": 3.0004,
+          "offset": -0.0004,
+          "side": "left",
+          "x": -0.0004,
+          "y": -0.00049,
+          "rotation_deg": -4E-05
+        },
+        {
+          "code": "N05",
+          "alignment": "N",
+          "station": 4.4995,
+          "offset": 0.4995,
+          "side": "right",
+          "x": 1234567.8905,
+          "y": -1234567.8915,
+          "rotation_deg": 359.99995
+        },
+        {
+          "code": "N06",
+          "alignment": "N",
+          "station": 5.0,
+          "offset": -0.0,
+          "side": "left",
+          "x": -0.0,
+          "y": 0.0,
+          "rotation_deg": -0.0
+        },
+        {
+          "code": "N07",
+          "alignment": "N",
+          "station": 6.0,
+          "offset": 1E-07,
+          "side": "right",
+          "x": 1E-07,
+          "y": -1E-07,
+          "rotation_deg": 1E-09
+        },
+        {
+          "code": "N08",
+          "alignment": "N",
+          "station": 7.9995,
+          "offset": 9.9995,
+          "side": "right",
+          "x": 99.9995,
+          "y": 999.9995,
+          "rotation_deg": 89.99995
+        },
+        {
+          "code": "N09",
+          "alignment": "N",
+          "station": 8.299999999999999,
+          "offset": 0.30000000000000004,
+          "side": "right",
+          "x": 0.7999999999999999,
+          "y": 1.2100000000000002,
+          "rotation_deg": 0.3333333333333333
+        },
+        {
+          "code": "N10",
+          "alignment": "N",
+          "station": 123456789012.3456,
+          "offset": 12345678901234.5,
+          "side": "right",
+          "x": 1000000000000000.0,
+          "y": 15000000000000000.0,
+          "rotation_deg": 1E+17
+        },
+        {
+          "code": "N11",
+          "alignment": "N",
+          "station": 500000.1235,
+          "offset": 600000.9995,
+          "side": "right",
+          "x": 457123.4565,
+          "y": 30512.0005,
+          "rotation_deg": 270.00005
+        },
+        {
+          "code": "N12",
+          "alignment": "N",
+          "station": 1250.125,
+          "offset": -3.5,
+          "side": "left",
+          "x": 1000000.0,
+          "y": -250000.0,
+          "rotation_deg": 37.5
+        },
+        {
+          "code": "N13",
+          "alignment": "N",
+          "station": 10.0015,
+          "offset": 10.0025,
+          "side": "right",
+          "x": 10.0035,
+          "y": 10.0045,
+          "rotation_deg": 10.00055
+        },
+        {
+          "code": "N14",
+          "alignment": "N",
+          "station": 0.9999999,
+          "offset": -0.9999999,
+          "side": "left",
+          "x": 0.99949999,
+          "y": 0.9995,
+          "rotation_deg": 0.999949999
+        },
+        {
+          "code": "N15",
+          "alignment": "N",
+          "station": 2.5,
+          "offset": 1.0000000000005,
+          "side": "right",
+          "x": 1.00049999999999,
+          "y": 1.000499999999999,
+          "rotation_deg": 1.0005
+        },
+        {
+          "code": "N16",
+          "alignment": "N",
+          "station": 1E-300,
+          "offset": 5E-324,
+          "side": "right",
+          "x": -5E-324,
+          "y": 1.7976931348623157E+308,
+          "rotation_deg": 4.9E-05
+        },
+        {
+          "code": "N17",
+          "alignment": "N",
+          "station": 123456789012345.67,
+          "offset": 1234567890123456.8,
+          "side": "right",
+          "x": 9007199254740992.0,
+          "y": 100000000000000.0,
+          "rotation_deg": 1E+22
+        },
+        {
+          "code": "N18",
+          "alignment": "N",
+          "station": 999999999999999.4,
+          "offset": 99999999999999.95,
+          "side": "right",
+          "x": 10000000000000.0,
+          "y": 0.000499999999999999,
+          "rotation_deg": 1.2345678901234568E-05
+        }
+      ]
+    }
+  ]
+}

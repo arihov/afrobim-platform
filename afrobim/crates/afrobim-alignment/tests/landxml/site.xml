@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-built test file following the LandXML 1.2 schema. It was NOT exported by Civil 3D.
+     Coordinates were computed independently of the Rust code (Simpson integration of the heading)
+     and are written northing first, as LandXML requires. -->
+<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.landxml.org/schema/LandXML-1.2 http://www.landxml.org/schema/LandXML-1.2/LandXML-1.2.xsd" date="2026-11-13" time="12:00:00" version="1.2" language="English" readOnly="false">
+  <Units>
+    <Metric areaUnit="squareMeter" linearUnit="meter" volumeUnit="cubicMeter" temperatureUnit="celsius" pressureUnit="milliBars" angularUnit="decimal degrees" directionUnit="decimal degrees"/>
+  </Units>
+  <Project name="afrobim-alignment tests"/>
+  <Application name="hand-built" desc="test data" manufacturer="AfroBIM" version="1"/>
+  <Alignments name="Site">
+    <Alignment name="MC01" length="680.000000" staStart="1000.000000" desc="tangent, spiral-curve-spiral left, tangent, spiral-curve-spiral right, tangent">
+      <CoordGeom>
+        <Line length="100.000000" staStart="1000.000000">
+          <Start>31250.000000 457200.000000</Start>
+          <End>31300.000000 457286.602540</End>
+        </Line>
+        <Spiral length="60.000000" radiusEnd="300.000000" radiusStart="INF" rot="ccw" spiType="clothoid" staStart="1100.000000">
+          <Start>31300.000000 457286.602540</Start>
+          <PI>31320.010486 457321.261719</PI>
+          <End>31331.700828 457337.512841</End>
+        </Spiral>
+        <Curve rot="ccw" crvType="arc" length="120.000000" radius="300.000000" staStart="1160.000000">
+          <Start>31331.700828 457337.512841</Start>
+          <Center>31575.235481 457162.324734</Center>
+          <End>31419.146674 457418.520527</End>
+          <PI>31367.213215 457386.879759</PI>
+        </Curve>
+        <Spiral length="60.000000" radiusEnd="INF" radiusStart="300.000000" rot="ccw" spiType="clothoid" staStart="1280.000000">
+          <Start>31419.146674 457418.520527</Start>
+          <PI>31436.242676 457428.936368</PI>
+          <End>31472.328088 457446.243052</End>
+        </Spiral>
+        <Line length="80.000000" staStart="1340.000000">
+          <Start>31472.328088 457446.243052</Start>
+          <End>31544.461090 457480.838282</End>
+        </Line>
+        <Spiral length="50.000000" radiusEnd="200.000000" radiusStart="INF" rot="cw" spiType="clothoid" staStart="1420.000000">
+          <Start>31544.461090 457480.838282</Start>
+          <PI>31574.541144 457495.264776</PI>
+          <End>31588.573913 457504.302909</End>
+        </Spiral>
+        <Curve rot="cw" crvType="arc" length="90.000000" radius="200.000000" staStart="1470.000000">
+          <Start>31588.573913 457504.302909</Start>
+          <Center>31480.277740 457672.445524</Center>
+          <End>31650.928958 457568.147096</End>
+          <PI>31627.057616 457529.089235</PI>
+        </Curve>
+        <Spiral length="50.000000" radiusEnd="INF" radiusStart="200.000000" rot="cw" spiType="clothoid" staStart="1560.000000">
+          <Start>31650.928958 457568.147096</Start>
+          <PI>31659.633448 457582.389227</PI>
+          <End>31673.346139 457612.801321</End>
+        </Spiral>
+        <Line length="70.000000" staStart="1610.000000">
+          <Start>31673.346139 457612.801321</Start>
+          <End>31702.119206 457676.614413</End>
+        </Line>
+      </CoordGeom>
+      <Profile name="MC01 profile">
+        <ProfAlign name="FG">
+          <PVI>1000.000000 1180.000</PVI>
+          <PVI>1680.000000 1183.400</PVI>
+        </ProfAlign>
+      </Profile>
+    </Alignment>
+    <Alignment name="Compound" length="180.000000" staStart="0.000000" desc="curve, spiral between two radii, curve">
+      <CoordGeom>
+        <Curve rot="ccw" crvType="arc" length="80.000000" radius="400.000000" staStart="0.000000">
+          <Start>2000.000000 1000.000000</Start>
+          <Center>1930.540729 606.076899</Center>
+          <End>2076.875878 978.348338</End>
+          <PI>2039.524145 993.030827</PI>
+        </Curve>
+        <Spiral length="40.000000" radiusEnd="150.000000" radiusStart="400.000000" rot="ccw" spiType="clothoid" staStart="80.000000">
+          <Start>2076.875878 978.348338</Start>
+          <PI>2098.361278 969.902701</PI>
+          <End>2112.802543 960.891626</End>
+        </Spiral>
+        <Curve rot="ccw" crvType="arc" length="60.000000" radius="150.000000" staStart="120.000000">
+          <Start>2112.802543 960.891626</Start>
+          <Center>2033.395968 833.633636</Center>
+          <End>2156.090862 919.923630</End>
+          <PI>2138.599014 944.795116</PI>
+        </Curve>
+      </CoordGeom>
+    </Alignment>
+  </Alignments>
+</LandXML>
