@@ -330,6 +330,18 @@ pub struct RulePack {
     pub constraints: ConstraintRules,
     #[serde(default)]
     pub arrows: Option<ArrowRules>,
+    /// Map-type sections (UK TSM Chapter 7 §5), defined in `map_rules.rs`.
+    #[serde(default)]
+    pub route_arms: Option<crate::map_rules::RouteArmRules>,
+    #[serde(default)]
+    pub map_type_spacing: Option<crate::map_rules::MapTypeSpacing>,
+    #[serde(default)]
+    pub map_symbol: Option<crate::map_rules::MapSymbolRules>,
+    #[serde(default)]
+    pub roundabout: Option<crate::map_rules::RoundaboutRules>,
+    /// The drawn border of a single-panel sign (§2.15), defined in `map_rules.rs`.
+    #[serde(default)]
+    pub sign_border: Option<crate::map_rules::SignBorderRules>,
     #[serde(default)]
     pub palettes: Option<PaletteRules>,
     #[serde(default)]
@@ -388,6 +400,7 @@ impl RulePack {
     /// so a bad hand-authored pack fails at load rather than mid-layout.
     fn validate(&self, path: &str) -> Result<(), SignError> {
         let bad = |msg: String| Err(SignError::Pack(format!("{msg}: {path}")));
+        crate::map_rules::validate(self, path)?;
 
         if let Some(tiles) = &self.panel.tile_widths {
             for (name, table) in [
