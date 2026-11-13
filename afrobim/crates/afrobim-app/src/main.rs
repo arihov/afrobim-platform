@@ -23,6 +23,8 @@ pub struct Options {
     pub open: Option<PathBuf>,
     /// Design standard to start with, e.g. `UG-TSM-2004`.
     pub standard: Option<String>,
+    /// Export the starting model as IFC to this file, then exit (no window interaction needed).
+    pub export_ifc: Option<PathBuf>,
 }
 
 fn parse_args() -> Options {
@@ -34,6 +36,7 @@ fn parse_args() -> Options {
             "--demo" => o.demo = true,
             "--3d" => o.view3d = true,
             "--standard" => o.standard = args.next(),
+            "--export-ifc" => o.export_ifc = args.next().map(PathBuf::from),
             other if !other.starts_with("--") => o.open = Some(PathBuf::from(other)),
             _ => {}
         }

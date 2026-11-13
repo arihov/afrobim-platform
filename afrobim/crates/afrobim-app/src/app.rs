@@ -157,6 +157,11 @@ impl AfroBimApp {
         app.sync_generated();
         app.history.reset(app.doc.snapshot());
         app.view_3d = app.options.view3d;
+        if let Some(path) = app.options.export_ifc.clone() {
+            app.export_ifc(path);
+            eprintln!("AfroBIM: {}", app.status);
+            app.quit = true;
+        }
         app
     }
 
@@ -297,6 +302,39 @@ impl AfroBimApp {
         }
     }
 
+    /// Writes the whole model as IFC 4.3: each sign an `IfcSign` with its artwork, properties
+    /// and quantities. Faces stand upright, arranged as on the sheet (see the afrobim-ifc README).
+    fn export_ifc(&mut self, path: PathBuf) {
+        self.sync_generated();
+        let inputs: Vec<afrobim_ifc::IfcElementInput> = self
+            .doc
+            .elements()
+            .iter()
+            .map(|e| afrobim_ifc::IfcElementInput { element: e, generated: self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()) })
+            .collect();
+        // The project name scopes the GlobalIds, so use the document's file name: re-exporting
+        // the same saved document keeps every element's identity.
+        let project = self.path.as_ref().and_then(|p| p.file_stem()).map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "AfroBIM model".into());
+        let options = afrobim_ifc::IfcOptions {
+            project_name: project,
+            application: format!("AfroBIM {}", env!("CARGO_PKG_VERSION")),
+            ..afrobim_ifc::IfcOptions::default()
+        };
+        let export = afrobim_ifc::export_ifc(&self.doc, &inputs, &options);
+        match std::fs::write(&path, export.text) {
+            Ok(()) => {
+                self.status = format!("Exported {} element(s) to {}.", inputs.len(), path.display());
+                for note in export.notes.iter().take(5) {
+                    self.log(format!("IFC: {note}"));
+                }
+                if !export.notes.is_empty() {
+                    self.status.push_str(&format!(" {} note(s) in the command history.", export.notes.len()));
+                }
+            }
+            Err(e) => self.status = format!("Could not write {}: {e}", path.display()),
+        }
+    }
+
     fn file_dialog() -> rfd::FileDialog {
         rfd::FileDialog::new().add_filter("AfroBIM document", &[FILE_EXTENSION])
     }
@@ -339,6 +377,16 @@ impl AfroBimApp {
                         path.set_extension("dxf");
                     }
                     self.export_dxf(path);
+                }
+            }
+            Action::ExportIfc => {
+                if self.doc.elements().is_empty() {
+                    self.status = "Nothing to export.".into();
+                } else if let Some(mut path) = rfd::FileDialog::new().add_filter("IFC 4.3 (STEP)", &["ifc"]).set_file_name("model.ifc").save_file() {
+                    if path.extension().is_none() {
+                        path.set_extension("ifc");
+                    }
+                    self.export_ifc(path);
                 }
             }
             Action::Undo => self.undo(),
@@ -568,6 +616,7 @@ impl AfroBimApp {
                     item(ui, "Save as…", "Ctrl+Shift+S", Action::SaveAs);
                     ui.separator();
                     item(ui, "Export DXF…", "DXFOUT", Action::ExportDxf);
+                    item(ui, "Export IFC 4.3…", "IFCOUT", Action::ExportIfc);
                     ui.separator();
                     item(ui, "Quit", "", Action::Quit);
                 });

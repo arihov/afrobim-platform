@@ -17,6 +17,7 @@ crates/
                    selection, grips, MOVE / COPY / ERASE, snap, ortho, undo
   afrobim-signs    traffic-signs engine: rule pack, Transport font metrics, layout, glyph outlines
   afrobim-dxf      DXF R12 export, byte-identical to the C# writer for the same primitives
+  afrobim-ifc      IFC 4.3 export (STEP file) of a document
   afrobim-mcp      MCP server (stdio) so an AI assistant can drive the engine and build documents
   afrobim-app      the desktop application (egui): menus, toolbar, Tool Sets, model space,
                    Properties, Layers, command line
@@ -93,6 +94,6 @@ an empty Enter repeats the last one. While a command waits for a point, type `x,
 | 3D view | Done: View → 3D, the `3D` command or the status-bar switch. Orbit, pan, zoom, fit. View only; editing stays in 2D |
 | Python package | Done: `afrobim/python` (PyO3, built with maturin); see its README |
 | MCP server | Done: `afrobim-mcp` (11 tools: catalogue search, sign layout and checks, schedule validation, DXF export, and building `.afrobim` documents); see `crates/afrobim-mcp/README.md`. The five tools shared with the C# server returned identical results on 126 requests |
-| IFC export | In progress |
+| IFC export | Done: File → Export IFC 4.3, `IFCOUT`, or `--export-ifc file.ifc` from the command line. Each sign is an `IfcSign` with coloured artwork, property sets and quantities. Checked with IfcOpenShell (schema and EXPRESS rules, 0 issues); not yet opened in a BIM viewer. Signs stand upright arranged as on the sheet, not at site positions. No import |
 
 The roadmap is in `../docs/plan/2026-11-13-afrobim-platform.md`.
