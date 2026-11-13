@@ -30,6 +30,7 @@ pub enum Action {
     Arrange,
     /// Insert the sign template with this index (see `signs_glue::templates`).
     InsertSign(u8),
+    Library,
     Help,
     About,
     Quit,
@@ -71,6 +72,7 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "MAP", aliases: &["CROSSROADS"], help: "Insert a map-type crossroads sign", action: Action::InsertSign(6) },
     CommandInfo { name: "TEE", aliases: &[], help: "Insert a map-type T-junction sign", action: Action::InsertSign(7) },
     CommandInfo { name: "ROUNDABOUT", aliases: &["RBT"], help: "Insert a map-type roundabout sign", action: Action::InsertSign(8) },
+    CommandInfo { name: "LIBRARY", aliases: &["INSERT", "LIB"], help: "Open the standard-sign library", action: Action::Library },
     CommandInfo { name: "THEME", aliases: &[], help: "Switch between the light and dark themes", action: Action::ToggleTheme },
     CommandInfo { name: "HELP", aliases: &["?"], help: "List every command", action: Action::Help },
     CommandInfo { name: "ABOUT", aliases: &[], help: "About AfroBIM", action: Action::About },

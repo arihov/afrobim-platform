@@ -40,6 +40,9 @@ pub struct AfroBimApp {
     last_action: Option<Action>,
     show_help: bool,
     show_about: bool,
+    show_library: bool,
+    library: Vec<signs_glue::LibraryItem>,
+    library_filter: String,
     new_prop_key: String,
 
     pub(crate) grid_on: bool,
@@ -65,12 +68,12 @@ impl AfroBimApp {
     pub fn new(cc: &eframe::CreationContext<'_>, options: Options) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
         let mut modules = ModuleRegistry::default();
-        let (signs_ready, module_status) = match signs_glue::load_module() {
-            Ok((module, label)) => {
+        let (signs_ready, module_status, library) = match signs_glue::load_module() {
+            Ok((module, label, library)) => {
                 modules.register(module);
-                (true, label)
+                (true, label, library)
             }
-            Err(e) => (false, format!("Traffic signs unavailable: {e}")),
+            Err(e) => (false, format!("Traffic signs unavailable: {e}"), Vec::new()),
         };
 
         let mut app = Self {
@@ -90,6 +93,9 @@ impl AfroBimApp {
             last_action: None,
             show_help: false,
             show_about: false,
+            show_library: false,
+            library,
+            library_filter: String::new(),
             new_prop_key: String::new(),
             grid_on: true,
             grid_spacing: 100.0,
@@ -113,6 +119,25 @@ impl AfroBimApp {
                 let name = app.doc.unique_name(&mark);
                 let at = app.doc.next_free_origin(2000.0, 1000.0);
                 app.doc.add(signs_glue::CATEGORY, &name, at, 2000.0, 1000.0, signs_glue::LAYER, data);
+                app.sync_generated();
+            }
+            // A few catalogued signs of each class, so the demo shows the standard library too.
+            let mut per_class: HashMap<String, usize> = HashMap::new();
+            let picks: Vec<(String, serde_json::Value)> = app
+                .library
+                .iter()
+                .filter(|i| matches!(i.class.as_str(), "Warning" | "Regulatory" | "Information"))
+                .filter(|i| {
+                    let n = per_class.entry(i.class.clone()).or_insert(0);
+                    *n += 1;
+                    *n <= 4
+                })
+                .map(|i| (i.key.clone(), i.data.clone()))
+                .collect();
+            for (key, data) in picks {
+                let name = app.doc.unique_name(&key);
+                let at = app.doc.next_free_origin(1000.0, 1000.0);
+                app.doc.add(signs_glue::CATEGORY, &name, at, 1000.0, 1000.0, signs_glue::LAYER, data);
                 app.sync_generated();
             }
             app.doc.arrange();
@@ -351,19 +376,25 @@ impl AfroBimApp {
                 if !self.signs_ready {
                     self.status = self.module_status.clone();
                 } else if let Some(t) = signs_glue::templates().into_iter().nth(index as usize) {
-                    let name = self.doc.unique_name(t.mark);
-                    let at = self.doc.next_free_origin(2000.0, 1000.0);
-                    let id = self.doc.add(signs_glue::CATEGORY, &name, at, 2000.0, 1000.0, signs_glue::LAYER, t.data);
-                    self.sync_generated();
-                    self.doc.select(&[id], SelectMode::Replace);
-                    self.ctl.start_place(&self.doc, &self.view, id);
-                    self.schedule_commit(ctx);
+                    self.insert_sign(ctx, t.mark, t.data);
                 }
             }
+            Action::Library => self.show_library = true,
             Action::Help => self.show_help = true,
             Action::About => self.show_about = true,
             Action::Quit => self.quit = true,
         }
+    }
+
+    /// Adds a sign with a unique mark and hangs it from the cursor for placing.
+    fn insert_sign(&mut self, ctx: &egui::Context, mark: &str, data: serde_json::Value) {
+        let name = self.doc.unique_name(mark);
+        let at = self.doc.next_free_origin(2000.0, 1000.0);
+        let id = self.doc.add(signs_glue::CATEGORY, &name, at, 2000.0, 1000.0, signs_glue::LAYER, data);
+        self.sync_generated();
+        self.doc.select(&[id], SelectMode::Replace);
+        self.ctl.start_place(&self.doc, &self.view, id);
+        self.schedule_commit(ctx);
     }
 
     fn submit_command_line(&mut self, ctx: &egui::Context) {
@@ -460,6 +491,7 @@ impl AfroBimApp {
         if ctx.input(|i| i.key_pressed(Key::Escape)) {
             self.show_help = false;
             self.show_about = false;
+            self.show_library = false;
             // Esc in a Properties field belongs to that field; it only cancels an active command.
             if !in_field || self.ctl.is_busy() {
                 self.cmd_input.clear();
@@ -520,6 +552,8 @@ impl AfroBimApp {
                     for (i, t) in signs_glue::templates().iter().enumerate() {
                         item(ui, t.label, t.command, Action::InsertSign(i as u8));
                     }
+                    ui.separator();
+                    item(ui, "Standard signs…", "LIBRARY", Action::Library);
                 });
                 ui.menu_button("Modify", |ui| {
                     item(ui, "Move", "M", Action::Move);
@@ -626,10 +660,10 @@ impl AfroBimApp {
                     }
                 }
             });
-            ui.add_enabled_ui(false, |ui| {
-                let later = "Not yet ported to the AfroBIM engine";
-                icons::palette_button(ui, Icon::Regulatory, "Warning and regulatory", later);
-                icons::palette_button(ui, Icon::Information, "Information", later);
+            ui.add_enabled_ui(self.signs_ready, |ui| {
+                if icons::palette_button(ui, Icon::Warning, "Standard signs…", "Warning, regulatory, information and other catalogued signs").clicked() {
+                    pick = Some(Action::Library);
+                }
             });
             ui.add_space(6.0);
             ui.label(RichText::new("Modify").small().weak());
@@ -953,6 +987,46 @@ impl AfroBimApp {
             ui.label(RichText::new("Points: x,y absolute  ·  @dx,dy relative  ·  @distance<angle polar. Millimetres.").weak());
         });
         self.show_help = help;
+
+        let mut library_open = self.show_library;
+        let mut insert: Option<(String, serde_json::Value)> = None;
+        egui::Window::new("Standard signs").open(&mut library_open).default_width(420.0).default_height(520.0).show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Find");
+                ui.add(egui::TextEdit::singleline(&mut self.library_filter).hint_text("key or name").desired_width(f32::INFINITY));
+            });
+            ui.separator();
+            let filter = self.library_filter.trim().to_lowercase();
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                let mut classes: Vec<&str> = self.library.iter().map(|i| i.class.as_str()).collect();
+                classes.dedup();
+                classes.sort();
+                classes.dedup();
+                for class in classes {
+                    let items: Vec<&signs_glue::LibraryItem> = self
+                        .library
+                        .iter()
+                        .filter(|i| i.class == class)
+                        .filter(|i| filter.is_empty() || i.key.to_lowercase().contains(&filter) || i.name.to_lowercase().contains(&filter))
+                        .collect();
+                    if items.is_empty() {
+                        continue;
+                    }
+                    egui::CollapsingHeader::new(format!("{class} ({})", items.len())).default_open(true).show(ui, |ui| {
+                        for item in items {
+                            if ui.selectable_label(false, format!("{}   {}", item.key, item.name)).on_hover_text("Click to insert, then click in the model to place").clicked() {
+                                insert = Some((item.key.clone(), item.data.clone()));
+                            }
+                        }
+                    });
+                }
+            });
+        });
+        self.show_library = library_open;
+        if let Some((key, data)) = insert {
+            self.show_library = false;
+            self.insert_sign(ctx, &key, data);
+        }
 
         let mut about = self.show_about;
         egui::Window::new("About AfroBIM").open(&mut about).collapsible(false).resizable(false).show(ctx, |ui| {

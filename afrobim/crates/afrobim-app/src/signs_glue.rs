@@ -78,15 +78,35 @@ fn find(env_var: &str, relative: &Path) -> Option<PathBuf> {
     roots.into_iter().map(|r| r.join(relative)).find(|p| p.exists())
 }
 
-/// Loads the UK rule pack and the Transport fonts. Returns the module and a label for the status bar.
-pub fn load_module() -> Result<(Box<dyn Module>, String), String> {
+/// One entry of the standard-sign library: a catalogued sign ready to insert.
+pub struct LibraryItem {
+    pub key: String,
+    pub name: String,
+    /// Group heading, e.g. "Warning".
+    pub class: String,
+    pub data: Value,
+}
+
+/// Loads the UK rule pack and the Transport fonts. Returns the module, a label for the status
+/// bar and the pack's standard-sign library.
+pub fn load_module() -> Result<(Box<dyn Module>, String, Vec<LibraryItem>), String> {
     let pack = find("AFROBIM_PACK", &Path::new("packs").join(PACK_FILE))
         .ok_or_else(|| format!("rule pack packs/{PACK_FILE} was not found (set AFROBIM_PACK to its path)"))?;
     let fonts = find("AFROBIM_FONTS", Path::new("fonts"))
         .ok_or_else(|| "the fonts folder was not found (set AFROBIM_FONTS to the folder holding the Transport fonts)".to_string())?;
     let engine = SignEngine::load(&pack, &fonts).map_err(|e| e.to_string())?;
     let label = format!("{} · {}", engine.pack_id(), engine.pack_name());
-    Ok((Box::new(SignsModule { engine }), label))
+    let library = engine
+        .catalog()
+        .iter()
+        .map(|entry| LibraryItem {
+            key: entry.key.clone(),
+            name: entry.name.clone(),
+            class: format!("{:?}", entry.class),
+            data: to_value(&engine.definition_for(entry)),
+        })
+        .collect();
+    Ok((Box::new(SignsModule { engine }), label, library))
 }
 
 fn to_value(def: &SignDefinition) -> Value {
@@ -325,6 +345,39 @@ pub fn edit_ui(ui: &mut egui::Ui, data: &mut Value) -> bool {
         });
         ui.end_row();
     });
+
+    let has_destinations = !matches!(
+        def.kind,
+        SignKind::WarningSign
+            | SignKind::RegulatoryProhibitory
+            | SignKind::RegulatoryMandatory
+            | SignKind::Stop
+            | SignKind::GiveWay
+            | SignKind::SupplementaryPlate
+            | SignKind::InformationSign
+    );
+    if !has_destinations {
+        // Standard signs are defined by a diagram or symbol and an optional legend.
+        egui::Grid::new("sign-std").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+            ui.label(if def.kind == SignKind::SupplementaryPlate { "Plate type" } else { "Diagram / symbol" });
+            changed |= optional_text(ui, &mut def.symbol_id, "e.g. 504.1 or 670:30", 150.0);
+            ui.end_row();
+            ui.label(if def.kind == SignKind::SupplementaryPlate { "Legend" } else { "Plate legend" });
+            changed |= optional_text(ui, &mut def.info_distance, "lines separated by |", 150.0);
+            ui.end_row();
+            ui.label("Temporary");
+            let mut temporary = def.scheme == ColourScheme::Temporary;
+            if ui.checkbox(&mut temporary, "yellow ground").changed() {
+                def.scheme = if temporary { ColourScheme::Temporary } else { ColourScheme::Auto };
+                changed = true;
+            }
+            ui.end_row();
+        });
+        if changed {
+            *data = to_value(&def);
+        }
+        return changed;
+    }
 
     ui.add_space(6.0);
     ui.label("Destinations");
