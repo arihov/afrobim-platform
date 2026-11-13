@@ -10,3 +10,6 @@ W-504.1-P,D504.1,WarningSign,Secondary,White,30,48,12,700,800,0.560,6,1,1,0
 R-616,D616,RegulatoryProhibitory,Secondary,White,60,60,15,750,750,0.563,0,1,0,0
 R-670/60,D670,RegulatoryProhibitory,Secondary,White,96,60,15,750,750,0.563,2,1,0,0
 MAP-014,,MapTypeCrossroads,Auto,Green,60,125,31.25,1900,2650,5.035,38,0,2,2
+LN-1,,LanePreselection,Auto,Green,100,250,62.5,7150,1900,13.585,23,0,0,0
+DV-2,,Diversion,Temporary,Yellow,50,125,31.25,1900,1250,2.375,26,0,0,0
+I-11,,InformationSign,Information,Blue,60,125,31.25,850,1150,0.978,0,1,2,0

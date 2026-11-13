@@ -579,5 +579,160 @@
     },
     "quantity": null,
     "location": null
+  },
+  {
+    "definition": {
+      "code": "LN-1",
+      "kind": "LanePreselection",
+      "speed_kph": 100,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Kasese",
+          "direction": "Left",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Masheruka",
+          "direction": "Ahead",
+          "order": 1,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Rubirizi",
+          "direction": "Right",
+          "order": 2,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Green",
+      "class": "Guidance",
+      "scheme": "Auto",
+      "variant": "Secondary",
+      "symbol_id": null,
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": null
+  },
+  {
+    "definition": {
+      "code": "DV-2",
+      "kind": "Diversion",
+      "speed_kph": 50,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Detour",
+          "direction": "Left",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Masheruka",
+          "direction": "Right",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Mukono",
+          "direction": "Ahead",
+          "order": 1,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        },
+        {
+          "name": "Jinja",
+          "direction": "Ahead",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "Unspecified",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Yellow",
+      "class": "Guidance",
+      "scheme": "Temporary",
+      "variant": "Secondary",
+      "symbol_id": null,
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": null,
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": "Diversion route D2 – café corner"
+  },
+  {
+    "definition": {
+      "code": "I-11",
+      "kind": "InformationSign",
+      "speed_kph": 60,
+      "approach_class": "Primary",
+      "destinations": [
+        {
+          "name": "Castle",
+          "direction": "Ahead",
+          "order": 0,
+          "symbol_id": null,
+          "distance": null,
+          "route_number": null,
+          "route": "NonPrimary",
+          "number_status": "Unspecified"
+        }
+      ],
+      "background": "Blue",
+      "class": "Information",
+      "scheme": "Information",
+      "variant": "Secondary",
+      "symbol_id": "castle",
+      "embedded": null,
+      "catalog_key": null,
+      "info_template": "ServicePanel",
+      "info_arrow": "Ahead",
+      "info_distance": null,
+      "mirror": "None",
+      "text_lines": null,
+      "location": null
+    },
+    "quantity": null,
+    "location": null
   }
 ]

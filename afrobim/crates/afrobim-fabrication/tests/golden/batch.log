@@ -15,4 +15,9 @@ sign #11: MAP-014 → MAP-014-sheet.dxf/.pdf (1:20)
   [Error] NEARER_NOT_ABOVE: Duplicate proximity order for Right; stacking order is ambiguous
   [Warning] TILE_WIDTH_FROM_FONT: 'Park + Ride' in TransportMedium: '+' not in the tile table; the font's advance width is used
   [Warning] TILE_WIDTH_FROM_FONT: 'Zoo!' in TransportMedium: '!' not in the tile table; the font's advance width is used
-schedule: 11 sign(s) → schedule.pdf
+sign #12: LN-1 → LN-1-sheet.dxf/.pdf (1:50)
+sign #13: DV-2 → DV-2-sheet.dxf/.pdf (1:10)
+sign #14: I-11 → I-11-sheet.dxf/.pdf (1:10)
+  [Warning] SYMBOL_UNRESOLVED: Symbol 'castle' has no artwork; placeholder emitted
+  [Warning] ROUTE_NUMBER_NOT_DRAWN: Route numbers, patches and panels are not drawn on Information signs yet
+schedule: 14 sign(s) → schedule.pdf
