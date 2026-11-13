@@ -21,6 +21,12 @@ def engine() -> afrobim.SignEngine:
 
 
 @pytest.fixture(scope="session")
+def uganda_engine() -> afrobim.SignEngine:
+    """The Uganda Traffic Signs Manual pack (an XML folder pack) from the checkout."""
+    return afrobim.SignEngine(PACK.parent / "UG-TSM-2004" / "pack.xml", FONTS)
+
+
+@pytest.fixture(scope="session")
 def seed_fixture() -> dict:
     """The engine's golden fixture of the app's seed sign, checked against the C# engine."""
     return json.loads((SIGN_FIXTURES / "seed_ahead_right_60.json").read_text(encoding="utf-8"))

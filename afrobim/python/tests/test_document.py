@@ -175,10 +175,12 @@ def test_update_and_rename(engine, seed):
     assert doc.element(id)["name"] == "ADS-A12"
 
 
-def test_a_sign_that_cannot_be_laid_out_is_not_added(engine, seed):
+def test_a_sign_that_cannot_be_laid_out_is_not_added(engine, uganda_engine, seed):
     doc = afrobim.Document()
+    # Embedded signs are not ported for the Uganda layouts: the engine refuses, it does not guess.
+    embedded = dict(seed, embedded=[{"symbol_id": "height-limit", "type": "WarningTriangle"}])
     with pytest.raises(afrobim.UnsupportedError):
-        doc.add_sign(engine, dict(seed, kind="WarningSign"))
+        doc.add_sign(uganda_engine, embedded)
     with pytest.raises(afrobim.SignError):
         doc.add_sign(engine, {"kind": "StackType"})
     assert len(doc) == 0 and doc.standard == ""

@@ -237,11 +237,22 @@ def test_a_character_the_font_lacks_is_a_sign_error_with_the_engines_message(eng
     assert not isinstance(raised.value, afrobim.UnsupportedError)
 
 
-def test_an_unsupported_sign_is_an_unsupported_error(engine, seed):
-    # A warning sign with no TSRGD diagram: the UK pack has nothing to draw it from.
-    with pytest.raises(afrobim.UnsupportedError, match="^Not supported: sign kind WarningSign") as raised:
-        engine.layout(dict(seed, kind="WarningSign"))
+def test_an_unsupported_sign_is_an_unsupported_error(uganda_engine, seed):
+    # Embedded signs are not ported for the Uganda layouts, so the engine refuses the sign.
+    embedded = dict(seed, embedded=[{"symbol_id": "height-limit", "type": "WarningTriangle"}])
+    with pytest.raises(afrobim.UnsupportedError, match="^Not supported") as raised:
+        uganda_engine.layout(embedded)
     assert isinstance(raised.value, ValueError)
+
+
+def test_the_uganda_pack_loads_and_lays_out_its_catalogue(uganda_engine, seed):
+    assert uganda_engine.pack_id == "UG-TSM-2004"
+    assert len(uganda_engine.catalog()) == 105
+    for entry in uganda_engine.catalog():
+        layout = uganda_engine.layout(uganda_engine.definition(entry["key"]))
+        assert layout.width_mm > 0 and layout.height_mm > 0, entry["key"]
+    # The same definition lays out differently under the two standards.
+    assert uganda_engine.layout(seed).size_mm != afrobim.SignEngine(PACK, FONTS).layout(seed).size_mm
 
 
 def test_a_bad_pack_or_fonts_folder_is_a_sign_error(tmp_path):
