@@ -56,6 +56,15 @@ struct FieldState {
 /// dialog's request holds; it is only changed to a station the alignment accepts.
 pub fn station_row(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>, salt: &str, label: &str, internal: &mut f64) {
     ui.label(label);
+    station_field(ui, doc, alignment, salt, internal);
+    ui.end_row();
+}
+
+/// The station control alone, for a cell of a table: the same field and region picker as
+/// `station_row`, with the station shown on the drawings converted to the internal one. True when
+/// the internal station changed.
+pub fn station_field(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>, salt: &str, internal: &mut f64) -> bool {
+    let before = *internal;
     let parsed = alignment.and_then(|a| alignment_glue::alignment_of(doc, a));
     match parsed {
         Some(a) if a.station_equations.region_count() > 1 => {
@@ -97,7 +106,7 @@ pub fn station_row(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>, sa
             ui.add(egui::DragValue::new(internal).speed(1.0).suffix(" m"));
         }
     }
-    ui.end_row();
+    (*internal - before).abs() > 1e-12
 }
 
 #[cfg(test)]

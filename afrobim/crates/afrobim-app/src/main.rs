@@ -26,6 +26,7 @@ mod render;
 mod ribbon;
 mod road_dialogs;
 mod road_glue;
+mod schedule_ext;
 mod schedule_glue;
 mod schedule_ui;
 mod sheets_glue;
@@ -80,6 +81,9 @@ pub struct Options {
     pub limits: Option<PathBuf>,
     pub limits_row: Option<String>,
     /// Write the 4D playback as PNG frames into this folder, one every `frames_step` days, then exit.
+    /// Import this XER file, or export the programme to this XER file, at start-up (to see the reports without a file dialog).
+    pub xer_in: Option<PathBuf>,
+    pub xer_out: Option<PathBuf>,
     pub frames_dir: Option<PathBuf>,
     pub frames_step: Option<i64>,
     pub frames_from: Option<String>,
@@ -121,6 +125,8 @@ fn parse_args() -> Options {
             "--sheet-form" => o.sheet_form = args.next().and_then(|v| v.parse().ok()),
             "--limits" => o.limits = args.next().map(PathBuf::from),
             "--limits-row" => o.limits_row = args.next(),
+            "--xer-in" => o.xer_in = args.next().map(PathBuf::from),
+            "--xer-out" => o.xer_out = args.next().map(PathBuf::from),
             "--frames-dir" => o.frames_dir = args.next().map(PathBuf::from),
             "--frames-step" => o.frames_step = args.next().and_then(|v| v.parse().ok()),
             "--frames-from" => o.frames_from = args.next(),

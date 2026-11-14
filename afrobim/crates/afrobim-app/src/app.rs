@@ -373,6 +373,16 @@ impl AfroBimApp {
             }
             app.quit = true;
         }
+        if let Some(path) = app.options.xer_in.clone() {
+            app.import_xer_path(&path);
+        }
+        if let Some(path) = app.options.xer_out.clone() {
+            app.sched.sync(&app.doc);
+            if let Some(p) = app.sched.prog.clone() {
+                app.export_xer_path(&p, &path);
+            }
+        }
+        app.frames_setup();
         if let Some(path) = app.options.export_ifc.clone() {
             app.export_ifc(path);
             eprintln!("AfroBIM: {}", app.status);
@@ -428,6 +438,10 @@ impl AfroBimApp {
     }
 
     // ─── undo ────────────────────────────────────────────────────────────────
+
+    pub(crate) fn request_quit(&mut self) {
+        self.quit = true;
+    }
 
     fn schedule_commit(&mut self, ctx: &egui::Context) {
         self.commit_due = Some(ctx.input(|i| i.time) + 0.3);
@@ -1058,7 +1072,21 @@ impl AfroBimApp {
             Action::AlignCheck => self.design_open_check(),
             Action::LandXmlOut => self.design_landxml_out(),
             Action::Options => self.design_open_options(),
-            Action::XerIn | Action::XerOut | Action::Wbs | Action::CriticalBasis | Action::TimeLocation | Action::Play4d => self.status = "Not built yet.".into(),
+            Action::XerIn => self.import_xer_file(),
+            Action::XerOut => self.export_xer_file(),
+            Action::Wbs => {
+                self.sched.sync(&self.doc);
+                self.sched.ext.wbs_open = true;
+            }
+            Action::CriticalBasis => {
+                self.sched.sync(&self.doc);
+                self.sched.ext.critical_open = true;
+            }
+            Action::TimeLocation => {
+                self.sched.sync(&self.doc);
+                self.sched.ext.tl_open = true;
+            }
+            Action::Play4d => self.play_toggle(ctx),
             Action::Help => self.show_help = true,
             Action::About => self.show_about = true,
             Action::Quit => self.quit = true,
@@ -1407,6 +1435,7 @@ impl AfroBimApp {
     fn toolbar(&mut self, ctx: &egui::Context) {
         let (grid, snap, ortho, marks, three_d, real) = (self.grid_on, self.ctl.snap_on, self.ctl.ortho_on, self.show_labels, self.view_3d, self.rep == Representation::Real);
         let (clash_markers, fourd) = (self.coord.markers, self.sched.fourd_on);
+        let playing = self.sched.ext.play.playing;
         let site_colour = self.construction.colour_by_record;
         let align_labels = self.design.labels_on;
         let standard = self.standard.clone();
@@ -1420,6 +1449,7 @@ impl AfroBimApp {
             Action::RepOutlined => !real,
             Action::ClashMarkers => clash_markers,
             Action::FourD => fourd,
+            Action::Play4d => playing,
             Action::SiteView => site_colour,
             Action::AlignLabels => align_labels,
             Action::Standard(i) => signs_glue::STANDARDS.get(i as usize).is_some_and(|s| s.0 == standard),
@@ -2478,6 +2508,7 @@ impl eframe::App for AfroBimApp {
             }
         }
 
+        self.sched_tick(ctx);
         self.menu_bar(ctx);
         self.toolbar(ctx);
         self.status_bar(ctx);

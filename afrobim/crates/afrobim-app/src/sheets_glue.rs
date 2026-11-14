@@ -32,6 +32,8 @@ pub const FEED_CHECKS: &str = "check_summary";
 pub const FEED_QUANTITIES: &str = "quantities:";
 pub const FEED_GANTT: &str = "gantt";
 pub const FEED_SCURVE: &str = "s_curve";
+pub const FEED_WBS_GANTT: &str = "wbs_gantt";
+pub const FEED_TIME_LOCATION: &str = "time_location";
 pub const FEED_COST_SCURVE: &str = "cost_s_curve";
 
 /// The kinds of schedule table a sheet can carry, as (feed name, label, default sheet title).
@@ -45,10 +47,12 @@ pub const TABLE_KINDS: [(&str, &str, &str); 6] = [
 ];
 
 /// The kinds of detail sheet, as (feed name or "element", label, default sheet title).
-pub const DETAIL_KINDS: [(&str, &str, &str); 4] = [
+pub const DETAIL_KINDS: [(&str, &str, &str); 6] = [
     ("element", "A selected sign face", "SIGN FACE"),
     (FEED_GANTT, "The Gantt chart", "CONSTRUCTION PROGRAMME"),
     (FEED_SCURVE, "S-curve of the programme", "PROGRAMME S-CURVE"),
+    (FEED_WBS_GANTT, "The Gantt chart with summary tasks (WBS)", "PROGRAMME BY WBS"),
+    (FEED_TIME_LOCATION, "Time-location chart", "TIME-LOCATION CHART"),
     (FEED_COST_SCURVE, "S-curve of the cash flow (cost)", "COST S-CURVE"),
 ];
 
@@ -63,6 +67,8 @@ pub struct Live {
     pub check_rows: Option<Vec<[String; 5]>>,
     pub gantt: Option<(Drawing, Vec<DetailLabel>)>,
     pub scurve: Option<(Drawing, Vec<DetailLabel>)>,
+    pub wbs_gantt: Option<(Drawing, Vec<DetailLabel>)>,
+    pub time_location: Option<(Drawing, Vec<DetailLabel>)>,
     pub cost_scurve: Option<(Drawing, Vec<DetailLabel>)>,
     /// Why a feed has no data, by feed name.
     pub missing: Vec<(&'static str, String)>,
@@ -91,9 +97,25 @@ impl Live {
         // The programme: activity table, Gantt chart, S-curve.
         let programme = schedule_glue::load(doc).map(|(_, p)| p);
         match &programme {
-            Some(p) => match afrobim_schedule::schedule(p) {
+            Some(p) => match afrobim_schedule::schedule_with(p, &afrobim_schedule::ScheduleOptions { critical: schedule_glue::critical_basis_of(doc) }) {
                 Ok(s) => {
                     live.activity_csv = Some(afrobim_schedule::activity_table_csv(p, &s));
+                    // The Gantt chart with summary tasks, rolled up on the basis the user chose.
+                    if p.summaries.is_empty() {
+                        live.missing.push((FEED_WBS_GANTT, "The programme has no summary tasks (WBS): add some in the WBS window.".into()));
+                    } else {
+                        match afrobim_schedule::wbs_rollup(p, &s, schedule_glue::rollup_basis_of(doc)) {
+                            Ok(ru) => {
+                                let g = afrobim_schedule::gantt_drawing_wbs(p, &s, &GanttOptions::default(), &ru);
+                                live.wbs_gantt = Some((g.drawing, g.labels.iter().map(|l| DetailLabel::new(l.at, &l.text)).collect()));
+                            }
+                            Err(e) => live.missing.push((FEED_WBS_GANTT, format!("The roll-up cannot be made: {}", crate::schedule_ext::error_text(e)))),
+                        }
+                    }
+                    match crate::schedule_ext::time_location_for_sheet(p, &s, doc) {
+                        Ok((d, labels)) => live.time_location = Some((d, labels.iter().map(|(at, text)| DetailLabel::new(*at, text)).collect())),
+                        Err(e) => live.missing.push((FEED_TIME_LOCATION, e)),
+                    }
                     let g = afrobim_schedule::gantt_drawing(p, &s, &GanttOptions::default());
                     live.gantt = Some((g.drawing, g.labels.iter().map(|l| DetailLabel::new(l.at, &l.text)).collect()));
                     match afrobim_schedule::s_curve(p, &s, SCurveBasis::Duration) {
@@ -109,13 +131,13 @@ impl Live {
                         afrobim_schedule::ScheduleError::Invalid(issues) => issues.into_iter().map(|i| i.message).collect::<Vec<_>>().join("; "),
                         afrobim_schedule::ScheduleError::Other(m) => m,
                     };
-                    for f in [FEED_ACTIVITIES, FEED_GANTT, FEED_SCURVE] {
+                    for f in [FEED_ACTIVITIES, FEED_GANTT, FEED_SCURVE, FEED_WBS_GANTT, FEED_TIME_LOCATION] {
                         live.missing.push((f, format!("The programme does not schedule: {why}")));
                     }
                 }
             },
             None => {
-                for f in [FEED_ACTIVITIES, FEED_GANTT, FEED_SCURVE] {
+                for f in [FEED_ACTIVITIES, FEED_GANTT, FEED_SCURVE, FEED_WBS_GANTT, FEED_TIME_LOCATION] {
                     live.missing.push((f, "There is no programme in the document.".into()));
                 }
             }
@@ -287,6 +309,8 @@ pub fn feed_set(set: &mut SheetSet, model: &Model, live: &Live) -> Vec<String> {
                         let data = match feed.as_str() {
                             FEED_GANTT => live.gantt.clone(),
                             FEED_SCURVE => live.scurve.clone(),
+                            FEED_WBS_GANTT => live.wbs_gantt.clone(),
+                            FEED_TIME_LOCATION => live.time_location.clone(),
                             FEED_COST_SCURVE => live.cost_scurve.clone(),
                             _ => None,
                         };
