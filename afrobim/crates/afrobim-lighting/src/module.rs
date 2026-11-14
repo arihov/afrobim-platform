@@ -154,7 +154,17 @@ fn store(doc: &mut Document, id: Option<ElementId>, name: &str, data: &LightingD
     let e = doc.find_mut(id).ok_or(LightingError::ElementNotFound(id.0))?;
     e.width = w;
     e.height = h;
-    e.data = data.to_value();
+    // Keys other than the definition and the layout (the stored photometry settings, see
+    // `calc::PHOTOMETRY_KEY`) belong to other parts of the crate and are kept.
+    let mut value = data.to_value();
+    if let (Some(new), Some(old)) = (value.as_object_mut(), e.data.as_object()) {
+        for (k, v) in old {
+            if k != "definition" && k != "layout" {
+                new.insert(k.clone(), v.clone());
+            }
+        }
+    }
+    e.data = value;
     // Like an alignment, the element lives in site coordinates: its site placement records
     // where the drawing origin is. Solids carry their own levels, so z is zero.
     e.site = Some(SitePlacement {

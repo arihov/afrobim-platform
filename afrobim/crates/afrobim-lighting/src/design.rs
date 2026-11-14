@@ -204,15 +204,19 @@ pub struct CheckInputs {
     /// Lamp (light source) flux maintenance factor from the manufacturer's data.
     pub lamp_flux_maintenance_factor: Option<f64>,
     /// Calculated photometric results, entered by the engineer, to compare with the requirements
-    /// of the entered lighting class (see [`PhotometricResults`]). This crate computes none.
+    /// of the entered lighting class (see [`PhotometricResults`]). The class check itself computes none;
+    /// [`crate::calc::PhotometryRun::apply_to`] fills it from a luminaire file.
     pub photometry: PhotometricResults,
     /// The options for the CEN/TR 13201-1:2014 weighting procedure, to report the class it would
     /// suggest beside the entered class. A suggestion from a technical report only.
     pub class_selection: Option<ClassSelectionInput>,
 }
 
-/// Photometric results of the design, **entered by the engineer** from a photometric calculation
-/// (EN 13201-3 method) or measurement made elsewhere. This crate computes no photometry. Values
+/// Photometric results of the design: **entered by the engineer** from a photometric calculation
+/// (EN 13201-3 method) or measurement made elsewhere, or filled in by
+/// [`crate::calc::PhotometryRun::apply_to`] from illuminance computed from a luminaire file (its
+/// `source` then begins with [`crate::calc::COMPUTED_SOURCE_PREFIX`]). The class check itself
+/// computes no photometry. Values
 /// are the maintained values, compared with the class requirements without rounding. Every
 /// field is optional: a missing one gives an "input needed" line (or, for criteria that apply
 /// only in some conditions, an information line), never an assumed value.
@@ -377,7 +381,7 @@ impl Performance {
                 (format!("{}{unit} entered ({})", m(v), self.source), if met { Outcome::Ok } else { exceed })
             }
             None if absent.0 == Outcome::InputNeeded => (
-                "not entered; this crate computes no photometry, so enter the maintained value from a photometric calculation (EN 13201-3 method) or measurement".to_string(),
+                "not entered; this check computes no photometry, so enter the maintained value from a photometric calculation or measurement, or compute illuminance from a luminaire file with afrobim_lighting::calc (luminance needs an r-table; TI is not computed)".to_string(),
                 Outcome::InputNeeded,
             ),
             None => (format!("not entered ({})", absent.1), absent.0),
@@ -399,7 +403,13 @@ fn performance_lines(label: &str, ph: &PhotometricResults) -> Vec<CheckLine> {
     if label.is_empty() {
         return Vec::new();
     }
-    let source = if ph.source.trim().is_empty() { "source not stated; calculated outside this crate".to_string() } else { format!("{}; calculated outside this crate", ph.source.trim()) };
+    let source = if ph.source.trim().is_empty() {
+        "source not stated; calculated outside this crate".to_string()
+    } else if ph.source.trim().starts_with(crate::calc::COMPUTED_SOURCE_PREFIX) {
+        ph.source.trim().to_string()
+    } else {
+        format!("{}; calculated outside this crate", ph.source.trim())
+    };
     let Some(class) = en13201::lookup(label) else {
         return vec![CheckLine {
             clause: "EN 13201-2:2015 as reproduced in Stockmar, Handbook about Interpretation of EN 13201, Tables 5.1 to 5.3, pp. 7 to 10".to_string(),

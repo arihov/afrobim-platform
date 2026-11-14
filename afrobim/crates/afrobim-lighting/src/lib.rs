@@ -12,9 +12,12 @@
 //! 13201-2 is not held; the class values of EN 13201-2:2015 and the class selection of CEN/TR
 //! 13201-1:2014 are taken from a **secondary source**, Stockmar's *Handbook about Interpretation
 //! of EN 13201* (LiTG, 2017), in [`en13201`], and are to be confirmed against the standard. There
-//! is **no spacing rule and no photometry**: the engineer enters calculated results, which
-//! [`design::check_lighting`] compares with the class values. The lighting class is a label the
-//! engineer enters.
+//! is **no spacing rule**. The class check [`design::check_lighting`] compares calculated results
+//! with the class values; the engineer enters them, or [`calc`] computes what can be computed
+//! correctly from a luminaire file ([`photometry`]: IES LM-63 and EULUMDAT): horizontal, vertical
+//! and semi-cylindrical illuminance on user-defined grids, the edge illuminance ratio, and
+//! luminance when the user supplies an r-table. The lighting class is a label the engineer
+//! enters.
 //! The [`design`] module checks only what these documents and the DMRB documents TD 501 names
 //! (TA 501, CD 109, CD 377) state in a form that can be applied exactly, and says in each line
 //! where the requirement comes from. The MoWT *Road Design Manual Volume 1: Geometric Design*
@@ -32,6 +35,8 @@
 //! - [`design::check_lighting`]: the requirement checks, line by line.
 //! - [`en13201`]: the M, C and P class requirements and the CEN/TR 13201-1 weighting selection
 //!   (a suggestion), as reproduced in the Stockmar handbook.
+//! - [`photometry`]: IES and EULUMDAT readers, flux and peak checks. [`calc`]: illuminance
+//!   grids, drawings, CSV, and storage of the run on the element.
 //! - [`bs5489_2003`]: the tables of the superseded BS 5489-1:2003, in one module so that a
 //!   later edition can replace it.
 //!
@@ -50,19 +55,21 @@
 //!
 //! # Not in this crate
 //!
-//! Photometry of any kind (calculating illuminance, luminance, uniformity or glare; energy
-//! indicators), the HS, SC and EV classes, column
+//! Threshold increment and other glare, the EN 13201-3 calculation grid and observer positions,
+//! r-table values, energy indicators, the HS, SC and EV classes, column
 //! and foundation structural design (BS EN 40, CD 354), electrical design (cables, feeder
 //! pillars, voltage drop, protection), energy and carbon assessment, tunnels, high mast
 //! lighting, and costs. See the README.
 
 pub mod bs5489_2003;
+pub mod calc;
 pub mod design;
 pub mod en13201;
 mod geometry;
 mod layout;
 mod model;
 mod module;
+pub mod photometry;
 mod quantities;
 
 pub use geometry::{lighting_geometry, LightingGeometry, DISPLAY_COLUMN_DIAMETER_MM, DISPLAY_LUMINAIRE_MM, DISPLAY_PLAN_SYMBOL_RADIUS_MM};
@@ -73,6 +80,8 @@ pub use quantities::{
     schedule_to_csv, summary_to_csv, ColumnGroup, LightingQuantities, LuminaireGroup, ScheduleRow, SkippedElement, SCHEDULE_CSV_HEADER,
     SUMMARY_CSV_HEADER,
 };
+
+pub use photometry::{load_photometry_file, parse_ies, parse_ldt, parse_photometry_bytes, Photometry};
 
 use afrobim_kernel::{Note, Severity};
 

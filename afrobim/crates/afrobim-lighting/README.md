@@ -4,8 +4,10 @@ Street (road) lighting as AfroBIM model elements: installations along an alignme
 columns, with layout, a schematic plan and solids, a column schedule, quantities and a
 line-by-line report of requirement checks.
 
-**The output is for an engineer to check. It is not a certified design, and it is not a
-lighting design at all in the photometric sense: nothing here calculates light.**
+**The output is for an engineer to check. It is not a certified design. Photometry is computed
+only as far as the section "Photometry from luminaire files" says, from first-principles
+physics and the user's own grid and inputs; it is not validated against DIALux, Relux or AGi32
+(none is available here) and it is not an EN 13201-3 calculation.**
 
 ## What it does
 
@@ -17,6 +19,7 @@ lighting design at all in the photometric sense: nothing here calculates light.*
 | `LightingModule` (category `lighting`) | Plan `Drawing` (circle for the column, hairline for the bracket, filled rectangle for the luminaire) and `Mesh3` solids (column, bracket, luminaire block) at the entered mounting height and outreach. Validation notes and derived values. |
 | `LightingQuantities`, `schedule_to_csv`, `summary_to_csv` | Columns by mounting height and arrangement, luminaires by product, connected load, column schedule CSV. |
 | `design::check_lighting` | Requirement checks, each with its clause, like `SupportDesign::calculation` in `afrobim-supports`. |
+| `photometry`, `calc` | IES LM-63 and EULUMDAT readers, flux and peak checks, illuminance on user-defined grids from the luminaires of an element, drawings, CSV, and the settings of a run stored on the element. See "Photometry from luminaire files". |
 
 The geometry is schematic. The column diameter (`DISPLAY_COLUMN_DIAMETER_MM`), the luminaire
 block (`DISPLAY_LUMINAIRE_MM`), the bracket section and the plan symbol radius
@@ -71,10 +74,10 @@ does not reproduce it.** The class values come from a secondary source instead:
 So this crate contains:
 
 - the M, C and P class values of EN 13201-2:2015 as the handbook reproduces them (below), and a
-  comparison of results the engineer **enters** with them. **It computes no photometry**: no
-  luminance, illuminance, uniformity, threshold increment or edge illuminance is calculated, and
-  every report line about them says so. Compliance with a class is shown only as far as the
-  engineer's entered results show it;
+  comparison of results the engineer **enters** (or that `calc` computes, below) with them. The
+  class check itself computes no photometry, and a report line about a missing value says so.
+  Threshold increment, longitudinal luminance uniformity and wet uniformity are never computed.
+  Compliance with a class is shown only as far as the entered or computed results show it;
 - no HS, SC or EV class, and no energy performance indicator formula (the handbook gives none);
 - no spacing, mounting height or spacing-to-height rule (BS 5489-1:2003 tabulates none; they
   come from the photometric calculation);
@@ -323,6 +326,273 @@ let csv = schedule_to_csv(&LightingQuantities::of_document(&doc));
   alignment or the definition changes call `refresh_layout(&mut doc, id, &alignment, None)` (or
   pass `Some(new_definition)`).
 
+## Photometry from luminaire files
+
+Added in work package A3. **Read the limits at the end of this section before using a number.**
+
+### What is computed, and what stays an input
+
+| Quantity | Status | Rests on |
+|---|---|---|
+| Luminous intensity distribution from `.ies` and `.ldt` | computed (read) | the format descriptions cited below, checked on real files |
+| Flux by integration over the sphere, light output ratio, downward and upward fractions, peak intensity and its direction | computed | first-principles integration; compared with the file's stated flux and, for EULUMDAT, stated LORL and DFF. **No tolerance is applied**; the difference is reported |
+| Horizontal illuminance on a grid: average, minimum, maximum, `U_o = min/avg`, `min/max` | computed | `E_h = I cos^3(gamma) / h^2` per luminaire, summed, times the maintenance factor |
+| Vertical and semi-cylindrical illuminance at a user height and facing | computed | derived below from first principles |
+| Edge illuminance ratio | computed | its definition in the handbook, section 4.1, p. 8: average horizontal illuminance on a strip just outside the carriageway edge over that on a strip inside the edge, of the same width and "equal to the width of one driving lane"; both sides, the minimum is the value. The strip width is entered |
+| Road surface luminance `L_av`, `U_o` | computed **only if the user supplies an r-table file** and an observer | `L = I r / h^2`; no r-table value ships |
+| Threshold increment `TI` | **left as entered** | no source for the formula was held or retrieved; the handbook gives only the observer view angles in words (p. 9) and a figure |
+| Longitudinal uniformity `U_l`, wet `U_o` | left as entered | need lane-wise luminance and wet r-tables; the standard's rules are not held |
+| The EN 13201-3 calculation grid (number and position of points), observer positions | **not implemented** | EN 13201-3 is not held; the handbook and BS 5489-1:2003 give no road grid rule. The grid is **user-defined**. The one grid rule in the held documents is for car parks (BS 5489-1:2003 clause 10.7.5, p. 26: first points within 0.5 m indoors or 1.0 m outdoors of the perimeter, spacing at most 1.0 m or 5.0 m, at least 36 points per grid) and is available as `car_park_grid_limits` for the engineer to apply by hand |
+| Maintenance factor | **always the user's input**, in (0, 1] | BS 5489-1:2003 clause 6.4.4, p. 12: the product of the lamp and luminaire maintenance factors; typical luminaire factors in its Table D.1 (the crate's `bs5489_2003` module) |
+| Hemispherical illuminance | not implemented | no source |
+
+### File formats: what each field rests on
+
+No standard text of either format is held. The descriptions used were fetched on 14 November
+2026; the doc comment of `photometry` (`src/photometry/mod.rs`) lists every field against its
+source. In short:
+
+- **IES LM-63** (`parse_ies`): the line layout from the AGi32 Photometric Toolbox "IESNA LM-63
+  Format" page and the luxpy reader; the meaning of each field (lamps, lumens per lamp with -1 for
+  absolute photometry, candela multiplier, units 1 feet / 2 metres, photometric type 1 = C, angle
+  ranges, the horizontal angle symmetry rule) from the Autodesk 3ds Max help "IES Standard File
+  Format" (LM-63-1991) and the Lambda Research TracePro knowledge base (LM-63-95 items 3.4 to
+  3.13); the 90 to 270 bilateral case from AGi32 "Photometric File Type C - Concepts"; versions,
+  `TILT=` record layout, separators and line endings from R. Fritz, "Overview of the IES file
+  format" (Radiance forum, 5 Nov 2021). Verified variants: no version line (1986), `IESNA91`,
+  `IESNA:LM-63-1995`, `IESNA:LM-63-2002`; other tags (for example the 2019 tag) are read with a
+  warning. `TILT=NONE` and `TILT=INCLUDE` (skipped with a warning); `TILT=<file>` is refused.
+  **Type A and type B photometry are refused** with a message. Intensity is the candela value times
+  the candela multiplier; the ballast factor is reported and applied only if
+  `IesOptions::apply_ballast_factor` is set, because no retrievable source says LM-63 wants it
+  applied to the candela values.
+- **EULUMDAT** (`parse_ldt`): the 30-line table from the AGi32 Photometric Toolbox "EULUMDAT File
+  Format" page (citing Stockmar 1990 and 1998) and Paul Bourke's page (April 2021); the planes
+  stored per symmetry indicator (Mc1 and Mc2) and the C270-first order of Isym 3 from the DIALux
+  evo knowledge base article "Description of the EULUMDAT format" (16 Jul 2021). Intensity in
+  candela = value (cd/klm) x conversion factor x total lamp flux / 1000. Lamp sets are read six
+  lines per set as real files lay them out (the specification table does not say whether the
+  fields of several sets are interleaved); the flux of several sets is added. A negative lamp
+  number marks absolute photometry. Non-equidistant C-planes (Dc = 0) are supported: the angle
+  list is used.
+- **The C-gamma system**: gamma from the nadir, C-planes fixed in space, the tilt during
+  measurement declared and not followed by the planes: EN 13032-1:2004+A1:2012 clause 4.2.3 (the
+  public preview from iteh.ai; the full standard is not held). The installed tilt is applied
+  relative to the tilt during measurement.
+- **Symmetry** is expanded by angle (not by position in the list) to the full turn; tabulated C
+  angles need not be evenly spaced. Between tabulated angles the intensity is interpolated
+  **linearly in C and in gamma (bilinear), which is this crate's choice**: neither format
+  prescribes one. Outside the tabulated gamma range the intensity is zero.
+
+### Verification on real files
+
+Real manufacturer and library files are **not committed** (their licences are not known to allow
+redistribution). The committed tests use small synthetic files; `real_files_when_present` and
+`intensities_and_illuminance_agree_with_luxpy_and_numpy_when_available` run on a folder given by
+`AFROBIM_PHOTOMETRY_SAMPLES` (and `AFROBIM_PYTHONPATH` for the Python check) and skip otherwise.
+
+Twenty-one files were read: nine IES (Cooper and Eaton roadway luminaires, an SDL type II with
+house side shield, a NAV type III and a GAT post-top; a James M Anderson LED street luminaire from
+the ESP-r database; two files from a web viewer's sample set; three luxpy test files) and twelve
+EULUMDAT (BHC street light with Isym 2 and Isym 3, a SON-T 250 W road luminaire template with
+non-equidistant planes in three copies, Zumtobel, ERCO, a dummy file, a luxpy test file). Flux by
+integration at a 1 degree step against the stated light output ratio:
+
+| File | Format | Computed LOR | Stated LOR |
+|---|---|---|---|
+| BHC street light, luxpy test, Isym 3 | LDT | 100.0 % | 100.0 % |
+| BHC street light, luxpy test, Isym 2 | LDT | 100.0 % | 100.0 % |
+| SON-T road luminaire, Isym 3, 52 uneven C-planes | LDT | 84.1 % | 84.4 % |
+| Zumtobel MIREL, Isym 4 | LDT | 100.1 % | 100.0 % |
+| Zumtobel SCON-S, Isym 1 | LDT | 62.1 % | 62.1 % |
+| Zumtobel VIVO L, Isym 1 | LDT | 100.2 % | 100.0 % |
+| ERCO Trion, Isym 2, uplight | LDT | 40.9 % | 41.0 % |
+| luxpy test file as LDT and as its IES twin | LDT / IES | 88.0 % / 88.0 % | 88.0 % / not stated |
+| Taman street luminaire | IES | 98.2 % | not stated |
+
+A wrong symmetry expansion or unit conversion would show here; the largest EULUMDAT difference is
+0.34 %. Files that did **not** agree, reported as they are: the ESP-r Arran file (number of lamps
+-1 and lumens per lamp -2491; it integrates to 3123 lm, 125 % of the 2491 lm taken from the file:
+the meaning of a negative flux in an IES file is unclear, and a warning says so), the two luxpy
+1986-style test files (106 % and 183 % of the lumens stated; they are synthetic test data), and the
+dummy EULUMDAT file with two lamp sets (90.5 % against a stated 100 %; its own text says "can be
+used for testing"). The absolute-photometry IES files (lumens per lamp -1) state no flux; the
+integrated flux is reported.
+
+**Cross-check against an independent open-source tool.** `luxpy` 1.12.5 (pip, with numpy 2.1.3 and
+scipy 1.14.1) reads the same files. For each of nine files, 300 pseudo-random (C, gamma) directions
+were compared with this crate's intensities, and the horizontal illuminance at 128 grid points from
+one tilted luminaire was recomputed in numpy (an independent implementation of the geometry written
+out in `calc/frame.rs` and `calc/engine.rs`, reading intensity through luxpy's map and scipy's linear
+interpolation). The worst difference was 3e-15 of the peak intensity and 9e-16 of the maximum
+illuminance. Two limits of luxpy were found and are reported: its symmetry completion assumes evenly
+spaced planes, so for the SON-T file (non-equidistant C-planes) and for IES files such as the SDL
+file, whose horizontal angles include 67.5 degrees but not 112.5, it places planes at the wrong
+angles. For those files the comparison used a separate small numpy reader written from the same
+cited tables. That part is therefore a check of the implementation against the same documents, not
+a second reading of them.
+
+### Coordinates, orientation and the formulae
+
+World: x east, y north, z up, metres. A luminaire stands at its column plus the outreach along the
+bracket, at the column's profile level (zero without a profile) plus the mounting height. Its frame
+is (street = bracket direction, left, up). For a unit vector `d` from the luminaire to a point with
+components `(a, b, c)` in that frame, tilt `t` (street end raised, as `ColumnSpec::tilt_deg`) and
+tilt during measurement `m`, with `delta = t - m`: `a_p = a cos(delta) + c sin(delta)`,
+`c_p = -a sin(delta) + c cos(delta)`, `gamma = acos(-c_p)`, `alpha = atan2(b, a_p)` and
+`C = C_toward + s alpha` (`s` = +1 for C counter-clockwise from above). Hand-worked tests cover the
+four directions, both senses of C, tilt and measured tilt, and tilted Lambertian beams.
+
+`Orientation` (which C-plane faces the carriageway, and the sense of C) is a convention the file
+does not state. Defaults per format (`Orientation::for_format`): **IES: C0 towards the
+carriageway** (AGi32: "front 270 to 90 is the street side"; the real roadway files throw about C0
+and the house-side-shielded one sends 83 % of its flux to the C0 side); **EULUMDAT: C270 towards
+the carriageway**, C0/C180 parallel to the road (EN 13032-1 note to 4.2.3, preview p. 12; the real
+road files put 67 to 74 % of their flux on the C270 side). The sense of C is assumed
+counter-clockwise. These are **assumptions to check**: use `polar_diagram` and
+`Photometry::flux_fraction_towards_c`, and override `CalcSettings::orientation`.
+
+For a point source of intensity `I` at distance `d` from a point, `u` the unit vector from the
+point to the source, `w` its horizontal part and `rho = |w|`:
+
+- `E_h = I u_z / d^2` (equal to `I cos^3(gamma_w)/h^2` for a luminaire at height `h`);
+- `E_v = I max(0, u . n) / d^2` for a vertical plane of horizontal normal `n`;
+- semi-cylindrical illuminance, **as defined here**: the mean illuminance over the curved surface
+  of an infinitesimal vertical half-cylinder facing `n0` (uniform in azimuth),
+  `E_sc = I (rho + w . n0) / (pi d^3)`. Derived by averaging `max(0, cos(psi - beta))` over the
+  half-circle (`(1 + cos(beta - psi0))/pi`) and tested against numerical integration of the
+  half-cylinder. The facing directions are the user's (`Facing`); nothing retrieved says which
+  direction a standard uses. The handbook (p. 10) calls 1.5 m "advisable" as the reference height
+  for facial recognition; the height is entered, not defaulted;
+- luminance `L = I r / h^2` with `r = 10 000 q cos^3(gamma)` (the CIE definition as summarised by
+  Corell and Soerensen, "An instrument for the measurement of road surface reflection properties",
+  DTU Fotonik and the Nordic road administrations, section 2, which cites CIE 144:2001; **not read
+  in the standard itself**). `beta` is taken as the angle between the horizontal directions from
+  the point to the luminaire and to the observer, 0 to 180 degrees.
+
+Contributions add. Maintained = initial x maintenance factor.
+
+### The user-defined grid
+
+A `CalcArea` is a rectangle in the alignment's frame (stations along, offsets across, positive
+right) divided into equal cells (`Division::Count(n)`, or `Division::Spacing(d)` giving
+`ceil(length/d)` cells); **points are the cell centres**, so the average is the mean over the
+area. `default_carriageway_area` proposes the carriageway between the first and last column; it is a
+convenience, not a rule. The grid is laid out either on the alignment itself
+(`GridFrame::Alignment`, following curves) or, without it, as a **local straight approximation**
+from the stored layout (`GridFrame::from_layout`: the alignment point of the first column and its
+heading). The straight frame is exact on a straight alignment and leaves the carriageway by about
+`L^2/(2R)` over a length `L` on a curve of radius `R`; `from_layout` warns when the column headings
+differ by more than 2 degrees (a threshold of this crate, not of a standard). The luminaires
+themselves are always at their true laid-out positions. Only luminaires within
+`contribution_distance_m` in plan of a point contribute to it (a user input; the result says how
+many luminaires contribute to no point). The calculation plane is horizontal at `plane_level_m`
+(default the mean column level); gradient and cross-fall are not applied.
+
+### r-table file format (no values ship)
+
+`calc::RTable::parse` reads a text file of `key: value` lines (`#` starts a comment): `unit`
+(sr^-1 per table unit; CIE tables use 1e-4, from the Corell and Soerensen paper), optional
+`q0_table` and `q0_surface` (both or neither; r is multiplied by their ratio, as in the note to
+Table C.3 of BS 5489-1:2003, p. 45, "scaled for Q0 = 0.10"), `beta` (0 to 180 degrees,
+increasing) and `row: tan_gamma v1 v2 ...` lines (`-` for no value, taken as zero and counted).
+The only r-tables held are those of BS 5489-1:2003 Annex C (Tables C.2 and C.3, pp. 44 and 45): a
+copyrighted superseded document whose values are not copied here; the engineer can type one into
+this format. A contribution beyond the last row is taken as zero and counted in the warnings.
+
+### Using it from the app
+
+```rust
+use afrobim_lighting::calc::*;
+use afrobim_lighting::design::{check_lighting, CheckInputs, PhotometricResults};
+use afrobim_lighting::{lighting_of, load_photometry_file};
+
+// 1. The element, the file and what the engineer enters.
+let data = lighting_of(&doc, id)?;
+let loaded = load_photometry_file(std::path::Path::new("lantern.ies"))?;     // or .ldt
+let settings = CalcSettings {
+    maintenance_factor: 0.8,                 // user input, (0, 1]
+    contribution_distance_m: 100.0,          // user input
+    orientation: Orientation::for_format(&loaded.photometry.format), // check it
+    areas: vec![default_carriageway_area(&data, Division::Spacing(3.0), Division::Spacing(1.0))?],
+    plane_level_m: None,
+    vertical: Some(VerticalSettings { height_m: 1.5, facing: Facing::AlongAlignment }),
+    observers: vec![],                       // with an r-table: ObserverSpec { .. }
+    eir_lane_width_m: None,                  // Some(lane width) adds the edge strips and the EIR
+};
+
+// 2. Keep what repeats the run on the element (path, hash, maintenance factor, grid).
+set_photometry(&mut doc, id, "lantern.ies", &loaded, &settings, None)?;
+
+// 3. Run: with the alignment the grid follows curves; None uses the straight local frame.
+let run = run_photometry(&data, &loaded.photometry, &loaded.file_name, &loaded.sha256, &settings, None, Some(&alignment))?;
+for w in &run.warnings { /* show them */ }
+let flux = loaded.photometry.flux_check(1.0);   // flux, LOR, fractions, differences (no tolerance)
+
+// 4. Fill the results and run the class check. Fields not computed keep their entered values.
+let area = run.primary_area_for_class(data.definition.lighting_class()).unwrap().to_string();
+let mut results = PhotometricResults::default();      // or the dialog's entries
+run.apply_to(&mut results, &area)?;                   // sets results.source = "Computed by AfroBIM ..."
+let checks = check_lighting(&data, &CheckInputs { photometry: results, ..Default::default() });
+
+// 5. Outputs: drawings in mm plus labels (the front end draws the text), and CSV.
+let lums = luminaire_instances(&data);
+let contours = contour_drawing(&run.result, &area, &nice_levels(10.0, 40.0, 6), &lums);
+let values = grid_values_drawing(&run.result, &area, &lums);
+let polar = polar_diagram(&loaded.photometry, &[(0.0, 180.0), (90.0, 270.0)]);
+let csv = grid_to_csv(&run.result);
+
+// Later: repeat the stored run (file missing or changed: the embedded copy is used, with a warning).
+let again = run_stored_photometry(&doc, id, Some(&alignment), Some(project_dir))?;
+```
+
+A complete, compiled example is the doc test in `src/calc/mod.rs`.
+
+`PhotometryRun::apply_to` fills, from the primary area, `e_av_lx`, `u_o_e` (min/avg) and
+`e_h_min_lx`; when vertical settings were used, `e_v_min_lx` and `e_sc_min_lx` as the **minimum over
+all points and all facing directions** (a conservative rule chosen here, not a standard's); `eir`
+when edge strips were calculated; `l_av_cd_m2` and `u_o` only with exactly one observer and an
+r-table. It never touches `ti_percent`, `u_l`, `u_o_wet`, `facial_recognition_necessary` or
+`low_or_very_low_speed`, so the luminance criteria of an M class stay `INPUT NEEDED` without an
+r-table. The `source` string begins with `COMPUTED_SOURCE_PREFIX`; the class check then quotes it
+and no longer says "calculated outside this crate".
+
+### Keys stored on the element
+
+One JSON object at `element.data.photometry` (`PHOTOMETRY_KEY`), kept by `refresh_layout`:
+`file_path`, `file_sha256` (SHA-256 of the file's bytes), `settings.maintenance_factor`,
+`settings.contribution_distance_m`, `settings.orientation`, `settings.areas[]` (name, kind,
+stations, offsets, `along` and `across` divisions), `settings.plane_level_m`, `.vertical`,
+`.observers`, `.eir_lane_width_m`, optional `rtable_path` and `rtable_sha256`, and `distribution`
+(the parsed distribution) **only when it has at most 4000 intensities** (`MAX_EMBEDDED_VALUES`).
+Larger distributions are referenced by file: `resolve_photometry` re-reads the file, and warns when
+it is missing or its hash differs (then the embedded copy is used if there is one, else the file as
+it is, or an error when it is missing). Writing `LightingData::to_value()` over `element.data`
+directly drops this key; use `refresh_layout`.
+
+### Limits of the photometry
+
+- **Not validated against DIALux, Relux or AGi32**: none is available here. The checks are the
+  analytic tests, flux against the files' stated light output ratios, and the luxpy and numpy
+  comparison above.
+- **Not an EN 13201-3 calculation**: the standard's grid, observer positions, TI and U_l are not
+  held. The numbers answer "what does this grid of points give", not "does this meet the standard's
+  method".
+- Luminaires are points; a luminous opening of finite size, near-field effects (photometric
+  distance) and obstruction are not modelled. Horizontal plane only; no road gradient or cross-fall.
+- The orientation defaults are assumptions (above). The tilt during measurement uses the same sign
+  as `ColumnSpec::tilt_deg`; not verified from the standard's figure.
+- The `TILT=INCLUDE` multipliers of IES (lamp tilt) are skipped. Type A and B IES files are refused.
+- Straight local grid frame on curves unless the alignment is passed.
+- Intensity is zero outside the tabulated gamma range and interpolation is bilinear (choices
+  stated above).
+- `E_v,min` and `E_sc,min` take the minimum over the directions calculated; the facing directions
+  are the user's.
+- The luxpy comparison reads the same documents; it checks the implementation, not the documents.
+- The app's text "AfroBIM computes no photometry" (`afrobim-app/src/lighting_inputs.rs`) and the
+  matching sentence in `docs/user-manual.md` are out of date once this is wired; they were not
+  touched here.
+
 ## Limits
 
 - Stations must lie on one alignment. An installation does not follow ramps or change alignment.
@@ -381,10 +651,9 @@ let csv = schedule_to_csv(&LightingQuantities::of_document(&doc));
 
 ## Not done
 
-- **Photometry**: no illuminance, luminance, uniformity, threshold increment or
-  edge illuminance calculation, no IES LM-63 or EULUMDAT reader, no lumen method. The
-  photometric file name is a reference only. Compliance with a lighting class can be shown only
-  from results the engineer enters.
+- **Photometry**: see "Photometry from luminaire files". Not done: threshold increment, longitudinal
+  and wet luminance uniformity, the EN 13201-3 grid and observer rules, hemispherical illuminance, the
+  lumen method, any r-table values, a finite-size source model, IES type A and B.
 - **Left out of the handbook** because it gives them only as a figure, as loose description or
   not at all: Table 5.4 (classes of comparable level, a grid read against rated luminances; the
   `L_av = q0 x E_av` and `L_av = rho / pi x E_av` relations are stated but not coded); the figures
