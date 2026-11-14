@@ -1,0 +1,18 @@
+[package]
+name = "afrobim-visibility"
+description = "Sign visibility along an alignment: driver's sight lines to sign faces, obstruction, clear visibility distance and checks against the held UK and Uganda manuals"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-alignment = { path = "../afrobim-alignment" }
+afrobim-coordination = { path = "../afrobim-coordination" }
+afrobim-corridor = { path = "../afrobim-corridor" }
+afrobim-draw = { path = "../afrobim-draw" }
+afrobim-kernel = { path = "../afrobim-kernel" }
+afrobim-signs = { path = "../afrobim-signs" }
+afrobim-supports = { path = "../afrobim-supports" }
+serde.workspace = true
+serde_json.workspace = true
