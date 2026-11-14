@@ -230,6 +230,11 @@ pub(crate) fn frame_in(ctx: &WorldCtx, e: &afrobim_kernel::Element, site_mode: b
 }
 
 impl AfroBimApp {
+    /// The 3D view shows recorded progress (the Construction tab) instead of the programme's state.
+    pub(crate) fn by_record(&self) -> bool {
+        self.construction.colour_by_record && self.sched.fourd_on
+    }
+
     /// Site mode: at least one sign has been placed on site, so the 3D view shows the site (signs
     /// at their stations, alignments on the ground) instead of the design sheet stood upright.
     pub(crate) fn site_mode(&self) -> bool {
@@ -260,7 +265,7 @@ impl AfroBimApp {
     }
 
     /// Lowest and highest world corner of an element's meshes in its frame, for framing.
-    fn mesh_bounds(&self, e: &afrobim_kernel::Element, frame: Frame) -> Option<(V3, V3)> {
+    pub(crate) fn mesh_bounds(&self, e: &afrobim_kernel::Element, frame: Frame) -> Option<(V3, V3)> {
         let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
         for v in self.meshes_of(e)?.iter().flat_map(|m| m.vertices.iter()) {
             let p = frame.at(v[0], v[1], v[2]);
@@ -275,7 +280,10 @@ impl AfroBimApp {
     /// The triangles of a support's solids, flat-shaded, each with its own view depth.
     fn support_triangles(&self, e: &afrobim_kernel::Element, frame: Frame, rect: Rect, items: &mut Vec<(f64, Vec<Shape>)>) {
         let Some(solids) = self.meshes_of(e) else { return };
-        let style = self.sched.fourd_style(e.id);
+        // Recorded progress colours the model by percent complete; the ground stays as it is.
+        let by_record = self.by_record() && !crate::modules_glue::is_surface(&e.category);
+        let record_rgb = by_record.then(|| crate::construction_ui::percent_colour(self.construction.percent_of(e.id)));
+        let style = if self.by_record() { crate::schedule_ui::FourD::Normal } else { self.sched.fourd_style(e.id) };
         if style == crate::schedule_ui::FourD::Hidden {
             return;
         }
@@ -303,7 +311,7 @@ impl AfroBimApp {
                 // first (in order among themselves) and everything else over them.
                 let depth = projected.iter().map(|(_, d)| *d).sum::<f64>() / 3.0 + if crate::modules_glue::is_surface(&e.category) { 1.0e12 } else { 0.0 };
                 let shade = (0.45 + 0.55 * dot(normal, light).max(0.0)) as f32;
-                let [r, g, b] = mesh.colour;
+                let [r, g, b] = record_rgb.unwrap_or(mesh.colour);
                 let mut colour = Color32::from_rgb((r as f32 * shade) as u8, (g as f32 * shade) as u8, (b as f32 * shade) as u8);
                 if selected {
                     colour = Color32::from_rgb(colour.r() / 2 + 0x26, colour.g() / 2 + 0x51, colour.b() / 2 + 0x7F);
@@ -402,6 +410,10 @@ impl AfroBimApp {
         }
 
         self.sync_generated();
+        if self.by_record() {
+            self.construction.sync(&self.doc);
+            self.construction.refresh_percents(self.sched.date);
+        }
         self.paint_3d(&painter, rect);
     }
 
@@ -521,10 +533,14 @@ impl AfroBimApp {
                 self.support_triangles(e, frame, rect, &mut items);
                 continue;
             }
-            let style = self.sched.fourd_style(e.id);
+            let style = if self.by_record() { crate::schedule_ui::FourD::Normal } else { self.sched.fourd_style(e.id) };
             if style == crate::schedule_ui::FourD::Hidden {
                 continue;
             }
+            let record_colour = self.by_record().then(|| {
+                let [r, g, b] = crate::construction_ui::percent_colour(self.construction.percent_of(e.id));
+                Color32::from_rgb(r, g, b)
+            });
             let centre = frame.at(e.width / 2.0, 0.0, e.height / 2.0);
             let Some((_, depth)) = cam.project(centre, rect) else { continue };
             let corners = [(0.0, 0.0), (e.width, 0.0), (e.width, e.height), (0.0, e.height)];
@@ -534,7 +550,7 @@ impl AfroBimApp {
 
             let from_front = dot(frame.facing(), sub(eye, centre)) > 0.0;
             let artwork = self.cache.get(&e.id).filter(|c| c.generated.is_ok()).filter(|_| from_front);
-            let artwork = artwork.filter(|_| style != crate::schedule_ui::FourD::Ghost);
+            let artwork = artwork.filter(|_| style != crate::schedule_ui::FourD::Ghost && record_colour.is_none());
             match artwork {
                 Some(cached) => {
                     // The face, just in front of the plate.
@@ -543,6 +559,8 @@ impl AfroBimApp {
                         shapes.push(shape);
                     }
                 }
+                // Recorded progress: the whole plate in the colour of its percent complete.
+                None if record_colour.is_some() => shapes.push(Shape::convex_polygon(quad.clone(), record_colour.unwrap_or(plate), Stroke::NONE)),
                 // Seen from behind, or without geometry: the bare plate.
                 None if style == crate::schedule_ui::FourD::Ghost => shapes.push(Shape::convex_polygon(quad.clone(), Color32::from_rgba_unmultiplied(plate.r(), plate.g(), plate.b(), 70), Stroke::NONE)),
                 None => shapes.push(Shape::convex_polygon(quad.clone(), plate, Stroke::NONE)),
@@ -583,7 +601,24 @@ impl AfroBimApp {
         }
         if self.sched.fourd_on {
             if let Some(d) = self.sched.date {
-                painter.text(rect.left_top() + egui::vec2(12.0, 10.0), Align2::LEFT_TOP, format!("4D date {d}"), FontId::proportional(15.0), Color32::from_rgb(0xF2, 0xA9, 0x1D));
+                let text = if self.by_record() { format!("Recorded progress at {d}") } else { format!("4D date {d}") };
+                painter.text(rect.left_top() + egui::vec2(12.0, 10.0), Align2::LEFT_TOP, text, FontId::proportional(15.0), Color32::from_rgb(0xF2, 0xA9, 0x1D));
+            }
+            if self.by_record() {
+                // The legend: no record, then 0 % to 100 % in ten steps.
+                let origin = rect.left_top() + egui::vec2(12.0, 36.0);
+                let swatch = |i: usize, p: Option<f64>| {
+                    let [r, g, b] = crate::construction_ui::percent_colour(p);
+                    let at = origin + egui::vec2(i as f32 * 22.0, 0.0);
+                    painter.rect_filled(egui::Rect::from_min_size(at, egui::vec2(20.0, 12.0)), 2.0, Color32::from_rgb(r, g, b));
+                };
+                swatch(0, None);
+                for i in 0..=10 {
+                    swatch(i + 1, Some(i as f64 * 10.0));
+                }
+                painter.text(origin + egui::vec2(0.0, 16.0), Align2::LEFT_TOP, "no record", FontId::proportional(10.0), label);
+                painter.text(origin + egui::vec2(66.0, 16.0), Align2::LEFT_TOP, "0 %", FontId::proportional(10.0), label);
+                painter.text(origin + egui::vec2(22.0 * 11.0 + 20.0, 16.0), Align2::RIGHT_TOP, "100 %", FontId::proportional(10.0), label);
             }
         }
 

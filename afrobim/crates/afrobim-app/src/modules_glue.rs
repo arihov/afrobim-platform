@@ -9,7 +9,7 @@
 
 use afrobim_alignment::Alignment;
 use afrobim_corridor as corridor;
-use afrobim_drainage::{self as drainage, design::DesignBasis};
+use afrobim_drainage::{self as drainage};
 use afrobim_gantry::{self as gantry, GantryDefinition, SignPosition};
 use afrobim_kernel::{Document, ElementId, ModuleRegistry};
 use afrobim_lighting as lighting;
@@ -178,6 +178,8 @@ pub enum Check {
     None,
     /// A side drain: the check needs a design flow and a basis.
     DrainFlow,
+    /// A pipe culvert: the checks need the flow, Manning's n, the entrance loss and the tailwater.
+    CulvertInputs,
     /// A barrier run: the check needs the speed limit.
     RestraintSpeed,
     /// A pavement: it is checked by running a design method (PAVEDESIGN).
@@ -192,6 +194,9 @@ pub fn check(doc: &Document, id: ElementId) -> Check {
     let Some(e) = doc.find(id) else { return Check::None };
     if e.category == drainage::DRAIN_CATEGORY {
         return Check::DrainFlow;
+    }
+    if e.category == drainage::CULVERT_CATEGORY {
+        return Check::CulvertInputs;
     }
     if e.category == lighting::CATEGORY {
         return Check::LightingInputs;
@@ -211,14 +216,6 @@ pub fn check(doc: &Document, id: ElementId) -> Check {
         return Check::Lines(run());
     }
     Check::None
-}
-
-/// The capacity check of a side drain for a design flow, to the MoWT manual or UK DMRB.
-pub fn check_drain(doc: &Document, id: ElementId, dmrb: bool, flow_m3_s: f64) -> Result<Vec<String>, String> {
-    let e = doc.find(id).ok_or("The drain no longer exists.")?;
-    let def = drainage::SideDrainDefinition::from_value(&e.data).map_err(|e| e.to_string())?;
-    let basis = if dmrb { DesignBasis::Dmrb } else { DesignBasis::Mowt };
-    Ok(def.check_capacity(basis, flow_m3_s, None).map_err(|e| e.to_string())?.calculation())
 }
 
 /// Quantity CSVs of everything this glue owns: (file suffix, contents), and the elements that
@@ -278,6 +275,7 @@ pub fn unhang_sign(doc: &mut Document, sign: ElementId) -> Result<(), String> {
 mod tests {
     use super::*;
     use afrobim_alignment::Pi;
+    use afrobim_drainage::design::DesignBasis;
 
     fn doc_with_alignment() -> (Document, ElementId) {
         let mut doc = Document::default();
@@ -328,7 +326,9 @@ mod tests {
         for dmrb in [false, true] {
             // The placeholder drain may lack what a check needs; either way the answer is a
             // calculation or a plain reason, never a panic.
-            match check_drain(&doc, id, dmrb, 0.2) {
+            let basis = if dmrb { DesignBasis::Dmrb } else { DesignBasis::Mowt };
+            let def = drainage::SideDrainDefinition::from_value(&doc.find(id).unwrap().data).unwrap();
+            match def.check_capacity(basis, 0.2, None).map(|c| c.calculation()).map_err(|e| e.to_string()) {
                 Ok(lines) => assert!(!lines.is_empty()),
                 Err(reason) => assert!(!reason.is_empty()),
             }
@@ -591,5 +591,20 @@ mod tests {
         let (files, problems) = quantities(&doc);
         assert_eq!(problems, Vec::<String>::new());
         assert!(files.iter().any(|(n, _)| n == "earthworks.csv"));
+    }
+
+    #[test]
+    fn the_demo_markings_are_carried_by_the_demo_pavement_so_the_ifc_has_surface_features() {
+        let mut doc = Document::default();
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../afrobim-alignment/tests/landxml/corridor.xml");
+        alignment_glue::import_landxml(&mut doc, &path).unwrap();
+        let (id, a) = alignment_glue::alignments(&doc).into_iter().next().map(|(id, _)| (id, alignment_glue::alignment_of(&doc, id).unwrap())).unwrap();
+        assert_eq!(crate::markings_glue::demo(&mut doc, id, &a), Vec::<String>::new());
+        assert_eq!(road_glue::demo(&mut doc), Vec::<String>::new());
+        let inputs: Vec<afrobim_ifc::IfcElementInput> = doc.elements().iter().map(|e| afrobim_ifc::IfcElementInput { element: e, generated: None }).collect();
+        let export = afrobim_ifc::export_ifc_model(&doc, &inputs, &afrobim_ifc::IfcOptions::default());
+        let features = export.text.matches("IFCSURFACEFEATURE(").count();
+        assert_eq!(features, 3, "the three demo markings are surface features adhering to the pavement");
+        assert!(!export.notes.iter().any(|n| n.contains("no pavement in the document carries this marking")), "{:#?}", export.notes);
     }
 }

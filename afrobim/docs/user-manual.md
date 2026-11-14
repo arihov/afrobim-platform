@@ -8,7 +8,7 @@ This manual describes the AfroBIM desktop application and the crates it uses, as
 2. Installing and running from source
 3. The screen
 4. Working with commands
-5. Chapters by area: traffic signs, supports, alignments, road markings, drainage, gantries, exports, Python and MCP, the other road modules, stations and the lighting check inputs, Coordination, 4D and 5D
+5. Chapters by area: traffic signs, supports, alignments, road markings, drainage, gantries, exports, Python and MCP, the other road modules, stations and the lighting check inputs, Coordination, 4D, 5D, the model-wide check and Construction
 6. Built but not yet in the app
 7. Command reference
 8. Planned, not built yet
@@ -708,6 +708,39 @@ Not done: price adjustment and escalation, valuation of variations, dayworks she
 
 **The demo.** `--demo` adds a made-up programme linked to the demo elements, a neutral bill with mapping rules and arbitrary rates, two clash tests and arbitrary payment terms. Every number is commented as an arbitrary demo value in `demo_glue.rs`, and the estimate is named "DEMO, not real rates". They are there to make the windows show something and are not rates, durations, tolerances or contract terms.
 
+
+### 5.14 The model-wide check and the rational method
+
+`CHECKALL` (Manage tab, Analysis panel; or the Manage menu) runs every check the engines have on every element it applies to and opens one report window.
+
+- **Status.** Each row is one check of one element: *Passes* (the engine's own lines passed on the stored inputs), *Fails*, *Differs* (the model differs from what the stored inputs call for, or from a reference that does not govern), *Input needed* (the reason names the dialog to open) or *Not checked* (the reason says why). The toggles at the top filter by status; the category list filters by category. The most urgent rows come first.
+- **Calculation.** Expand a row to read the calculation lines exactly as the engine returned them. Every warning an engine raises about a superseded edition or a secondary source is in those lines, unchanged, and so in the exports. The messages the element's module raised are listed under the lines.
+- **Select and zoom.** Click the mark or press Show to select the element and frame it in the current view.
+- **Export.** Export CSV writes one row per check (the calculation joined in one field); Export calculation pack writes plain text, one section per check, with the categories that have no check at the end. Run again repeats the checks after you change an element.
+- **What is checked.** Sign support design (post and foundation, for every sign with supports); sign layout rules and marking rules (the engines' notes); side drain capacity; culvert layout limits and culvert outlet control; gantry requirements (headroom and CD 365 requirements); street lighting requirements; barrier run requirements (CD 377); pavement design against the modelled layers. Categories with no check (alignments, corridors, ground surfaces, the programme, the estimate and similar records) are listed with the reason. Nothing is checked that an engine does not offer.
+- **Inputs.** A check needs inputs only you have. The single-element dialogs (`DESIGN` for a sign, `CHECK` for a side drain, culvert, barrier run, lighting or pavement, `PAVEDESIGN` with a pavement chosen) keep what you enter on that element, so CHECKALL can repeat it and it survives save and open. The keys are properties named `check.support_design`, `check.drain`, `check.culvert`, `check.rational`, `check.restraint_speed`, `check.lighting_inputs` and `check.pavement_design`, hidden from the property editor. An element with none reports *Input needed*. Elements whose dimensions are still placeholders are not checked until you set them.
+- **Side drain and culvert dialogs.** Every field starts empty: the design flow, the basis, an optional freeboard; for a culvert Manning's n (the DDM appendix range is shown as a reading aid), the entrance loss coefficient (a DDM Appendix 9.6 row fills it, or type your own), the tailwater depth, the layout basis, and optionally the shoulder level and road class for the freeboard.
+- **Rational method** (`RATIONAL`). Enter the parts of the catchment (area in hectares and runoff coefficient), the design intensity and where it comes from, and optionally a recurrence multiplier and a storage factor. It gives the peak flow with the calculation. With a drain or culvert selected, "Keep and use as its design flow" stores the inputs on it and the drain or culvert takes its flow from them.
+
+Limits: a pass is not a certification. Culvert outlet control is one half of a culvert check: inlet control is not computed. The barrier run dialog takes the speed limit only, so that run's other requirement lines read *not checked*. The pavement check compares the method's layers with the pavement's; the UK DMRB method gives no layer stack to compare.
+
+### 5.15 Construction: site progress and earned value
+
+The Construction tab uses the `afrobim-progress` crate. **No rate, percentage, weight, threshold or formula is built in, and no actual cost is derived.** The progress book (records, targets, actual costs, the last stored report) is one document element of category `progress`; the data date, budget source, budgets entered per activity, chosen EAC formula and look-ahead length are kept in its property `construction.settings`.
+
+1. **Record progress** (`SITEREC`). Choose the elements (the selection, or a rule by category, layer and mark pattern) and what was measured: a percent complete, or a quantity done to date (it needs a target quantity in the same unit: type one for the elements, or take it from a bill item). Give the date, who recorded it (required), a note and file or photo paths (paths only: nothing is opened or copied). A correction needs a reason. The record is added to every element or to none, and a refusal shows the crate's message.
+2. **Site records** (`SITELOG`). The records table, filtered by element and date, with the percent each record stands for, and CSV export.
+3. **Roll up and update** (`ROLLUP`). Rolls the element records up to the activities at the data date. Each activity shows its percent, the weight basis the crate used (priced value, or equal, with the reason a better one was skipped), how many of its elements have records, and its inferred actual start and finish, marked *inferred*. Accepting replaces the percent and actual dates of those activities, sets the programme's data date and reschedules. Activities no element reaches keep their own progress.
+4. **Earned value** (`EVM`). Enter the data date, take the budget from the estimate or enter it per activity, enter actual costs (date, activity or project, amount: until you do, every cost figure reads *input needed*), and choose an EAC formula from the list (none is chosen for you). The window shows BAC, PV, EV, AC, SV, CV, SPI, CPI, EAC with its formula and definition, ETC, VAC and TCPI, a per-activity table, a monthly table and an S-curve of planned (blue), earned (green) and actual (red; not drawn without cost). With no formula chosen the EAC figures are not shown. "Store this report" keeps the figures and draws the S-curve on the sheet. The programme needs a baseline.
+5. **Look-ahead and delays** (`LOOKAHEAD`). Activities due to start or finish in the number of days you enter after the data date, and the activities finishing later than their baseline.
+6. **Progress colour** (`SITEVIEW`, also a radio in the 4D date window). The 3D view colours each element by its recorded percent at the 4D date (grey with no record, amber at the start through green at 100 percent), with a legend; it switches back to the programme's state.
+7. **Earned value CSV** (`EVMCSV`). Writes the figures, the activity table, the periods, the S-curve, the look-ahead and delay tables and the site records into a folder.
+8. **Interim certificate link.** In the certificate window, "Take quantities from site records at date" fills the quantities from each element's quantity times its recorded percent at the date, and lists recorded elements that no bill item measures (they would not be paid).
+
+Not done: activity-level progress, resource-based progress, front-loaded planned value curves, forecast S-curves, import of actual costs from accounts, claims and extension of time.
+
+**The demo.** `--demo` adds a few made-up site records (a corridor, a side drain and a culvert), made-up actual costs, a stored data date and an arbitrary EAC choice, and two stored check inputs. Every number is commented in `demo_glue.rs` as an arbitrary demo value.
+
 ## 6. Built but not yet in the app
 
 Every engine crate in the workspace is now wired into the desktop app, including street lighting, road restraint, pavement and corridors (section 5.9), clash detection (5.11), the programme (5.12) and the cost estimate (5.13). What the app still does not do is listed with each chapter. The one built feature outside the app is the schedule CSV and XML import of the C# CLI: the MCP server reads schedule CSVs and the app does not import them.
@@ -796,6 +829,15 @@ Every command below is in the command table in `commands.rs`. Type the name or a
 | `CASHFLOW` | `SCURVE` | none | Phase the estimate in time (dates from the programme if you like): monthly table and S-curve |
 | `CERTIFICATE` | `IPC`, `INTERIM` | none | Work out an interim payment certificate from your own payment terms |
 | `COSTCSV` | `COSTREPORTS` | none | Export every cost report as CSV into a folder |
+| `CHECKALL` | `CHECKMODEL`, `CALCPACK` | none | Run every check on every element and open one report |
+| `RATIONAL` | `RUNOFF` | none | Peak flow by the rational method from the catchment, runoff coefficients and intensity you enter |
+| `SITEREC` | `SITERECORD` | none | Record percent complete or a measured quantity at a date |
+| `SITELOG` | `SITERECORDS` | none | List the site records, filtered by element and date |
+| `ROLLUP` | `PROGRESSUPDATE` | none | Roll the records up to the activities and apply the update to the programme |
+| `EVM` | `EARNEDVALUE` | none | Earned value at a data date |
+| `LOOKAHEAD` | `DELAYS`, `DELAYLIST` | none | Look-ahead and delay lists |
+| `SITEVIEW` | `PROGRESSCOLOUR` | none | Colour the 3D view by recorded progress |
+| `EVMCSV` | `CONSTRUCTIONCSV` | none | Export every earned value table as CSV |
 | `HANG` | `GANTRYSIGN` | none | Hang the selected sign on a gantry |
 | `UNHANG` | none | none | Take the selected sign off its gantry |
 | `SUPPORTS` | `POSTS` | none | Add posts and foundations to the selected sign |

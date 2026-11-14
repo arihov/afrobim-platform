@@ -49,6 +49,32 @@ pub fn add(doc: &mut Document, alignment: ElementId, req: &MarkingRequest) -> Re
     Ok(name)
 }
 
+/// Adds the demo's centre line and two edge lines on the alignment, for `--demo`. Returns what
+/// could not be added.
+///
+/// **Every number is an arbitrary demonstration value**: diagram 1008.1 at the centre and 1012.1
+/// at 3.65 m either side, a speed limit of 60 mph, and a stretch from 55 % to 95 % of the
+/// alignment's length. That stretch is the one the demo pavement covers (`road_glue::demo`, the
+/// same two fractions), because the IFC export attaches a marking to a pavement only when the
+/// same alignment's pavement covers all of the marking's stations and its offset: lines laid over
+/// the whole alignment would not be inside a pavement that covers part of it, and would export as
+/// generic proxies instead of `IfcSurfaceFeature`.
+pub fn demo(doc: &mut Document, alignment_id: ElementId, a: &afrobim_alignment::Alignment) -> Vec<String> {
+    let types = line_types();
+    let (from, to) = crate::road_glue::DEMO_PAVEMENT_FRACTIONS;
+    let (start, end) = (a.start_station_m + a.length() * from, a.start_station_m + a.length() * to);
+    let mut problems = Vec::new();
+    for (id, distance, right) in [("1008.1", 0.0, false), ("1012.1", 3.65, false), ("1012.1", 3.65, true)] {
+        if let Some(line) = types.iter().position(|t| t.id == id) {
+            let request = MarkingRequest { line, start_station_m: start, end_station_m: end, distance_m: distance, right, speed_mph: 60, width_mm: Some(150), material: String::new() };
+            if let Err(e) = add(doc, alignment_id, &request) {
+                problems.push(e);
+            }
+        }
+    }
+    problems
+}
+
 /// Refreshes every marking's copy of its alignment. Call after alignments change.
 pub fn sync(doc: &mut Document) -> usize {
     markings::sync_markings(doc)

@@ -195,6 +195,18 @@ impl SchedUi {
         }
     }
 
+    /// Puts a programme made elsewhere (the roll-up of site progress) in place of the edited one,
+    /// stores it in the document and reschedules.
+    pub fn replace_programme(&mut self, doc: &mut afrobim_kernel::Document, p: Programme) -> Result<(), String> {
+        self.start_text = p.start.to_string();
+        self.data_date_text = p.data_date.map(|d| d.to_string()).unwrap_or_default();
+        self.required_text = p.required_finish.map(|d| d.to_string()).unwrap_or_default();
+        self.prog = Some(p);
+        self.cons.clear();
+        self.prog_text.clear();
+        self.commit(doc)
+    }
+
     /// Writes the edited programme back into the document and reschedules. True when stored.
     pub fn commit(&mut self, doc: &mut afrobim_kernel::Document) -> Result<(), String> {
         let Some(p) = self.prog.clone() else { return Ok(()) };
@@ -1330,11 +1342,17 @@ impl AfroBimApp {
         }
         let doc = &self.doc;
         let s = &mut self.sched;
+        let by_record = &mut self.construction.colour_by_record;
         egui::Window::new("4D date").open(&mut open).default_width(560.0).show(ctx, |ui| {
             let (Some((lo, hi)), Some(date)) = (span, s.date) else {
                 ui.label("Create and schedule a programme to use the date control (PROGRAMME).");
                 return;
             };
+            ui.horizontal(|ui| {
+                ui.label("Colour by");
+                ui.radio_value(by_record, false, "programme state");
+                ui.radio_value(by_record, true, "recorded progress (SITEREC)");
+            });
             ui.horizontal(|ui| {
                 ui.checkbox(&mut s.fourd_on, "Colour the 3D view by this date");
                 ui.checkbox(&mut s.hide_not_started, "hide elements not started (else ghosted)");

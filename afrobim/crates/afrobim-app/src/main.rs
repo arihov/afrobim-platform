@@ -3,7 +3,12 @@
 mod alignment_glue;
 mod app;
 mod canvas;
+mod check_all;
+mod check_inputs;
+mod check_ui;
 mod commands;
+mod construction_glue;
+mod construction_ui;
 mod coordination_glue;
 mod coordination_ui;
 mod cost_glue;

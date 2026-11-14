@@ -31,6 +31,9 @@ pub enum Outcome {
 /// The pavement design dialog.
 pub struct DesignDialog {
     form: DesignForm,
+    /// The pavement the inputs are kept on (`check.pavement_design`), so the model-wide check can
+    /// compare the design with its layers. None: the design is run without being kept.
+    element: Option<ElementId>,
     /// The layers the last run arrived at, when the method gives them.
     layers: Option<Vec<afrobim_pavement::Layer>>,
     make: Option<(Option<ElementId>, PavementRequest)>,
@@ -91,17 +94,31 @@ impl RoadDialogs {
         Ok(())
     }
 
-    pub fn open_lighting_check(&mut self, id: ElementId) {
-        self.lighting_check = Some(crate::lighting_inputs::LightingCheck { element: id, form: Default::default() });
+    /// The lighting check dialog, with the entries kept on the element when there are some.
+    pub fn open_lighting_check(&mut self, doc: &Document, id: ElementId) {
+        self.lighting_check = Some(crate::lighting_inputs::LightingCheck::open(doc, id));
     }
 
-    pub fn open_speed(&mut self, id: ElementId) {
-        self.speed = Some((id, SpeedInput { value: 0.0, mph: false }));
+    /// The speed limit dialog of a barrier run, with the entry kept on it when there is one.
+    pub fn open_speed(&mut self, doc: &Document, id: ElementId) {
+        let stored: Option<SpeedInput> = crate::check_inputs::load(doc, id, crate::check_inputs::KEY_RESTRAINT);
+        self.speed = Some((id, stored.unwrap_or(SpeedInput { value: 0.0, mph: false })));
     }
 
-    pub fn open_design(&mut self) {
-        if self.design.is_none() {
-            self.design = Some(DesignDialog { form: DesignForm::default(), layers: None, make: None });
+    /// The pavement design dialog. With a pavement element the entries are kept on it and the
+    /// dialog opens with the ones already kept.
+    pub fn open_design(&mut self, doc: &Document, element: Option<ElementId>) {
+        let element = element.filter(|id| doc.find(*id).is_some_and(|e| e.category == afrobim_pavement::PAVEMENT_CATEGORY));
+        let stored: Option<DesignForm> = element.and_then(|id| crate::check_inputs::load(doc, id, crate::check_inputs::KEY_PAVEMENT));
+        match &mut self.design {
+            Some(_) if element.is_none() => {}
+            Some(d) => {
+                d.element = element;
+                if let Some(form) = stored {
+                    d.form = form;
+                }
+            }
+            None => self.design = Some(DesignDialog { form: stored.unwrap_or_default(), element, layers: None, make: None }),
         }
     }
 
@@ -499,7 +516,11 @@ fn speed_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Elem
     });
     if run {
         match road_glue::check_restraint(doc, id, speed) {
-            Ok(lines) => out.push(Outcome::Report(mark, lines)),
+            Ok(lines) => {
+                // The speed limit stays on the run for the model-wide check.
+                crate::check_inputs::save(doc, id, crate::check_inputs::KEY_RESTRAINT, &speed);
+                out.push(Outcome::Report(mark, lines));
+            }
             Err(e) => {
                 out.push(Outcome::Status(format!("Not checked: {e}")));
                 *slot = Some((id, speed));
@@ -559,7 +580,7 @@ fn pavement_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
     });
     if design_first {
         if design.is_none() {
-            *design = Some(DesignDialog { form: DesignForm::default(), layers: None, make: None });
+            *design = Some(DesignDialog { form: DesignForm::default(), element: None, layers: None, make: None });
         }
         keep = true;
     }
@@ -590,6 +611,18 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
             }
         });
         ui.label(RichText::new(road_glue::METHODS[d.form.method.min(2)].reference()).small().weak());
+        ui.horizontal(|ui| {
+            ui.label("Keep the inputs on pavement");
+            let pavements = afrobim_pavement::pavements(doc);
+            let current = pavements.iter().find(|p| Some(p.0) == d.element).map(|p| p.1.clone()).unwrap_or_else(|| "none (run only)".to_string());
+            egui::ComboBox::from_id_salt("design-element").selected_text(current).show_ui(ui, |ui| {
+                ui.selectable_value(&mut d.element, None, "none (run only)");
+                for (id, name, _) in &pavements {
+                    ui.selectable_value(&mut d.element, Some(*id), name);
+                }
+            });
+        });
+        ui.label(RichText::new("Inputs kept on a pavement are used by CHECKALL, which compares the method's layers with the pavement's own.").small().weak());
         ui.separator();
         egui::ScrollArea::vertical().max_height(480.0).show(ui, |ui| match d.form.method {
             0 => mowt_form(ui, &mut d.form.mowt),
@@ -634,6 +667,9 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
     if run {
         match d.form.run() {
             Ok(result) => {
+                if let Some(element) = d.element {
+                    crate::check_inputs::save(doc, element, crate::check_inputs::KEY_PAVEMENT, &d.form);
+                }
                 let title = road_glue::METHODS[d.form.method.min(2)].name().to_string();
                 out.push(Outcome::Report(title, result.lines));
                 d.make = result.layers.as_ref().and_then(|layers| {

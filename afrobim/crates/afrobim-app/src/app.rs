@@ -13,7 +13,7 @@ use crate::commands::{self, Action, COMMANDS};
 use crate::icons::{self, Icon};
 use crate::render::{ElementMesh, Representation};
 use crate::{alignment_glue, markings_glue, modules_glue, road_dialogs, road_glue, signs_glue, supports_glue, Options};
-use crate::{coordination_ui::CoordUi, cost_ui::CostUi, schedule_ui::SchedUi};
+use crate::{check_ui::CheckUi, construction_ui::ConstructionUi, coordination_ui::CoordUi, cost_ui::CostUi, schedule_ui::SchedUi};
 
 /// A module's output for one element, kept until the element's definition changes.
 pub(crate) struct Cached {
@@ -39,6 +39,10 @@ pub struct AfroBimApp {
     pub(crate) coord: CoordUi,
     pub(crate) sched: SchedUi,
     pub(crate) cost: CostUi,
+    /// Site progress and earned value: the windows and the copy of the progress book.
+    pub(crate) construction: ConstructionUi,
+    /// The model-wide check, the drain and culvert input dialogs and the rational method.
+    pub(crate) checks: CheckUi,
     signs_ready: bool,
     module_status: String,
     standard: String,
@@ -68,13 +72,11 @@ pub struct AfroBimApp {
     marking_dialog: Option<(Option<ElementId>, markings_glue::MarkingRequest)>,
     /// The "add a road element" dialog: kind, alignment, start and end station, distance, right side.
     road_dialog: Option<(usize, Option<ElementId>, f64, f64, f64, bool)>,
-    /// The drain capacity check dialog: drain, design flow in m³/s, UK DMRB instead of MoWT.
-    drain_check_dialog: Option<(ElementId, f64, bool)>,
     /// The "hang a sign on a gantry" dialog: sign, gantry, over a lane, lane number, offset, and
     /// the level of the sign's lower edge above the underside of the boom.
     hang_dialog: Option<(ElementId, Option<ElementId>, bool, usize, f64, f64, bool)>,
     /// The last support calculation: sign mark and its lines.
-    design_report: Option<(String, Vec<String>)>,
+    pub(crate) design_report: Option<(String, Vec<String>)>,
     /// The dialogs of street lighting, road restraint, pavement, pavement design and corridors,
     /// and the cross-section window.
     road: road_dialogs::RoadDialogs,
@@ -119,6 +121,7 @@ impl AfroBimApp {
         crate::coordination_glue::register(&mut modules);
         modules.register(Box::new(afrobim_schedule::ScheduleModule::default()));
         modules.register(Box::new(afrobim_cost::EstimateModule));
+        modules.register(Box::new(afrobim_progress::ProgressModule));
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
             Ok(l) => {
@@ -136,6 +139,8 @@ impl AfroBimApp {
             coord: CoordUi::default(),
             sched: SchedUi::default(),
             cost: CostUi::default(),
+            construction: ConstructionUi::default(),
+            checks: CheckUi::default(),
             signs_ready,
             module_status,
             standard,
@@ -159,7 +164,6 @@ impl AfroBimApp {
             design_dialog: None,
             marking_dialog: None,
             road_dialog: None,
-            drain_check_dialog: None,
             hang_dialog: None,
             design_report: None,
             road: road_dialogs::RoadDialogs::default(),
@@ -243,17 +247,12 @@ impl AfroBimApp {
                 Ok((added, _)) => app.status = format!("Imported {added} alignment(s) from {}.", path.display()),
                 Err(e) => app.status = format!("Could not import {}: {e}", path.display()),
             }
-            // Demo only: a centre line and two edge lines on the first alignment.
+            // Demo only: a centre line and two edge lines over the stretch the demo pavement
+            // covers, so that the IFC export can attach them to it (see `markings_glue::demo`).
             if app.options.demo {
                 if let Some((alignment_id, a)) = alignment_glue::alignments(&app.doc).into_iter().next().and_then(|(id, _)| Some((id, alignment_glue::alignment_of(&app.doc, id)?))) {
-                    let types = markings_glue::line_types();
-                    for (id, distance, right) in [("1008.1", 0.0, false), ("1012.1", 3.65, false), ("1012.1", 3.65, true)] {
-                        if let Some(line) = types.iter().position(|t| t.id == id) {
-                            let request = markings_glue::MarkingRequest { line, start_station_m: a.start_station_m, end_station_m: a.end_station_m(), distance_m: distance, right, speed_mph: 60, width_mm: Some(150), material: String::new() };
-                            if let Err(e) = markings_glue::add(&mut app.doc, alignment_id, &request) {
-                                app.status = e;
-                            }
-                        }
+                    for problem in markings_glue::demo(&mut app.doc, alignment_id, &a) {
+                        app.status = problem;
                     }
                 }
             }
@@ -451,6 +450,8 @@ impl AfroBimApp {
         self.coord.markers = markers;
         self.sched = SchedUi::default();
         self.cost = CostUi::default();
+        self.construction = ConstructionUi::default();
+        self.checks = CheckUi::default();
         self.corridor_cache.clear();
     }
 
@@ -791,8 +792,15 @@ impl AfroBimApp {
             },
             Action::DesignSupports => match self.selected_sign() {
                 Some(id) => {
-                    let (height, posts) = supports_glue::present(&self.doc, id).map(|(h, n)| (h.to_string(), n)).unwrap_or((String::new(), 1));
-                    self.design_dialog = Some((id, height, 1.0, supports_glue::DesignRequest::starting(0.0, posts)));
+                    // The entries kept on the sign by an earlier design open again.
+                    let stored = crate::check_inputs::load::<supports_glue::StoredSupportDesign>(&self.doc, id, crate::check_inputs::KEY_SUPPORT).and_then(|s| s.request().ok());
+                    if let Some(req) = stored {
+                        let entered = if let supports_glue::WindChoice::Entered(v) = req.wind { v } else { 1.0 };
+                        self.design_dialog = Some((id, req.mounting_height_mm.to_string(), entered, req));
+                    } else {
+                        let (height, posts) = supports_glue::present(&self.doc, id).map(|(h, n)| (h.to_string(), n)).unwrap_or((String::new(), 1));
+                        self.design_dialog = Some((id, height, 1.0, supports_glue::DesignRequest::starting(0.0, posts)));
+                    }
                 }
                 None => self.status = "Select one sign first, then design its supports.".into(),
             },
@@ -831,7 +839,10 @@ impl AfroBimApp {
                     self.status = e;
                 }
             }
-            Action::PavementDesign => self.road.open_design(),
+            Action::PavementDesign => {
+                let selected = self.doc.primary();
+                self.road.open_design(&self.doc, selected);
+            }
             Action::AddCorridor => {
                 if let Err(e) = self.road.open_corridor(&self.doc) {
                     self.status = e;
@@ -858,13 +869,14 @@ impl AfroBimApp {
                         self.design_report = Some((mark, lines));
                     }
                     modules_glue::Check::Lines(Err(e)) => self.status = format!("Not checked: {e}"),
-                    modules_glue::Check::DrainFlow => self.drain_check_dialog = Some((id, 0.1, false)),
-                    modules_glue::Check::RestraintSpeed => self.road.open_speed(id),
-                    modules_glue::Check::LightingInputs => self.road.open_lighting_check(id),
-                    modules_glue::Check::PavementDesign => self.road.open_design(),
-                    modules_glue::Check::None => self.status = "Select a gantry, side drain, street lighting, barrier run or pavement to check. Sign supports are checked with DESIGN.".into(),
+                    modules_glue::Check::DrainFlow => self.checks.open_drain(&self.doc, id),
+                    modules_glue::Check::CulvertInputs => self.checks.open_culvert(&self.doc, id),
+                    modules_glue::Check::RestraintSpeed => self.road.open_speed(&self.doc, id),
+                    modules_glue::Check::LightingInputs => self.road.open_lighting_check(&self.doc, id),
+                    modules_glue::Check::PavementDesign => self.road.open_design(&self.doc, Some(id)),
+                    modules_glue::Check::None => self.status = "Select a gantry, side drain, culvert, street lighting, barrier run or pavement to check. Sign supports are checked with DESIGN. CHECKALL checks the whole model.".into(),
                 },
-                None => self.status = "Select a gantry, side drain, street lighting, barrier run or pavement first.".into(),
+                None => self.status = "Select a gantry, side drain, culvert, street lighting, barrier run or pavement first.".into(),
             },
             Action::HangSign => match (self.selected_sign(), modules_glue::gantries(&self.doc).first().map(|g| g.0)) {
                 (Some(sign), Some(first)) => self.hang_dialog = Some((sign, Some(first), false, 1, 0.0, 0.0, true)),
@@ -986,6 +998,14 @@ impl AfroBimApp {
                 }
             }
             Action::CostCsv => self.export_cost_reports(),
+            Action::CheckAll => self.run_check_all(),
+            Action::Rational => {
+                let selected = self.doc.primary();
+                self.checks.open_rational(&self.doc, selected);
+            }
+            Action::SiteRecord | Action::SiteLog | Action::RollUp | Action::Evm | Action::LookAhead => self.construction_open(action),
+            Action::SiteView => self.toggle_site_colour(),
+            Action::EvmCsv => self.export_evm_csvs(),
             Action::Help => self.show_help = true,
             Action::About => self.show_about = true,
             Action::Quit => self.quit = true,
@@ -1260,6 +1280,9 @@ impl AfroBimApp {
                         item(ui, &format!("{mark}Design standard: {label}"), id, Action::Standard(i as u8));
                     }
                     ui.separator();
+                    item(ui, "Check the whole model…", "CHECKALL", Action::CheckAll);
+                    item(ui, "Rational method…", "RATIONAL", Action::Rational);
+                    ui.separator();
                     item(ui, "Dark / light theme", "THEME", Action::ToggleTheme);
                     item(ui, "Dark / light model space", "CANVAS", Action::ToggleCanvas);
                 });
@@ -1298,6 +1321,17 @@ impl AfroBimApp {
                     ui.separator();
                     item(ui, "Export cost reports (CSV)…", "COSTCSV", Action::CostCsv);
                 });
+                ui.menu_button("Construction", |ui| {
+                    item(ui, "Record site progress…", "SITEREC", Action::SiteRecord);
+                    item(ui, "Site records…", "SITELOG", Action::SiteLog);
+                    ui.separator();
+                    item(ui, "Roll up and update the programme…", "ROLLUP", Action::RollUp);
+                    item(ui, "Look-ahead and delays…", "LOOKAHEAD", Action::LookAhead);
+                    item(ui, "Earned value…", "EVM", Action::Evm);
+                    ui.separator();
+                    item(ui, "Colour the 3D view by recorded progress", "SITEVIEW", Action::SiteView);
+                    item(ui, "Export earned value tables (CSV)…", "EVMCSV", Action::EvmCsv);
+                });
                 ui.menu_button("Help", |ui| {
                     item(ui, "Command list", "?", Action::Help);
                     item(ui, "About AfroBIM", "", Action::About);
@@ -1313,6 +1347,7 @@ impl AfroBimApp {
     fn toolbar(&mut self, ctx: &egui::Context) {
         let (grid, snap, ortho, marks, three_d, real) = (self.grid_on, self.ctl.snap_on, self.ctl.ortho_on, self.show_labels, self.view_3d, self.rep == Representation::Real);
         let (clash_markers, fourd) = (self.coord.markers, self.sched.fourd_on);
+        let site_colour = self.construction.colour_by_record;
         let standard = self.standard.clone();
         let is_on = move |a: Action| match a {
             Action::ToggleGrid => grid,
@@ -1324,6 +1359,7 @@ impl AfroBimApp {
             Action::RepOutlined => !real,
             Action::ClashMarkers => clash_markers,
             Action::FourD => fourd,
+            Action::SiteView => site_colour,
             Action::Standard(i) => signs_glue::STANDARDS.get(i as usize).is_some_and(|s| s.0 == standard),
             _ => false,
         };
@@ -1549,7 +1585,8 @@ impl AfroBimApp {
                 ui.label(RichText::new("Property set").strong());
                 let mut remove = None;
                 egui::Grid::new("pset").num_columns(3).spacing([8.0, 4.0]).show(ui, |ui| {
-                    for (k, v) in e.properties.iter_mut() {
+                    // The entries the check dialogs and the construction windows keep are theirs.
+                    for (k, v) in e.properties.iter_mut().filter(|(k, _)| !crate::check_inputs::is_check_key(k) && !k.starts_with("construction.")) {
                         ui.label(k);
                         changed |= ui.text_edit_singleline(v).changed();
                         if ui.small_button("x").on_hover_text("Remove this property").clicked() {
@@ -1734,6 +1771,8 @@ impl AfroBimApp {
         self.coordination_windows(ctx);
         self.schedule_windows(ctx);
         self.cost_windows(ctx);
+        self.construction_windows(ctx);
+        self.check_windows(ctx);
         let mut help = self.show_help;
         egui::Window::new("Commands").open(&mut help).default_width(520.0).show(ctx, |ui| {
             egui::Grid::new("cmds").num_columns(3).striped(true).spacing([14.0, 4.0]).show(ui, |ui| {
@@ -2135,49 +2174,6 @@ impl AfroBimApp {
             }
         }
 
-        if let Some((drain, mut flow, mut dmrb)) = self.drain_check_dialog.take() {
-            let mark = self.doc.find(drain).map(|e| e.name.clone()).unwrap_or_default();
-            let (mut keep, mut run) = (true, false);
-            egui::Window::new(format!("Check the capacity of {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
-                egui::Grid::new("drain-check").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Design flow (m³/s)");
-                    ui.add(egui::DragValue::new(&mut flow).speed(0.01).range(0.001..=500.0));
-                    ui.end_row();
-                    ui.label("Basis");
-                    ui.vertical(|ui| {
-                        ui.radio_value(&mut dmrb, false, "MoWT Road Design Manual Vol. 2 (2010)");
-                        ui.radio_value(&mut dmrb, true, "UK DMRB (CG 501, CD 521)");
-                    });
-                    ui.end_row();
-                });
-                ui.add_space(4.0);
-                ui.label(RichText::new("The design flow is the engineer's: AfroBIM holds no rainfall data. The drain's gradient, lining and roughness are those entered in Properties.").small().weak());
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Check").clicked() {
-                        run = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
-            if run {
-                match modules_glue::check_drain(&self.doc, drain, dmrb, flow) {
-                    Ok(lines) => {
-                        self.status = format!("Checked {mark}. Read the calculation.");
-                        self.design_report = Some((mark, lines));
-                    }
-                    Err(e) => {
-                        self.status = format!("Not checked: {e}");
-                        self.drain_check_dialog = Some((drain, flow, dmrb));
-                    }
-                }
-            } else if keep {
-                self.drain_check_dialog = Some((drain, flow, dmrb));
-            }
-        }
-
         if let Some((sign, mut gantry, mut by_lane, mut lane, mut offset, mut bottom, mut up)) = self.hang_dialog.take() {
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let choices = modules_glue::gantries(&self.doc);
@@ -2352,6 +2348,16 @@ impl AfroBimApp {
             ui.label(RichText::new(&self.module_status).weak());
         });
         self.show_about = about;
+    }
+
+    /// The categories the registered modules own, with their display names.
+    pub(crate) fn module_categories(&self) -> Vec<(String, String)> {
+        self.modules.categories().map(|(c, n)| (c.to_string(), n.to_string())).collect()
+    }
+
+    /// The title of the calculation pack: the document's file name, else "Untitled".
+    pub(crate) fn title_for_pack(&self) -> String {
+        self.path.as_ref().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "Untitled".into())
     }
 
     fn screenshot_mode(&mut self, ctx: &egui::Context) {

@@ -4,7 +4,8 @@
 //! the appraisal, the design speed, the photometric results of a calculation made in a lighting
 //! package, and the parameters of the class selection. Every field here starts empty. A field
 //! left empty is "not entered" and the report says which checks it stops; nothing is assumed.
-//! The entries are not stored in the document: the report quotes them.
+//! The entries are kept on the lighting element (`check.lighting_inputs`, see `check_inputs`), so
+//! the dialog opens with them again and the model-wide check repeats them. The report quotes them.
 
 use afrobim_kernel::{Document, ElementId};
 use afrobim_lighting::bs5489_2003::{IpMinimum, Pollution, RoadType};
@@ -14,11 +15,82 @@ use afrobim_lighting::en13201::selection::{
     TrafficVolume, UseIntensity,
 };
 use egui::{RichText, Ui};
+use serde::{Deserialize, Serialize};
 
 use crate::road_dialogs::Outcome;
 use crate::road_glue;
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+/// An enumeration of the lighting crate, kept by the name of its variant. The crate's enumerations
+/// carry no serde support, and every variant the dialog offers is listed here.
+pub trait Named: Copy + std::fmt::Debug + 'static {
+    fn all() -> &'static [Self];
+}
+
+macro_rules! named {
+    ($t:ty, [$($v:expr),* $(,)?]) => {
+        impl Named for $t {
+            fn all() -> &'static [Self] {
+                &[$($v),*]
+            }
+        }
+    };
+}
+
+named!(IpMinimum, [IpMinimum::Ip2x, IpMinimum::Ip5x, IpMinimum::Ip6x]);
+named!(Pollution, [Pollution::High, Pollution::Medium, Pollution::Low]);
+named!(
+    RoadType,
+    [
+        RoadType::MotorwayComplexInterchange,
+        RoadType::MotorwayInterchangesUnder3Km,
+        RoadType::MotorwayInterchanges3KmOrMore,
+        RoadType::MotorwayEmergencyLane,
+        RoadType::StrategicSingle,
+        RoadType::StrategicDual,
+        RoadType::MainDistributorSingle,
+        RoadType::MainDistributorDual,
+        RoadType::SecondaryDistributorRural,
+        RoadType::SecondaryDistributorUrban,
+        RoadType::LinkRoadRural,
+        RoadType::LinkRoadUrban,
+        RoadType::LinkRoadUrbanHighPedestrian,
+    ]
+);
+named!(DesignSpeed, [DesignSpeed::VeryHigh, DesignSpeed::High, DesignSpeed::Moderate, DesignSpeed::Low]);
+named!(TrafficVolume, [TrafficVolume::High, TrafficVolume::Moderate, TrafficVolume::Low]);
+named!(TrafficComposition, [TrafficComposition::MixedWithHighPercentageOfNonMotorized, TrafficComposition::Mixed, TrafficComposition::MotorizedOnly]);
+named!(JunctionDensity, [JunctionDensity::High, JunctionDensity::Moderate]);
+named!(AmbientLuminance, [AmbientLuminance::High, AmbientLuminance::Moderate, AmbientLuminance::Low]);
+named!(NavigationalTask, [NavigationalTask::VeryDifficult, NavigationalTask::Difficult, NavigationalTask::Easy]);
+named!(PedestrianSpeed, [PedestrianSpeed::Low, PedestrianSpeed::VeryLow]);
+named!(UseIntensity, [UseIntensity::Busy, UseIntensity::Normal, UseIntensity::Quiet]);
+named!(
+    PedestrianTraffic,
+    [
+        PedestrianTraffic::PedestriansCyclistsAndMotorized,
+        PedestrianTraffic::PedestriansAndMotorized,
+        PedestrianTraffic::PedestriansAndCyclistsOnly,
+        PedestrianTraffic::PedestriansOnly,
+        PedestrianTraffic::CyclistsOnly,
+    ]
+);
+
+/// serde for an optional [`Named`] enumeration: the variant's name, or null.
+mod named_opt {
+    use super::Named;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<T: Named, S: Serializer>(value: &Option<T>, serializer: S) -> Result<S::Ok, S::Error> {
+        value.map(|v| format!("{v:?}")).serialize(serializer)
+    }
+
+    pub fn deserialize<'de, T: Named, D: Deserializer<'de>>(deserializer: D) -> Result<Option<T>, D::Error> {
+        let name = Option::<String>::deserialize(deserializer)?;
+        Ok(name.and_then(|n| T::all().iter().copied().find(|v| format!("{v:?}") == n)))
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug, Serialize, Deserialize)]
 pub enum Tri {
     #[default]
     NotEntered,
@@ -36,7 +108,7 @@ impl Tri {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug, Serialize, Deserialize)]
 pub enum Family {
     #[default]
     None,
@@ -46,7 +118,8 @@ pub enum Family {
 }
 
 /// Everything the dialog holds. Text fields are parsed when the checks run.
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Form {
     appraisal_done: Tri,
     design_speed_kph: String,
@@ -60,10 +133,13 @@ pub struct Form {
     aadt: String,
     maintenance_factor: String,
     maintenance_factor_source: String,
+    #[serde(with = "named_opt")]
     road_type: Option<RoadType>,
     class_adt: String,
     conflict_approach_class: String,
+    #[serde(with = "named_opt")]
     luminaire_ip: Option<IpMinimum>,
+    #[serde(with = "named_opt")]
     pollution: Option<Pollution>,
     cleaning_interval_months: String,
     lamp_flux_maintenance_factor: String,
@@ -84,16 +160,25 @@ pub struct Form {
     low_speed: Tri,
     // Class selection.
     family: Family,
+    #[serde(with = "named_opt")]
     m_speed: Option<DesignSpeed>,
+    #[serde(with = "named_opt")]
     m_volume: Option<TrafficVolume>,
+    #[serde(with = "named_opt")]
     m_composition: Option<TrafficComposition>,
     m_separated: Tri,
+    #[serde(with = "named_opt")]
     m_junctions: Option<JunctionDensity>,
     m_parked: Tri,
+    #[serde(with = "named_opt")]
     m_ambient: Option<AmbientLuminance>,
+    #[serde(with = "named_opt")]
     m_navigation: Option<NavigationalTask>,
+    #[serde(with = "named_opt")]
     p_speed: Option<PedestrianSpeed>,
+    #[serde(with = "named_opt")]
     p_intensity: Option<UseIntensity>,
+    #[serde(with = "named_opt")]
     p_traffic: Option<PedestrianTraffic>,
     p_facial: Tri,
 }
@@ -101,6 +186,13 @@ pub struct Form {
 pub struct LightingCheck {
     pub element: ElementId,
     pub form: Form,
+}
+
+impl LightingCheck {
+    /// The dialog for a lighting element, with the entries kept on it when there are some.
+    pub fn open(doc: &Document, element: ElementId) -> LightingCheck {
+        LightingCheck { element, form: crate::check_inputs::load(doc, element, crate::check_inputs::KEY_LIGHTING).unwrap_or_default() }
+    }
 }
 
 fn number(label: &str, text: &str) -> Result<Option<f64>, String> {
@@ -256,7 +348,7 @@ fn speed_options() -> [(DesignSpeed, &'static str); 4] {
 }
 
 /// Draws the dialog. Returns the outcome when the checks were run.
-pub fn show(ctx: &egui::Context, doc: &Document, slot: &mut Option<LightingCheck>, out: &mut Vec<Outcome>) {
+pub fn show(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<LightingCheck>, out: &mut Vec<Outcome>) {
     let Some(mut d) = slot.take() else { return };
     let mark = doc.find(d.element).map(|e| e.name.clone()).unwrap_or_default();
     let (mut keep, mut run) = (true, false);
@@ -425,7 +517,11 @@ pub fn show(ctx: &egui::Context, doc: &Document, slot: &mut Option<LightingCheck
     });
     if run {
         match d.form.inputs().and_then(|inputs| road_glue::check_lighting_with(doc, d.element, &inputs)) {
-            Ok(lines) => out.push(Outcome::Report(mark, lines)),
+            Ok(lines) => {
+                // The entries stay on the element for the model-wide check.
+                crate::check_inputs::save(doc, d.element, crate::check_inputs::KEY_LIGHTING, &d.form);
+                out.push(Outcome::Report(mark, lines));
+            }
             Err(e) => {
                 out.push(Outcome::Status(format!("Not checked: {e}")));
                 *slot = Some(d);
@@ -439,6 +535,26 @@ pub fn show(ctx: &egui::Context, doc: &Document, slot: &mut Option<LightingCheck
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_entries_survive_being_kept_on_the_element() {
+        let mut f = Form::default();
+        f.l_av = "1.5".into();
+        f.family = Family::M;
+        f.road_type = Some(RoadType::StrategicDual);
+        f.m_speed = Some(DesignSpeed::High);
+        f.appraisal_done = Tri::Yes;
+        f.gaps.push(("to the junction".into(), "40".into()));
+        let text = serde_json::to_string(&f).unwrap();
+        let back: Form = serde_json::from_str(&text).unwrap();
+        assert_eq!(back.l_av, "1.5");
+        assert_eq!(back.family, Family::M);
+        assert_eq!(back.road_type, Some(RoadType::StrategicDual));
+        assert_eq!(back.m_speed, Some(DesignSpeed::High));
+        assert_eq!(back.appraisal_done, Tri::Yes);
+        assert_eq!(back.gaps, vec![("to the junction".to_string(), "40".to_string())]);
+        assert_eq!(back.pollution, None);
+    }
 
     #[test]
     fn an_empty_form_enters_nothing() {

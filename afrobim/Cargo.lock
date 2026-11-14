@@ -54,6 +54,7 @@ dependencies = [
  "afrobim-lighting",
  "afrobim-markings",
  "afrobim-pavement",
+ "afrobim-progress",
  "afrobim-restraint",
  "afrobim-schedule",
  "afrobim-signs",

@@ -104,6 +104,10 @@ pub struct CostUi {
     pct_text: HashMap<String, String>,
     cert_result: Option<Result<Certificate, String>>,
     cert_note: String,
+    /// The date the site records are read at for the certificate, as typed.
+    site_date: String,
+    /// Elements with recorded progress that no bill item measures, so they will not be paid.
+    site_missing: Vec<String>,
 }
 
 impl Default for CostUi {
@@ -155,6 +159,8 @@ impl Default for CostUi {
             pct_text: HashMap::new(),
             cert_result: None,
             cert_note: String::new(),
+            site_date: String::new(),
+            site_missing: Vec::new(),
         }
     }
 }
@@ -1787,6 +1793,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut run = false;
         let mut percent = false;
+        let mut site = false;
         let mut save = false;
         let mut export = false;
         let mut terms_changed = false;
@@ -1927,6 +1934,16 @@ impl AfroBimApp {
                     export = true;
                 }
             });
+            ui.horizontal(|ui| {
+                ui.label("Site records at");
+                tf(ui, &mut c.site_date, "YYYY-MM-DD", 90.0);
+                if ui.button("Take quantities from site records at date").on_hover_text("Each element's quantity times its recorded percent complete at the date (Construction tab, SITEREC); the percents typed above are used for adjustments and manual items").clicked() {
+                    site = true;
+                }
+            });
+            if !c.site_missing.is_empty() {
+                ui.label(RichText::new(format!("Recorded elements that no bill item measures, so they are not paid: {}.", c.site_missing.join(", "))).small().color(WARN));
+            }
             if !c.cert_note.is_empty() {
                 ui.label(RichText::new(&c.cert_note).small().color(WARN));
             }
@@ -1992,6 +2009,9 @@ impl AfroBimApp {
         if percent {
             self.cert_fill_from_percent(sched_percent);
         }
+        if site {
+            self.cert_from_site();
+        }
         if run {
             self.cert_run();
         }
@@ -2035,6 +2055,48 @@ impl AfroBimApp {
         self.cost.cert_label = "Demo certificate".into();
         self.cert_fill_from_percent(false);
         self.cert_run();
+    }
+
+    /// Fills the quantities to date from the site records at a date (the progress crate's
+    /// `qty_to_date`) and lists the recorded elements no bill item measures.
+    fn cert_from_site(&mut self) {
+        self.construction.sync(&self.doc);
+        let (Some(est), Some(Ok(result))) = (&self.cost.est, &self.cost.result) else { return };
+        let text = self.cost.site_date.trim();
+        let date = if text.len() == 10 { afrobim_schedule::Date::parse(text) } else { None };
+        let Some(date) = date else {
+            self.cost.cert_result = Some(Err(if text.is_empty() { "Enter the date of the site records (YYYY-MM-DD).".to_string() } else { format!("'{text}' is not a date (YYYY-MM-DD).") }));
+            return;
+        };
+        let mut item_percent: BTreeMap<String, Decimal> = BTreeMap::new();
+        for (code, t) in &self.cost.pct_text {
+            match glue::decimal_of(t) {
+                Ok(Some(v)) => {
+                    item_percent.insert(code.clone(), v);
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    self.cost.cert_result = Some(Err(format!("Percent complete of {code}: {e}")));
+                    return;
+                }
+            }
+        }
+        match crate::construction_glue::site_quantities(result, &self.construction.book.log, date, &item_percent, &est.bill.rounding) {
+            Ok(q) => {
+                for (code, v) in &q.quantities {
+                    if result.item(code).is_some_and(|i| i.rate_reporting.is_some()) {
+                        self.cost.qty_text.insert(code.clone(), v.to_string());
+                    }
+                }
+                self.cost.site_missing = q.elements_without_item.iter().map(|id| self.doc.find(*id).map(|e| e.name.clone()).unwrap_or_else(|| format!("element {}", id.0))).collect();
+                self.cost.cert_note = format!(
+                    "Quantities filled from the site records at {date}: each element's quantity times its recorded percent complete.{}",
+                    if self.construction.book.log.records().is_empty() { " There are no site records yet, so every quantity is 0." } else { "" }
+                );
+                self.cost.cert_result = None;
+            }
+            Err(e) => self.cost.cert_result = Some(Err(e)),
+        }
     }
 
     fn cert_fill_from_percent(&mut self, programme: bool) {

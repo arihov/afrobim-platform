@@ -24,13 +24,14 @@ pub enum Tab {
     Coordination,
     FourD,
     FiveD,
+    Construction,
     Output,
     Manage,
     View,
     Help,
 }
 
-pub const TABS: [(Tab, &str); 15] = [
+pub const TABS: [(Tab, &str); 16] = [
     (Tab::Home, "Home"),
     (Tab::Edit, "Edit"),
     (Tab::Insert, "Insert"),
@@ -42,6 +43,7 @@ pub const TABS: [(Tab, &str); 15] = [
     (Tab::Coordination, "Coordination"),
     (Tab::FourD, "4D"),
     (Tab::FiveD, "5D"),
+    (Tab::Construction, "Construction"),
     (Tab::Output, "Output"),
     (Tab::Manage, "Manage"),
     (Tab::View, "View"),
@@ -129,7 +131,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
     const ROADS: &[Panel] = &[
         ALIGNMENT,
         Panel { title: "Markings", items: &[Big(Icon::Markings, "Road markings", "MARKINGS")] },
-        Panel { title: "Drainage", items: &[Big(Icon::Drainage, "Side drain", "DRAIN"), Big(Icon::Drainage, "Pipe culvert", "CULVERT"), Big(Icon::Design, "Check", "CHECK")] },
+        Panel { title: "Drainage", items: &[Big(Icon::Drainage, "Side drain", "DRAIN"), Big(Icon::Drainage, "Pipe culvert", "CULVERT"), Big(Icon::Rational, "Rational flow", "RATIONAL"), Big(Icon::Design, "Check", "CHECK")] },
         Panel { title: "Lighting", items: &[Big(Icon::Lighting, "Street lighting", "LIGHTING"), Small(Icon::Lighting, "Light column", "LIGHTCOLUMN")] },
         Panel { title: "Restraint", items: &[Big(Icon::Barrier, "Road restraint", "BARRIER")] },
         Panel { title: "Pavement", items: &[Big(Icon::Pavement, "Pavement", "PAVEMENT"), Big(Icon::Design, "Pavement design", "PAVEDESIGN")] },
@@ -159,9 +161,17 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Payment", items: &[Big(Icon::Certificate, "Interim certificate", "CERTIFICATE")] },
         Panel { title: "Export", items: &[Big(Icon::Csv, "Cost reports", "COSTCSV")] },
     ];
+    const CONSTRUCTION: &[Panel] = &[
+        Panel { title: "Site records", items: &[Big(Icon::SiteRecord, "Record progress", "SITEREC"), Big(Icon::SiteLog, "Records", "SITELOG")] },
+        Panel { title: "Programme", items: &[Big(Icon::Rollup, "Roll up and update", "ROLLUP"), Big(Icon::LookAhead, "Look-ahead and delays", "LOOKAHEAD")] },
+        Panel { title: "Earned value", items: &[Big(Icon::EarnedValue, "Earned value", "EVM"), Big(Icon::Csv, "Earned value CSV", "EVMCSV")] },
+        Panel { title: "Display", items: &[Big(Icon::SiteColour, "Progress colour", "SITEVIEW"), Big(Icon::DateSlider, "4D date", "FOURD")] },
+        Panel { title: "Payment", items: &[Big(Icon::Certificate, "Interim certificate", "CERTIFICATE")] },
+    ];
     const OUTPUT: &[Panel] = &[EXPORT, Panel { title: "Document", items: &[Big(Icon::Save, "Save", "SAVE"), Big(Icon::SaveAs, "Save as", "SAVEAS"), Big(Icon::Quit, "Quit", "QUIT")] }];
     const MANAGE: &[Panel] = &[
         STANDARD,
+        Panel { title: "Analysis", items: &[Big(Icon::CheckAll, "Check the model", "CHECKALL")] },
         Panel {
             title: "Project",
             items: &[
@@ -192,6 +202,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Tab::Coordination => COORDINATION,
         Tab::FourD => FOURD,
         Tab::FiveD => FIVED,
+        Tab::Construction => CONSTRUCTION,
         Tab::Output => OUTPUT,
         Tab::Manage => MANAGE,
         Tab::View => VIEW,

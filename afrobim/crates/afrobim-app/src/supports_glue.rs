@@ -96,11 +96,35 @@ pub fn present(doc: &Document, sign: ElementId) -> Option<(f64, u32)> {
     Some((height, posts.len() as u32))
 }
 
-/// Sizes steel CHS posts and planted foundations for the sign to the UK method (IHE Sign
-/// Structures Guide 2021, BS EN 12899-1) and replaces the sign's supports with them. Returns
-/// the calculation, line by line. The face is taken as its full bounding rectangle.
-pub fn design(doc: &mut Document, sign: ElementId, req: &DesignRequest) -> Result<Vec<String>, String> {
-    let e = doc.find(sign).ok_or("the sign is not in the document")?;
+/// Why a support design gave no result: an entry it needs is missing, or the method finds no
+/// design for the sign.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DesignFailure {
+    /// An input is missing or outside what the source covers (for example the sign is above the
+    /// 30 m of the MoWT wind table).
+    Input(String),
+    /// The inputs are complete and no section or foundation of the method carries the sign.
+    NoDesign(String),
+}
+
+impl std::fmt::Display for DesignFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DesignFailure::Input(m) | DesignFailure::NoDesign(m) => f.write_str(m),
+        }
+    }
+}
+
+/// A support design worked out for a sign, with where its wind pressure came from.
+pub struct Solved {
+    pub result: design::SupportDesign,
+    pub wind_source: String,
+    pub wind_kn_m2: f64,
+}
+
+/// Works out the support design of a sign for the entries, without touching the document.
+pub fn solve(doc: &Document, sign: ElementId, req: &DesignRequest) -> Result<Solved, DesignFailure> {
+    let e = doc.find(sign).ok_or_else(|| DesignFailure::Input("the sign is not in the document".into()))?;
     let mut geometry = design::SignGeometry {
         width_mm: e.width,
         height_mm: e.height,
@@ -113,7 +137,7 @@ pub fn design(doc: &mut Document, sign: ElementId, req: &DesignRequest) -> Resul
     let table = |terrain, name: &str| {
         design::mowt_velocity_pressure(height, terrain)
             .map(|wb| (wb, format!("MoWT Road Design Manual Vol. 4 (2010) Table 2, {name}, height to top {height:.2} m")))
-            .ok_or_else(|| format!("MoWT Table 2 stops at 30 m and the sign's top is at {height:.2} m"))
+            .ok_or_else(|| DesignFailure::Input(format!("MoWT Table 2 stops at 30 m and the sign's top is at {height:.2} m")))
     };
     let (wb, source) = match req.wind {
         WindChoice::MowtOpen => table(design::MowtTerrain::Open, "open terrain")?,
@@ -130,7 +154,19 @@ pub fn design(doc: &mut Document, sign: ElementId, req: &DesignRequest) -> Resul
             min_planting_depth_mm: req.min_planting_depth_mm,
         })
     };
-    let result = design::design_supports(&geometry, wb, &design::COMMON_CHS_MM, design::S355_YIELD_N_MM2, &request, &design::DesignFactors::default()).map_err(|e| e.to_string())?;
+    let result = design::design_supports(&geometry, wb, &design::COMMON_CHS_MM, design::S355_YIELD_N_MM2, &request, &design::DesignFactors::default()).map_err(|e| match e {
+        afrobim_supports::SupportError::InvalidOption(m) if m.starts_with("no ") => DesignFailure::NoDesign(m),
+        other => DesignFailure::Input(other.to_string()),
+    })?;
+    Ok(Solved { result, wind_source: source, wind_kn_m2: wb })
+}
+
+/// Sizes steel CHS posts and planted foundations for the sign to the UK method (IHE Sign
+/// Structures Guide 2021, BS EN 12899-1) and replaces the sign's supports with them. Returns
+/// the calculation, line by line. The face is taken as its full bounding rectangle. The entries
+/// are kept on the sign (`check.support_design`) so the model-wide check can repeat them.
+pub fn design(doc: &mut Document, sign: ElementId, req: &DesignRequest) -> Result<Vec<String>, String> {
+    let Solved { result, wind_source: source, wind_kn_m2: wb } = solve(doc, sign, req).map_err(|e| e.to_string())?;
 
     let section = result.post.section;
     let mut arrangement = SupportArrangement::new(req.mounting_height_mm, req.posts, req.edge_inset_mm);
@@ -171,7 +207,87 @@ pub fn design(doc: &mut Document, sign: ElementId, req: &DesignRequest) -> Resul
             e.properties.insert("design_basis".into(), basis.clone());
         }
     }
-    Ok(result.calculation(&source))
+    let lines = result.calculation(&source);
+    crate::check_inputs::save(doc, sign, crate::check_inputs::KEY_SUPPORT, &StoredSupportDesign::from(req));
+    Ok(lines)
+}
+
+/// The DESIGN dialog's entries as kept on the sign (`check.support_design`). The foreign
+/// enumeration of the assumed ground is kept by name.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct StoredSupportDesign {
+    pub mounting_height_mm: f64,
+    pub posts: u32,
+    pub edge_inset_mm: f64,
+    /// `mowt_open`, `mowt_built_up` or `entered`.
+    pub wind: String,
+    /// kN/m², when `wind` is `entered`.
+    pub entered_wind_kn_m2: f64,
+    pub ground_factor: f64,
+    pub spread: bool,
+    pub cd354: bool,
+    pub foundation_diameter_mm: f64,
+    pub min_planting_depth_mm: f64,
+    /// `Poor`, `Average` or `Good`.
+    pub spread_ground: String,
+    pub spread_breadth_mm: f64,
+    pub spread_thickness_mm: f64,
+    pub spread_cover_mm: f64,
+}
+
+impl From<&DesignRequest> for StoredSupportDesign {
+    fn from(r: &DesignRequest) -> Self {
+        let (wind, entered) = match r.wind {
+            WindChoice::MowtOpen => ("mowt_open", 0.0),
+            WindChoice::MowtBuiltUp => ("mowt_built_up", 0.0),
+            WindChoice::Entered(v) => ("entered", v),
+        };
+        StoredSupportDesign {
+            mounting_height_mm: r.mounting_height_mm,
+            posts: r.posts,
+            edge_inset_mm: r.edge_inset_mm,
+            wind: wind.to_string(),
+            entered_wind_kn_m2: entered,
+            ground_factor: r.ground_factor,
+            spread: r.spread,
+            cd354: r.cd354,
+            foundation_diameter_mm: r.foundation_diameter_mm,
+            min_planting_depth_mm: r.min_planting_depth_mm,
+            spread_ground: format!("{:?}", r.spread_ground),
+            spread_breadth_mm: r.spread_breadth_mm,
+            spread_thickness_mm: r.spread_thickness_mm,
+            spread_cover_mm: r.spread_cover_mm,
+        }
+    }
+}
+
+impl StoredSupportDesign {
+    /// The request these entries make, or why they cannot be read.
+    pub fn request(&self) -> Result<DesignRequest, String> {
+        use design::AssumedGround::*;
+        let wind = match self.wind.as_str() {
+            "mowt_open" => WindChoice::MowtOpen,
+            "mowt_built_up" => WindChoice::MowtBuiltUp,
+            "entered" => WindChoice::Entered(self.entered_wind_kn_m2),
+            other => return Err(format!("the stored wind basis '{other}' is not known")),
+        };
+        let spread_ground = [Poor, Average, Good].into_iter().find(|g| format!("{g:?}") == self.spread_ground).ok_or_else(|| format!("the stored ground '{}' is not known", self.spread_ground))?;
+        Ok(DesignRequest {
+            mounting_height_mm: self.mounting_height_mm,
+            posts: self.posts,
+            edge_inset_mm: self.edge_inset_mm,
+            wind,
+            ground_factor: self.ground_factor,
+            spread: self.spread,
+            cd354: self.cd354,
+            foundation_diameter_mm: self.foundation_diameter_mm,
+            min_planting_depth_mm: self.min_planting_depth_mm,
+            spread_ground,
+            spread_breadth_mm: self.spread_breadth_mm,
+            spread_thickness_mm: self.spread_thickness_mm,
+            spread_cover_mm: self.spread_cover_mm,
+        })
+    }
 }
 
 pub fn remove(doc: &mut Document, sign: ElementId) -> usize {

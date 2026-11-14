@@ -1,5 +1,6 @@
 //! Demo records for `--demo`: a small made-up programme linked to the demo elements, a neutral
-//! bill with mapping rules and arbitrary rates, and two clash tests.
+//! bill with mapping rules and arbitrary rates, two clash tests, and a few made-up site records and
+//! actual costs.
 //!
 //! Every number below is an arbitrary demo value chosen to make the windows show something. None
 //! is a duration, rate, percentage or tolerance from any project or standard. The estimate is
@@ -31,6 +32,10 @@ pub fn add_records(doc: &mut Document) -> Vec<String> {
     }
     if let Err(e) = add_clash_tests(doc) {
         problems.push(format!("Demo clash tests: {e}"));
+    }
+    add_check_inputs(doc);
+    if let Err(e) = add_site_progress(doc) {
+        problems.push(format!("Demo site progress: {e}"));
     }
     problems
 }
@@ -136,6 +141,64 @@ fn add_estimate(doc: &mut Document) -> Result<(), String> {
     };
     cost_glue::set_property(doc, id, cost_glue::PROP_TERMS, &terms);
     Ok(())
+}
+
+/// Check inputs for two demo elements, so that CHECKALL has results to show beside the elements
+/// that still need input. **The numbers are arbitrary demo values**: a speed limit of 100 km/h for
+/// the barrier run, and, for the street lighting, nothing at all (an empty form), which makes the
+/// engine list what it needs and shows its warning about the superseded edition.
+fn add_check_inputs(doc: &mut Document) {
+    use crate::check_inputs::{save, KEY_LIGHTING, KEY_RESTRAINT};
+    let find = |doc: &Document, category: &str| doc.elements().iter().find(|e| e.category == category).map(|e| e.id);
+    if let Some(id) = find(doc, afrobim_restraint::CATEGORY) {
+        save(doc, id, KEY_RESTRAINT, &crate::road_glue::SpeedInput { value: 100.0, mph: false });
+    }
+    if let Some(id) = find(doc, afrobim_lighting::CATEGORY) {
+        save(doc, id, KEY_LIGHTING, &crate::lighting_inputs::Form::default());
+    }
+}
+
+/// A few made-up site records and actual costs. **Every number is an arbitrary demo value**: the
+/// dates, the percents, the quantity and its target, the amounts and the name of the recorder
+/// belong to no project. The EAC formula is an arbitrary demo choice, not advice; a new document
+/// starts with none chosen.
+fn add_site_progress(doc: &mut Document) -> Result<(), String> {
+    use crate::construction_glue::{self as glue, EacKind, Measure, RecordEntry, Settings};
+    use afrobim_progress::ProgressBook;
+    let find = |doc: &Document, category: &str| doc.elements().iter().find(|e| e.category == category).map(|e| e.id);
+    let mut book = ProgressBook::new();
+    let entry = |date: &str, measure: Measure| RecordEntry { date: date.into(), measure, recorded_by: "Demo recorder (made up)".into(), note: "demo record, arbitrary value".into(), files: vec![], correction: None };
+    let percent = |p: &str| Measure::Percent(p.into());
+    // The corridor: 30 %, 60 % and 80 % on three arbitrary dates (the demo programme has the
+    // earthworks activity at 80 % on the data date).
+    if let Some(id) = find(doc, afrobim_corridor::CORRIDOR_CATEGORY) {
+        for (date, p) in [("2026-03-09", "30"), ("2026-03-16", "60"), ("2026-03-20", "80")] {
+            glue::add_records(&mut book.log, &[id], &entry(date, percent(p)))?;
+        }
+    }
+    // The side drain: 25 % and then 50 % (arbitrary).
+    if let Some(id) = find(doc, afrobim_drainage::DRAIN_CATEGORY) {
+        for (date, p) in [("2026-03-18", "25"), ("2026-03-20", "50")] {
+            glue::add_records(&mut book.log, &[id], &entry(date, percent(p)))?;
+        }
+    }
+    // The culvert, by quantity: a target of 10 m of barrel and 4 m laid (arbitrary).
+    if let Some(id) = find(doc, afrobim_drainage::CULVERT_CATEGORY) {
+        book.log.set_target(id, afrobim_cost::Decimal::from_int(10), "m").map_err(|e| e.to_string())?;
+        glue::add_records(&mut book.log, &[id], &entry("2026-03-20", Measure::Quantity { measured: "4".into(), unit: "m".into() }))?;
+    }
+    // Arbitrary actual costs: two against the earthworks activity, one against drainage and one
+    // for the project as a whole.
+    for (date, activity, amount, note) in [
+        ("2026-03-13", Some("A20"), "70000", "demo cost, arbitrary"),
+        ("2026-03-20", Some("A20"), "45000", "demo cost, arbitrary"),
+        ("2026-03-20", Some("A30"), "5000", "demo cost, arbitrary"),
+        ("2026-03-20", None, "4000", "demo cost for the project, arbitrary"),
+    ] {
+        glue::add_cost(&mut book, date, activity, amount, note)?;
+    }
+    let settings = Settings { data_date: "2026-03-21".into(), budget_from_estimate: true, eac: Some(EacKind::AcPlusRemainingAtBudget), look_ahead_days: "14".into(), ..Settings::default() };
+    glue::store(doc, None, &book, &settings).map(|_| ())
 }
 
 fn add_clash_tests(doc: &mut Document) -> Result<(), String> {

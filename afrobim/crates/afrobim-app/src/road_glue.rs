@@ -268,7 +268,7 @@ pub fn add_restraint(doc: &mut Document, alignment_id: ElementId, req: &Restrain
 }
 
 /// The speed limit the restraint check is made for.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SpeedInput {
     pub value: f64,
     pub mph: bool,
@@ -276,13 +276,18 @@ pub struct SpeedInput {
 
 /// The requirement checks of a barrier run (DMRB CD 377), which need a speed limit.
 pub fn check_restraint(doc: &Document, id: ElementId, speed: SpeedInput) -> Result<Vec<String>, String> {
+    check_restraint_design(doc, id, speed).map(|d| d.calculation())
+}
+
+/// The same checks with every line's status, for the model-wide report.
+pub fn check_restraint_design(doc: &Document, id: ElementId, speed: SpeedInput) -> Result<restraint::design::RestraintDesign, String> {
     if !(speed.value.is_finite() && speed.value > 0.0) {
         return Err("Enter the speed limit.".into());
     }
     let b = restraint::barrier_run_of(doc, id).map_err(|e| e.to_string())?;
     let limit = if speed.mph { restraint::design::SpeedLimit::Mph(speed.value) } else { restraint::design::SpeedLimit::Kmh(speed.value) };
     let input = restraint::design::DesignInput::new(limit);
-    Ok(restraint::design::check_run(&b.run, &b.resolved, &input).calculation())
+    Ok(restraint::design::check_run(&b.run, &b.resolved, &input))
 }
 
 // ─── pavement ───────────────────────────────────────────────────────────────────────────
@@ -382,7 +387,7 @@ pub fn add_pavement(doc: &mut Document, alignment_id: ElementId, req: &PavementR
 
 pub const METHODS: [pavement::design::DesignMethod; 3] = [pavement::design::DesignMethod::MowtRdmVol3, pavement::design::DesignMethod::DmrbCd226, pavement::design::DesignMethod::Aashto1993];
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ClassRow {
     pub name: String,
     pub daily_first_year: f64,
@@ -390,7 +395,8 @@ pub struct ClassRow {
 }
 
 /// Inputs of the Uganda MoWT Road Design Manual Volume 3 method.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct MowtForm {
     /// One direction. The other direction is taken to carry the same.
     pub classes: Vec<ClassRow>,
@@ -430,7 +436,8 @@ impl Default for MowtForm {
 pub const DMRB_PAVEMENTS: [&str; 6] = ["Asphalt base, AC 40/60", "Asphalt base, EME2", "HBGM base, category A", "HBGM base, category B", "HBGM base, category C", "HBGM base, category D"];
 
 /// Inputs of the UK DMRB CD 224 / CD 226 method.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct DmrbForm {
     /// (index into `dmrb::VehicleGroup::ALL`, annual average daily flow in one direction)
     pub flows: Vec<(usize, f64)>,
@@ -449,7 +456,7 @@ impl Default for DmrbForm {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SnRow {
     pub name: String,
     pub material: usize,
@@ -460,7 +467,8 @@ pub struct SnRow {
 }
 
 /// Inputs of the AASHTO 1993 flexible pavement method.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct AashtoForm {
     pub w18: f64,
     pub reliability_percent: f64,
@@ -471,7 +479,8 @@ pub struct AashtoForm {
 }
 
 /// Everything the "Pavement design" dialog holds.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct DesignForm {
     pub method: usize,
     pub mowt: MowtForm,
@@ -747,6 +756,11 @@ pub fn quantities(doc: &Document) -> (Vec<(String, String)>, Vec<String>) {
 
 // ─── the demonstration ──────────────────────────────────────────────────────────────────
 
+/// The stretch of the first alignment the demo pavement covers, as fractions of its length
+/// (arbitrary demo values). The demo road markings are laid over the same stretch, see
+/// `markings_glue::demo`.
+pub const DEMO_PAVEMENT_FRACTIONS: (f64, f64) = (0.55, 0.95);
+
 /// Adds one of each road module on the first alignment of the document, for `--demo`, and
 /// returns what could not be added and why.
 ///
@@ -824,9 +838,9 @@ pub fn demo(doc: &mut Document) -> Vec<String> {
     req.end_terminal = Some(0);
     note(&mut problems, "Road restraint", add_restraint(doc, id, &req).map(|_| ()));
 
-    // A pavement on the second half: 6.6 m wide, 2.5 % cross-fall, four layers of 40, 100, 150
+    // A pavement from 55 % to 95 % of the alignment: 6.6 m wide, 2.5 % cross-fall, four layers of 40, 100, 150
     // and 200 mm, with 1.2 m shoulders.
-    let mut req = PavementRequest::empty("PV-001", at(0.55), at(0.95));
+    let mut req = PavementRequest::empty("PV-001", at(DEMO_PAVEMENT_FRACTIONS.0), at(DEMO_PAVEMENT_FRACTIONS.1));
     req.carriageway_width_m = 6.6;
     req.crossfall_percent = 2.5;
     req.layers = [("Surfacing", 1, 40.0), ("Base", 2, 100.0), ("Subbase", 5, 150.0), ("Selected layer", 8, 200.0)]

@@ -20,7 +20,7 @@ const NAME: &str = "Clash tests";
 
 /// Elements that hold documents, not model geometry: they are never offered to a clash test.
 pub fn is_record(category: &str) -> bool {
-    [CATEGORY, afrobim_schedule::SCHEDULE_CATEGORY, afrobim_cost::ESTIMATE_CATEGORY].contains(&category)
+    [CATEGORY, afrobim_schedule::SCHEDULE_CATEGORY, afrobim_cost::ESTIMATE_CATEGORY, afrobim_progress::PROGRESS_CATEGORY].contains(&category)
 }
 
 /// The module of the coordination element: it draws a small marker on the sheet and reports the
