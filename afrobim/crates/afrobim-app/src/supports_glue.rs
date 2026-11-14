@@ -226,6 +226,24 @@ fn edit_value(ui: &mut egui::Ui, path: &str, value: &mut Value) -> bool {
                     ui.label(s.as_str());
                     ui.end_row();
                 }
+                Value::String(s) if crate::modules_glue::READ_ONLY_KEYS.contains(&key.as_str()) => {
+                    ui.label(label(key));
+                    ui.label(s.as_str());
+                    ui.end_row();
+                }
+                Value::String(s) if crate::modules_glue::choices(key).is_some() => {
+                    ui.label(label(key));
+                    let options = crate::modules_glue::choices(key).unwrap_or_default();
+                    egui::ComboBox::from_id_salt(format!("choice-{path}-{key}")).selected_text(s.clone()).show_ui(ui, |ui| {
+                        for option in &options {
+                            if ui.selectable_label(s == option, option).clicked() && s != option {
+                                *s = option.clone();
+                                changed = true;
+                            }
+                        }
+                    });
+                    ui.end_row();
+                }
                 Value::String(s) => {
                     ui.label(label(key));
                     changed |= ui.add(egui::TextEdit::singleline(s).hint_text("not stated").desired_width(150.0)).changed();

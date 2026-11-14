@@ -12,13 +12,20 @@ use egui::{Color32, Key, KeyboardShortcut, Modifiers, PointerButton, RichText, S
 use crate::commands::{self, Action, COMMANDS};
 use crate::icons::{self, Icon};
 use crate::render::{ElementMesh, Representation};
-use crate::{alignment_glue, markings_glue, modules_glue, signs_glue, supports_glue, Options};
+use crate::{alignment_glue, markings_glue, modules_glue, road_dialogs, road_glue, signs_glue, supports_glue, Options};
 
 /// A module's output for one element, kept until the element's definition changes.
 pub(crate) struct Cached {
     key: (String, serde_json::Value),
     pub generated: Result<Generated, String>,
     pub mesh: ElementMesh,
+}
+
+/// The 3D surfaces of a corridor, kept until the corridor's data changes: building them decodes
+/// the ground surface and cuts every section, which is too much to do each frame.
+pub(crate) struct CorridorSurfaces {
+    key: serde_json::Value,
+    pub solids: Result<road_glue::CorridorSolids, String>,
 }
 
 pub struct AfroBimApp {
@@ -62,6 +69,11 @@ pub struct AfroBimApp {
     hang_dialog: Option<(ElementId, Option<ElementId>, bool, usize, f64, f64, bool)>,
     /// The last support calculation: sign mark and its lines.
     design_report: Option<(String, Vec<String>)>,
+    /// The dialogs of street lighting, road restraint, pavement, pavement design and corridors,
+    /// and the cross-section window.
+    road: road_dialogs::RoadDialogs,
+    /// The built 3D surfaces of corridors.
+    pub(crate) corridor_cache: HashMap<ElementId, CorridorSurfaces>,
     /// The "Place on alignment" dialog: sign, alignment, station (m), offset (m), right side.
     /// Sign, alignment, displayed station, offset, right side, and the stationing region as
     /// typed (0 = not stated, else the region number counted from 1).
@@ -138,6 +150,8 @@ impl AfroBimApp {
             drain_check_dialog: None,
             hang_dialog: None,
             design_report: None,
+            road: road_dialogs::RoadDialogs::default(),
+            corridor_cache: HashMap::new(),
             station_dialog: None,
             new_prop_key: String::new(),
             grid_on: true,
@@ -243,6 +257,13 @@ impl AfroBimApp {
                     }
                 }
             }
+            // Demo only: one each of ground surface, corridor, street lighting, barrier run and
+            // pavement. Their values are arbitrary demo values, see `road_glue::demo`.
+            if app.options.demo {
+                for problem in road_glue::demo(&mut app.doc) {
+                    app.status = problem;
+                }
+            }
             // Demo only: stand the supported signs along the first alignment, alternating sides.
             if app.options.demo {
                 if let Some((alignment_id, _)) = alignment_glue::alignments(&app.doc).into_iter().next() {
@@ -275,6 +296,7 @@ impl AfroBimApp {
             app.doc.clear_selection(); // an unattended export covers the whole model
             let _ = std::fs::create_dir_all(&dir);
             app.export_quantities(dir.join("sign-quantities.csv"));
+            app.write_module_quantities(&dir.join("sign-quantities.csv"));
             eprintln!("AfroBIM: {}", app.status);
             app.export_sheets(dir);
             eprintln!("AfroBIM: {}", app.status);
@@ -313,6 +335,24 @@ impl AfroBimApp {
                 }
             }
             self.cache.insert(id, Cached { key, generated, mesh });
+        }
+        if self.view_3d {
+            self.sync_corridor_surfaces();
+        }
+    }
+
+    /// Builds the 3D surfaces of corridors that have none yet or whose data changed.
+    pub(crate) fn sync_corridor_surfaces(&mut self) {
+        let ids: Vec<ElementId> = self.doc.elements().iter().filter(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY).map(|e| e.id).collect();
+        self.corridor_cache.retain(|id, _| ids.contains(id));
+        for id in ids {
+            let Some(e) = self.doc.find(id) else { continue };
+            if self.corridor_cache.get(&id).is_some_and(|c| c.key == e.data) {
+                continue;
+            }
+            let key = e.data.clone();
+            let solids = road_glue::corridor_solids(&self.doc, id);
+            self.corridor_cache.insert(id, CorridorSurfaces { key, solids });
         }
     }
 
@@ -466,6 +506,22 @@ impl AfroBimApp {
         signs_glue::definitions(&elements)
     }
 
+    /// Writes the quantity CSVs of the road modules (drainage, gantries, lighting, restraint,
+    /// pavement, corridors) beside `path`, and says in the status line what was written and what
+    /// could not be measured.
+    pub(crate) fn write_module_quantities(&mut self, path: &std::path::Path) {
+        let (files, problems) = modules_glue::quantities(&self.doc);
+        for (suffix, csv) in files {
+            match std::fs::write(path.with_extension(&suffix), csv) {
+                Ok(()) => self.status.push_str(&format!(" Wrote {}.", path.with_extension(&suffix).display())),
+                Err(e) => self.status.push_str(&format!(" {suffix} not written: {e}.")),
+            }
+        }
+        for problem in problems {
+            self.status.push_str(&format!(" {problem}."));
+        }
+    }
+
     /// Writes the bill-of-quantities CSV and, beside it, `<name>.summary.csv` by ground colour.
     pub(crate) fn export_quantities(&mut self, path: PathBuf) {
         let Some(engine) = self.engine.clone() else {
@@ -577,12 +633,7 @@ impl AfroBimApp {
                         path.set_extension("csv");
                     }
                     self.export_quantities(path.clone());
-                    for (suffix, csv) in modules_glue::quantities(&self.doc) {
-                        match std::fs::write(path.with_extension(suffix), csv) {
-                            Ok(()) => self.status.push_str(&format!(" Wrote {}.", path.with_extension(suffix).display())),
-                            Err(e) => self.status.push_str(&format!(" {suffix} not written: {e}.")),
-                        }
-                    }
+                    self.write_module_quantities(&path);
                     if let Some((schedule, summary, rows)) = markings_glue::quantities(&self.doc) {
                         let written = std::fs::write(path.with_extension("markings.csv"), schedule).and_then(|()| std::fs::write(path.with_extension("markings.summary.csv"), summary));
                         match written {
@@ -704,6 +755,45 @@ impl AfroBimApp {
                 }
                 None => self.status = "There is no alignment yet. Import one with File → Import LandXML.".into(),
             },
+            Action::AddLighting => {
+                if let Err(e) = self.road.open_lighting(&self.doc) {
+                    self.status = e;
+                }
+            }
+            Action::AddLightColumn => {
+                if let Err(e) = self.road.open_column(&self.doc) {
+                    self.status = e;
+                }
+            }
+            Action::AddBarrier => {
+                if let Err(e) = self.road.open_barrier(&self.doc) {
+                    self.status = e;
+                }
+            }
+            Action::AddPavement => {
+                if let Err(e) = self.road.open_pavement(&self.doc) {
+                    self.status = e;
+                }
+            }
+            Action::PavementDesign => self.road.open_design(),
+            Action::AddCorridor => {
+                if let Err(e) = self.road.open_corridor(&self.doc) {
+                    self.status = e;
+                }
+            }
+            Action::ShowSections => match self.doc.primary().filter(|id| self.doc.find(*id).is_some_and(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY)) {
+                Some(id) => {
+                    if let Err(e) = self.road.open_sections(&self.doc, id) {
+                        self.status = format!("No sections to show: {e}");
+                    }
+                }
+                None => self.status = "Select a corridor first. Build one with CORRIDOR.".into(),
+            },
+            Action::ImportSurface => {
+                if let Some(path) = rfd::FileDialog::new().add_filter("LandXML", &["xml"]).pick_file() {
+                    self.import_surface(ctx, path);
+                }
+            }
             Action::CheckElement => match self.doc.primary() {
                 Some(id) => match modules_glue::check(&self.doc, id) {
                     modules_glue::Check::Lines(Ok(lines)) => {
@@ -713,9 +803,11 @@ impl AfroBimApp {
                     }
                     modules_glue::Check::Lines(Err(e)) => self.status = format!("Not checked: {e}"),
                     modules_glue::Check::DrainFlow => self.drain_check_dialog = Some((id, 0.1, false)),
-                    modules_glue::Check::None => self.status = "Select a gantry or a side drain to check. Sign supports are checked with DESIGN.".into(),
+                    modules_glue::Check::RestraintSpeed => self.road.open_speed(id),
+                    modules_glue::Check::PavementDesign => self.road.open_design(),
+                    modules_glue::Check::None => self.status = "Select a gantry, side drain, street lighting, barrier run or pavement to check. Sign supports are checked with DESIGN.".into(),
                 },
-                None => self.status = "Select a gantry or a side drain first.".into(),
+                None => self.status = "Select a gantry, side drain, street lighting, barrier run or pavement first.".into(),
             },
             Action::HangSign => match (self.selected_sign(), modules_glue::gantries(&self.doc).first().map(|g| g.0)) {
                 (Some(sign), Some(first)) => self.hang_dialog = Some((sign, Some(first), false, 1, 0.0, 0.0, true)),
@@ -756,7 +848,9 @@ impl AfroBimApp {
         match alignment_glue::import_landxml(&mut self.doc, &path) {
             Ok((added, notes)) => {
                 markings_glue::sync(&mut self.doc);
-                modules_glue::sync_all(&mut self.doc);
+                for problem in modules_glue::sync_all(&mut self.doc) {
+                    self.log(format!("Not brought up to date: {problem}"));
+                }
                 self.status = format!("Imported {added} alignment(s) from {}.", path.display());
                 for note in notes.iter().take(6) {
                     self.log(format!("LandXML: {note}"));
@@ -764,6 +858,25 @@ impl AfroBimApp {
                 if !notes.is_empty() {
                     self.status.push_str(&format!(" {} note(s) in the command history.", notes.len()));
                 }
+                self.schedule_commit(ctx);
+            }
+            Err(e) => self.status = format!("Could not import {}: {e}", path.display()),
+        }
+    }
+
+    /// Imports the TIN surfaces of a LandXML file as ground surface elements.
+    pub(crate) fn import_surface(&mut self, ctx: &egui::Context, path: PathBuf) {
+        match road_glue::import_surfaces(&mut self.doc, &path) {
+            Ok((added, notes)) => {
+                self.sync_generated();
+                self.status = format!("Imported {added} surface(s) from {}.", path.display());
+                for note in notes.iter().take(6) {
+                    self.log(format!("LandXML: {note}"));
+                }
+                if !notes.is_empty() {
+                    self.status.push_str(&format!(" {} note(s) in the command history.", notes.len()));
+                }
+                self.fitted_3d = false;
                 self.schedule_commit(ctx);
             }
             Err(e) => self.status = format!("Could not import {}: {e}", path.display()),
@@ -1212,6 +1325,8 @@ impl AfroBimApp {
                         changed = true;
                         definition_edited = Some(id);
                     }
+                } else if modules_glue::is_surface(&e.category) {
+                    ui.label(RichText::new("An imported ground surface. Its triangles are not edited here: import it again to change it. Its figures are under Derived.").small().weak());
                 }
 
                 if let Some((derived, notes)) = derived {
@@ -1818,6 +1933,25 @@ impl AfroBimApp {
             }
         }
 
+        for outcome in self.road.show(ctx, &mut self.doc) {
+            match outcome {
+                road_dialogs::Outcome::Added(mark, status) => {
+                    self.sync_generated();
+                    if let Some(id) = self.doc.elements().iter().find(|e| e.name == mark).map(|e| e.id) {
+                        self.doc.select(&[id], SelectMode::Replace);
+                    }
+                    self.status = status;
+                    self.fitted_3d = false;
+                    self.schedule_commit(ctx);
+                }
+                road_dialogs::Outcome::Report(subject, lines) => {
+                    self.status = format!("Calculated {subject}. Read the calculation.");
+                    self.design_report = Some((subject, lines));
+                }
+                road_dialogs::Outcome::Status(line) => self.status = line,
+            }
+        }
+
         if let Some((drain, mut flow, mut dmrb)) = self.drain_check_dialog.take() {
             let mark = self.doc.find(drain).map(|e| e.name.clone()).unwrap_or_default();
             let (mut keep, mut run) = (true, false);
@@ -1938,11 +2072,12 @@ impl AfroBimApp {
 
         if let Some((mark, lines)) = self.design_report.take() {
             let mut open = true;
-            egui::Window::new(format!("Support calculation for {mark}")).open(&mut open).default_width(640.0).show(ctx, |ui| {
+            egui::Window::new(format!("Calculation for {mark}")).open(&mut open).default_width(640.0).show(ctx, |ui| {
                 egui::ScrollArea::vertical().max_height(460.0).show(ui, |ui| {
                     for line in &lines {
                         let text = RichText::new(line).small();
-                        ui.label(if line.contains("FAILS") || line.starts_with("Check:") { text.color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)) } else { text });
+                        let flagged = line.contains("FAILS") || line.contains("NOT ENOUGH") || ["Check:", "Note:", "WARNING"].iter().any(|p| line.starts_with(p));
+                        ui.label(if flagged { text.color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)) } else { text });
                     }
                 });
                 if ui.button("Copy").clicked() {
@@ -2062,6 +2197,19 @@ impl eframe::App for AfroBimApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.title()));
         self.shortcuts(ctx);
+        // `--run COMMAND`: runs a command once at start-up (on the element named by `--focus`, when
+        // given), to look at a dialog or window without a pointer.
+        if let Some(command) = self.options.run.take() {
+            if let Some(mark) = self.options.focus.clone() {
+                if let Some(id) = self.doc.elements().iter().find(|e| e.name == mark).map(|e| e.id) {
+                    self.doc.select(&[id], SelectMode::Replace);
+                }
+            }
+            match commands::resolve(&command) {
+                Some(info) => self.run(ctx, info.action),
+                None => self.status = format!("--run: {command} is not a command."),
+            }
+        }
 
         self.menu_bar(ctx);
         self.toolbar(ctx);
