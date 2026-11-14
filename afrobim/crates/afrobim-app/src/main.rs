@@ -79,6 +79,10 @@ pub struct Options {
     pub zoom_clash: Option<usize>,
     /// A limits table (CSV or JSON) that ALIGNCHECK loads when it opens, and the row of it to check against.
     pub limits: Option<PathBuf>,
+    /// Start ALIGNDESIGN with this name and start station (`Name,1000`), and the PIs given by `--pis` (`x,y;x,y;...`); `--pis-finish` makes the alignment.
+    pub new_alignment: Option<String>,
+    pub pis: Option<String>,
+    pub pis_finish: bool,
     pub limits_row: Option<String>,
     /// Write the 4D playback as PNG frames into this folder, one every `frames_step` days, then exit.
     /// Import this XER file, or export the programme to this XER file, at start-up (to see the reports without a file dialog).
@@ -124,6 +128,9 @@ fn parse_args() -> Options {
             "--sheet-set" => o.sheet_set = args.next(),
             "--sheet-form" => o.sheet_form = args.next().and_then(|v| v.parse().ok()),
             "--limits" => o.limits = args.next().map(PathBuf::from),
+            "--new-alignment" => o.new_alignment = args.next(),
+            "--pis" => o.pis = args.next(),
+            "--pis-finish" => o.pis_finish = true,
             "--limits-row" => o.limits_row = args.next(),
             "--xer-in" => o.xer_in = args.next().map(PathBuf::from),
             "--xer-out" => o.xer_out = args.next().map(PathBuf::from),

@@ -382,6 +382,23 @@ impl AfroBimApp {
                 app.export_xer_path(&p, &path);
             }
         }
+        if let Some(spec) = app.options.new_alignment.clone() {
+            let (name, start) = spec.split_once(',').map(|(n, s)| (n.trim().to_string(), s.trim().parse::<f64>().unwrap_or(0.0))).unwrap_or((spec.clone(), 0.0));
+            let points: Vec<(f64, f64)> = app
+                .options
+                .pis
+                .clone()
+                .unwrap_or_default()
+                .split(';')
+                .filter_map(|p| p.split_once(',').and_then(|(x, y)| Some((x.trim().parse::<f64>().ok()?, y.trim().parse::<f64>().ok()?))))
+                .collect();
+            app.design.create = Some(crate::design_ui::Create { name, start_m: start, points });
+            app.design.plan_on = true;
+            app.design.invalidate();
+            if app.options.pis_finish {
+                app.design_finish_create();
+            }
+        }
         app.frames_setup();
         if let Some(path) = app.options.export_ifc.clone() {
             app.export_ifc(path);

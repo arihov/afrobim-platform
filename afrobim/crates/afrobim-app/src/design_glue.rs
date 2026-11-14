@@ -252,6 +252,22 @@ pub fn resync(doc: &mut Document, alignment_id: ElementId) -> Resync {
     let count = |doc: &Document, categories: &[&str]| doc.elements().iter().filter(|e| categories.contains(&e.category.as_str())).count();
     let markings = count(doc, &[markings_glue::CATEGORY]);
     markings_glue::sync(doc);
+    // Markings whose stations now run past the ends of the alignment.
+    let (first, last) = (alignment.start_station_m, alignment.end_station_m());
+    for e in doc.elements().iter().filter(|e| e.category == markings_glue::CATEGORY) {
+        if let Ok(def) = afrobim_markings::MarkingDefinition::from_value(&e.data) {
+            if def.alignment == name && (def.start_station_m < first - 1e-6 || def.end_station_m > last + 1e-6) {
+                problems.push(format!(
+                    "{} runs from {} to {} but the alignment now runs from {} to {}",
+                    e.name,
+                    afrobim_alignment::format_station(def.start_station_m, 3),
+                    afrobim_alignment::format_station(def.end_station_m, 3),
+                    afrobim_alignment::format_station(first, 3),
+                    afrobim_alignment::format_station(last, 3)
+                ));
+            }
+        }
+    }
     if markings > 0 {
         out.lines.push(format!("{markings} road marking(s)"));
     }
@@ -683,6 +699,22 @@ mod tests {
         let json = doc.to_json();
         assert!(edit_vertical(&mut doc, d, VEdit::MovePvi(1, 1700.0, 106.0)).is_err());
         assert_eq!(doc.to_json(), json);
+    }
+
+    #[test]
+    fn a_shorter_alignment_lists_the_marking_and_the_sign_now_out_of_range() {
+        let (mut doc, d, a) = doc_with_design();
+        let request = markings_glue::MarkingRequest { line: 0, start_station_m: 1100.0, end_station_m: 1500.0, distance_m: 0.0, right: false, speed_mph: 30, width_mm: Some(150), material: String::new() };
+        let mark = markings_glue::add(&mut doc, a, &request).unwrap();
+        let sign = add_sign_at(&mut doc, a, 1470.0, 4.0);
+        let sign_mark = doc.find(sign).unwrap().name.clone();
+        // The last PI moves in towards the second: the alignment is now much shorter than 1500.
+        let r = edit_horizontal(&mut doc, d, HEdit::MovePi(2, 400.0, 110.0)).unwrap();
+        assert!(r.problems.iter().any(|p| p.starts_with(&mark) && p.contains("alignment now runs")), "{:?}", r.problems);
+        assert!(r.problems.iter().any(|p| p.starts_with(&sign_mark)), "{:?}", r.problems);
+        assert!(r.note().contains("Out of range or refused"));
+        // The sign keeps its place, so nothing is moved without a station to put it at.
+        assert!(doc.find(sign).unwrap().site.is_some());
     }
 
     fn limits() -> DesignBasis {

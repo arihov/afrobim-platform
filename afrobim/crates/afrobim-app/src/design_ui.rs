@@ -258,7 +258,7 @@ impl AfroBimApp {
         true
     }
 
-    fn design_finish_create(&mut self) {
+    pub(crate) fn design_finish_create(&mut self) {
         let Some(c) = self.design.create.take() else { return };
         match glue::create(&mut self.doc, &c.name, c.start_m, &c.points) {
             Ok((design, alignment)) => {
@@ -966,6 +966,7 @@ impl AfroBimApp {
                             bufs.insert((i, 2), radius_text);
                             ui.label(match ranges.get(i).copied().flatten() {
                                 Some((lo, hi)) if hi >= 1.0e7 - 1.0 => format!("{lo:.2} to no upper limit"),
+                                Some((lo, hi)) if lo < 0.01 => format!("up to {hi:.2}"),
                                 Some((lo, hi)) => format!("{lo:.2} to {hi:.2}"),
                                 None => "none fits".to_string(),
                             });
