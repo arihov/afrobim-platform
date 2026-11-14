@@ -39,7 +39,10 @@ mod module;
 mod quantities;
 mod run;
 
-pub use classes::{ContainmentGroup, ContainmentLevel, ImpactSeverityLevel, TerminalClass, WorkingWidthClass, THIV_LIMIT_KMH};
+pub use classes::{
+    ContainmentGroup, ContainmentLevel, Coverage, ImpactSeverityLevel, ImpactTest, TerminalClass, TestVehicle, VehicleIntrusionClass, WorkingWidthClass,
+    THIV_LIMIT_KMH,
+};
 pub use geometry::{
     bay_count, plan_drawing, post_count, resolve, solids, solids_origin, ResolvedRun, RestraintPlan, RunPoint, MAX_POSTS, PLAN_POST_TICK_M,
     POST_TOLERANCE_M, SCHEMATIC_BEAM_DEPTH_MM, SCHEMATIC_BEAM_THICKNESS_MM, SCHEMATIC_POST_SIZE_MM,

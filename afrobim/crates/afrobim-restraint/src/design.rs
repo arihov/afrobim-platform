@@ -4,6 +4,8 @@
 //!
 //! * **CD 377** = DMRB CD 377 *Requirements for road restraint systems*, Version 5.0.1
 //!   (National Highways, published 27 February 2026), core document. It applies BS EN 1317.
+//! * **BS EN 1317-2:2010** for the class tables (see the `classes` module source) and
+//!   **DD ENV 1317-4:2002** for the ordering of terminal classes P1 to P4.
 //! * **CD 127** = DMRB CD 127 *Cross-sections and headrooms*, Version 1.0.1 (29 July 2021),
 //!   which CD 377 clause 2.37 makes the source of set-back for permanent barriers.
 //! * **MoWT** = Uganda Ministry of Works and Transport, *Road Design Manual Volume 1: Geometric
@@ -14,12 +16,13 @@
 //!
 //! | Check | Clause |
 //! |---|---|
-//! | Minimum containment level by speed limit: N2 at 50 mph or more, N1 below | CD 377 3.6, 3.7 |
+//! | Minimum containment level by speed limit: N2 at 50 mph or more, N1 below; levels compared by the notes to BS EN 1317-2:2010 Table 2 | CD 377 3.6, 3.7 |
 //! | A higher level found by the site specific risk assessment (entered, not computed) | CD 377 3.9 |
 //! | Minimum containment in front of a structural support: N2; H4a or H1 for an existing support in CS 453 Group 1 or 2 | CD 377 3.47, Table 3.48 |
 //! | Minimum containment at each end of a vehicle parapet: N2 | CD 377 3.64 |
 //! | Impact severity level A or B | CD 377 3.12, 3.12.1 |
-//! | No hazard within the working width class; widest class the clearance allows | CD 377 3.13, 3.14, 3.15 |
+//! | No hazard within the working width class; widest class the clearance allows | CD 377 3.13, 3.14, 3.15; BS EN 1317-2:2010 Table 4 |
+//! | For higher and very high containment, no hazard within the vehicle intrusion class | CD 377 3.13, 3.17; BS EN 1317-2:2010 Table 5 |
 //! | Crest or toe of a slope over 200 mm high not within the working width class | CD 377 3.39, 3.41 |
 //! | Set-back against the desirable minimum and the relaxations | CD 127 Table 2.24, 2.25, 2.26 |
 //! | Rate of change of set-back (taper, flare) | CD 377 2.38, 2.39 |
@@ -38,8 +41,7 @@
 //! lengths B to C and D to E are inputs here, and nothing in this module imitates or replaces
 //! the RRRAP.
 //!
-//! Also not done: vehicle intrusion classes for higher and very high containment (3.13, 3.17;
-//! the report says so when they apply); new structural supports (3.49 refers to PD 6688-1-7,
+//! Also not done: new structural supports (3.49 refers to PD 6688-1-7,
 //! not held); central reserve provision and the national annexes (3.77 to 3.88, E/3.4 etc.);
 //! where a hazard sits within a run (only lengths are compared); terminal lateral displacement
 //! and exit box classes (6.15 to 6.19); everything the clauses leave to "the manufacturer's
@@ -54,8 +56,8 @@
 //! The result is a list of checks for an engineer to review, not a certified design.
 
 use crate::{
-    fixed, BarrierRun, ConnectedSystem, ContainmentGroup, ContainmentLevel, EndTreatment, ImpactSeverityLevel, ResolvedRun, TerminalClass,
-    WorkingWidthClass,
+    fixed, BarrierRun, ConnectedSystem, ContainmentGroup, ContainmentLevel, Coverage, EndTreatment, ImpactSeverityLevel, ResolvedRun,
+    TerminalClass, WorkingWidthClass,
 };
 
 /// Kilometres in a mile: the definition of the international mile (1 yard = 0.9144 m exactly).
@@ -366,12 +368,15 @@ impl LengthOfNeedInput {
 pub enum TerminalVerdict {
     /// One of the classes the clause names.
     Meets,
-    /// T110, T110/1 or P4 where the clause asks for a minimum of T80/3 or P1. CD 377 does not
-    /// print the ordering of the classes; they are taken as above the minimum because 6.3
-    /// requires them for the more onerous case.
-    MeetsAsHigherClass,
+    /// P2, P3 or P4 where the clause asks for a minimum of P1: a higher class is "considered as
+    /// having met conditions of lower classes" (DD ENV 1317-4:2002, 5.1).
+    MeetsAsHigherPClass,
+    /// T110 or T110/1 where the clause asks for a minimum of T80/3. PD CEN/TS 1317-7, which
+    /// orders the T classes, is not held; they are taken as above the minimum because CD 377
+    /// 6.3 requires them for the more onerous case. An assumption, stated on the report line.
+    MeetsAsHigherTClass,
     Fails,
-    /// A class CD 377 does not name: compare it against PD CEN/TS 1317-7 or DD ENV 1317-4.
+    /// A class neither CD 377 nor DD ENV 1317-4:2002 names: compare it against PD CEN/TS 1317-7.
     NotNamed,
 }
 
@@ -382,21 +387,19 @@ pub enum TerminalVerdict {
 /// * 50 mph or more, not facing oncoming traffic: minimum T80/3 or P1 (CD 377 6.4).
 /// * Less than 50 mph: minimum T80/3 or P1 (CD 377 6.5).
 pub fn check_terminal_class(class: &TerminalClass, speed: SpeedLimit, faces_oncoming_traffic: bool) -> TerminalVerdict {
-    let high = matches!(class, TerminalClass::T110 | TerminalClass::T110_1 | TerminalClass::P4);
-    let low = matches!(class, TerminalClass::T80_3 | TerminalClass::P1);
-    if !high && !low {
-        return TerminalVerdict::NotNamed;
-    }
-    if speed.is_50_mph_or_more() && faces_oncoming_traffic {
-        if high {
-            TerminalVerdict::Meets
-        } else {
-            TerminalVerdict::Fails
-        }
-    } else if low {
-        TerminalVerdict::Meets
-    } else {
-        TerminalVerdict::MeetsAsHigherClass
+    let onerous = speed.is_50_mph_or_more() && faces_oncoming_traffic;
+    match class {
+        TerminalClass::Other(_) => TerminalVerdict::NotNamed,
+        TerminalClass::T110 | TerminalClass::T110_1 if onerous => TerminalVerdict::Meets,
+        TerminalClass::T110 | TerminalClass::T110_1 => TerminalVerdict::MeetsAsHigherTClass,
+        TerminalClass::T80_3 if onerous => TerminalVerdict::Fails,
+        TerminalClass::T80_3 => TerminalVerdict::Meets,
+        p => match (p.p_number(), onerous) {
+            (Some(4), true) | (Some(1), false) => TerminalVerdict::Meets,
+            (Some(_), true) => TerminalVerdict::Fails,
+            (Some(_), false) => TerminalVerdict::MeetsAsHigherPClass,
+            (None, _) => TerminalVerdict::NotNamed,
+        },
     }
 }
 
@@ -590,12 +593,18 @@ pub fn check_run(run: &BarrierRun, resolved: &ResolvedRun, input: &DesignInput) 
 
     // Containment.
     let contain = |why: String, required: ContainmentLevel| -> (String, Status) {
-        let status = match run.containment.meets(required) {
-            Some(true) => Status::Ok,
-            Some(false) => Status::Fails,
-            None => Status::Review,
+        let (status, tail) = match run.containment.covers(required) {
+            Coverage::Covers => (Status::Ok, ""),
+            Coverage::Below => (Status::Fails, ""),
+            // CD 377 itself asks for H1 or H4a where N2 is the general minimum (3.47 with Table
+            // 3.48), so it counts an H level as above N2; the standard's note is reported.
+            Coverage::HigherButNotIncluded if required == ContainmentLevel::N2 => (
+                Status::Ok,
+                " (CD 377 counts an H level as greater than N2; note that by BS EN 1317-2:2010 Table 2 NOTE 2 an H level does not include the N2 car test TB 32, which an L level does)",
+            ),
+            Coverage::HigherButNotIncluded => (Status::Review, " (a level further down BS EN 1317-2:2010 Table 2, but NOTE 2 to that table says it does not include the required one)"),
+            Coverage::NotRanked => (Status::Review, " (BS EN 1317-2:2010 Table 2 NOTE 3 gives no hierarchy between the a and b levels)"),
         };
-        let tail = if status == Status::Review { " (the two are not ranked by the sources held)" } else { "" };
         (format!("{why}, minimum containment {required}; entered {}{tail}", run.containment), status)
     };
     macro_rules! containment {
@@ -673,11 +682,33 @@ pub fn check_run(run: &BarrierRun, resolved: &ResolvedRun, input: &DesignInput) 
             if ok { Status::Ok } else { Status::Fails },
         );
     }
-    if run.containment.group() != ContainmentGroup::Normal {
+    if matches!(run.containment.group(), ContainmentGroup::Higher | ContainmentGroup::VeryHigh) {
+        match (run.vehicle_intrusion, input.hazard_clearance_m) {
+            (Some(vi), Some(c)) => match vi.level_m() {
+                Some(level) => push(
+                    "CD 377 3.13, 3.17",
+                    format!("{} barrier: no hazard within the vehicle intrusion class: {vi} is up to {}, nearest hazard {} from the traffic face", run.containment, m(level), m(c)),
+                    if level <= c + 1e-9 { Status::Ok } else { Status::Fails },
+                ),
+                None => push(
+                    "CD 377 3.13, 3.17",
+                    format!("{} barrier: {vi} is more than 3.5 m with no upper bound (BS EN 1317-2:2010 Table 5); compare the declared normalised vehicle intrusion with the clearance of {}", run.containment, m(c)),
+                    Status::Review,
+                ),
+            },
+            (None, _) => push(
+                "CD 377 3.13, 3.17",
+                format!("{} is a higher or very high containment level: the vehicle intrusion class also applies and none is entered", run.containment),
+                Status::NotChecked,
+            ),
+            (Some(_), None) => {}
+        }
+    }
+    if run.containment.group() == ContainmentGroup::LowAngle {
         push(
-            "CD 377 3.13, 3.17",
-            format!("{} is a higher or very high containment level: the vehicle intrusion class also applies and is not modelled", run.containment),
-            Status::NotChecked,
+            "BS EN 1317-2:2010 Table 2 NOTE 1",
+            format!("{} is a low angle containment level, intended only for temporary safety barriers; these checks are for permanent barriers", run.containment),
+            Status::Review,
         );
     }
 
@@ -793,15 +824,16 @@ pub fn check_run(run: &BarrierRun, resolved: &ResolvedRun, input: &DesignInput) 
                 let head = format!("{which} terminal, {band}, {facing}: {asked}; entered {}", performance_class.label());
                 match check_terminal_class(performance_class, speed, ctx.faces_oncoming_traffic) {
                     TerminalVerdict::Meets => push(reference, head, Status::Ok),
-                    TerminalVerdict::MeetsAsHigherClass => push(
+                    TerminalVerdict::MeetsAsHigherPClass => push(reference, format!("{head}, a higher class than P1 (DD ENV 1317-4:2002, 5.1)"), Status::Ok),
+                    TerminalVerdict::MeetsAsHigherTClass => push(
                         reference,
-                        format!("{head}, taken as above the minimum (CD 377 does not print the ordering of the classes)"),
+                        format!("{head}, taken as above the minimum (assumption: PD CEN/TS 1317-7, which orders the T classes, is not held)"),
                         Status::Ok,
                     ),
                     TerminalVerdict::Fails => push(reference, head, Status::Fails),
                     TerminalVerdict::NotNamed => push(
                         reference,
-                        format!("{head}, a class CD 377 does not name: compare against PD CEN/TS 1317-7 or DD ENV 1317-4"),
+                        format!("{head}, a class not named in CD 377 or DD ENV 1317-4:2002: compare against PD CEN/TS 1317-7"),
                         Status::NotChecked,
                     ),
                 }
@@ -836,21 +868,22 @@ pub fn check_run(run: &BarrierRun, resolved: &ResolvedRun, input: &DesignInput) 
                 match (t.containment, t.connected_containment) {
                     (Some(tc), Some(other)) => {
                         // The lower of the two connected systems.
-                        let lower = match run.containment.meets(other) {
-                            Some(true) => Some(other),
-                            Some(false) => Some(run.containment),
-                            None => None,
+                        let lower = match run.containment.covers(other) {
+                            Coverage::Covers | Coverage::HigherButNotIncluded => Some(other),
+                            Coverage::Below => Some(run.containment),
+                            Coverage::NotRanked => None,
                         };
                         match lower {
                             Some(lower) => {
-                                let status = match tc.meets(lower) {
-                                    Some(true) => Status::Ok,
-                                    Some(false) => Status::Fails,
-                                    None => Status::Review,
+                                let status = match tc.covers(lower) {
+                                    Coverage::Covers => Status::Ok,
+                                    Coverage::Below => Status::Fails,
+                                    Coverage::HigherButNotIncluded if lower == ContainmentLevel::N2 => Status::Ok,
+                                    Coverage::HigherButNotIncluded | Coverage::NotRanked => Status::Review,
                                 };
                                 push("CD 377 7.10", format!("{to}: containment not less than the lower of {} and {other}, which is {lower}; entered {tc}", run.containment), status);
                             }
-                            None => push("CD 377 7.10", format!("{to}: {} and {other} are not ranked by the sources held; transition entered as {tc}", run.containment), Status::Review),
+                            None => push("CD 377 7.10", format!("{to}: {} and {other} are not ranked by BS EN 1317-2:2010; transition entered as {tc}", run.containment), Status::Review),
                         }
                     }
                     _ => push("CD 377 7.10", format!("{to}: the containment levels of the transition and of the connected system are not both entered"), Status::NotChecked),
@@ -914,7 +947,7 @@ pub fn check_run(run: &BarrierRun, resolved: &ResolvedRun, input: &DesignInput) 
 mod tests {
     use super::*;
     use crate::run::sample_run;
-    use crate::{resolve, Transition};
+    use crate::{resolve, Transition, VehicleIntrusionClass};
     use afrobim_alignment::AlignmentBuilder;
     use ContainmentLevel::*;
 
@@ -1048,23 +1081,28 @@ mod tests {
         use TerminalClass::*;
         use TerminalVerdict::*;
         let (fast, slow) = (SpeedLimit::Mph(60.0), SpeedLimit::Mph(40.0));
-        // 6.3: 50 mph or more, facing oncoming traffic.
+        // 6.3: 50 mph or more, facing oncoming traffic: T110, T110/1 or P4 and nothing else.
         for c in [T110, T110_1, P4] {
             assert_eq!(check_terminal_class(&c, fast, true), Meets);
         }
-        for c in [T80_3, P1] {
+        for c in [T80_3, P1, P2, P3] {
             assert_eq!(check_terminal_class(&c, fast, true), Fails);
         }
         // 6.4 and 6.5: minimum T80/3 or P1.
-        for speed_facing in [(fast, false), (slow, true), (slow, false)] {
+        for (speed, facing) in [(fast, false), (slow, true), (slow, false)] {
             for c in [T80_3, P1] {
-                assert_eq!(check_terminal_class(&c, speed_facing.0, speed_facing.1), Meets);
+                assert_eq!(check_terminal_class(&c, speed, facing), Meets);
             }
-            for c in [T110, T110_1, P4] {
-                assert_eq!(check_terminal_class(&c, speed_facing.0, speed_facing.1), MeetsAsHigherClass);
+            // DD ENV 1317-4:2002 5.1: a higher P class has met the lower ones.
+            for c in [P2, P3, P4] {
+                assert_eq!(check_terminal_class(&c, speed, facing), MeetsAsHigherPClass);
+            }
+            // The T ordering is an assumption (PD CEN/TS 1317-7 not held).
+            for c in [T110, T110_1] {
+                assert_eq!(check_terminal_class(&c, speed, facing), MeetsAsHigherTClass);
             }
         }
-        assert_eq!(check_terminal_class(&Other("P2".into()), fast, true), NotNamed);
+        assert_eq!(check_terminal_class(&Other("X".into()), fast, true), NotNamed);
     }
 
     #[test]
@@ -1238,6 +1276,8 @@ mod tests {
         assert_eq!(status_of(&d, "CD 377 3.64"), [Status::Ok]);
         assert_eq!(status_of(&d, "CD 377 3.12.1"), [Status::Note]);
         assert_eq!(status_of(&d, "CD 377 3.13, 3.17"), [Status::NotChecked]);
+        // H1 against the N2 of 3.6, 3.47 and 3.64: OK, with the standard's note reported.
+        assert_eq!(d.lines.iter().filter(|l| l.text.contains("does not include the N2 car test TB 32")).count(), 3);
         assert_eq!(status_of(&d, "CD 377 7.10"), [Status::Fails]);
         assert_eq!(status_of(&d, "CD 377 7.11"), [Status::Fails]); // ISL C against B
         assert!(d.calculation().iter().any(|l| l == "CD 377 7.10: end transition to parapet BR-1: containment not less than the lower of H1 and H2, which is H1; entered N2: FAILS."));
@@ -1251,6 +1291,21 @@ mod tests {
         assert_eq!(status_of(&d, "CD 377 7.10"), [Status::Ok]);
         assert_eq!(status_of(&d, "CD 377 7.12"), [Status::Ok]);
         assert!(d.passes());
+
+        // Vehicle intrusion (Table 5): VI4 = 1.3 m against the 1.5 m clearance; VI6 = 2.1 m fails;
+        // VI9 has no upper bound.
+        for (vi, status) in [(VehicleIntrusionClass::VI4, Status::Ok), (VehicleIntrusionClass::VI6, Status::Fails), (VehicleIntrusionClass::VI9, Status::Review)] {
+            run.vehicle_intrusion = Some(vi);
+            assert_eq!(status_of(&check_run(&run, &resolved(&run), &input), "CD 377 3.13, 3.17"), [status], "{vi}");
+        }
+        // An L level covers N2 outright; an H level against a required L level is for review.
+        run.containment = L1;
+        let d = check_run(&run, &resolved(&run), &input);
+        assert!(d.lines.iter().all(|l| !l.text.contains("TB 32")));
+        run.containment = H2;
+        input.risk_assessed_containment = Some(L1);
+        assert_eq!(status_of(&check_run(&run, &resolved(&run), &input), "CD 377 3.9"), [Status::Review]);
+        input.risk_assessed_containment = None;
 
         // H4b against the H4a of Table 3.48 is not ranked: for review, not a pass or a fail.
         run.containment = H4b;

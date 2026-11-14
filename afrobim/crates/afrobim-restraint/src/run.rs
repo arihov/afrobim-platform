@@ -3,7 +3,7 @@
 use afrobim_kernel::{Note, Severity};
 use serde::{Deserialize, Serialize};
 
-use crate::{ContainmentLevel, ImpactSeverityLevel, RestraintError, TerminalClass, WorkingWidthClass};
+use crate::{ContainmentLevel, ImpactSeverityLevel, RestraintError, TerminalClass, VehicleIntrusionClass, WorkingWidthClass};
 
 /// Which side of the barrier line the traffic it restrains is on, looking up-station.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -132,8 +132,8 @@ impl EndTreatment {
 /// `start_station_m` and `end_station_m` are the two ends of the barrier itself (points A and F
 /// of CD 377 Figure 3.24). Terminals are counted as items and are not part of the length.
 ///
-/// Containment level, working width class and impact severity level are the declared classes
-/// of the product. Post spacing and beam height are **entered product data**: no standard value
+/// Containment level, working width class, impact severity level and vehicle intrusion class
+/// are the declared classes of the product (BS EN 1317-2:2010 Tables 2 to 5). Post spacing and beam height are **entered product data**: no standard value
 /// is supplied for either.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BarrierRun {
@@ -148,6 +148,9 @@ pub struct BarrierRun {
     pub containment: ContainmentLevel,
     pub working_width: WorkingWidthClass,
     pub impact_severity: ImpactSeverityLevel,
+    /// Declared vehicle intrusion class, for higher and very high containment barriers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vehicle_intrusion: Option<VehicleIntrusionClass>,
     /// System description or product, free text; never interpreted.
     #[serde(default)]
     pub system: String,
@@ -256,6 +259,7 @@ pub(crate) fn sample_run() -> BarrierRun {
         containment: ContainmentLevel::N2,
         working_width: WorkingWidthClass::W4,
         impact_severity: ImpactSeverityLevel::A,
+        vehicle_intrusion: None,
         system: "as specified".into(),
         post_spacing_m: Some(2.0),
         beam_height_m: 0.6,
