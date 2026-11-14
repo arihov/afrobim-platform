@@ -13,6 +13,7 @@ use crate::commands::{self, Action, COMMANDS};
 use crate::icons::{self, Icon};
 use crate::render::{ElementMesh, Representation};
 use crate::{alignment_glue, markings_glue, modules_glue, road_dialogs, road_glue, signs_glue, supports_glue, Options};
+use crate::{coordination_ui::CoordUi, cost_ui::CostUi, schedule_ui::SchedUi};
 
 /// A module's output for one element, kept until the element's definition changes.
 pub(crate) struct Cached {
@@ -33,10 +34,15 @@ pub struct AfroBimApp {
     pub(crate) view: ViewTransform,
     pub(crate) ctl: CanvasController,
     modules: ModuleRegistry,
+    /// Clash tests and results, the programme and the estimate: windows and copies of the
+    /// document elements that hold them.
+    pub(crate) coord: CoordUi,
+    pub(crate) sched: SchedUi,
+    pub(crate) cost: CostUi,
     signs_ready: bool,
     module_status: String,
     standard: String,
-    engine: Option<std::sync::Arc<afrobim_signs::SignEngine>>,
+    pub(crate) engine: Option<std::sync::Arc<afrobim_signs::SignEngine>>,
     fonts_dir: PathBuf,
     pub(crate) cache: HashMap<ElementId, Cached>,
 
@@ -88,7 +94,7 @@ pub struct AfroBimApp {
     pub(crate) show_labels: bool,
 
     path: Option<PathBuf>,
-    status: String,
+    pub(crate) status: String,
     fitted: bool,
     pub(crate) view_3d: bool,
     pub(crate) camera: crate::view3d::Camera,
@@ -110,6 +116,9 @@ impl AfroBimApp {
         alignment_glue::register(&mut modules);
         markings_glue::register(&mut modules);
         modules_glue::register(&mut modules);
+        crate::coordination_glue::register(&mut modules);
+        modules.register(Box::new(afrobim_schedule::ScheduleModule::default()));
+        modules.register(Box::new(afrobim_cost::EstimateModule));
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
             Ok(l) => {
@@ -124,6 +133,9 @@ impl AfroBimApp {
             view: ViewTransform::default(),
             ctl: CanvasController::default(),
             modules,
+            coord: CoordUi::default(),
+            sched: SchedUi::default(),
+            cost: CostUi::default(),
             signs_ready,
             module_status,
             standard,
@@ -289,7 +301,34 @@ impl AfroBimApp {
                 }
             }
         }
+        if app.options.demo {
+            // Demo only: the made-up programme, estimate and clash tests of `demo_glue`.
+            for problem in crate::demo_glue::add_records(&mut app.doc) {
+                app.status = problem;
+            }
+        }
         app.sync_generated();
+        if app.options.demo {
+            app.run_clash_tests();
+            app.coord.results_open = false;
+            app.status = "Ready.".into();
+        }
+        if let Some(c) = app.options.zoom_clash.and_then(|n| app.coord.co.results.clashes.get(n).cloned()) {
+            app.zoom_to_clash(&c);
+        }
+        if let Some(n) = app.options.subtab {
+            app.cost.set_subtab(n);
+        }
+        if let Some(text) = app.options.date.clone() {
+            app.sched.sync(&app.doc);
+            match afrobim_schedule::Date::parse(&text) {
+                Some(d) => {
+                    app.sched.set_date(&app.doc, d);
+                    app.sched.fourd_on = true;
+                }
+                None => app.status = format!("--date: '{text}' is not a date (YYYY-MM-DD)."),
+            }
+        }
         app.history.reset(app.doc.snapshot());
         app.view_3d = app.options.view3d;
         if let Some(dir) = app.options.export_sheets.clone() {
@@ -405,11 +444,27 @@ impl AfroBimApp {
         format!("{} - AfroBIM", name.unwrap_or_else(|| "Untitled".into()))
     }
 
+    /// A different document: the coordination, programme and estimate state is read afresh.
+    fn reset_records(&mut self) {
+        let markers = self.coord.markers;
+        self.coord = CoordUi::default();
+        self.coord.markers = markers;
+        self.sched = SchedUi::default();
+        self.cost = CostUi::default();
+        self.corridor_cache.clear();
+    }
+
+    /// Commits to the undo history on the next frame, for edits made outside a pointer drag.
+    pub(crate) fn schedule_commit_now(&mut self) {
+        self.commit_due = Some(0.0);
+    }
+
     fn open_path(&mut self, path: PathBuf) {
         match Document::load(&path) {
             Ok(doc) => {
                 self.doc = doc;
                 self.cache.clear();
+                self.reset_records();
                 let wanted = self.doc.standard.clone();
                 if !wanted.is_empty() && wanted != self.standard && signs_glue::STANDARDS.iter().any(|(id, _, _)| *id == wanted) {
                     self.set_standard(&wanted);
@@ -585,6 +640,7 @@ impl AfroBimApp {
             Action::New => {
                 self.doc = Document::default();
                 self.cache.clear();
+                self.reset_records();
                 self.history.reset(Vec::new());
                 self.path = None;
                 self.fitted = false;
@@ -804,6 +860,7 @@ impl AfroBimApp {
                     modules_glue::Check::Lines(Err(e)) => self.status = format!("Not checked: {e}"),
                     modules_glue::Check::DrainFlow => self.drain_check_dialog = Some((id, 0.1, false)),
                     modules_glue::Check::RestraintSpeed => self.road.open_speed(id),
+                    modules_glue::Check::LightingInputs => self.road.open_lighting_check(id),
                     modules_glue::Check::PavementDesign => self.road.open_design(),
                     modules_glue::Check::None => self.status = "Select a gantry, side drain, street lighting, barrier run or pavement to check. Sign supports are checked with DESIGN.".into(),
                 },
@@ -838,6 +895,97 @@ impl AfroBimApp {
                     self.log(format!("Standard: {label}"));
                 }
             }
+            Action::ClashTests => {
+                self.coord.sync(&self.doc);
+                self.coord.tests_open = true;
+            }
+            Action::ClashRun => self.run_clash_tests(),
+            Action::ClashResults => {
+                self.coord.sync(&self.doc);
+                self.coord.results_open = true;
+                self.status = format!("{} clash(es) on record.", self.coord.co.results.clashes.len());
+            }
+            Action::ClashMarkers => {
+                self.coord.markers = !self.coord.markers;
+                self.status = format!("Clash markers {}.", if self.coord.markers { "shown in the 3D view" } else { "hidden" });
+            }
+            Action::ClashCsv => self.export_clashes_csv(),
+            Action::Programme => {
+                self.sched.sync(&self.doc);
+                self.sched.table_open = true;
+            }
+            Action::Calendar => {
+                self.sched.sync(&self.doc);
+                self.sched.calendar_open = true;
+            }
+            Action::ScheduleRun => self.run_schedule(),
+            Action::Gantt => {
+                self.sched.sync(&self.doc);
+                self.sched.gantt_open = true;
+                if self.sched.prog.is_none() {
+                    self.status = "There is no programme yet (PROGRAMME).".into();
+                }
+            }
+            Action::SetBaseline => {
+                self.sched.sync(&self.doc);
+                self.sched.baseline_open = true;
+            }
+            Action::Variance => {
+                self.sched.sync(&self.doc);
+                self.sched.variance_open = true;
+            }
+            Action::Progress => {
+                self.sched.sync(&self.doc);
+                self.sched.progress_open = true;
+            }
+            Action::Link4d => {
+                self.sched.sync(&self.doc);
+                self.sched.link_open = true;
+            }
+            Action::LinkReport => {
+                self.sched.sync(&self.doc);
+                self.sched.report_open = true;
+            }
+            Action::FourD => crate::schedule_ui::open_date_control(self),
+            Action::MspIn => self.import_mspdi_file(),
+            Action::MspOut => self.export_mspdi_file(),
+            Action::ProgCsv => self.export_programme_csvs(),
+            Action::Bill => {
+                if self.cost_open() {
+                    self.cost.bill_open = true;
+                }
+            }
+            Action::Rates => {
+                if self.cost_open() {
+                    self.cost.rates_open = true;
+                }
+            }
+            Action::Currency => {
+                if self.cost_open() {
+                    self.cost.currency_open = true;
+                }
+            }
+            Action::Estimate => {
+                if self.cost_open() {
+                    self.cost.estimate_open = true;
+                }
+            }
+            Action::CashFlow => {
+                if self.cost_open() {
+                    self.cost.cash_open = true;
+                    self.sched.sync(&self.doc);
+                }
+            }
+            Action::Certificate => {
+                if self.cost_open() {
+                    self.cost.cert_open = true;
+                    self.sched.sync(&self.doc);
+                    if self.options.demo && self.options.subtab == Some(1) {
+                        self.cert_demo_run();
+                    }
+                }
+            }
+            Action::CostCsv => self.export_cost_reports(),
             Action::Help => self.show_help = true,
             Action::About => self.show_about = true,
             Action::Quit => self.quit = true,
@@ -1115,6 +1263,41 @@ impl AfroBimApp {
                     item(ui, "Dark / light theme", "THEME", Action::ToggleTheme);
                     item(ui, "Dark / light model space", "CANVAS", Action::ToggleCanvas);
                 });
+                ui.menu_button("Coordination", |ui| {
+                    item(ui, "Clash tests…", "CLASHTESTS", Action::ClashTests);
+                    item(ui, "Run the clash tests", "CLASH", Action::ClashRun);
+                    item(ui, "Clash results…", "CLASHES", Action::ClashResults);
+                    item(ui, "Show / hide clash markers", "CLASHMARKERS", Action::ClashMarkers);
+                    item(ui, "Export clashes (CSV)…", "CLASHCSV", Action::ClashCsv);
+                });
+                ui.menu_button("4D", |ui| {
+                    item(ui, "Activities and logic…", "PROGRAMME", Action::Programme);
+                    item(ui, "Calendar…", "CALENDAR", Action::Calendar);
+                    item(ui, "Schedule (critical path)", "SCHEDULE", Action::ScheduleRun);
+                    item(ui, "Gantt chart", "GANTT", Action::Gantt);
+                    ui.separator();
+                    item(ui, "Set baseline…", "BASELINE", Action::SetBaseline);
+                    item(ui, "Variance", "VARIANCE", Action::Variance);
+                    item(ui, "Progress and data date…", "PROGRESS", Action::Progress);
+                    ui.separator();
+                    item(ui, "Link elements to activities…", "LINK4D", Action::Link4d);
+                    item(ui, "Link report", "LINKREPORT", Action::LinkReport);
+                    item(ui, "4D date control", "FOURD", Action::FourD);
+                    ui.separator();
+                    item(ui, "Import MS Project XML…", "MSPIN", Action::MspIn);
+                    item(ui, "Export MS Project XML…", "MSPOUT", Action::MspOut);
+                    item(ui, "Export programme reports (CSV)…", "PROGCSV", Action::ProgCsv);
+                });
+                ui.menu_button("5D", |ui| {
+                    item(ui, "Bill and mapping rules…", "BILL", Action::Bill);
+                    item(ui, "Rate library…", "RATES", Action::Rates);
+                    item(ui, "Currency…", "CURRENCY", Action::Currency);
+                    item(ui, "Estimate…", "ESTIMATE", Action::Estimate);
+                    item(ui, "Cash flow…", "CASHFLOW", Action::CashFlow);
+                    item(ui, "Interim payment certificate…", "CERTIFICATE", Action::Certificate);
+                    ui.separator();
+                    item(ui, "Export cost reports (CSV)…", "COSTCSV", Action::CostCsv);
+                });
                 ui.menu_button("Help", |ui| {
                     item(ui, "Command list", "?", Action::Help);
                     item(ui, "About AfroBIM", "", Action::About);
@@ -1129,6 +1312,7 @@ impl AfroBimApp {
     /// The ribbon: every command as an icon button, grouped in tabs and panels.
     fn toolbar(&mut self, ctx: &egui::Context) {
         let (grid, snap, ortho, marks, three_d, real) = (self.grid_on, self.ctl.snap_on, self.ctl.ortho_on, self.show_labels, self.view_3d, self.rep == Representation::Real);
+        let (clash_markers, fourd) = (self.coord.markers, self.sched.fourd_on);
         let standard = self.standard.clone();
         let is_on = move |a: Action| match a {
             Action::ToggleGrid => grid,
@@ -1138,6 +1322,8 @@ impl AfroBimApp {
             Action::Toggle3d => three_d,
             Action::RepReal => real,
             Action::RepOutlined => !real,
+            Action::ClashMarkers => clash_markers,
+            Action::FourD => fourd,
             Action::Standard(i) => signs_glue::STANDARDS.get(i as usize).is_some_and(|s| s.0 == standard),
             _ => false,
         };
@@ -1545,6 +1731,9 @@ impl AfroBimApp {
     }
 
     fn windows(&mut self, ctx: &egui::Context) {
+        self.coordination_windows(ctx);
+        self.schedule_windows(ctx);
+        self.cost_windows(ctx);
         let mut help = self.show_help;
         egui::Window::new("Commands").open(&mut help).default_width(520.0).show(ctx, |ui| {
             egui::Grid::new("cmds").num_columns(3).striped(true).spacing([14.0, 4.0]).show(ui, |ui| {
@@ -1801,12 +1990,8 @@ impl AfroBimApp {
                         }
                     });
                     ui.end_row();
-                    ui.label("Start station (m)");
-                    ui.add(egui::DragValue::new(&mut req.start_station_m).speed(1.0));
-                    ui.end_row();
-                    ui.label("End station (m)");
-                    ui.add(egui::DragValue::new(&mut req.end_station_m).speed(1.0));
-                    ui.end_row();
+                    crate::station_input::station_row(ui, &self.doc, alignment, "marking-start", "Start station", &mut req.start_station_m);
+                    crate::station_input::station_row(ui, &self.doc, alignment, "marking-end", "End station", &mut req.end_station_m);
                     ui.label("Offset from the alignment (m)");
                     ui.horizontal(|ui| {
                         ui.add(egui::DragValue::new(&mut req.distance_m).speed(0.05).range(0.0..=50.0));
@@ -1822,11 +2007,12 @@ impl AfroBimApp {
                 ui.label(
                     RichText::new(
                         "Patterns and widths are from the Traffic Signs Manual Chapter 5 (2018). Its tables are in mph: how a km/h limit maps to them is the engineer's decision. \
-                         Stations are internal stations. The line is shown in the 3D site view and measured under Export quantities.",
+                         The line is shown in the 3D site view and measured under Export quantities.",
                     )
                     .small()
                     .weak(),
                 );
+                ui.label(RichText::new(crate::station_input::note(&self.doc, alignment)).small().weak());
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     if ui.add_enabled(alignment.is_some(), egui::Button::new("Lay the line")).clicked() {
@@ -1877,13 +2063,9 @@ impl AfroBimApp {
                         }
                     });
                     ui.end_row();
-                    ui.label(if info.span { "Start station (m)" } else { "Station (m)" });
-                    ui.add(egui::DragValue::new(&mut start).speed(1.0));
-                    ui.end_row();
+                    crate::station_input::station_row(ui, &self.doc, alignment, "road-start", if info.span { "Start station" } else { "Station" }, &mut start);
                     if info.span {
-                        ui.label("End station (m)");
-                        ui.add(egui::DragValue::new(&mut end).speed(1.0));
-                        ui.end_row();
+                        crate::station_input::station_row(ui, &self.doc, alignment, "road-end", "End station", &mut end);
                     }
                     if info.offset {
                         ui.label("Offset from the alignment (m)");
@@ -1897,10 +2079,11 @@ impl AfroBimApp {
                 });
                 ui.add_space(4.0);
                 ui.label(
-                    RichText::new("It is added with placeholder dimensions that are not design values: select it and set every dimension in Properties, then run CHECK. Stations are internal stations.")
+                    RichText::new("It is added with placeholder dimensions that are not design values: select it and set every dimension in Properties, then run CHECK.")
                         .small()
                         .weak(),
                 );
+                ui.label(RichText::new(crate::station_input::note(&self.doc, alignment)).small().weak());
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     if ui.add_enabled(alignment.is_some(), egui::Button::new("Add")).clicked() {
@@ -2205,9 +2388,12 @@ impl eframe::App for AfroBimApp {
                     self.doc.select(&[id], SelectMode::Replace);
                 }
             }
-            match commands::resolve(&command) {
-                Some(info) => self.run(ctx, info.action),
-                None => self.status = format!("--run: {command} is not a command."),
+            // Several commands may be given, separated by commas.
+            for part in command.split(',') {
+                match commands::resolve(part) {
+                    Some(info) => self.run(ctx, info.action),
+                    None => self.status = format!("--run: {part} is not a command."),
+                }
             }
         }
 

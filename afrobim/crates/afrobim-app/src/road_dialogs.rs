@@ -3,7 +3,7 @@
 //!
 //! A dialog collects only what cannot be defaulted. Numbers start at zero, which means "not
 //! entered": the crates refuse a definition they cannot use and the reason is shown. Stations are
-//! internal stations, as in the other road dialogs.
+//! the stations shown on the drawings, converted to internal stations (see `station_input`).
 
 use afrobim_corridor as corridor;
 use afrobim_draw::{Colour, Primitive};
@@ -13,6 +13,7 @@ use afrobim_restraint as restraint;
 use egui::{Color32, RichText, Ui};
 
 use crate::alignment_glue;
+use crate::station_input::{self, station_row};
 use crate::road_glue::{
     self, AashtoForm, ClassRow, ColumnFields, ColumnRequest, CorridorRequest, DesignForm, DmrbForm, LayerRow, LightingRequest, MowtForm, PavementRequest, RestraintRequest, ShoulderRequest, SnRow, SpeedInput,
 };
@@ -53,6 +54,7 @@ pub struct RoadDialogs {
     design: Option<DesignDialog>,
     corridor: Option<(Option<ElementId>, CorridorRequest)>,
     sections: Option<SectionsView>,
+    lighting_check: Option<crate::lighting_inputs::LightingCheck>,
 }
 
 const NO_ALIGNMENT: &str = "There is no alignment yet. Import one with File → Import LandXML.";
@@ -87,6 +89,10 @@ impl RoadDialogs {
         let (id, start, end) = first_alignment(doc)?;
         self.pavement = Some((Some(id), PavementRequest::empty(&doc.unique_name("PV-001"), start, end)));
         Ok(())
+    }
+
+    pub fn open_lighting_check(&mut self, id: ElementId) {
+        self.lighting_check = Some(crate::lighting_inputs::LightingCheck { element: id, form: Default::default() });
     }
 
     pub fn open_speed(&mut self, id: ElementId) {
@@ -132,6 +138,7 @@ impl RoadDialogs {
         design_dialog(ctx, doc, &mut self.design, &mut out);
         corridor_dialog(ctx, doc, &mut self.corridor, &mut out);
         sections_window(ctx, &mut self.sections);
+        crate::lighting_inputs::show(ctx, doc, &mut self.lighting_check, &mut out);
         out
     }
 }
@@ -281,12 +288,8 @@ fn lighting_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
                 ui.label("Reference");
                 text(ui, &mut req.reference, "e.g. LZ-01", 120.0);
                 ui.end_row();
-                ui.label("Start station");
-                number(ui, &mut req.start_station_m, 1.0, " m");
-                ui.end_row();
-                ui.label("End station");
-                number(ui, &mut req.end_station_m, 1.0, " m");
-                ui.end_row();
+                station_row(ui, doc, alignment, "lighting-start", "Start station", &mut req.start_station_m);
+                station_row(ui, doc, alignment, "lighting-end", "End station", &mut req.end_station_m);
                 ui.label("Arrangement");
                 let arrangements = index_options(road_glue::ARRANGEMENTS.iter().map(|a| a.label().to_string()).collect());
                 pick(ui, "lighting-arrangement", &mut req.arrangement, &arrangements);
@@ -319,7 +322,8 @@ fn lighting_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
                 ui.end_row();
             });
         });
-        not_a_design(ui, "Nothing here is a design value: spacing, set-back, mounting height and the class are the engineer's. AfroBIM does no photometric, structural or electrical design. Stations are internal stations. The offset is positive to the right.");
+        not_a_design(ui, "Nothing here is a design value: spacing, set-back, mounting height and the class are the engineer's. AfroBIM does no photometric, structural or electrical design. The offset is positive to the right.");
+        ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
         buttons(ui, "Add", alignment.is_some(), &mut add, &mut keep);
     });
     if add {
@@ -345,9 +349,7 @@ fn column_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Opt
             ui.label("Mark");
             text(ui, &mut req.mark, "e.g. LC-001", 120.0);
             ui.end_row();
-            ui.label("Station");
-            number(ui, &mut req.station_m, 1.0, " m");
-            ui.end_row();
+            station_row(ui, doc, alignment, "column-station", "Station", &mut req.station_m);
             ui.label("Offset from the alignment");
             ui.horizontal(|ui| {
                 number(ui, &mut req.distance_m, 0.1, " m");
@@ -375,6 +377,7 @@ fn column_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Opt
             ui.end_row();
         });
         not_a_design(ui, "For a junction or conflict area. Mounting height, outreach and the luminaire are entered, not designed.");
+        ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
         buttons(ui, "Add", alignment.is_some(), &mut add, &mut keep);
     });
     if add {
@@ -403,12 +406,8 @@ fn barrier_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Op
                 ui.label("Mark");
                 text(ui, &mut req.name, "e.g. VRS-001", 120.0);
                 ui.end_row();
-                ui.label("Start station");
-                number(ui, &mut req.start_station_m, 1.0, " m");
-                ui.end_row();
-                ui.label("End station");
-                number(ui, &mut req.end_station_m, 1.0, " m");
-                ui.end_row();
+                station_row(ui, doc, alignment, "barrier-start", "Start station", &mut req.start_station_m);
+                station_row(ui, doc, alignment, "barrier-end", "End station", &mut req.end_station_m);
                 ui.label("Traffic face at");
                 ui.horizontal(|ui| {
                     number(ui, &mut req.distance_m, 0.1, " m");
@@ -458,7 +457,8 @@ fn barrier_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Op
                 }
             });
         });
-        not_a_design(ui, "The class, working width and severity are what the engineer chooses (CD 377 and the risk assessment). Run CHECK for the requirement checks. Stations are internal stations.");
+        not_a_design(ui, "The class, working width and severity are what the engineer chooses (CD 377 and the risk assessment). Run CHECK for the requirement checks.");
+        ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
         buttons(ui, "Add", alignment.is_some(), &mut add, &mut keep);
     });
     if add {
@@ -523,12 +523,8 @@ fn pavement_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
                 ui.label("Mark");
                 text(ui, &mut req.name, "e.g. PV-001", 120.0);
                 ui.end_row();
-                ui.label("Start station");
-                number(ui, &mut req.start_station_m, 1.0, " m");
-                ui.end_row();
-                ui.label("End station");
-                number(ui, &mut req.end_station_m, 1.0, " m");
-                ui.end_row();
+                station_row(ui, doc, alignment, "pavement-start", "Start station", &mut req.start_station_m);
+                station_row(ui, doc, alignment, "pavement-end", "End station", &mut req.end_station_m);
                 ui.label("Carriageway width");
                 number(ui, &mut req.carriageway_width_m, 0.1, " m");
                 ui.end_row();
@@ -547,6 +543,7 @@ fn pavement_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
             layer_list(ui, "pavement", &mut req.layers);
         });
         not_a_design(ui, "Enter the layers, or run a design method first. Shoulders take the layers of the carriageway; edit them in Properties.");
+        ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             if ui.add_enabled(alignment.is_some(), egui::Button::new("Add")).clicked() {
@@ -891,7 +888,23 @@ fn corridor_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
             ui.label("Section interval");
             number(ui, &mut req.interval_m, 1.0, " m");
             ui.end_row();
+            ui.label("Stretch");
+            ui.horizontal(|ui| {
+                let mut limited = req.stretch.is_some();
+                if ui.checkbox(&mut limited, "limit to a stretch of the alignment").changed() {
+                    req.stretch = if limited { alignment.and_then(|a| alignment_glue::alignment_of(doc, a)).map(|a| (a.start_station_m, a.end_station_m())) } else { None };
+                }
+                if !limited {
+                    ui.label(RichText::new("the whole alignment").weak());
+                }
+            });
+            ui.end_row();
+            if let Some((start, end)) = &mut req.stretch {
+                station_row(ui, doc, alignment, "corridor-start", "Stretch start station", start);
+                station_row(ui, doc, alignment, "corridor-end", "Stretch end station", end);
+            }
         });
+        ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
         not_a_design(ui, "The corridor holds no design values: every width, slope, depth and interval is yours. It needs an alignment with a vertical profile, and the same template is used both sides over the whole length. More regions are edited in Properties. Volumes are by average end area, with no bulking or shrinkage factor (both 1).");
         buttons(ui, "Build", alignment.is_some() && req.surface.is_some(), &mut add, &mut keep);
     });

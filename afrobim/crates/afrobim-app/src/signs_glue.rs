@@ -140,11 +140,15 @@ pub fn definitions(elements: &[&Element]) -> Vec<SignDefinition> {
         .collect()
 }
 
+/// The take-off row of each sign the engine can lay out; the cost estimate reads the same rows.
+pub fn measure_rows(engine: &SignEngine, signs: &[SignDefinition]) -> Vec<afrobim_fabrication::SignQuantity> {
+    signs.iter().filter_map(|s| engine.layout(s).ok().map(|layout| afrobim_fabrication::measure(engine, s, &layout))).collect()
+}
+
 /// Sign-face quantities: the per-sign CSV and the per-ground-colour summary CSV, plus the
 /// number of signs measured and the total face area in m².
 pub fn quantities(engine: &SignEngine, signs: &[SignDefinition]) -> (String, String, usize, f64) {
-    let rows: Vec<afrobim_fabrication::SignQuantity> =
-        signs.iter().filter_map(|s| engine.layout(s).ok().map(|layout| afrobim_fabrication::measure(engine, s, &layout))).collect();
+    let rows = measure_rows(engine, signs);
     let summary = afrobim_fabrication::summarise(&rows);
     let area: f64 = rows.iter().map(|r| r.width_mm * r.height_mm / 1.0e6).sum();
     (afrobim_fabrication::to_csv(&rows), afrobim_fabrication::summary_to_csv(&summary), rows.len(), area)

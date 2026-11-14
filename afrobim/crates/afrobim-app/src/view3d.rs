@@ -116,13 +116,17 @@ impl Camera {
 /// Where an element's own frame sits in the world: local (u along the width, d into the depth,
 /// v up) maps to `origin + u·(cos, sin, 0) + d·(−sin, cos, 0) + v·(0, 0, 1)`.
 #[derive(Clone, Copy)]
-struct Frame {
-    origin: V3,
-    cos: f64,
-    sin: f64,
+pub(crate) struct Frame {
+    pub origin: V3,
+    pub cos: f64,
+    pub sin: f64,
 }
 
 impl Frame {
+    /// The same frame as a placement for clash detection, which uses the same transform.
+    pub fn placement(&self) -> afrobim_coordination::Placement {
+        afrobim_coordination::Placement::new(self.origin, self.sin.atan2(self.cos).to_degrees())
+    }
     fn at(&self, u: f64, d: f64, v: f64) -> V3 {
         [self.origin[0] + u * self.cos - d * self.sin, self.origin[1] + u * self.sin + d * self.cos, self.origin[2] + v]
     }
@@ -157,78 +161,102 @@ fn centreline_points(a: &afrobim_alignment::Alignment, step_m: f64) -> Vec<V3> {
         .collect()
 }
 
+/// What the frame of an element depends on besides the document: the solids generated for it and
+/// the origin of a built corridor. Passed as closures so the transform can be used (and tested)
+/// without the app's caches.
+pub(crate) struct WorldCtx<'a> {
+    pub doc: &'a afrobim_kernel::Document,
+    pub solids_of: &'a dyn Fn(afrobim_kernel::ElementId) -> Option<&'a [afrobim_draw::Mesh3]>,
+    pub corridor_origin: &'a dyn Fn(afrobim_kernel::ElementId) -> Option<V3>,
+}
+
+/// Site mode: at least one sign or site solid has been placed on site.
+pub(crate) fn site_mode_of(doc: &afrobim_kernel::Document) -> bool {
+    doc.elements().iter().any(|e| (e.category == crate::signs_glue::CATEGORY || is_site_solid(&e.category)) && e.site.is_some())
+}
+
+/// The post a support hangs from (itself for a post) and the sign above it.
+fn support_chain<'a>(doc: &'a afrobim_kernel::Document, e: &'a afrobim_kernel::Element) -> Option<(&'a afrobim_kernel::Element, &'a afrobim_kernel::Element)> {
+    let post = if e.category == crate::supports_glue::POST_CATEGORY { e } else { doc.find(e.host?)? };
+    Some((post, doc.find(post.host?)?))
+}
+
+/// The mounting height recorded on a sign's first post, or 0 for a sign without supports.
+fn mounting_height_in(doc: &afrobim_kernel::Document, sign: afrobim_kernel::ElementId) -> f64 {
+    doc.elements()
+        .iter()
+        .find(|e| e.category == crate::supports_glue::POST_CATEGORY && e.host == Some(sign))
+        .and_then(|p| p.properties.get(crate::supports_glue::PROP_MOUNTING_HEIGHT_MM))
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0.0)
+}
+
+/// Where an element's own frame sits in the world, the rule the 3D view draws by.
+pub(crate) fn frame_in(ctx: &WorldCtx, e: &afrobim_kernel::Element, site_mode: bool) -> Option<Frame> {
+    let support = crate::supports_glue::is_support(&e.category);
+    if is_site_solid(&e.category) {
+        // Modelled for the site: shown in the site view only, in the frame of the placement.
+        let s = e.site.as_ref().filter(|_| site_mode)?;
+        if e.category == afrobim_corridor::CORRIDOR_CATEGORY {
+            // The built surfaces have their own origin (the least plan point of the sections).
+            return Some(Frame { origin: (ctx.corridor_origin)(e.id)?, cos: 1.0, sin: 0.0 });
+        }
+        let (sin, cos) = s.rotation_deg.to_radians().sin_cos();
+        return Some(Frame { origin: [s.x, s.y, s.z], cos, sin });
+    }
+    if site_mode {
+        let s = e.site.as_ref()?;
+        let (sin, cos) = s.rotation_deg.to_radians().sin_cos();
+        // A sign's site level is the ground under it; its face starts one mounting height up.
+        let lift = if support { 0.0 } else { mounting_height_in(ctx.doc, e.id) };
+        return Some(Frame { origin: [s.x, s.y, s.z + lift], cos, sin });
+    }
+    if !support {
+        return Some(Frame { origin: [e.origin.x, 0.0, e.origin.y], cos: 1.0, sin: 0.0 });
+    }
+    // On the upright sheet a support stands under its sign: the sign's lower edge is at its
+    // sheet height, so its ground is one mounting height below.
+    use crate::supports_glue::{PROP_MOUNTING_HEIGHT_MM, PROP_POSITION_ALONG_SIGN_MM, PROP_SETBACK_MM};
+    let (post, sign) = support_chain(ctx.doc, e)?;
+    let number = |key: &str| post.properties.get(key).and_then(|v| v.parse::<f64>().ok());
+    let (u, setback, mounting) = (number(PROP_POSITION_ALONG_SIGN_MM)?, number(PROP_SETBACK_MM)?, number(PROP_MOUNTING_HEIGHT_MM)?);
+    let solids = (ctx.solids_of)(e.id)?;
+    let (mut max_x, mut max_y) = (0.0f64, 0.0f64);
+    for v in solids.iter().flat_map(|m| m.vertices.iter()) {
+        max_x = max_x.max(v[0]);
+        max_y = max_y.max(v[1]);
+    }
+    Some(Frame { origin: [sign.origin.x + u - max_x / 2.0, setback - max_y / 2.0, sign.origin.y - mounting], cos: 1.0, sin: 0.0 })
+}
+
 impl AfroBimApp {
     /// Site mode: at least one sign has been placed on site, so the 3D view shows the site (signs
     /// at their stations, alignments on the ground) instead of the design sheet stood upright.
     pub(crate) fn site_mode(&self) -> bool {
-        self.doc.elements().iter().any(|e| (e.category == crate::signs_glue::CATEGORY || is_site_solid(&e.category)) && e.site.is_some())
-    }
-
-    /// The post a support hangs from (itself for a post) and the sign above it.
-    fn support_chain<'a>(&'a self, e: &'a afrobim_kernel::Element) -> Option<(&'a afrobim_kernel::Element, &'a afrobim_kernel::Element)> {
-        let post = if e.category == crate::supports_glue::POST_CATEGORY { e } else { self.doc.find(e.host?)? };
-        Some((post, self.doc.find(post.host?)?))
-    }
-
-    /// The mounting height recorded on a sign's first post, or 0 for a sign without supports.
-    fn mounting_height(&self, sign: afrobim_kernel::ElementId) -> f64 {
-        self.doc
-            .elements()
-            .iter()
-            .find(|e| e.category == crate::supports_glue::POST_CATEGORY && e.host == Some(sign))
-            .and_then(|p| p.properties.get(crate::supports_glue::PROP_MOUNTING_HEIGHT_MM))
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(0.0)
+        site_mode_of(&self.doc)
     }
 
     /// The frame of a sign face (local origin at its lower-left corner), or of a support's solids
     /// (local origin at its plan corner, at ground level). None when the element is not shown in
     /// the current mode.
-    fn frame_of(&self, e: &afrobim_kernel::Element, site_mode: bool) -> Option<Frame> {
-        let support = crate::supports_glue::is_support(&e.category);
-        if is_site_solid(&e.category) {
-            // Modelled for the site: shown in the site view only, in the frame of the placement.
-            let s = e.site.as_ref().filter(|_| site_mode)?;
-            if e.category == afrobim_corridor::CORRIDOR_CATEGORY {
-                // The built surfaces have their own origin (the least plan point of the sections).
-                let built = self.corridor_cache.get(&e.id)?.solids.as_ref().ok()?;
-                return Some(Frame { origin: built.origin, cos: 1.0, sin: 0.0 });
-            }
-            let (sin, cos) = s.rotation_deg.to_radians().sin_cos();
-            return Some(Frame { origin: [s.x, s.y, s.z], cos, sin });
+    pub(crate) fn frame_of(&self, e: &afrobim_kernel::Element, site_mode: bool) -> Option<Frame> {
+        let solids = |id: afrobim_kernel::ElementId| self.meshes_by_id(id);
+        let origin = |id: afrobim_kernel::ElementId| self.corridor_cache.get(&id)?.solids.as_ref().ok().map(|s| s.origin);
+        frame_in(&WorldCtx { doc: &self.doc, solids_of: &solids, corridor_origin: &origin }, e, site_mode)
+    }
+
+    /// The solids of an element by id: its generated solids, or for a corridor the built surfaces.
+    pub(crate) fn meshes_by_id(&self, id: afrobim_kernel::ElementId) -> Option<&[afrobim_draw::Mesh3]> {
+        if self.doc.find(id).is_some_and(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY) {
+            return self.corridor_cache.get(&id)?.solids.as_ref().ok().map(|s| s.meshes.as_slice());
         }
-        if site_mode {
-            let s = e.site.as_ref()?;
-            let (sin, cos) = s.rotation_deg.to_radians().sin_cos();
-            // A sign's site level is the ground under it; its face starts one mounting height up.
-            let lift = if support { 0.0 } else { self.mounting_height(e.id) };
-            return Some(Frame { origin: [s.x, s.y, s.z + lift], cos, sin });
-        }
-        if !support {
-            return Some(Frame { origin: [e.origin.x, 0.0, e.origin.y], cos: 1.0, sin: 0.0 });
-        }
-        // On the upright sheet a support stands under its sign: the sign's lower edge is at its
-        // sheet height, so its ground is one mounting height below.
-        use crate::supports_glue::{PROP_MOUNTING_HEIGHT_MM, PROP_POSITION_ALONG_SIGN_MM, PROP_SETBACK_MM};
-        let (post, sign) = self.support_chain(e)?;
-        let number = |key: &str| post.properties.get(key).and_then(|v| v.parse::<f64>().ok());
-        let (u, setback, mounting) = (number(PROP_POSITION_ALONG_SIGN_MM)?, number(PROP_SETBACK_MM)?, number(PROP_MOUNTING_HEIGHT_MM)?);
-        let solids = &self.cache.get(&e.id)?.generated.as_ref().ok()?.solids;
-        let (mut max_x, mut max_y) = (0.0f64, 0.0f64);
-        for v in solids.iter().flat_map(|m| m.vertices.iter()) {
-            max_x = max_x.max(v[0]);
-            max_y = max_y.max(v[1]);
-        }
-        Some(Frame { origin: [sign.origin.x + u - max_x / 2.0, setback - max_y / 2.0, sign.origin.y - mounting], cos: 1.0, sin: 0.0 })
+        self.cache.get(&id)?.generated.as_ref().ok().map(|g| g.solids.as_slice())
     }
 
     /// The meshes an element is shown with in 3D: its generated solids, or for a corridor the
     /// surfaces built from it.
     fn meshes_of(&self, e: &afrobim_kernel::Element) -> Option<&[afrobim_draw::Mesh3]> {
-        if e.category == afrobim_corridor::CORRIDOR_CATEGORY {
-            return self.corridor_cache.get(&e.id)?.solids.as_ref().ok().map(|s| s.meshes.as_slice());
-        }
-        self.cache.get(&e.id)?.generated.as_ref().ok().map(|g| g.solids.as_slice())
+        self.meshes_by_id(e.id)
     }
 
     /// Lowest and highest world corner of an element's meshes in its frame, for framing.
@@ -247,6 +275,11 @@ impl AfroBimApp {
     /// The triangles of a support's solids, flat-shaded, each with its own view depth.
     fn support_triangles(&self, e: &afrobim_kernel::Element, frame: Frame, rect: Rect, items: &mut Vec<(f64, Vec<Shape>)>) {
         let Some(solids) = self.meshes_of(e) else { return };
+        let style = self.sched.fourd_style(e.id);
+        if style == crate::schedule_ui::FourD::Hidden {
+            return;
+        }
+        let highlighted = self.coord.highlight.contains(&e.id);
         let cam = &self.camera;
         let light = norm([-0.35, -0.75, 0.55]);
         let selected = self.doc.is_selected(e.id);
@@ -274,6 +307,16 @@ impl AfroBimApp {
                 let mut colour = Color32::from_rgb((r as f32 * shade) as u8, (g as f32 * shade) as u8, (b as f32 * shade) as u8);
                 if selected {
                     colour = Color32::from_rgb(colour.r() / 2 + 0x26, colour.g() / 2 + 0x51, colour.b() / 2 + 0x7F);
+                }
+                match style {
+                    // Work in progress is amber; work not started is a faint ghost.
+                    crate::schedule_ui::FourD::Active => colour = Color32::from_rgb(colour.r() / 3 + 0xA0, colour.g() / 3 + 0x70, colour.b() / 6 + 0x10),
+                    crate::schedule_ui::FourD::Ghost => colour = Color32::from_rgba_unmultiplied(colour.r(), colour.g(), colour.b(), 70),
+                    _ => {}
+                }
+                // The two elements of the clash last zoomed to.
+                if highlighted {
+                    colour = Color32::from_rgb(0xE0, 0x3C, 0xC8);
                 }
                 // A raw mesh, not a polygon shape: the painter's edge smoothing turns the sliver
                 // triangles of a round post into long spikes.
@@ -478,6 +521,10 @@ impl AfroBimApp {
                 self.support_triangles(e, frame, rect, &mut items);
                 continue;
             }
+            let style = self.sched.fourd_style(e.id);
+            if style == crate::schedule_ui::FourD::Hidden {
+                continue;
+            }
             let centre = frame.at(e.width / 2.0, 0.0, e.height / 2.0);
             let Some((_, depth)) = cam.project(centre, rect) else { continue };
             let corners = [(0.0, 0.0), (e.width, 0.0), (e.width, e.height), (0.0, e.height)];
@@ -487,6 +534,7 @@ impl AfroBimApp {
 
             let from_front = dot(frame.facing(), sub(eye, centre)) > 0.0;
             let artwork = self.cache.get(&e.id).filter(|c| c.generated.is_ok()).filter(|_| from_front);
+            let artwork = artwork.filter(|_| style != crate::schedule_ui::FourD::Ghost);
             match artwork {
                 Some(cached) => {
                     // The face, just in front of the plate.
@@ -496,7 +544,14 @@ impl AfroBimApp {
                     }
                 }
                 // Seen from behind, or without geometry: the bare plate.
+                None if style == crate::schedule_ui::FourD::Ghost => shapes.push(Shape::convex_polygon(quad.clone(), Color32::from_rgba_unmultiplied(plate.r(), plate.g(), plate.b(), 70), Stroke::NONE)),
                 None => shapes.push(Shape::convex_polygon(quad.clone(), plate, Stroke::NONE)),
+            }
+            if style == crate::schedule_ui::FourD::Active {
+                shapes.push(Shape::closed_line(quad.clone(), Stroke::new(3.0_f32, Color32::from_rgb(0xF2, 0xA9, 0x1D))));
+            }
+            if self.coord.highlight.contains(&e.id) {
+                shapes.push(Shape::closed_line(quad.clone(), Stroke::new(3.0_f32, Color32::from_rgb(0xE0, 0x3C, 0xC8))));
             }
             if self.doc.is_selected(e.id) {
                 shapes.push(Shape::closed_line(quad.clone(), Stroke::new(2.0_f32, Color32::from_rgb(0x4D, 0xA3, 0xFF))));
@@ -510,6 +565,26 @@ impl AfroBimApp {
         items.sort_by(|a, b| b.0.total_cmp(&a.0));
         for (_, shapes) in items {
             painter.extend(shapes);
+        }
+
+        // Clash markers: a ring and a cross at each live clash.
+        if self.coord.markers {
+            let red = Color32::from_rgb(0xFF, 0x4D, 0x4D);
+            for c in self.coord.marked() {
+                if let Some((p, _)) = cam.project(c.point, rect) {
+                    painter.circle_stroke(p, 9.0, Stroke::new(2.0_f32, red));
+                    painter.line_segment([p + egui::vec2(-5.0, -5.0), p + egui::vec2(5.0, 5.0)], Stroke::new(2.0_f32, red));
+                    painter.line_segment([p + egui::vec2(-5.0, 5.0), p + egui::vec2(5.0, -5.0)], Stroke::new(2.0_f32, red));
+                    if self.coord.highlight.contains(&c.element_a) && self.coord.highlight.contains(&c.element_b) {
+                        painter.text(p + egui::vec2(12.0, -10.0), Align2::LEFT_BOTTOM, &c.id, FontId::proportional(11.0), red);
+                    }
+                }
+            }
+        }
+        if self.sched.fourd_on {
+            if let Some(d) = self.sched.date {
+                painter.text(rect.left_top() + egui::vec2(12.0, 10.0), Align2::LEFT_TOP, format!("4D date {d}"), FontId::proportional(15.0), Color32::from_rgb(0xF2, 0xA9, 0x1D));
+            }
         }
 
         // World axes at the model origin.

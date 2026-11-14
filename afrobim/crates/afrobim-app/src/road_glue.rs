@@ -178,11 +178,12 @@ pub fn add_light_column(doc: &mut Document, alignment_id: ElementId, req: &Colum
     Ok(doc.find(id).map(|e| e.name.clone()).unwrap_or_default())
 }
 
-/// The requirement checks of a lighting element, line by line. Every input the checks can use
-/// is left "not entered", so the report says which ones it needs.
-pub fn check_lighting(doc: &Document, id: ElementId) -> Result<Vec<String>, String> {
+/// The requirement checks of a lighting element, line by line, with the inputs the engineer
+/// entered in the lighting check dialog. An input left empty is "not entered", so the report says
+/// which ones it needs.
+pub fn check_lighting_with(doc: &Document, id: ElementId, inputs: &lighting::design::CheckInputs) -> Result<Vec<String>, String> {
     let data = lighting::lighting_of(doc, id).map_err(|e| e.to_string())?;
-    Ok(lighting::design::check_lighting(&data, &lighting::design::CheckInputs::default()).calculation())
+    Ok(lighting::design::check_lighting(&data, inputs).calculation())
 }
 
 // ─── road restraint ─────────────────────────────────────────────────────────────────────
@@ -594,6 +595,8 @@ pub struct CorridorRequest {
     pub fill_run_per_rise: f64,
     pub formation_depth_m: f64,
     pub interval_m: f64,
+    /// Internal start and end station of a stretch; None builds the whole alignment.
+    pub stretch: Option<(f64, f64)>,
 }
 
 impl CorridorRequest {
@@ -610,6 +613,7 @@ impl CorridorRequest {
             fill_run_per_rise: 0.0,
             formation_depth_m: 0.0,
             interval_m: 0.0,
+            stretch: None,
         }
     }
 
@@ -628,7 +632,12 @@ impl CorridorRequest {
         }
         let daylight = corridor::Daylight { cut_run_per_rise: self.cut_run_per_rise, fill_run_per_rise: self.fill_run_per_rise };
         let template = corridor::Template::symmetric("Typical section", links, daylight, self.formation_depth_m);
-        corridor::CorridorDefinition::single(self.name.trim(), template, self.interval_m)
+        let mut def = corridor::CorridorDefinition::single(self.name.trim(), template, self.interval_m);
+        if let Some((start, end)) = self.stretch {
+            def.start_station_m = Some(start);
+            def.end_station_m = Some(end);
+        }
+        def
     }
 }
 

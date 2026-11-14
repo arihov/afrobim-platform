@@ -26,6 +26,9 @@ afrobim-lighting = { path = "../afrobim-lighting" }
 afrobim-restraint = { path = "../afrobim-restraint" }
 afrobim-corridor = { path = "../afrobim-corridor" }
 afrobim-pavement = { path = "../afrobim-pavement" }
+afrobim-coordination = { path = "../afrobim-coordination" }
+afrobim-schedule = { path = "../afrobim-schedule" }
+afrobim-cost = { path = "../afrobim-cost" }
 serde.workspace = true
 serde_json.workspace = true
 eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }

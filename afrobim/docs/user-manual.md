@@ -1,6 +1,6 @@
 # AfroBIM user manual
 
-This manual describes the AfroBIM desktop application and the crates it uses, as they stand in the `afrobim/` workspace at commit 178595d (workspace version 0.1.0). Every feature, value and clause here comes from the source files. Where two sources disagree, the code wins, and the disagreement is listed in "Notes for the maintainer" at the end.
+This manual describes the AfroBIM desktop application and the crates it uses, as they stand in the `afrobim/` workspace (workspace version 0.1.0), updated for the Coordination, 4D and 5D tabs, the station convention of the road dialogs and the street lighting check inputs. Every feature, value and clause here comes from the source files. Where two sources disagree, the code wins, and the disagreement is listed in "Notes for the maintainer" at the end.
 
 ## Contents
 
@@ -8,7 +8,7 @@ This manual describes the AfroBIM desktop application and the crates it uses, as
 2. Installing and running from source
 3. The screen
 4. Working with commands
-5. Chapters by area: traffic signs, supports, alignments, road markings, drainage, gantries, exports, Python and MCP
+5. Chapters by area: traffic signs, supports, alignments, road markings, drainage, gantries, exports, Python and MCP, the other road modules, stations and the lighting check inputs, Coordination, 4D and 5D
 6. Built but not yet in the app
 7. Command reference
 8. Planned, not built yet
@@ -68,6 +68,10 @@ These options come from `main.rs`. Any option that is not listed is ignored. A f
 | `--focus MARK` | Frames the 3D view on the element with this mark. |
 | `--export-ifc FILE` | Writes the starting model as IFC to this file, then exits. |
 | `--export-sheets FOLDER` | Writes quantities and fabrication sheets for the starting model into this folder, then exits. |
+| `--run COMMAND` | Runs this command once at start-up, on the element named by `--focus` when there is one, to look at a dialog or window without a pointer. Several commands may be given, separated by commas. |
+| `--date YYYY-MM-DD` | Shows the 3D view at this date of the programme (the 4D date). |
+| `--subtab N` | The sub-tab (from 0) the Bill and Estimate windows open on. With `--demo` and `--run CERTIFICATE`, 1 also fills the certificate from 50 percent complete (a demo value). |
+| `--zoom-clash N` | Zooms to the Nth clash on record (from 0) in the 3D view. |
 | `--screenshot FILE.png` | Renders a few frames, saves the window to this file and exits. This is how the interface is checked on a machine without a desktop. |
 
 ## 3. The screen
@@ -90,7 +94,7 @@ The menus repeat the commands on the ribbon.
 
 ### Ribbon
 
-The ribbon has twelve tabs: Home, Edit, Insert, Annotate, Modify, Signs, Roads, Structures, Output, Manage, View and Help. Each tab is a row of panels. Each panel holds icon buttons. Every button runs a command from the same command table as the menus and the command line. Hover over a button to see its preview card (section 4).
+The ribbon has fifteen tabs: Home, Edit, Insert, Annotate, Modify, Signs, Roads, Structures, Coordination, 4D, 5D, Output, Manage, View and Help. Each tab is a row of panels. Each panel holds icon buttons. Every button runs a command from the same command table as the menus and the command line. Hover over a button to see its preview card (section 4).
 
 Only the built buttons are listed here. Buttons for tools that are not built yet are disabled, and section 8 lists them.
 
@@ -100,8 +104,11 @@ Only the built buttons are listed here. Buttons for tools that are not built yet
 - **Annotate**: Marks (Element marks).
 - **Modify**: Modify (Move, Copy, Erase, Arrange); Supports (Add supports, Design supports, Remove supports); Alignment (Place by station); Drafting aids.
 - **Signs**: sign buttons for the active standard, in two panels (direction signs; map-type and temporary); Catalogue (Standard signs); Design standard (UK TSM, Uganda TSM); Fabrication (Quantities, Fabrication sheets). The sign buttons are disabled when the rule pack is not loaded.
-- **Roads**: Alignment (Import LandXML, Place by station); Markings (Road markings); Drainage (Side drain, Pipe culvert, Check).
+- **Roads**: Alignment (Import LandXML, Place by station); Markings (Road markings); Drainage (Side drain, Pipe culvert, Check); Lighting (Street lighting, Light column); Restraint (Road restraint); Pavement (Pavement, Pavement design); Earthworks (Survey surface, Corridor, Sections).
 - **Structures**: Supports (Add supports, Design supports, Remove supports); Gantries (Portal gantry, Cantilever gantry, Hang sign, Take sign off, Check).
+- **Coordination**: Tests (Clash tests); Run (Run tests, Results); Display (Clash markers); Report (Export clashes).
+- **4D**: Programme (Activities, Calendar, Schedule); Chart (Gantt chart); Baseline (Set baseline, Variance); Progress (Progress); Links (Link elements, Link report); Date (4D date); MS Project (Import, Export, Reports).
+- **5D**: Bill (Bill and rules); Rates (Rate library, Currency); Estimate (Estimate); Time (Cash flow); Payment (Interim certificate); Export (Cost reports).
 - **Output**: Export (DXF, IFC 4.3, Quantities, Fabrication sheets); Document (Save, Save as, Quit).
 - **Manage**: Design standard (UK TSM, Uganda TSM); Appearance (Theme, Canvas colour).
 - **View**: Zoom (Extents, Window, In, Out); Views (2D / 3D); Display (Real, Outlined, Element marks); Drafting aids; Appearance (Theme, Canvas colour).
@@ -629,16 +636,83 @@ The document tools are stateless. Each call loads the file, works on it and save
 - A line that is not JSON gets a `-32700` error with a null id. A `tools/call` without a tool name is `-32602`.
 - A negative `speed_kph` in a schedule row is refused when the row is read.
 
+### 5.9 Street lighting, road restraint, pavement and corridors
+
+These four modules were built as crates first and are now in the app, on the Roads tab. Each is added with a dialog in which every design value starts at zero, which means "not entered": nothing is defaulted, and the crate refuses a definition it cannot use and says why. Their limits are those listed in the workspace README.
+
+- **Street lighting** (`LIGHTING`, `LIGHTCOLUMN`). An installation along an alignment (arrangement, spacing, carriageway width, set-back, the column and luminaire as entered) or a single column at a station and offset. Drawn as a schematic column, bracket and luminaire block at the entered mounting height and outreach, at the profile level. The column and luminaire schedule, summary and connected load are written by Export quantities. `CHECK` opens an input dialog (section 5.10) and then reports the requirements that can be applied exactly from DMRB TD 501 with TA 501, CD 109 and CD 377, line by line. The BS 5489-1:2003 values used are from a superseded edition and the report says so. The lighting class is a label you enter. There is no photometry of any kind, no column or foundation design and no electrical design.
+- **Road restraint** (`BARRIER`). A safety barrier run along an alignment at an offset, with the containment level, working width class and impact severity level, post spacing and beam height entered as product data, and end treatments. Plan, schematic solids and quantities. `CHECK` asks for the speed limit and then runs the requirement checks of CD 377 and CD 127. It does not perform or replace the Road Restraint Risk Assessment Process; lengths and any higher containment level from that assessment are inputs. Not for certification.
+- **Pavement** (`PAVEMENT`, `PAVEDESIGN`). A layer stack along an alignment: carriageway width, cross-fall, layers and optional shoulders; cross-section, 3D slabs at the profile level and layer quantities by plain geometry, with no rates, densities or bulking factors. `PAVEDESIGN` runs one of three methods you choose (they are not interchangeable): the Uganda MoWT Road Design Manual Volume 3 Part I, UK DMRB CD 224 and CD 226 (from superseded revisions, no complete structure), or AASHTO 1993 flexible. Where a method arrives at layers, a pavement can be made from them. The output is a calculation for an engineer to check, not a certified design.
+- **Ground surfaces and corridors** (`SURFACE`, `CORRIDOR`, `SECTIONS`). A ground surface is read from a LandXML 1.2 TIN (hand-built test files only, not tested against a file exported by Civil 3D). A corridor carries a typical section (lane, optional shoulder, formation depth, side slopes, all entered, the same both sides) along an alignment with a vertical profile, cut and filled against the surface. It can be limited to a stretch of the alignment. Cross-sections are shown station by station in a window; the corridor surfaces appear in the 3D site view; an earthworks CSV by average end area is written by Export quantities. Every width, slope, depth and interval is yours, and no bulking or shrinkage factor is applied. Compare a real job against the package you trust before using the volumes for payment.
+
+### 5.10 Stations in the road dialogs, and the lighting check inputs
+
+**Stations.** Place by station has always read the station shown on the drawings, through the alignment's station equations. Every other road dialog now does the same: road markings, side drain, pipe culvert, portal and cantilever gantry, street lighting (start and end), light column, barrier run, pavement (start and end) and the optional stretch of a corridor. The crates take internal stations (measured along the alignment from its start), so the dialog converts what you type.
+
+- On an alignment with no station equations the two are equal and the field is the plain number it always was.
+- With station equations, each station field shows the displayed station and a region number beside it, as in Place by station. A station that occurs once may be left with region 0. A station that occurs in more than one region (an overlap, where the displayed station falls back) is refused with the places listed until you pick the region (1 to the number of regions). A station in a gap, or off the ends, is refused.
+- Under the field the dialog shows the converted result, for example `1+550.000, internal station 1650.000 m`.
+- Each dialog carries a note saying which station is meant.
+
+**Lighting check inputs.** `CHECK` on a street lighting element opens a dialog. It collects what you have established elsewhere: whether the need for lighting was appraised (TA 501), design speed, stopping sight distance, unlit lengths to adjacent lit sections, the required set-back and its source, whether the columns are passively safe, speed limit and flow, the maintenance factor and its source, luminaire sealing, pollution category and cleaning interval, the lamp flux maintenance factor, the type of road and its traffic, the maintained photometric results of your own calculation (L_av, U_o, U_l, wet U_o, TI, EIR, E_av, U_o(E), E_h,min, E_v,min, E_sc,min, with where they come from, and whether facial recognition is necessary and whether the speed is low), and the class selection parameters of CEN/TR 13201-1 for an M, C or P class (a suggestion only). **Every field starts empty.** A field left empty is "not entered": the checks that need it say INPUT NEEDED and nothing is assumed. A value that is not a number is refused by name. AfroBIM computes no photometry. The entries are quoted in the report and are not stored in the document.
+
+### 5.11 Coordination: clash detection
+
+The Coordination tab uses the `afrobim-coordination` crate. A clash test checks one selection of elements against another.
+
+1. **Scene.** Every element that has solids becomes a body in world millimetres, moved with exactly the transform the 3D view draws by (site placement and rotation for site elements, the sheet position for elements not placed on site, corridor and ground surface meshes as the view draws them). Sign faces are flat and have no solids, so they are not bodies; posts, foundations, drains, culverts, gantries, lighting, barriers, pavement, corridors, ground and markings are.
+2. **Tests** (`CLASHTESTS`). Add, edit or delete a test: a name, the type, selection A and selection B by category and layer (nothing ticked means all), and for a hard test whether faces that only touch count, for a clearance test the tolerance in millimetres, and whether to ignore pairs where one element hosts the other (a post and its sign or foundation, on by default). **The tolerance is typed by you with no default, and the app offers none: it comes from your project requirements.** A hard test finds solids that overlap. A clearance test finds solids closer than the tolerance (touching and overlapping included).
+3. **Run** (`CLASH`). Runs every test and merges the clashes into the stored results: a clash seen again keeps its status, comment and assignee; one that has gone becomes resolved; an approved pair is skipped by later runs.
+4. **Results** (`CLASHES`). One row per clash with its id, test, the marks of both elements, kind, depth (hard, an estimate) or distance (clearance), status (new, active, reviewed, approved, resolved), assignee and comment. Filter by test and by status. Status, assignee and comment are edited in the table. **Zoom** frames the clash point in the 3D view and highlights the two elements in magenta. **Export CSV** (`CLASHCSV`) writes every clash.
+5. **Markers** (`CLASHMARKERS`). A red ring and cross at each live clash (new, active or reviewed) in the 3D view, on or off.
+6. **Saving.** The tests and results are one element of category `coordination` in the document, so they are saved, opened and undone with it.
+
+Limits (from the crate): solids made of flat sides lie inside the true round ones, so distances to round posts are larger than true by at most the sagitta (0.24 mm at a 50 mm radius for the 32-sided posts), and hard overlaps shallower than that are missed; open meshes (ground, corridor surfaces) get intersection and distance tests only and no containment; a reversed winding breaks the touching versus overlapping decision for coplanar faces, and the site-solid meshes of lighting, restraint, pavement and corridors are not guaranteed to be wound outwards; hard depth is an estimate, not a minimum translation distance. Not done: BCF export, saved viewpoints, clashes against other disciplines' IFC models, 4D (time-based) clashes.
+
+### 5.12 4D: the construction programme
+
+The 4D tab uses the `afrobim-schedule` crate. Nothing is assumed: there are no default durations, productivities or holidays.
+
+1. **Programme** (`PROGRAMME`). The first time, enter the programme name, the project start date, the calendar name and tick the working weekdays (none are ticked for you). Then the table of activities: id, WBS, name, duration in working days (0 makes a milestone, which can be a start or finish milestone), and a constraint (start no earlier than, finish no later than, or must start on, each with a date). Below it, the dependencies: predecessor, successor, type (FS, SS, FF or SF) and lag in working days of the successor's calendar (negative means overlap). A required finish date is optional. Edits are stored in the document and the programme is scheduled again at once.
+2. **Calendar** (`CALENDAR`). The working weekdays and the days off you enter, per calendar. More calendars can be added and given to activities. No holiday is built in.
+3. **Schedule** (`SCHEDULE`). The critical path method: early and late dates, total and free float in working days, the critical flag (float zero or less, not complete), status and percent complete, and the findings of the crate (open starts and ends, negative float, constraint conflicts) in plain words. A programme with errors (a logic loop, a dependency naming an unknown activity, a calendar with no working day) is not scheduled, and the errors are listed.
+4. **Gantt chart** (`GANTT`). Drawn from the crate's drawing: critical bars red, others blue, finished grey, a black strip for progress, milestones as diamonds, dependency lines, thin grey baseline bars when there is a baseline, and the data date as a green line.
+5. **Baseline** (`BASELINE`, `VARIANCE`). Keeps the dates, durations and float of the current schedule under a name you give. The variance table shows current minus baseline for start, finish, duration and float in working days, with added and removed activities, and the project finish variance.
+6. **Progress** (`PROGRESS`). The data date, and per activity the percent complete and actual start and finish. Progress is as of the end of the data date; work done keeps its actual dates and the work left is scheduled from the next working day (retained logic). Actual dates after the data date are refused by the crate.
+7. **Links** (`LINK4D`, `LINKREPORT`). Link elements to an activity with an action: construct (absent before, growing during, present after), demolish (present before, gone after) or temporary (present only while the activity runs). Link the current selection by element, or by rule: a category, a layer and a mark pattern (`*` and `?`), every field given must match; rules are read again each time, so new elements are picked up. The link report lists elements no link reaches, activities with no elements, links to elements that no longer exist and rules that match nothing.
+8. **4D date** (`FOURD`). A date control: a slider, a date field and day and week steps. With "Colour the 3D view by this date" on, the 3D view shows each linked element in its state at the end of that day: not started (ghosted, or hidden if you choose), in progress (amber), complete (normal), demolished or temporary work that is over (removed). Elements no link reaches stay as drawn. This is a static state at a chosen date: animated playback is a later work package and is not built.
+9. **MS Project** (`MSPIN`, `MSPOUT`). Import and export of MSPDI XML. The import report lists everything the file could not carry (summary and null tasks, other constraint types, elapsed lags, calendar work weeks and so on); nothing is dropped silently. Importing replaces the programme (undo restores it) and keeps links whose activity id survives. The export does not carry milestone kind, weights, element links, the baseline or the required finish.
+10. **Reports** (`PROGCSV`). The activity table, the variance and the S-curve as CSV into a folder. The S-curve weighs each activity by its working days.
+
+Not done: resources, productivities and levelling, Primavera P6 XER, time-location charts, longest-path criticality, summary tasks and WBS roll-up, multiple baselines.
+
+### 5.13 5D: the estimate
+
+The 5D tab uses the `afrobim-cost` crate. **No rate, price, exchange rate, percentage, item number or standard bill is built in.** Money and quantities are exact decimals. The primary currency starts as the label UGX with 0 decimals; that is a label, with no exchange rate or rate attached. The estimate is one element of category `estimate` in the document; payment terms, kept certificates and model snapshots are stored as properties of that element.
+
+1. **Bill** (`BILL`).
+   - *Structure.* Load a structure CSV (`kind,code,section,description,unit`), or start from numbered sections (you type how many; they are titled "Section n" for you to rename), or type sections and items. An item is measured from the model, or manual: a quantity you enter, with the reason it is not measured.
+   - *Mapping rules.* A rule sends the quantity lines of one category (a trailing `*` matches a prefix, `*` alone all) that satisfy its conditions to an item: `key=value`, `key=a|b`, `key~text`, `key>=n`, `key<=n`, `key?`, separated by `;`. Rules are tried in order and a line goes to the first that fits. A line's unit must equal the item's unless you give a factor, your own conversion. Load or save a rules CSV. The list of quantity lines the model offers (category, unit, count, attribute names) is shown to help write rules.
+   - *Measured quantities.* After measuring the model, each item with its quantity and the number of lines; click an item to see the elements that make it up (mark, line, rule, factor, quantity) and click an element to select it. Adjustments and manual quantities are listed.
+   - *Unmapped and ambiguous.* Every line that no rule takes (never dropped) with the reason, and totals by category; lines that more than one rule fits, with the rule used.
+   - *Double counting.* A warning where one element is measured by lines of different kinds (a post as a length and as a count, a sign as area and as a count): if both items are priced, the element may be paid for twice. Earthworks cut and fill are not flagged. Map one of the alternatives.
+   - Quantities are only those the collectors list (signs, posts and foundations, markings, drainage, gantries, lighting, restraint, pavement, corridors' earthworks). Post mass uses the supports crate's nominal steel density.
+2. **Rates** (`RATES`). The library is empty until you enter or load rates. Per item: the rate, its currency, the source note and the date. Load or save a rate CSV (`item_code,description,unit,rate,currency,source_note,date`). **An item with no rate is listed as unpriced and shown as unpriced everywhere; it is never priced at zero without saying so.**
+3. **Currency** (`CURRENCY`). The primary currency code and decimals; an optional secondary currency; exchange rates you enter (1 FROM = RATE TO, each with a date and a source note), converting the other way by reciprocal, never through a third currency; and an optional as-of date (blank uses the latest rate). A secondary currency without an exchange rate stops the estimate with a message saying so.
+4. **Estimate** (`ESTIMATE`). Tabs: the priced bill (items with quantity, rate and amount, section totals, a secondary-currency column, the bill total, additions and the grand total, with banners for unpriced items, unmapped lines and possible double counting); additions (preliminaries, contingency, provisional sums, dayworks, taxes: whatever you name, each a percentage of the bill total, the running total, a section or earlier additions, or a lump sum, applied in list order); the audit trail (every line, element, rule and factor behind each quantity); revisions (save a snapshot of the measured model, then compare it with the model now, or compare with another estimate in the document; per item quantity and amount old, new, change and percent). The estimate's name and revision label are yours.
+5. **Cash flow** (`CASHFLOW`). A window (start and finish) per item, or the same dates for a whole section. Where a programme exists, "Take the dates from the linked activities" proposes for each item the earliest start and latest finish of the activities its elements are linked to; items with no linked element are listed and get no window; you accept or ignore the proposal. The amount of an item is spread evenly by calendar day, both ends counted, by month. A monthly table, the unphased remainder (what has no window) and an S-curve. Export as CSV.
+6. **Interim payment certificate** (`CERTIFICATE`). **This module encodes no FIDIC clause and no other contract's terms: every percentage, cap, threshold and amount is your own contract data, and AfroBIM only does the arithmetic.** Enter payment rules (retention with an optional cap, advance recovery with its start threshold, a percentage of gross to date or of the period, a lump amount), the certificate label, the previous certificate (none for the first), and the quantities to date per item: typed, or taken from percent complete (from the linked activities where the programme has them, otherwise from the percent you type per item; an element with neither is 0 percent). The certificate shows gross value, each rule to date, previous and this period, the net, the warnings of the crate (quantity above the bill, or below the previous) and its lines. Keep it to use as the previous certificate of the next one; export as CSV.
+7. **Cost reports** (`COSTCSV`). Writes every CSV the crate offers into a folder: quantity lines, bill structure, mapping rules, rates, the priced and unpriced bill, summary, audit trail, unmapped lines, the cash flow, the comparison and the certificate when they exist.
+
+Not done: price adjustment and escalation, valuation of variations, dayworks sheets, claims and the final account, non-linear cash flow distributions, xlsx output.
+
+**The demo.** `--demo` adds a made-up programme linked to the demo elements, a neutral bill with mapping rules and arbitrary rates, two clash tests and arbitrary payment terms. Every number is commented as an arbitrary demo value in `demo_glue.rs`, and the estimate is named "DEMO, not real rates". They are there to make the windows show something and are not rates, durations, tolerances or contract terms.
+
 ## 6. Built but not yet in the app
 
-Four crates are in the workspace and are built and tested, but they are not yet wired into the desktop app. Their READMEs hold their sources and limits, and this manual does not repeat them.
+Every engine crate in the workspace is now wired into the desktop app, including street lighting, road restraint, pavement and corridors (section 5.9), clash detection (5.11), the programme (5.12) and the cost estimate (5.13). What the app still does not do is listed with each chapter. The one built feature outside the app is the schedule CSV and XML import of the C# CLI: the MCP server reads schedule CSVs and the app does not import them.
 
-- **afrobim-lighting** places lighting columns along an alignment, or single columns at junctions. It gives the layout, a schematic plan and solids, a column schedule, quantities and a line-by-line requirement check to TD 501. It does not calculate light. Photometry is not in the crate.
-- **afrobim-restraint** models safety barrier runs along an alignment, with a plan drawing, schematic solids, quantities and requirement checks to CD 377. It does not carry out the risk assessment (the RRRAP).
-- **afrobim-corridor** carries a typical cross-section along an alignment against an existing ground surface. It gives cross-sections and earthwork volumes by average end area. It holds no design values: every width, slope and depth is entered.
-- **afrobim-pavement** builds a layer stack along an alignment, with its cross-section, 3D slabs and layer quantities. Its design module offers three methods: MoWT Volume 3 Part I, DMRB CD 224 and CD 226 (superseded revisions), and AASHTO 1993 (flexible). Each method is a separate choice.
-
-The roadmap (`docs/plan/2026-11-14-afrobim-bim-workflow-roadmap.md`) places wiring these four crates into the app in its first wave.
+The roadmap (`docs/plan/2026-11-14-afrobim-bim-workflow-roadmap.md`) lists what comes next.
 
 ## 7. Command reference
 
@@ -688,7 +762,40 @@ Every command below is in the command table in `commands.rs`. Type the name or a
 | `CULVERT` | none | none | Add a pipe culvert across an alignment at a station, with placeholder dimensions to edit |
 | `GANTRY` | `PORTAL` | none | Add a portal sign gantry at a station, with placeholder dimensions to edit |
 | `CANTILEVER` | none | none | Add a cantilever sign gantry at a station, with placeholder dimensions to edit |
-| `CHECK` | `VERIFY` | none | Run the requirement or capacity check of the selected gantry or drain |
+| `CHECK` | `VERIFY` | none | Run the check of the selected gantry, drain, street lighting, barrier run or pavement (street lighting opens its input dialog; the pavement check is a design method) |
+| `LIGHTING` | `LIGHTS`, `STREETLIGHTING` | none | Lay a street lighting installation along an alignment (spacing, arrangement and the column are entered) |
+| `LIGHTCOLUMN` | `COLUMN` | none | Place one lighting column at a station and offset on an alignment |
+| `BARRIER` | `RESTRAINT` | none | Add a safety barrier run along an alignment (containment, working width and impact severity are entered) |
+| `PAVEMENT` | `PAVE` | none | Add a pavement along an alignment: width, cross-fall and a list of layers |
+| `PAVEDESIGN` | `PAVEMENTDESIGN` | none | Design a pavement structure by the MoWT manual, UK DMRB or AASHTO 1993, and make a pavement from the layers |
+| `SURFACE` | `TIN`, `TERRAIN` | none | Import ground surfaces (TIN) from a LandXML file |
+| `CORRIDOR` | none | none | Build a corridor on an alignment and a surface: a typical section, cut and fill, earthworks |
+| `SECTIONS` | `XSECTIONS` | none | Show the cross-sections of the selected corridor, station by station |
+| `CLASHTESTS` | `CLASHSETUP` | none | Add, edit and delete clash tests: what is checked against what, hard or clearance, with your own tolerance |
+| `CLASH` | `CLASHRUN`, `CLASHDETECT` | none | Run every clash test on the model and open the results |
+| `CLASHES` | `CLASHRESULTS` | none | Open the clash results: filter, review, comment, assign, zoom to a clash |
+| `CLASHMARKERS` | none | none | Show or hide the clash markers in the 3D view |
+| `CLASHCSV` | none | none | Export the clash results as CSV |
+| `PROGRAMME` | `ACTIVITIES`, `PROG` | none | Edit the construction programme: activities, durations, constraints and dependencies |
+| `CALENDAR` | `WORKDAYS` | none | Edit the programme calendar: working weekdays and the days off you enter |
+| `SCHEDULE` | `CPM` | none | Run the critical path method and show dates, float, the critical path and any problems |
+| `GANTT` | none | none | Show the Gantt chart: critical path, baseline bars and the data date |
+| `BASELINE` | none | none | Keep the current schedule as the baseline |
+| `VARIANCE` | none | none | Show how the programme differs from the baseline |
+| `PROGRESS` | `DATADATE` | none | Enter progress and the data date, then reschedule |
+| `LINK4D` | `LINKACTIVITY` | none | Link model elements to activities, by selection or by rule |
+| `LINKREPORT` | none | none | List elements no activity reaches and activities with no elements |
+| `FOURD` | `DATE4D` | none | Show the model at a chosen date: not started, in progress, complete, removed |
+| `MSPIN` | `IMPORTMSP` | none | Import a programme from MS Project XML and show what the file could not carry |
+| `MSPOUT` | `EXPORTMSP` | none | Export the programme as MS Project XML |
+| `PROGCSV` | `PROGRAMMEREPORTS` | none | Export the activity table, variance and S-curve as CSV |
+| `BILL` | `BOQSETUP` | none | Edit the bill of quantities and its mapping rules; see measured quantities, unmapped and ambiguous lines |
+| `RATES` | `RATELIBRARY` | none | Enter or load rates (with currency, source note and date); lists unpriced items |
+| `CURRENCY` | `EXCHANGE` | none | Set the primary currency label, an optional secondary currency and dated exchange rates |
+| `ESTIMATE` | `PRICE` | none | Show the priced bill, additions, audit trail and revision comparison |
+| `CASHFLOW` | `SCURVE` | none | Phase the estimate in time (dates from the programme if you like): monthly table and S-curve |
+| `CERTIFICATE` | `IPC`, `INTERIM` | none | Work out an interim payment certificate from your own payment terms |
+| `COSTCSV` | `COSTREPORTS` | none | Export every cost report as CSV into a folder |
 | `HANG` | `GANTRYSIGN` | none | Hang the selected sign on a gantry |
 | `UNHANG` | none | none | Take the selected sign off its gantry |
 | `SUPPORTS` | `POSTS` | none | Add posts and foundations to the selected sign |
@@ -713,16 +820,10 @@ These tools appear on the ribbon as disabled buttons. They are not built. They a
 |---|---|---|
 | Insert, Import | Sign schedule | Import a sign schedule from CSV or XML. |
 | Insert, Reference | DXF underlay | Attach a DXF drawing as a background reference. |
-| Insert, Reference | Survey surface | Import a ground surface from LandXML or points. |
 | Annotate, Annotation | Text | Place a note in model space. |
 | Annotate, Annotation | Dimension | Dimension between two points. |
 | Annotate, Annotation | Leader | A note with an arrow to a point. |
 | Annotate, Annotation | Measure | Read the distance between two points. |
-| Roads, Road modules | Road restraint | Safety barriers and guardrails along an alignment. |
-| Roads, Road modules | Street lighting | Columns and luminaires by station. |
-| Roads, Road modules | Pavement | Pavement layers and quantities. |
-| Roads, Road modules | Corridor | Cross-sections and earthworks along an alignment. |
-| Structures, Structure modules | Clash check | Find elements that occupy the same space. |
 | Manage, Project | Project information | Project name, client, contract and revision for title blocks. |
 | Manage, Project | Layer manager | Create, rename and colour layers. Layers can be shown and locked in the Layers panel today. |
 | Manage, Project | Units | Display units and precision. |
@@ -767,11 +868,11 @@ Each row gives a document, the edition the code uses, what it governs and any wa
 ## 10. Notes for the maintainer
 
 - **Markings in 3D.** Marking placements have z = 0, but the marking solids themselves are generated at the alignment's profile level (`afrobim-markings` `plan_at_level`), so the lines follow the road profile in the 3D view.
-- **Ribbon status.** The workspace README's ribbon paragraph says road markings, drainage and gantries are not built yet. `ribbon.rs` enables MARKINGS, DRAIN, CULVERT, CHECK, GANTRY, CANTILEVER, HANG and UNHANG. This manual follows the ribbon.
+- **Ribbon status.** The ribbon now has the Coordination, 4D and 5D tabs, and the Clash check item that was planned on the Structures tab has been removed because clash detection exists. This manual follows the ribbon.
 - **Uganda pack in the MCP server.** The MCP README and the server's error hint say XML folder packs are not read by the AfroBIM engine yet. The desktop app does load `UG-TSM-2004`, through `afrobim-signs/src/xml_pack.rs` and the app's standards list. The MCP server still calls `RulePack::load` on the folder, so it refuses it. The hint's wording is out of date. The manual says the app loads the pack and the server does not.
-- **Crate list.** The workspace README's layout omits `afrobim-lighting`, `afrobim-restraint`, `afrobim-corridor` and `afrobim-pavement`, which are members in `Cargo.toml`. Section 6 covers them.
+- **Crate list.** The workspace README's layout now lists `afrobim-coordination`, `afrobim-schedule` and `afrobim-cost` with the other crates.
 - **Roadmap link.** The workspace README points to `docs/plan/2026-11-13-afrobim-platform.md`. This manual uses `docs/plan/2026-11-14-afrobim-bim-workflow-roadmap.md`, as briefed. Both files exist. The README link may need updating.
 - **Missing crate READMEs.** `afrobim-signs`, `afrobim-dxf`, `afrobim-fabrication`, `afrobim-kernel`, `afrobim-draw` and `afrobim-app` have no README. The sign and export limits here come from the workspace README's status table only.
-- **Station conventions.** The Place by station dialog reads its station as the one shown on the drawings, through station equations. The Road marking, Add drain or culvert and Add gantry dialogs say their stations are internal stations. This manual reports each dialog as it is. One convention would be simpler for users.
+- **Station conventions.** Every road dialog now takes the station shown on the drawings, with the region picker of Place by station, and converts it to the internal station (`station_input.rs`). The pavement design dialog's "make a pavement" step and the cross-section window have no station field of their own.
 - **Shortcut labels.** Some menu items show key labels that `shortcut()` in `ribbon.rs` does not hold: Erase shows "Del" in the menu and "Delete" in `shortcut()`, and zoom extents shows "Z" in the menu. The command table follows `shortcut()`, as briefed.
 - **Drain solid.** The drainage README says the drain's 3D solid is level "because the alignment has no vertical geometry yet". The alignment crate now reads vertical profiles and superelevation. The manual reports the drain as level, as that README states. The code should be checked against the current alignment data.
