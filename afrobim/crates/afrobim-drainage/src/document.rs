@@ -141,7 +141,7 @@ pub fn measure_document(doc: &Document) -> DrainageQuantities {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::design::ChannelMaterial;
+    use crate::design::mowt::ChannelMaterial;
     use crate::{ChannelSection, Lining, PipeCulvertModule, Side, SideDrainModule};
     use afrobim_alignment::{AlignmentBuilder, Turn};
     use afrobim_kernel::{Module, ModuleRegistry, Pt};
@@ -211,7 +211,7 @@ mod tests {
         close(site.y, 1_995_000.0, 1e-6);
         assert_eq!((site.rotation_deg, site.z, site.alignment.as_deref(), site.station_m, site.offset_m), (0.0, 0.0, Some("MC10"), Some(100.0), Some(5.0)));
         // The sheet size is the cross-section's.
-        let g = SideDrainModule.generate(&e).unwrap();
+        let g = SideDrainModule::default().generate(&e).unwrap();
         assert_eq!((e.width, e.height), (g.drawing.extents.width(), g.drawing.extents.height()));
         assert!(!g.solids.is_empty());
         // A second drain with the same mark gets a unique name.
@@ -229,7 +229,7 @@ mod tests {
         close(site.x, 1_050_000.0, 1e-6);
         close(site.rotation_deg, 270.0, 1e-9);
         close(site.z, -2260.0, 1e-6);
-        let g = PipeCulvertModule.generate(&e).unwrap();
+        let g = PipeCulvertModule::default().generate(&e).unwrap();
         assert_eq!((e.width, e.height), (g.drawing.extents.width(), g.drawing.extents.height()));
     }
 
@@ -295,8 +295,8 @@ mod tests {
         close(q.total_pipe_length_m(), 12.0, 1e-12);
 
         let mut modules = ModuleRegistry::default();
-        modules.register(Box::new(SideDrainModule));
-        modules.register(Box::new(PipeCulvertModule));
+        modules.register(Box::new(SideDrainModule::default()));
+        modules.register(Box::new(PipeCulvertModule::default()));
         for e in doc.elements().iter().filter(|e| e.name != "SD-03" && e.category != afrobim_alignment::CATEGORY) {
             let g = modules.generate(e).unwrap();
             assert!(!g.solids.is_empty() && !g.drawing.primitives.is_empty(), "{}", e.name);

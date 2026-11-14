@@ -3,7 +3,8 @@
 use afrobim_kernel::Note;
 use serde::{Deserialize, Serialize};
 
-use crate::design::{ChannelGeometry, ChannelMaterial};
+use crate::design::mowt::ChannelMaterial;
+use crate::design::ChannelGeometry;
 use crate::{error_note, fixed, not_negative, positive};
 
 /// The finished (water-side) cross-section of an open drain.

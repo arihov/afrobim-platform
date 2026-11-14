@@ -8,7 +8,7 @@ use afrobim_draw::{Colour, Drawing, Extents, Mesh3, Primitive, Pt2};
 use afrobim_kernel::{Element, Generated, Module, Note};
 use serde::{Deserialize, Serialize};
 
-use crate::design::{check_channel, ChannelCheck, ChannelInput};
+use crate::design::{check_channel, ChannelCheck, ChannelInput, DesignBasis};
 use crate::quantities::DrainQuantities;
 use crate::{
     error_note, error_text, fixed, info_note, not_negative, positive, warning_note, ChannelSection, DrainageError, Lining, NOTE_PLACEHOLDER,
@@ -319,16 +319,20 @@ impl SideDrainDefinition {
         Ok(())
     }
 
-    /// The input of [`check_channel`] for this drain at a design flow: its section, depth,
-    /// gradient and entered n, with the permissible velocity of DDM Table 9.1 when the lining is
-    /// one of that table's materials. `required_freeboard_m` is passed through.
-    pub fn channel_input(&self, design_flow_m3_s: f64, required_freeboard_m: Option<f64>) -> Result<ChannelInput, DrainageError> {
+    /// The input of [`check_channel`] for this drain at a design flow, to the chosen basis: its
+    /// section, depth, gradient and entered n. Under [`DesignBasis::Mowt`] the permissible
+    /// velocity is that of DDM Table 9.1 when the lining is one of that table's materials; the
+    /// DMRB documents held state no permissible velocity, so under [`DesignBasis::Dmrb`] none
+    /// is set (set one on the returned input if the project has it from elsewhere).
+    /// `required_freeboard_m` is passed through.
+    pub fn channel_input(&self, basis: DesignBasis, design_flow_m3_s: f64, required_freeboard_m: Option<f64>) -> Result<ChannelInput, DrainageError> {
         self.check()?;
         let Some(manning_n) = self.manning_n else {
             return Err(DrainageError::InvalidInput("enter Manning's n for the drain before checking its capacity".to_string()));
         };
-        let material = self.lining.table_material();
+        let material = self.lining.table_material().filter(|_| basis == DesignBasis::Mowt);
         Ok(ChannelInput {
+            basis,
             geometry: self.section.geometry(),
             depth_m: self.section.depth_mm() / 1000.0,
             manning_n,
@@ -342,8 +346,8 @@ impl SideDrainDefinition {
     }
 
     /// [`check_channel`] on [`SideDrainDefinition::channel_input`].
-    pub fn check_capacity(&self, design_flow_m3_s: f64, required_freeboard_m: Option<f64>) -> Result<ChannelCheck, DrainageError> {
-        check_channel(&self.channel_input(design_flow_m3_s, required_freeboard_m)?)
+    pub fn check_capacity(&self, basis: DesignBasis, design_flow_m3_s: f64, required_freeboard_m: Option<f64>) -> Result<ChannelCheck, DrainageError> {
+        check_channel(&self.channel_input(basis, design_flow_m3_s, required_freeboard_m)?)
     }
 
     /// The shell shown in 3D, as eight (lateral, z) corners in mm: lateral positive to the
@@ -445,10 +449,28 @@ impl SideDrainDefinition {
 /// `generate` reads a [`SideDrainDefinition`] from the element's `data`. A definition with
 /// Error notes yields the notes and no geometry. The drawing is the cross-section; the solids
 /// follow the stored route. When Manning's n and a gradient are entered the derived values
-/// include the discharge and velocity with the drain flowing to its top edges, and a warning is
-/// raised if that velocity is above the permissible velocity of DDM Table 9.1 for the lining.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct SideDrainModule;
+/// include the discharge and velocity with the drain flowing to its top edges (Manning's
+/// equation, the same under every basis). Under [`DesignBasis::Mowt`] a warning is raised if
+/// that velocity is above the permissible velocity of DDM Table 9.1 for the lining; the DMRB
+/// documents held state no permissible velocity, so under [`DesignBasis::Dmrb`] there is none.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SideDrainModule {
+    /// The basis the velocity check is made to. The engineer's choice; [`Default`] is MoWT.
+    pub basis: DesignBasis,
+}
+
+impl Default for SideDrainModule {
+    /// Uses [`DesignBasis::Mowt`].
+    fn default() -> Self {
+        SideDrainModule { basis: DesignBasis::Mowt }
+    }
+}
+
+impl SideDrainModule {
+    pub fn with_basis(basis: DesignBasis) -> Self {
+        SideDrainModule { basis }
+    }
+}
 
 impl Module for SideDrainModule {
     fn category(&self) -> &str {
@@ -492,7 +514,7 @@ impl Module for SideDrainModule {
             let v = q / g.area_m2(d);
             put("Capacity at full depth (Manning)", format!("{} m³/s", fixed(q, 3, 3)));
             put("Velocity at full depth", format!("{} m/s", fixed(v, 2, 2)));
-            if let Some(m) = def.lining.table_material() {
+            if let Some(m) = def.lining.table_material().filter(|_| self.basis == DesignBasis::Mowt) {
                 if v > m.permissible_velocity_m_s() {
                     notes.push(warning_note(
                         "DRAIN_VELOCITY_ABOVE_PERMISSIBLE",
@@ -512,7 +534,7 @@ impl Module for SideDrainModule {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::design::ChannelMaterial;
+    use crate::design::mowt::ChannelMaterial;
     use afrobim_alignment::{AlignmentBuilder, Turn};
     use afrobim_kernel::{Document, Pt, Severity};
 
@@ -620,7 +642,7 @@ mod tests {
     #[test]
     fn solids_are_a_closed_trough_of_the_lining_below_ground() {
         let def = routed(lined());
-        let g = SideDrainModule.generate(&element(&def)).unwrap();
+        let g = SideDrainModule::default().generate(&element(&def)).unwrap();
         assert_eq!(g.solids.len(), 1);
         let m = &g.solids[0];
         assert_eq!(m.name, "Drain lining");
@@ -660,7 +682,7 @@ mod tests {
     #[test]
     fn module_reports_quantities_and_full_depth_capacity() {
         let def = routed(lined());
-        let g = SideDrainModule.generate(&element(&def)).unwrap();
+        let g = SideDrainModule::default().generate(&element(&def)).unwrap();
         assert_eq!(g.derived["Section"], "Trapezoidal b500 d600 1.5:1/1.5:1");
         assert_eq!(g.derived["Top width"], "2300 mm");
         assert_eq!(g.derived["Lining"], "Concrete, 100 mm");
@@ -686,7 +708,7 @@ mod tests {
 
     #[test]
     fn an_unrouted_or_stale_drain_is_drawn_with_a_warning() {
-        let g = SideDrainModule.generate(&element(&lined())).unwrap();
+        let g = SideDrainModule::default().generate(&element(&lined())).unwrap();
         assert!(g.notes.iter().any(|n| n.code == "DRAIN_NOT_ROUTED" && n.severity == Severity::Warning));
         assert!(g.solids.is_empty() && !g.drawing.primitives.is_empty());
         assert!(!g.derived.contains_key("Excavation"));
@@ -706,18 +728,18 @@ mod tests {
         assert_eq!(codes(&SideDrainDefinition { manning_n: Some(0.0), ..lined() }), ["DRAIN_ROUGHNESS_NOT_POSITIVE"]);
         let bad = SideDrainDefinition { section: ChannelSection::Rectangular { width_mm: 0.0, depth_mm: 500.0 }, ..lined() };
         assert!(bad.check().is_err());
-        let g = SideDrainModule.generate(&element(&bad)).unwrap();
+        let g = SideDrainModule::default().generate(&element(&bad)).unwrap();
         assert!(g.solids.is_empty() && g.drawing.primitives.is_empty() && g.derived.is_empty());
         let mut e = element(&lined());
         e.data = serde_json::json!({"section": {"type": "Nonsense"}});
-        assert!(SideDrainModule.generate(&e).is_err());
+        assert!(SideDrainModule::default().generate(&e).is_err());
     }
 
     #[test]
     fn placeholder_is_flagged_and_serde_round_trips() {
         let p = SideDrainDefinition::placeholder("MC10", 0.0, 100.0, -4.5);
         assert!(p.placeholder);
-        let g = SideDrainModule.generate(&element(&routed(p.clone()))).unwrap();
+        let g = SideDrainModule::default().generate(&element(&routed(p.clone()))).unwrap();
         assert!(g.notes.iter().any(|n| n.code == NOTE_PLACEHOLDER && n.severity == Severity::Info));
         assert!(g.notes.iter().any(|n| n.code == "DRAIN_LINING_NOT_STATED"));
         assert!(g.notes.iter().any(|n| n.code == "DRAIN_GRADIENT_NOT_ENTERED"));
@@ -742,15 +764,24 @@ mod tests {
     #[test]
     fn capacity_check_takes_the_table_9_1_velocity_for_the_lining() {
         let def = lined();
-        let input = def.channel_input(1.0, Some(0.15)).unwrap();
+        let input = def.channel_input(DesignBasis::Mowt, 1.0, Some(0.15)).unwrap();
         assert_eq!(input.permissible_velocity_m_s, Some(3.0));
         assert_eq!(input.permissible_source, "DDM Table 9.1, concrete");
         assert_eq!((input.depth_m, input.manning_n, input.gradient_m_per_m), (0.6, 0.015, 0.01));
-        let c = def.check_capacity(1.0, Some(0.15)).unwrap();
+        let c = def.check_capacity(DesignBasis::Mowt, 1.0, Some(0.15)).unwrap();
         assert!(c.capacity_ok && c.normal_depth_m < 0.6);
+        // Under the DMRB basis there is no permissible velocity to take, and the calculation
+        // cites CD 521; the hydraulics are the same.
+        let dmrb = def.check_capacity(DesignBasis::Dmrb, 1.0, Some(0.15)).unwrap();
+        assert_eq!(dmrb.input.permissible_velocity_m_s, None);
+        assert_eq!(dmrb.normal_depth_m, c.normal_depth_m);
+        assert!(dmrb.calculation().iter().any(|l| l.contains("CD 521 Equation 5.25")));
+        let g = SideDrainModule::with_basis(DesignBasis::Dmrb).generate(&element(&routed(lined()))).unwrap();
+        assert!(g.notes.iter().all(|n| n.code != "DRAIN_VELOCITY_ABOVE_PERMISSIBLE"));
+        assert_eq!(g.derived["Velocity at full depth"], "3.09 m/s");
         // Free-text lining: no permissible velocity; no n: refused.
         let other = SideDrainDefinition { lining: Lining::Other("grass".into()), ..lined() };
-        assert_eq!(other.channel_input(1.0, None).unwrap().permissible_velocity_m_s, None);
-        assert!(SideDrainDefinition { manning_n: None, ..lined() }.check_capacity(1.0, None).is_err());
+        assert_eq!(other.channel_input(DesignBasis::Mowt, 1.0, None).unwrap().permissible_velocity_m_s, None);
+        assert!(SideDrainDefinition { manning_n: None, ..lined() }.check_capacity(DesignBasis::Mowt, 1.0, None).is_err());
     }
 }

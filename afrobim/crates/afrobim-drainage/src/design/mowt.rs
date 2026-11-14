@@ -1,4 +1,4 @@
-//! Hydrology and hydraulics for side drains and pipe culverts.
+//! The MoWT (Uganda) design basis for side drains and pipe culverts.
 //!
 //! # Design basis
 //!
@@ -16,7 +16,8 @@
 //!   4-1 exercises: sheet flow (No. 8, HEC 22) with the roughness of Table 4-3, and the velocity
 //!   method (No. 7, HDS 2) with the intercepts of Table 4-2; plus flow time in a channel or pipe
 //!   as length over velocity (Section 4.2.1 d) and the minimum times of Table 4.4.
-//! * **Open channels**: Manning's equation `Q = (1/n)·A·R^(2/3)·S^(1/2)` (the form used in DDM
+//! * **Open channels** (through [`super::check_channel`] with [`super::DesignBasis::Mowt`]):
+//!   Manning's equation `Q = (1/n)·A·R^(2/3)·S^(1/2)` (the form used in DDM
 //!   Example 4-1, Section 9.5.1 Step 12 and Appendix 10.4) with area, wetted perimeter and
 //!   hydraulic radius in closed form for the trapezoid family, normal depth by bisection, the
 //!   permissible velocities of DDM Table 9.1 and the Froude number.
@@ -66,29 +67,21 @@ use std::f64::consts::PI;
 
 use serde::{Deserialize, Serialize};
 
+use super::hydraulics::circular_critical_depth_m;
+use super::{CulvertLayoutLimits, Limit};
 use crate::{positive, DrainageError};
 
-/// The first line of every calculation.
-const BASIS: &str = "Design basis: MoWT Road Design Manual Vol. 2: Drainage Design (January 2010), cited as DDM.";
+/// The first line of every calculation to this basis.
+pub const BASIS: &str = "Design basis: MoWT Road Design Manual Vol. 2: Drainage Design (January 2010), cited as DDM.";
 
 /// Acceleration due to gravity as DDM defines it for culvert velocity heads (under Eqn. 9.4):
-/// "9.8 m/s2".
+/// "9.8 m/s2". The manual is not consistent: its Appendix 10.4 uses 9.81 in the Froude number
+/// and the 19.63 of Eqn. 9.5b is 2 × 9.815.
 pub const GRAVITY_CULVERT_M_S2: f64 = 9.8;
-/// Acceleration due to gravity as DDM Appendix 10.4 (Col. 11) uses it in the Froude number.
-/// The manual is not consistent: Eqn. 9.4 says 9.8 and the 19.63 of Eqn. 9.5b is 2 × 9.815.
-pub const GRAVITY_M_S2: f64 = 9.81;
 /// The constant of the friction term of DDM Eqn. 9.5b, as printed.
 pub const FRICTION_CONSTANT: f64 = 19.63;
 /// The exponent of the hydraulic radius in DDM Eqn. 9.5b, as printed (4/3 rounded).
 pub const FRICTION_RADIUS_EXPONENT: f64 = 1.33;
-
-fn ok(pass: bool) -> &'static str {
-    if pass {
-        "OK"
-    } else {
-        "FAILS"
-    }
-}
 
 fn invalid<T>(message: impl Into<String>) -> Result<T, DrainageError> {
     Err(DrainageError::InvalidInput(message.into()))
@@ -485,7 +478,7 @@ impl SheetFlowSurface {
 }
 
 /// DDM Section 4.2.1(e): the flow travel time to the point of entry to the drainage network
-/// "shall not [be] less than 5 minutes" (also Table 4.4, road inlet pits).
+/// "shall not less than 5 minutes" (sic) (also Table 4.4, road inlet pits).
 pub const MINIMUM_TC_MIN: f64 = 5.0;
 /// DDM Table 4.4: standard minimum time of concentration for small areas under 0.4 ha, minutes.
 pub const MINIMUM_TC_SMALL_AREA_MIN: f64 = 10.0;
@@ -515,7 +508,7 @@ pub enum FlowSegment {
     /// Shallow concentrated or gully flow (Table 4.1 No. 7) with k from Table 4-2.
     Concentrated { intercept_k: f64, length_m: f64, slope_m_per_m: f64 },
     /// Flow in an open channel or pipe at a known velocity (Section 4.2.1 d), e.g. from
-    /// [`manning_velocity_m_s`].
+    /// [`super::manning_velocity_m_s`].
     Conduit { length_m: f64, velocity_m_s: f64 },
 }
 
@@ -765,129 +758,6 @@ impl RationalResult {
 // Open channels
 // ---------------------------------------------------------------------------------------------
 
-/// The trapezoid family of open-channel sections, metres: bed width `b` and side slopes `zl`,
-/// `zr` (horizontal to one vertical). `b = 0` is a V; `zl = zr = 0` is a rectangle.
-///
-/// At a flow depth `y`:
-///
-/// ```text
-/// A = y·(b + (zl + zr)·y / 2)
-/// P = b + y·(√(1 + zl²) + √(1 + zr²))
-/// T = b + (zl + zr)·y
-/// R = A / P            hydraulic depth = A / T
-/// ```
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ChannelGeometry {
-    pub bottom_width_m: f64,
-    pub left_side_slope: f64,
-    pub right_side_slope: f64,
-}
-
-impl ChannelGeometry {
-    pub fn trapezoid(bottom_width_m: f64, side_slope: f64) -> Self {
-        ChannelGeometry { bottom_width_m, left_side_slope: side_slope, right_side_slope: side_slope }
-    }
-
-    pub fn rectangle(width_m: f64) -> Self {
-        ChannelGeometry { bottom_width_m: width_m, left_side_slope: 0.0, right_side_slope: 0.0 }
-    }
-
-    pub fn v(left_side_slope: f64, right_side_slope: f64) -> Self {
-        ChannelGeometry { bottom_width_m: 0.0, left_side_slope, right_side_slope }
-    }
-
-    fn valid(&self) -> bool {
-        let (b, zl, zr) = (self.bottom_width_m, self.left_side_slope, self.right_side_slope);
-        b.is_finite() && zl.is_finite() && zr.is_finite() && b >= 0.0 && zl >= 0.0 && zr >= 0.0 && (b > 0.0 || zl + zr > 0.0)
-    }
-
-    /// Flow area, m².
-    pub fn area_m2(&self, depth_m: f64) -> f64 {
-        depth_m * (self.bottom_width_m + (self.left_side_slope + self.right_side_slope) * depth_m / 2.0)
-    }
-
-    /// Wetted perimeter, m.
-    pub fn wetted_perimeter_m(&self, depth_m: f64) -> f64 {
-        self.bottom_width_m + depth_m * (self.left_side_slope.hypot(1.0) + self.right_side_slope.hypot(1.0))
-    }
-
-    /// Width of the water surface, m.
-    pub fn top_width_m(&self, depth_m: f64) -> f64 {
-        self.bottom_width_m + (self.left_side_slope + self.right_side_slope) * depth_m
-    }
-
-    /// Hydraulic radius R = A / P, m.
-    pub fn hydraulic_radius_m(&self, depth_m: f64) -> f64 {
-        self.area_m2(depth_m) / self.wetted_perimeter_m(depth_m)
-    }
-
-    /// Hydraulic depth A / T, m.
-    pub fn hydraulic_depth_m(&self, depth_m: f64) -> f64 {
-        self.area_m2(depth_m) / self.top_width_m(depth_m)
-    }
-
-    /// Discharge at uniform flow of the given depth by Manning's equation, m³/s.
-    pub fn discharge_m3_s(&self, depth_m: f64, manning_n: f64, gradient_m_per_m: f64) -> f64 {
-        if depth_m <= 0.0 {
-            return 0.0;
-        }
-        self.area_m2(depth_m) * manning_velocity_m_s(manning_n, self.hydraulic_radius_m(depth_m), gradient_m_per_m)
-    }
-}
-
-/// Mean velocity of uniform flow by Manning's equation, m/s: `V = (1/n)·R^(2/3)·S^(1/2)`, the
-/// form used in DDM Example 4-1 (which prints the exponent as 0.67), Section 9.5.1 Step 12 and
-/// Appendix 10.4 (Col. 8).
-pub fn manning_velocity_m_s(manning_n: f64, hydraulic_radius_m: f64, gradient_m_per_m: f64) -> f64 {
-    hydraulic_radius_m.powf(2.0 / 3.0) * gradient_m_per_m.sqrt() / manning_n
-}
-
-/// Froude number `F = V / √(g·y)` (DDM Appendix 10.4, Col. 11, with g = 9.81). The manual's `y`
-/// is the water depth of a river section; here the hydraulic depth A/T is passed, which is the
-/// water depth for a rectangle and the usual generalisation for other shapes.
-pub fn froude_number(velocity_m_s: f64, hydraulic_depth_m: f64) -> f64 {
-    velocity_m_s / (GRAVITY_M_S2 * hydraulic_depth_m).sqrt()
-}
-
-/// The depth of uniform flow for a discharge, m, by bisection on Manning's equation. Discharge
-/// rises with depth for every section of the family, so the root is unique. The section is
-/// taken to continue upward as far as needed; compare the result with the drain's depth.
-pub fn normal_depth_m(geometry: &ChannelGeometry, manning_n: f64, gradient_m_per_m: f64, flow_m3_s: f64) -> Result<f64, DrainageError> {
-    if !geometry.valid() {
-        return invalid("the channel section needs a bed width or a side slope, none of them negative");
-    }
-    if !positive(manning_n) || !positive(gradient_m_per_m) {
-        return invalid(format!("Manning's n and the gradient must be greater than zero (got n = {manning_n}, S = {gradient_m_per_m})"));
-    }
-    if !(flow_m3_s.is_finite() && flow_m3_s >= 0.0) {
-        return invalid(format!("the flow must not be negative (got {flow_m3_s})"));
-    }
-    if flow_m3_s == 0.0 {
-        return Ok(0.0);
-    }
-    let q = |y: f64| geometry.discharge_m3_s(y, manning_n, gradient_m_per_m);
-    let (mut lo, mut hi) = (0.0, 1.0);
-    while q(hi) < flow_m3_s {
-        lo = hi;
-        hi *= 2.0;
-        if hi > 1.0e6 {
-            return invalid("no normal depth was found below 1000 km; check the inputs");
-        }
-    }
-    for _ in 0..200 {
-        let mid = 0.5 * (lo + hi);
-        if q(mid) < flow_m3_s {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-        if hi - lo <= 1e-12 * hi.max(1.0) {
-            break;
-        }
-    }
-    Ok(0.5 * (lo + hi))
-}
-
 /// The rows of DDM Table 9.1, "Permissible velocity & roughness coefficient" ("Maximum
 /// permissible velocities in erodible ditches and corresponding roughness coefficients",
 /// Section 9.7).
@@ -957,159 +827,6 @@ impl ChannelMaterial {
     }
 }
 
-/// What the open-channel check needs.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ChannelInput {
-    pub geometry: ChannelGeometry,
-    /// Depth of the drain from its top edges to the bed, m.
-    pub depth_m: f64,
-    /// Manning's n. An input: see the module documentation.
-    pub manning_n: f64,
-    /// Where n comes from, quoted in the calculation.
-    pub roughness_source: String,
-    /// Longitudinal gradient of the bed, m/m.
-    pub gradient_m_per_m: f64,
-    pub design_flow_m3_s: f64,
-    /// Maximum permissible velocity, m/s, e.g. [`ChannelMaterial::permissible_velocity_m_s`].
-    /// None leaves the velocity unchecked.
-    pub permissible_velocity_m_s: Option<f64>,
-    /// Where the permissible velocity comes from, quoted in the calculation.
-    pub permissible_source: String,
-    /// Required freeboard, m. The manual states none for open drains, so None leaves the
-    /// freeboard reported but unchecked.
-    pub required_freeboard_m: Option<f64>,
-}
-
-/// The result of [`check_channel`]. Section properties are at the normal depth.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ChannelCheck {
-    pub input: ChannelInput,
-    /// Depth of uniform flow at the design flow, m (the section continued upward if it must be).
-    pub normal_depth_m: f64,
-    pub area_m2: f64,
-    pub wetted_perimeter_m: f64,
-    pub hydraulic_radius_m: f64,
-    pub top_width_m: f64,
-    pub velocity_m_s: f64,
-    /// On the hydraulic depth A/T.
-    pub froude: f64,
-    /// Discharge with the drain flowing to its top edges, m³/s.
-    pub full_capacity_m3_s: f64,
-    pub full_velocity_m_s: f64,
-    /// Drain depth less normal depth, m; negative when the drain overtops.
-    pub freeboard_m: f64,
-    /// The design flow is carried within the drain's depth.
-    pub capacity_ok: bool,
-    /// None when no permissible velocity was given.
-    pub velocity_ok: Option<bool>,
-    /// None when no required freeboard was given.
-    pub freeboard_ok: Option<bool>,
-}
-
-/// Uniform flow in an open drain at the design flow: normal depth, velocity against the
-/// permissible velocity, Froude number, capacity at full depth and freeboard.
-///
-/// Uniform flow is assumed along the whole drain: no backwater from a culvert or outfall, no
-/// drawdown, no allowance for bends, silting or vegetation growth beyond the n entered.
-pub fn check_channel(input: &ChannelInput) -> Result<ChannelCheck, DrainageError> {
-    if !positive(input.depth_m) {
-        return invalid(format!("the drain depth must be greater than zero (got {})", input.depth_m));
-    }
-    if !positive(input.design_flow_m3_s) {
-        return invalid(format!("the design flow must be greater than zero (got {})", input.design_flow_m3_s));
-    }
-    if let Some(v) = input.permissible_velocity_m_s {
-        if !positive(v) {
-            return invalid(format!("the permissible velocity must be greater than zero (got {v})"));
-        }
-    }
-    if let Some(f) = input.required_freeboard_m {
-        if !(f.is_finite() && f >= 0.0) {
-            return invalid(format!("the required freeboard must not be negative (got {f})"));
-        }
-    }
-    let g = &input.geometry;
-    let y = normal_depth_m(g, input.manning_n, input.gradient_m_per_m, input.design_flow_m3_s)?;
-    let area_m2 = g.area_m2(y);
-    let velocity_m_s = input.design_flow_m3_s / area_m2;
-    let full_capacity_m3_s = g.discharge_m3_s(input.depth_m, input.manning_n, input.gradient_m_per_m);
-    let freeboard_m = input.depth_m - y;
-    Ok(ChannelCheck {
-        input: input.clone(),
-        normal_depth_m: y,
-        area_m2,
-        wetted_perimeter_m: g.wetted_perimeter_m(y),
-        hydraulic_radius_m: g.hydraulic_radius_m(y),
-        top_width_m: g.top_width_m(y),
-        velocity_m_s,
-        froude: froude_number(velocity_m_s, g.hydraulic_depth_m(y)),
-        full_capacity_m3_s,
-        full_velocity_m_s: full_capacity_m3_s / g.area_m2(input.depth_m),
-        freeboard_m,
-        capacity_ok: freeboard_m >= 0.0,
-        velocity_ok: input.permissible_velocity_m_s.map(|limit| velocity_m_s <= limit),
-        freeboard_ok: input.required_freeboard_m.map(|need| freeboard_m >= need),
-    })
-}
-
-impl ChannelCheck {
-    /// True when the flow is carried and every check that was asked for is met.
-    pub fn passes(&self) -> bool {
-        self.capacity_ok && self.velocity_ok.unwrap_or(true) && self.freeboard_ok.unwrap_or(true)
-    }
-
-    /// The calculation set out line by line with its references.
-    pub fn calculation(&self) -> Vec<String> {
-        let i = &self.input;
-        let g = &i.geometry;
-        let mut out = vec![
-            BASIS.to_string(),
-            format!(
-                "Section: bed width b = {:.3} m, side slopes zl = {} and zr = {} (H:1V), depth d = {:.3} m.",
-                g.bottom_width_m, g.left_side_slope, g.right_side_slope, i.depth_m
-            ),
-            format!("Manning's n = {} ({}); gradient S = {:.5} m/m; design flow Q = {:.3} m³/s.", i.manning_n, i.roughness_source, i.gradient_m_per_m, i.design_flow_m3_s),
-            "Manning: Q = (1/n)·A·R^(2/3)·S^(1/2) (DDM Example 4-1, Section 9.5.1 Step 12, Appendix 10.4), uniform flow.".to_string(),
-            format!("Normal depth by bisection: y = {:.3} m.", self.normal_depth_m),
-            format!(
-                "A = y·(b + (zl + zr)·y/2) = {:.4} m²; P = b + y·(√(1+zl²) + √(1+zr²)) = {:.4} m; R = A/P = {:.4} m; T = b + (zl + zr)·y = {:.3} m.",
-                self.area_m2, self.wetted_perimeter_m, self.hydraulic_radius_m, self.top_width_m
-            ),
-        ];
-        let state = if self.froude > 1.0 {
-            "supercritical"
-        } else if self.froude < 1.0 {
-            "subcritical"
-        } else {
-            "critical"
-        };
-        match (i.permissible_velocity_m_s, self.velocity_ok) {
-            (Some(limit), Some(pass)) => out.push(format!(
-                "V = Q/A = {:.2} m/s against a maximum permissible velocity of {limit} m/s ({}): {}.",
-                self.velocity_m_s,
-                i.permissible_source,
-                ok(pass)
-            )),
-            _ => out.push(format!("V = Q/A = {:.2} m/s. No permissible velocity was given, so it is not checked.", self.velocity_m_s)),
-        }
-        out.push(format!("Froude number F = V/√(g·A/T) = {:.2} with g = 9.81 (DDM Appendix 10.4 Col. 11, on the hydraulic depth): {state} flow.", self.froude));
-        out.push(format!(
-            "Capacity at full depth d = {:.3} m: Q = {:.3} m³/s at V = {:.2} m/s; design flow carried within the section: {}.",
-            i.depth_m,
-            self.full_capacity_m3_s,
-            self.full_velocity_m_s,
-            ok(self.capacity_ok)
-        ));
-        match (i.required_freeboard_m, self.freeboard_ok) {
-            (Some(need), Some(pass)) => {
-                out.push(format!("Freeboard = d − y = {:.3} m against {need:.3} m required (entered; DDM states none for open drains): {}.", self.freeboard_m, ok(pass)))
-            }
-            _ => out.push(format!("Freeboard = d − y = {:.3} m. DDM states no freeboard for open drains and none was entered, so it is not checked.", self.freeboard_m)),
-        }
-        out
-    }
-}
-
 // ---------------------------------------------------------------------------------------------
 // Pipe culverts: outlet control
 // ---------------------------------------------------------------------------------------------
@@ -1142,6 +859,38 @@ pub const CULVERT_GRADIENT_SPECIAL_ANCHORS_ABOVE: f64 = 0.20;
 /// DDM Section 9.7: culverts "should be laid to grades that produce a non-silting or a
 /// non-erosive velocity, ideally between 1 and 3.5 m/s".
 pub const CULVERT_VELOCITY_IDEAL_M_S: (f64, f64) = (1.0, 3.5);
+
+/// The pipe culvert layout limits DDM states, for [`super::DesignBasis::culvert_layout_limits`].
+pub fn culvert_layout_limits() -> CulvertLayoutLimits {
+    CulvertLayoutLimits {
+        minimum_diameter_m: Some(Limit {
+            value: MINIMUM_PIPE_CULVERT_DIAMETER_M,
+            citation: "DDM Section 9.10: 'The minimum diameter of a pipe culvert under a road should be 600 mm'",
+        }),
+        long_culvert: None,
+        maximum_skew_deg: Some(Limit {
+            value: MAXIMUM_CULVERT_SKEW_DEG,
+            citation: "DDM Section 9.8: the skew 'shall not exceed 45°' from the perpendicular to the centreline without the approval of the Authority",
+        }),
+        gradient_not_below: Some(Limit {
+            value: CULVERT_GRADIENT_MINIMUM,
+            citation: "DDM Section 9.9.1: 'Gradients less than 0.5 percent should not be used' because of siltation",
+        }),
+        gradient_avoid_below: Some(Limit {
+            value: CULVERT_GRADIENT_AVOID_BELOW,
+            citation: "DDM Section 9.9.1: 'Gradients less than 1 percent should be avoided, if possible.'",
+        }),
+        gradient_anchors_above: Some(Limit {
+            value: CULVERT_GRADIENT_ANCHORS_ABOVE,
+            citation: "DDM Section 9.9.2: above 10 percent concrete pipes 'should be provided with anchors'",
+        }),
+        gradient_special_anchors_above: Some(Limit {
+            value: CULVERT_GRADIENT_SPECIAL_ANCHORS_ABOVE,
+            citation: "DDM Section 9.9.2: above 20 percent 'special anchoring devices should be incorporated for all types of pipe culvert'",
+        }),
+        structure_above_diameter_m: None,
+    }
+}
 
 /// Entrances of pipe culverts in DDM Appendix 9.6, "Entrance Loss Coefficient (Outlet Control,
 /// Full or Partially Full)". The box culvert rows are not held.
@@ -1248,35 +997,6 @@ impl PipeWall {
 pub fn barrel_head_loss_m(flow_m3_s: f64, area_m2: f64, hydraulic_radius_m: f64, manning_n: f64, length_m: f64, ke: f64) -> f64 {
     let velocity_head = (flow_m3_s / area_m2).powi(2) / (2.0 * GRAVITY_CULVERT_M_S2);
     (1.0 + ke + FRICTION_CONSTANT * manning_n * manning_n * length_m / hydraulic_radius_m.powf(FRICTION_RADIUS_EXPONENT)) * velocity_head
-}
-
-/// Critical depth in a circular pipe, m, from `Q²·T / (g·A³) = 1` by bisection, with
-/// `A = (D²/8)(θ − sin θ)` and `T = D·sin(θ/2)` for the wetted angle θ, and g = 9.81.
-///
-/// The manual reads this from the chart of its Appendix 9.10; the equation is what such a chart
-/// plots, but the two will differ by reading accuracy. The result is always below the diameter
-/// ("dc cannot exceed D", Section 9.5.1 Step 8 b).
-pub fn circular_critical_depth_m(flow_m3_s: f64, diameter_m: f64) -> f64 {
-    if !(flow_m3_s > 0.0) || !(diameter_m > 0.0) {
-        return 0.0;
-    }
-    let d = diameter_m;
-    // f(θ) = A³/T − Q²/g rises from −Q²/g at θ = 0 without limit as θ → 2π.
-    let f = |theta: f64| {
-        let a = d * d / 8.0 * (theta - theta.sin());
-        let t = d * (theta / 2.0).sin();
-        a.powi(3) / t - flow_m3_s * flow_m3_s / GRAVITY_M_S2
-    };
-    let (mut lo, mut hi) = (1e-9, 2.0 * PI - 1e-9);
-    for _ in 0..200 {
-        let mid = 0.5 * (lo + hi);
-        if f(mid) < 0.0 {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-    d / 2.0 * (1.0 - (0.25 * (lo + hi)).cos())
 }
 
 /// What the outlet-control calculation needs.
@@ -1455,6 +1175,7 @@ impl OutletControl {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::design::{check_channel, froude_number, manning_velocity_m_s, normal_depth_m, ChannelGeometry, ChannelInput, DesignBasis};
 
     fn close(actual: f64, expected: f64, tolerance: f64) {
         assert!((actual - expected).abs() <= tolerance, "expected {expected} ± {tolerance}, got {actual}");
@@ -1743,6 +1464,7 @@ mod tests {
 
     fn drain_input(flow: f64) -> ChannelInput {
         ChannelInput {
+            basis: DesignBasis::Mowt,
             geometry: ChannelGeometry::trapezoid(1.0, 1.5),
             depth_m: 0.6,
             manning_n: 0.025,
@@ -1778,7 +1500,7 @@ mod tests {
         assert!(text.contains("Normal depth by bisection: y = 0.500 m."));
         assert!(text.contains("against a maximum permissible velocity of 1.1 m/s (DDM Table 9.1, stiff clay): FAILS."));
         assert!(text.contains("subcritical flow"));
-        assert!(text.contains("against 0.150 m required (entered; DDM states none for open drains): FAILS."));
+        assert!(text.contains("against 0.150 m required (entered; DDM states no freeboard for open drains): FAILS."));
     }
 
     #[test]
@@ -1793,7 +1515,7 @@ mod tests {
         let c = check_channel(&input).unwrap();
         assert!(c.passes() && c.velocity_ok.is_none() && c.freeboard_ok.is_none());
         let text = c.calculation().join("\n");
-        assert!(text.contains("No permissible velocity was given") && text.contains("DDM states no freeboard for open drains and none was entered"));
+        assert!(text.contains("No permissible velocity was given") && text.contains("none was entered, and DDM states no freeboard for open drains"));
 
         // A steep concrete channel is supercritical.
         let mut steep = drain_input(1.0);

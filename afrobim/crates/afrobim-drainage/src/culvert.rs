@@ -9,10 +9,8 @@ use afrobim_draw::{Colour, Drawing, Extents, Mesh3, Primitive, Pt2};
 use afrobim_kernel::{Element, Generated, Module, Note, SitePlacement};
 use serde::{Deserialize, Serialize};
 
-use crate::design::{
-    culvert_structure_type, outlet_control, OutletControl, OutletControlInput, CULVERT_GRADIENT_ANCHORS_ABOVE, CULVERT_GRADIENT_AVOID_BELOW,
-    CULVERT_GRADIENT_MINIMUM, CULVERT_GRADIENT_SPECIAL_ANCHORS_ABOVE, MAXIMUM_CULVERT_SKEW_DEG, MINIMUM_PIPE_CULVERT_DIAMETER_M,
-};
+use crate::design::mowt::{culvert_structure_type, outlet_control, OutletControl, OutletControlInput};
+use crate::design::DesignBasis;
 use crate::{
     error_note, error_text, fixed, info_note, not_negative, positive, warning_note, DrainageError, NOTE_PLACEHOLDER, PLACEHOLDER_CULVERT_DIAMETER_MM,
     PLACEHOLDER_CULVERT_LENGTH_MM, PLACEHOLDER_CULVERT_WALL_MM, ROUND_SEGMENTS,
@@ -127,7 +125,7 @@ impl PipeCulvertDefinition {
     }
 
     /// Total clear opening, m: barrels × internal diameter (the "span" of Note 1 to MoWT
-    /// Drainage Design Manual Table 3.2).
+    /// Drainage Design Manual Table 3.2; the DMRB documents define no such sum).
     pub fn total_opening_m(&self) -> f64 {
         self.barrels as f64 * self.internal_diameter_mm / 1000.0
     }
@@ -146,10 +144,33 @@ impl PipeCulvertDefinition {
         self.outside_diameter_mm() + self.barrels.saturating_sub(1) as f64 * self.spacing_mm()
     }
 
-    /// Validation and information notes. Error notes mean the culvert cannot be drawn or
-    /// measured. Warnings and Info notes that quote a limit cite the MoWT *Road Design Manual
-    /// Volume 2: Drainage Design* (2010), "DDM".
-    pub fn notes(&self) -> Vec<Note> {
+    /// Validation and information notes, with the layout checks of the chosen design basis
+    /// ([`PipeCulvertDefinition::layout_notes`]). Error notes mean the culvert cannot be drawn
+    /// or measured, whatever the basis.
+    pub fn notes(&self, basis: DesignBasis) -> Vec<Note> {
+        let mut out = self.validity_notes();
+        if error_text(&out).is_some() {
+            return out;
+        }
+        out.extend(self.layout_notes(basis));
+        if self.road_level_m.is_none() {
+            out.push(info_note("CULVERT_ROAD_LEVEL_NOT_ENTERED", "No road level is entered, so no cover is shown and the 3D view puts the inlet invert at level zero."));
+        }
+        if self.placeholder {
+            out.push(info_note(
+                NOTE_PLACEHOLDER,
+                "The culvert dimensions and levels are placeholders so that the element can be drawn. They are not design values; the engineer must set the barrels, size, length and invert levels.",
+            ));
+        }
+        if self.material.trim().is_empty() {
+            out.push(info_note("CULVERT_MATERIAL_NOT_STATED", "No pipe material is stated for this culvert."));
+        }
+        out
+    }
+
+    /// Error notes for a definition that cannot be drawn or measured. They do not depend on
+    /// the design basis.
+    fn validity_notes(&self) -> Vec<Note> {
         let mut out = Vec::new();
         if self.barrels == 0 {
             out.push(error_note("CULVERT_NO_BARRELS", "A culvert needs at least one barrel.".to_string()));
@@ -191,70 +212,70 @@ impl PipeCulvertDefinition {
                 out.push(error_note("CULVERT_LEVELS_NOT_NUMBERS", "The road level must be a number.".to_string()));
             }
         }
-        if error_text(&out).is_some() {
+        out
+    }
+
+    /// The layout limits the chosen basis states in words ([`DesignBasis::culvert_layout_limits`]),
+    /// as Warning or Info notes that quote the clause. None is a hydraulic check, and a limit the
+    /// basis' documents do not state raises nothing. Empty for a definition with Error notes.
+    pub fn layout_notes(&self, basis: DesignBasis) -> Vec<Note> {
+        let mut out = Vec::new();
+        if error_text(&self.validity_notes()).is_some() {
             return out;
         }
-
-        // Layout limits the manual states in words. None is a hydraulic check.
+        let limits = basis.culvert_layout_limits();
         let d_m = self.internal_diameter_mm / 1000.0;
-        if d_m < MINIMUM_PIPE_CULVERT_DIAMETER_M {
-            out.push(warning_note(
-                "CULVERT_BELOW_MINIMUM_DIAMETER",
-                format!("The internal diameter is {} mm. DDM Section 9.10: 'The minimum diameter of a pipe culvert under a road should be 600 mm'.", fixed(self.internal_diameter_mm, 0, 1)),
-            ));
+        let diameter = fixed(self.internal_diameter_mm, 0, 1);
+        if let Some(l) = limits.minimum_diameter_m {
+            if d_m < l.value {
+                out.push(warning_note("CULVERT_BELOW_MINIMUM_DIAMETER", format!("The internal diameter is {diameter} mm. {}.", l.citation.trim_end_matches('.'))));
+            }
         }
-        if self.skew_deg.abs() > MAXIMUM_CULVERT_SKEW_DEG {
-            out.push(warning_note(
-                "CULVERT_SKEW_ABOVE_LIMIT",
-                format!("The skew is {}°. DDM Section 9.8: the skew 'shall not exceed 45°' from the perpendicular to the centreline without the approval of the Authority.", fixed(self.skew_deg, 0, 2)),
-            ));
+        if let Some(rule) = limits.long_culvert {
+            if self.length_mm / 1000.0 > rule.longer_than_m && d_m < rule.minimum_diameter_m {
+                out.push(warning_note(
+                    "CULVERT_TOO_SMALL_FOR_ITS_LENGTH",
+                    format!("The barrel is {} m long and {diameter} mm in diameter. {}.", fixed(self.length_mm / 1000.0, 2, 3), rule.citation.trim_end_matches('.')),
+                ));
+            }
+        }
+        if let Some(l) = limits.structure_above_diameter_m {
+            if d_m > l.value {
+                out.push(info_note("CULVERT_IS_A_STRUCTURE", &format!("The internal diameter is {diameter} mm. {}.", l.citation.trim_end_matches('.'))));
+            }
+        }
+        if let Some(l) = limits.maximum_skew_deg {
+            if self.skew_deg.abs() > l.value {
+                out.push(warning_note("CULVERT_SKEW_ABOVE_LIMIT", format!("The skew is {}°. {}.", fixed(self.skew_deg, 0, 2), l.citation.trim_end_matches('.'))));
+            }
         }
         let s = self.gradient_m_per_m();
         let percent = fixed(s * 100.0, 2, 2);
+        let below = |l: Option<crate::design::Limit>| l.filter(|l| s < l.value);
+        let above = |l: Option<crate::design::Limit>| l.filter(|l| s > l.value);
         if s < 0.0 {
             out.push(warning_note("CULVERT_FALLS_TOWARDS_INLET", format!("The outlet invert is {} m above the inlet invert.", fixed(-self.fall_m(), 3, 3))));
-        } else if s < CULVERT_GRADIENT_MINIMUM {
-            out.push(warning_note(
-                "CULVERT_GRADIENT_BELOW_MINIMUM",
-                format!("The gradient is {percent} %. DDM Section 9.9.1: 'Gradients less than 0.5 percent should not be used' because of siltation."),
-            ));
-        } else if s < CULVERT_GRADIENT_AVOID_BELOW {
-            out.push(info_note("CULVERT_GRADIENT_FLAT", &format!("The gradient is {percent} %. DDM Section 9.9.1: 'Gradients less than 1 percent should be avoided, if possible.'")));
-        } else if s > CULVERT_GRADIENT_SPECIAL_ANCHORS_ABOVE {
-            out.push(warning_note(
-                "CULVERT_GRADIENT_NEEDS_SPECIAL_ANCHORS",
-                format!("The gradient is {percent} %. DDM Section 9.9.2: above 20 percent 'special anchoring devices should be incorporated for all types of pipe culvert'."),
-            ));
-        } else if s > CULVERT_GRADIENT_ANCHORS_ABOVE {
-            out.push(info_note(
-                "CULVERT_GRADIENT_NEEDS_ANCHORS",
-                &format!("The gradient is {percent} %. DDM Section 9.9.2: above 10 percent concrete pipes 'should be provided with anchors'."),
-            ));
+        } else if let Some(l) = below(limits.gradient_not_below) {
+            out.push(warning_note("CULVERT_GRADIENT_BELOW_MINIMUM", format!("The gradient is {percent} %. {}.", l.citation.trim_end_matches('.'))));
+        } else if let Some(l) = below(limits.gradient_avoid_below) {
+            out.push(info_note("CULVERT_GRADIENT_FLAT", &format!("The gradient is {percent} %. {}.", l.citation.trim_end_matches('.'))));
+        } else if let Some(l) = above(limits.gradient_special_anchors_above) {
+            out.push(warning_note("CULVERT_GRADIENT_NEEDS_SPECIAL_ANCHORS", format!("The gradient is {percent} %. {}.", l.citation.trim_end_matches('.'))));
+        } else if let Some(l) = above(limits.gradient_anchors_above) {
+            out.push(info_note("CULVERT_GRADIENT_NEEDS_ANCHORS", &format!("The gradient is {percent} %. {}.", l.citation.trim_end_matches('.'))));
         }
-        if culvert_structure_type(self.barrels, d_m).is_none() {
+        if basis == DesignBasis::Mowt && culvert_structure_type(self.barrels, d_m).is_none() {
             out.push(info_note(
                 "CULVERT_OPENING_SIX_METRES_OR_MORE",
                 &format!("The total clear opening is {} m. DDM Table 3.2 (Note 1) classes an opening of 6 m or more with bridges, and Section 3.2.2 puts it in the major drainage system.", fixed(self.total_opening_m(), 2, 2)),
             ));
-        }
-        if self.road_level_m.is_none() {
-            out.push(info_note("CULVERT_ROAD_LEVEL_NOT_ENTERED", "No road level is entered, so no cover is shown and the 3D view puts the inlet invert at level zero."));
-        }
-        if self.placeholder {
-            out.push(info_note(
-                NOTE_PLACEHOLDER,
-                "The culvert dimensions and levels are placeholders so that the element can be drawn. They are not design values; the engineer must set the barrels, size, length and invert levels.",
-            ));
-        }
-        if self.material.trim().is_empty() {
-            out.push(info_note("CULVERT_MATERIAL_NOT_STATED", "No pipe material is stated for this culvert."));
         }
         out
     }
 
     /// Ok when the definition has no Error notes.
     pub fn check(&self) -> Result<(), DrainageError> {
-        match error_text(&self.notes()) {
+        match error_text(&self.validity_notes()) {
             Some(text) => Err(DrainageError::InvalidDefinition(text)),
             None => Ok(()),
         }
@@ -319,7 +340,8 @@ impl PipeCulvertDefinition {
         })
     }
 
-    /// The outlet-control headwater of this culvert ([`outlet_control`]) for a total design
+    /// The outlet-control headwater of this culvert by the MoWT manual ([`outlet_control`]; the
+    /// DMRB basis has no culvert hydraulics, see [`crate::design::dmrb`]) for a total design
     /// flow, with the barrel count, diameter, length and fall of the definition. Manning's n,
     /// the entrance loss coefficient and the tailwater depth are inputs.
     pub fn outlet_control(&self, design_flow_m3_s: f64, manning_n: f64, entrance_loss_ke: f64, tailwater_m: f64) -> Result<OutletControl, DrainageError> {
@@ -432,9 +454,26 @@ impl PipeCulvertDefinition {
 /// The kernel module for category [`CULVERT_CATEGORY`].
 ///
 /// `generate` reads a [`PipeCulvertDefinition`] from the element's `data`. A definition with
-/// Error notes yields the notes and no geometry.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct PipeCulvertModule;
+/// Error notes yields the notes and no geometry. The layout notes are those of the module's
+/// design basis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PipeCulvertModule {
+    /// The basis whose layout limits are checked. The engineer's choice; [`Default`] is MoWT.
+    pub basis: DesignBasis,
+}
+
+impl Default for PipeCulvertModule {
+    /// Uses [`DesignBasis::Mowt`].
+    fn default() -> Self {
+        PipeCulvertModule { basis: DesignBasis::Mowt }
+    }
+}
+
+impl PipeCulvertModule {
+    pub fn with_basis(basis: DesignBasis) -> Self {
+        PipeCulvertModule { basis }
+    }
+}
 
 impl Module for PipeCulvertModule {
     fn category(&self) -> &str {
@@ -447,7 +486,7 @@ impl Module for PipeCulvertModule {
 
     fn generate(&self, element: &Element) -> Result<Generated, String> {
         let def = PipeCulvertDefinition::from_value(&element.data).map_err(|e| e.to_string())?;
-        let notes = def.notes();
+        let notes = def.notes(self.basis);
         if error_text(&notes).is_some() {
             return Ok(Generated { notes, ..Generated::default() });
         }
@@ -455,6 +494,7 @@ impl Module for PipeCulvertModule {
         let mut put = |k: &str, v: String| {
             derived.insert(k.to_string(), v);
         };
+        put("Design basis for layout checks", self.basis.name().to_string());
         let d_m = def.internal_diameter_mm / 1000.0;
         put("Barrels", def.barrels.to_string());
         put("Internal diameter", format!("{} mm", fixed(def.internal_diameter_mm, 0, 1)));
@@ -466,8 +506,10 @@ impl Module for PipeCulvertModule {
         put("Skew", format!("{}°", fixed(def.skew_deg, 0, 2)));
         put("Waterway area, all barrels", format!("{} m²", fixed(def.barrels as f64 * PI * d_m * d_m / 4.0, 3, 3)));
         put("Total clear opening", format!("{} m", fixed(def.total_opening_m(), 2, 3)));
-        if let Some(kind) = culvert_structure_type(def.barrels, d_m) {
-            put("Structure type (DDM Table 3.2)", kind.label().to_string());
+        if self.basis == DesignBasis::Mowt {
+            if let Some(kind) = culvert_structure_type(def.barrels, d_m) {
+                put("Structure type (DDM Table 3.2)", kind.label().to_string());
+            }
         }
         if let Some(cover) = def.cover_at_alignment_m() {
             put("Cover on the alignment", format!("{} m", fixed(cover, 3, 3)));
@@ -537,7 +579,7 @@ mod tests {
         close(shifted.cover_at_alignment_m().unwrap(), 1152.5 - (1150.16001 + 1.0), 1e-5);
         assert_eq!(PipeCulvertDefinition { road_level_m: None, ..twin() }.cover_at_alignment_m(), None);
 
-        let g = PipeCulvertModule.generate(&element(&c)).unwrap();
+        let g = PipeCulvertModule::default().generate(&element(&c)).unwrap();
         assert_eq!(g.derived["Barrels"], "2");
         assert_eq!(g.derived["Length per barrel"], "12.000 m");
         assert_eq!(g.derived["Total pipe length"], "24.000 m");
@@ -642,7 +684,7 @@ mod tests {
 
     #[test]
     fn layout_limits_of_the_manual_are_notes_with_their_sections() {
-        let note = |d: &PipeCulvertDefinition, code: &str| d.notes().into_iter().find(|n| n.code == code);
+        let note = |d: &PipeCulvertDefinition, code: &str| d.notes(DesignBasis::Mowt).into_iter().find(|n| n.code == code);
         let small = PipeCulvertDefinition { internal_diameter_mm: 450.0, ..twin() };
         let n = note(&small, "CULVERT_BELOW_MINIMUM_DIAMETER").unwrap();
         assert!(n.severity == Severity::Warning && n.message.contains("Section 9.10") && n.message.contains("600 mm"));
@@ -657,21 +699,43 @@ mod tests {
         let at = |fall: f64| PipeCulvertDefinition { invert_level_inlet_m: 1150.0 + fall, ..twin() };
         assert_eq!(note(&at(0.036), "CULVERT_GRADIENT_BELOW_MINIMUM").unwrap().severity, Severity::Warning);
         assert_eq!(note(&at(0.096), "CULVERT_GRADIENT_FLAT").unwrap().severity, Severity::Info);
-        assert!(at(0.24).notes().is_empty());
+        assert!(at(0.24).notes(DesignBasis::Mowt).is_empty());
         assert!(note(&at(1.44), "CULVERT_GRADIENT_NEEDS_ANCHORS").unwrap().message.contains("Section 9.9.2"));
         assert_eq!(note(&at(3.0), "CULVERT_GRADIENT_NEEDS_SPECIAL_ANCHORS").unwrap().severity, Severity::Warning);
         assert!(note(&at(-0.1), "CULVERT_FALLS_TOWARDS_INLET").is_some());
 
+        // The same culverts under the DMRB basis: CD 529 has a 450 mm minimum, no skew or
+        // gradient limits, a 1.2 m minimum for culverts over 12 m, and calls pipes over 900 mm structures.
+        let dmrb = |d: &PipeCulvertDefinition| d.notes(DesignBasis::Dmrb).into_iter().map(|n| n.code).collect::<Vec<_>>();
+        assert!(dmrb(&small).is_empty(), "450 mm meets CD 529 3.5.1: {:?}", dmrb(&small));
+        let tiny = PipeCulvertDefinition { internal_diameter_mm: 300.0, ..twin() };
+        let n = tiny.notes(DesignBasis::Dmrb).into_iter().find(|n| n.code == "CULVERT_BELOW_MINIMUM_DIAMETER").unwrap();
+        assert!(n.message.contains("CD 529 v1.1.0 clause 3.5.1") && !n.message.contains("DDM"));
+        assert!(dmrb(&PipeCulvertDefinition { skew_deg: -50.0, ..twin() }).is_empty());
+        assert!(dmrb(&at(0.036)).is_empty() && dmrb(&at(3.0)).is_empty());
+        assert_eq!(dmrb(&at(-0.1)), ["CULVERT_FALLS_TOWARDS_INLET"]);
+        // 12 m is not "longer than 12 metres"; 12.5 m at 900 mm is.
+        let long = PipeCulvertDefinition { length_mm: 12_500.0, ..twin() };
+        let n = long.notes(DesignBasis::Dmrb).into_iter().find(|n| n.code == "CULVERT_TOO_SMALL_FOR_ITS_LENGTH").unwrap();
+        assert!(n.severity == Severity::Warning && n.message.contains("clause 3.4") && n.message.contains("12.50 m"));
+        assert!(note(&long, "CULVERT_TOO_SMALL_FOR_ITS_LENGTH").is_none(), "MoWT states no such rule");
+        let big = PipeCulvertDefinition { internal_diameter_mm: 1200.0, barrel_spacing_mm: Some(1800.0), length_mm: 12_500.0, ..twin() };
+        assert_eq!(dmrb(&big), ["CULVERT_IS_A_STRUCTURE"]);
+        let g = PipeCulvertModule::with_basis(DesignBasis::Dmrb).generate(&element(&big)).unwrap();
+        assert_eq!(g.derived["Design basis for layout checks"], "UK DMRB");
+        assert!(!g.derived.contains_key("Structure type (DDM Table 3.2)"));
+        assert!(g.notes.iter().all(|n| !n.message.contains("DDM")));
+
         // Four 1.5 m pipes are a 6 m opening.
         let wide = PipeCulvertDefinition { barrels: 4, internal_diameter_mm: 1500.0, barrel_spacing_mm: Some(2200.0), ..twin() };
         assert!(note(&wide, "CULVERT_OPENING_SIX_METRES_OR_MORE").unwrap().message.contains("Table 3.2"));
-        let g = PipeCulvertModule.generate(&element(&wide)).unwrap();
+        let g = PipeCulvertModule::default().generate(&element(&wide)).unwrap();
         assert!(!g.derived.contains_key("Structure type (DDM Table 3.2)"));
     }
 
     #[test]
     fn invalid_definitions_give_error_notes_and_no_geometry() {
-        let codes = |d: &PipeCulvertDefinition| d.notes().into_iter().filter(|n| n.severity == Severity::Error).map(|n| n.code).collect::<Vec<_>>();
+        let codes = |d: &PipeCulvertDefinition| d.notes(DesignBasis::Mowt).into_iter().filter(|n| n.severity == Severity::Error).map(|n| n.code).collect::<Vec<_>>();
         assert_eq!(codes(&PipeCulvertDefinition { barrels: 0, ..twin() }), ["CULVERT_NO_BARRELS"]);
         assert_eq!(codes(&PipeCulvertDefinition { internal_diameter_mm: 0.0, ..twin() }), ["CULVERT_DIAMETER_NOT_POSITIVE"]);
         assert_eq!(codes(&PipeCulvertDefinition { wall_thickness_mm: -1.0, ..twin() }), ["CULVERT_WALL_NEGATIVE"]);
@@ -684,18 +748,18 @@ mod tests {
         assert!(codes(&PipeCulvertDefinition { barrels: 1, barrel_spacing_mm: None, ..twin() }).is_empty());
 
         let bad = PipeCulvertDefinition { barrels: 0, ..twin() };
-        let g = PipeCulvertModule.generate(&element(&bad)).unwrap();
+        let g = PipeCulvertModule::default().generate(&element(&bad)).unwrap();
         assert!(g.solids.is_empty() && g.drawing.primitives.is_empty() && g.derived.is_empty());
         assert!(bad.site_placement(&alignment()).is_err());
         let mut e = element(&twin());
         e.data = serde_json::json!({"barrels": "two"});
-        assert!(PipeCulvertModule.generate(&e).is_err());
+        assert!(PipeCulvertModule::default().generate(&e).is_err());
     }
 
     #[test]
     fn placeholder_is_flagged_and_serde_round_trips() {
         let p = PipeCulvertDefinition::placeholder("MC10", 20.0);
-        let g = PipeCulvertModule.generate(&element(&p)).unwrap();
+        let g = PipeCulvertModule::default().generate(&element(&p)).unwrap();
         assert!(g.notes.iter().any(|n| n.code == NOTE_PLACEHOLDER && n.severity == Severity::Info));
         assert!(g.notes.iter().any(|n| n.code == "CULVERT_GRADIENT_BELOW_MINIMUM"), "a level placeholder is below the minimum gradient");
         assert!(g.notes.iter().any(|n| n.code == "CULVERT_ROAD_LEVEL_NOT_ENTERED"));

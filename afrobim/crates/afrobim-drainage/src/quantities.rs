@@ -232,7 +232,7 @@ pub fn culverts_to_csv(culverts: &[CulvertQuantities]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::design::ChannelMaterial;
+    use crate::design::mowt::ChannelMaterial;
     use crate::{ChannelSection, Lining, Side};
     use afrobim_alignment::{Alignment, AlignmentBuilder, Turn};
 
