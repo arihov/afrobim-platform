@@ -20,6 +20,11 @@
 //!   Table D.1 luminaire maintenance factors. Every line that uses it says so, and the report
 //!   opens with a warning. A mismatch with its informative annexes or recommendations is
 //!   reported as a difference, not a failure; the Table 2 and 5.7 m clearances can fail.
+//! - **EN 13201-2:2015** class values and **CEN/TR 13201-1:2014** class selection, as
+//!   reproduced in Stockmar, *Handbook about Interpretation of EN 13201* (LiTG, INTERREG CE 452
+//!   Dynamic Light, October 2017), through [`crate::en13201`]. **A secondary source**: neither
+//!   document has been read. Entered photometric results ([`PhotometricResults`]) are compared
+//!   with the class values, each line citing the handbook table and page.
 //! - **TII DN-LHT-03038, February 2012** (Ireland; the NRA addendum to the withdrawn UK
 //!   TD 34/07), paragraphs 2.9 and 2.15. A secondary reference like the MoWT manual.
 //!
@@ -28,11 +33,13 @@
 //! TD 501 is short on numbers. It hands the lighting class, the performance values, the
 //! maintenance factor, conflict areas and the column set-back to BS 5489-1, BS EN 13201-2, ILP
 //! PLG02, ILP TR30 and BS EN 12767 and reproduces none of them. The current BS 5489-1 and
-//! BS EN 13201-2 have not been read. So this crate holds **no luminance, illuminance,
-//! uniformity, threshold increment or spacing-to-height value**, and the only lighting class
-//! selection it holds is that of the superseded 2003 edition. The lighting class remains a
-//! label the engineer enters, and where a check needs a current figure the engineer enters it
-//! and the report says whose figure it is, or reports that the input is needed.
+//! BS EN 13201-2 have not been read. The class values (luminance, uniformities, threshold
+//! increment, illuminances) come only from the secondary source above, and there is **no
+//! spacing-to-height value**. The lighting class remains a label the engineer enters; the class
+//! selection of the superseded 2003 edition and, as a suggestion, that of CEN/TR 13201-1 are
+//! reported beside it. Where a check needs a figure the engineer enters it and the report says
+//! whose figure it is, or reports that the input is needed. **No photometry is computed**: the
+//! engineer enters the calculated results.
 //!
 //! What is checked exactly from the DMRB documents:
 //!
@@ -46,6 +53,8 @@
 //! | An unlit gap between lit sections is at least 4 × stopping sight distance | TD 501 cl. 3.11; CD 109 Table 2.10 |
 //! | Columns not certified to BS EN 12767 are hazards for the RRRAP; which CD 377 process applies | TD 501 cl. 3.4, 3.5; CD 377 cl. 2.2, 2.3, 2.6.1 |
 //! | Supply capacity is the largest load plus 20 % | TD 501 cl. 5.8 |
+//! | Entered luminance, uniformities, threshold increment, illuminances against the entered class | EN 13201-2:2015 as reproduced in the Stockmar handbook, Tables 5.1 to 5.3, pp. 7 to 10 |
+//! | A class suggested from the weighting parameters, beside the entered class | CEN/TR 13201-1:2014 as reproduced in the Stockmar handbook, Tables 4.1 to 4.3, pp. 4 to 6 |
 //! | One lighting class per zone; unique references | TD 501 cl. 6.48, 6.49, 6.52 |
 //! | Which design outputs of cl. 6.53 and 6.54 have been entered | TD 501 cl. 6.53, 6.54 |
 //!
@@ -74,6 +83,7 @@
 use afrobim_kernel::{Note, Severity};
 
 use crate::bs5489_2003::{self, ClassSelection, IpMinimum, Pollution, RoadType};
+use crate::en13201::{self, selection::ClassSelectionInput, ClassRequirements};
 use crate::model::{Arrangement, LightingData, LightingDefinition};
 use crate::{fixed, note};
 
@@ -193,6 +203,55 @@ pub struct CheckInputs {
     pub cleaning_interval_months: Option<u32>,
     /// Lamp (light source) flux maintenance factor from the manufacturer's data.
     pub lamp_flux_maintenance_factor: Option<f64>,
+    /// Calculated photometric results, entered by the engineer, to compare with the requirements
+    /// of the entered lighting class (see [`PhotometricResults`]). This crate computes none.
+    pub photometry: PhotometricResults,
+    /// The options for the CEN/TR 13201-1:2014 weighting procedure, to report the class it would
+    /// suggest beside the entered class. A suggestion from a technical report only.
+    pub class_selection: Option<ClassSelectionInput>,
+}
+
+/// Photometric results of the design, **entered by the engineer** from a photometric calculation
+/// (EN 13201-3 method) or measurement made elsewhere. This crate computes no photometry. Values
+/// are the maintained values, compared with the class requirements without rounding. Every
+/// field is optional: a missing one gives an "input needed" line (or, for criteria that apply
+/// only in some conditions, an information line), never an assumed value.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct PhotometricResults {
+    /// Where the results come from (program, file, date), quoted in the report.
+    pub source: String,
+    /// M classes: maintained average road surface luminance `L_av`, cd/m2.
+    pub l_av_cd_m2: Option<f64>,
+    /// M classes: overall uniformity of luminance, dry, `U_o`.
+    pub u_o: Option<f64>,
+    /// M classes: longitudinal uniformity of luminance `U_l`. Applies to long uninterrupted
+    /// sections of road only (handbook p. 7).
+    pub u_l: Option<f64>,
+    /// M classes: overall uniformity, wet. Applies where the surface is wet for a substantial part
+    /// of the hours of darkness and reflectance data are available.
+    pub u_o_wet: Option<f64>,
+    /// M and P classes, and C classes where it applies: threshold increment `TI`, per cent.
+    pub ti_percent: Option<f64>,
+    /// M classes: edge illuminance ratio `EIR`. Considered for roads with an adjacent footway or
+    /// cycle path for which no requirements are given (handbook p. 8).
+    pub eir: Option<f64>,
+    /// C classes: maintained average illuminance over the whole used surface `E_av`, lx; P
+    /// classes: maintained average horizontal illuminance `E_h,av`, lx.
+    pub e_av_lx: Option<f64>,
+    /// C classes: uniformity of illuminance `U_o(E)`.
+    pub u_o_e: Option<f64>,
+    /// P classes: maintained minimum horizontal illuminance `E_h,min`, lx.
+    pub e_h_min_lx: Option<f64>,
+    /// P classes: minimum vertical illuminance `E_v,min`, lx (facial recognition).
+    pub e_v_min_lx: Option<f64>,
+    /// P classes: minimum semi-cylindrical illuminance `E_sc,min`, lx (facial recognition).
+    pub e_sc_min_lx: Option<f64>,
+    /// P classes: whether facial recognition is necessary, which brings in the vertical and
+    /// semi-cylindrical illuminances.
+    pub facial_recognition_necessary: Option<bool>,
+    /// C classes: whether the design speed is low or very low (the second threshold increment
+    /// column of the table) rather than moderate, high or very high.
+    pub low_or_very_low_speed: Option<bool>,
 }
 
 /// How one line came out.
@@ -263,7 +322,7 @@ impl LightingChecks {
     pub fn calculation(&self) -> Vec<String> {
         let mut out = vec![
             format!("Road lighting requirement checks for '{}'.", self.reference),
-            "Basis: DMRB TD 501 Version 0.1.0 (September 2025) with TA 501 Revision 0, CD 109 Version 1.1.0 and CD 377 Version 5.0.1; BS 5489-1:2003 where a line cites it; MoWT Geometric Design Manual (January 2010) section 12.8 and TII DN-LHT-03038 (February 2012) as secondary references only. TD 501 governs.".to_string(),
+            "Basis: DMRB TD 501 Version 0.1.0 (September 2025) with TA 501 Revision 0, CD 109 Version 1.1.0 and CD 377 Version 5.0.1; BS 5489-1:2003 where a line cites it; EN 13201-2:2015 class values and CEN/TR 13201-1:2014 selection as reproduced in Stockmar, Handbook about Interpretation of EN 13201 (LiTG, 2017; a secondary source, confirm against the standard); MoWT Geometric Design Manual (January 2010) section 12.8 and TII DN-LHT-03038 (February 2012) as secondary references only. TD 501 governs.".to_string(),
             format!("WARNING: {}", bs5489_2003::SUPERSEDED_NOTICE),
         ];
         out.extend(self.lines.iter().map(|l| format!("[{}] {} {}: {}.", l.clause, l.requirement, l.finding, l.outcome.label())));
@@ -295,6 +354,195 @@ impl LightingChecks {
             })
             .collect()
     }
+}
+
+/// Collects the lines that compare entered photometric results with the requirements of a class.
+struct Performance {
+    class: &'static str,
+    clause: &'static str,
+    source: String,
+    lines: Vec<CheckLine>,
+}
+
+impl Performance {
+    /// One criterion. `upper` is true for a maximum. `exceed` is the outcome when the limit is
+    /// not met; `absent` the outcome and wording when no value is entered.
+    #[allow(clippy::too_many_arguments)]
+    fn bound(&mut self, what: &str, unit: &str, value: Option<f64>, limit: f64, upper: bool, exceed: Outcome, absent: (Outcome, &str)) {
+        let m = |v: f64| fixed(v, 0, 3);
+        let requirement = format!("Class {}: {what} {} {}{unit}.", self.class, if upper { "at most" } else { "at least" }, m(limit));
+        let (finding, outcome) = match value {
+            Some(v) => {
+                let met = if upper { v <= limit } else { v >= limit };
+                (format!("{}{unit} entered ({})", m(v), self.source), if met { Outcome::Ok } else { exceed })
+            }
+            None if absent.0 == Outcome::InputNeeded => (
+                "not entered; this crate computes no photometry, so enter the maintained value from a photometric calculation (EN 13201-3 method) or measurement".to_string(),
+                Outcome::InputNeeded,
+            ),
+            None => (format!("not entered ({})", absent.1), absent.0),
+        };
+        self.lines.push(CheckLine { clause: self.clause.to_string(), requirement, finding, outcome });
+    }
+
+    fn info(&mut self, requirement: String, finding: String, outcome: Outcome) {
+        self.lines.push(CheckLine { clause: self.clause.to_string(), requirement, finding, outcome });
+    }
+}
+
+const NEEDED: (Outcome, &str) = (Outcome::InputNeeded, "");
+
+/// The lines comparing the entered photometric results with the requirements of the entered
+/// lighting class (EN 13201-2:2015 as reproduced in the Stockmar handbook, see [`crate::en13201`]).
+fn performance_lines(label: &str, ph: &PhotometricResults) -> Vec<CheckLine> {
+    let label = label.trim();
+    if label.is_empty() {
+        return Vec::new();
+    }
+    let source = if ph.source.trim().is_empty() { "source not stated; calculated outside this crate".to_string() } else { format!("{}; calculated outside this crate", ph.source.trim()) };
+    let Some(class) = en13201::lookup(label) else {
+        return vec![CheckLine {
+            clause: "EN 13201-2:2015 as reproduced in Stockmar, Handbook about Interpretation of EN 13201, Tables 5.1 to 5.3, pp. 7 to 10".to_string(),
+            requirement: "Performance requirements of the entered lighting class.".to_string(),
+            finding: format!("'{label}' is not a class M1 to M6, C0 to C5 or P1 to P7 of EN 13201-2:2015; no requirement is compared (the BS 5489-1:2003 names ME, CE and S are not classes of the 2015 standard)"),
+            outcome: Outcome::Information,
+        }];
+    };
+    let class_label = match class {
+        ClassRequirements::M(c) => c.label,
+        ClassRequirements::C(c) => c.label,
+        ClassRequirements::P(c) => c.label,
+        ClassRequirements::P7 => "P7",
+    };
+    let mut p = Performance { class: class_label, clause: class.citation(), source, lines: Vec::new() };
+    p.info(
+        format!("Class {class_label}: performance requirements of EN 13201-2:2015."),
+        format!("{} Values are for the maintained condition and are compared as entered, without rounding", en13201::SECONDARY_NOTICE),
+        Outcome::Information,
+    );
+    match class {
+        ClassRequirements::M(c) => {
+            p.bound("maintained average road surface luminance Lav", " cd/m2", ph.l_av_cd_m2, c.l_av_cd_m2, false, Outcome::Fails, NEEDED);
+            p.bound("overall uniformity of road surface luminance Uo (dry)", "", ph.u_o, c.u_o, false, Outcome::Fails, NEEDED);
+            p.bound(
+                "longitudinal uniformity of road surface luminance Ul",
+                "",
+                ph.u_l,
+                c.u_l,
+                false,
+                Outcome::Fails,
+                (Outcome::Information, "applies to long uninterrupted sections of road only"),
+            );
+            p.bound(
+                "overall uniformity of road surface luminance Uo (wet)",
+                "",
+                ph.u_o_wet,
+                c.u_o_wet,
+                false,
+                Outcome::Fails,
+                (Outcome::Information, "applies in addition where the surface is wet for a substantial part of the hours of darkness and reflectance data are available"),
+            );
+            p.bound("threshold increment TI", " %", ph.ti_percent, c.ti_max_percent, true, Outcome::Fails, NEEDED);
+            p.bound(
+                "edge illuminance ratio EIR",
+                "",
+                ph.eir,
+                c.eir_min,
+                false,
+                Outcome::Fails,
+                (Outcome::Information, "considered for roads with an adjacent footway or cycle path for which no specific requirements are given"),
+            );
+        }
+        ClassRequirements::C(c) => {
+            p.bound("maintained average illuminance Eav over the whole of the used surface", " lx", ph.e_av_lx, c.e_av_lx, false, Outcome::Fails, NEEDED);
+            p.bound("uniformity of illuminance Uo(E)", "", ph.u_o_e, c.u_o, false, Outcome::Fails, NEEDED);
+            // The threshold increment is an informative criterion for the C classes.
+            match (ph.ti_percent, ph.low_or_very_low_speed) {
+                (None, _) => p.bound(
+                    "threshold increment TI (informative criterion)",
+                    " %",
+                    None,
+                    c.ti_max_high_speed_percent,
+                    true,
+                    Outcome::Differs,
+                    (Outcome::Information, "informative for the C classes; applicable where the visual tasks of roads for motorised traffic are of importance"),
+                ),
+                (Some(_), None) => p.info(
+                    format!(
+                        "Class {}: threshold increment TI at most {} % for very high, high or moderate speed, {} % for low or very low speed (informative criterion).",
+                        c.label,
+                        fixed(c.ti_max_high_speed_percent, 0, 3),
+                        fixed(c.ti_max_low_speed_percent, 0, 3)
+                    ),
+                    "TI is entered but not whether the design speed is low or very low; enter it to choose the column of the table".to_string(),
+                    Outcome::InputNeeded,
+                ),
+                (Some(_), Some(low)) => {
+                    let (what, limit) = if low {
+                        ("threshold increment TI for low or very low speed (informative criterion)", c.ti_max_low_speed_percent)
+                    } else {
+                        ("threshold increment TI for very high, high or moderate speed (informative criterion)", c.ti_max_high_speed_percent)
+                    };
+                    p.bound(what, " %", ph.ti_percent, limit, true, Outcome::Differs, NEEDED);
+                }
+            }
+        }
+        ClassRequirements::P(c) => {
+            p.bound("maintained average horizontal illuminance Eh,av", " lx", ph.e_av_lx, c.e_h_av_lx, false, Outcome::Fails, NEEDED);
+            p.bound(
+                "maintained average horizontal illuminance Eh,av, not above 1.5 times the class value to provide for uniformity,",
+                " lx",
+                ph.e_av_lx,
+                en13201::P_E_AV_MAX_FACTOR * c.e_h_av_lx,
+                true,
+                Outcome::Fails,
+                NEEDED,
+            );
+            p.bound("maintained minimum horizontal illuminance Eh,min", " lx", ph.e_h_min_lx, c.e_h_min_lx, false, Outcome::Fails, NEEDED);
+            match ph.facial_recognition_necessary {
+                None => p.info(
+                    format!(
+                        "Class {}: where facial recognition is necessary, minimum vertical illuminance Ev,min at least {} lx and minimum semi-cylindrical illuminance Esc,min at least {} lx.",
+                        c.label,
+                        fixed(c.e_v_min_lx, 0, 3),
+                        fixed(c.e_sc_min_lx, 0, 3)
+                    ),
+                    "not entered whether facial recognition is necessary".to_string(),
+                    Outcome::InputNeeded,
+                ),
+                Some(false) => p.info(
+                    format!("Class {}: additional requirements (Ev,min, Esc,min) apply only where facial recognition is necessary.", c.label),
+                    "facial recognition entered as not necessary: no additional requirements".to_string(),
+                    Outcome::Information,
+                ),
+                Some(true) => {
+                    let absent = if ph.e_v_min_lx.is_none() && ph.e_sc_min_lx.is_none() {
+                        NEEDED
+                    } else {
+                        (Outcome::Information, "the handbook states the requirement as vertical or semi-cylindrical illuminance")
+                    };
+                    p.bound("minimum vertical illuminance Ev,min (facial recognition)", " lx", ph.e_v_min_lx, c.e_v_min_lx, false, Outcome::Fails, absent);
+                    p.bound("minimum semi-cylindrical illuminance Esc,min (facial recognition)", " lx", ph.e_sc_min_lx, c.e_sc_min_lx, false, Outcome::Fails, absent);
+                }
+            }
+            // The threshold increment of the P classes is the handbook's own addition.
+            p.bound(
+                "threshold increment TI (a recommendation added in the handbook's modified table, not an EN 13201-2:2015 requirement)",
+                " %",
+                ph.ti_percent,
+                c.ti_max_percent,
+                true,
+                Outcome::Differs,
+                (Outcome::Information, "a recommendation only"),
+            );
+        }
+        ClassRequirements::P7 => p.info(
+            "Class P7: performance requirements.".to_string(),
+            "the handbook's Table 5.3 gives \"performance not determined\" for P7: nothing is compared".to_string(),
+            Outcome::Information,
+        ),
+    }
+    p.lines
 }
 
 /// Checks a lighting element against the requirements listed in the module documentation.
@@ -539,9 +787,22 @@ pub fn check_lighting(data: &LightingData, inputs: &CheckInputs) -> LightingChec
     line(
         td("2.1, 4.2, 6.50"),
         "Lighting performance fulfils BS 5489-1 and BS EN 13201-2; energy performance indicators to BS EN 13201-5.",
-        "Not verified: no photometric calculation is made and the photometric file is a reference only. The power density and annual energy indicators are not computed".to_string(),
+        "Not verified by this crate: no photometric calculation is made and the photometric file is a reference only. Where the engineer enters calculated results they are compared with the class values below, as entered. The power density and annual energy indicators are not computed (the handbook gives no formula for them)".to_string(),
         Outcome::Information,
     );
+    for l in performance_lines(data.definition.lighting_class(), &inputs.photometry) {
+        line(l.clause, &l.requirement, l.finding, l.outcome);
+    }
+    if let Some(sel) = inputs.class_selection {
+        let s = sel.suggest();
+        let entered = data.definition.lighting_class().trim();
+        line(
+            "CEN/TR 13201-1:2014 as reproduced in Stockmar, Handbook about Interpretation of EN 13201, Tables 4.1 to 4.3, pp. 4 to 6 (suggestion)".to_string(),
+            "A lighting class is suggested from the weighting values of the technical report: 6 minus their sum. Informative; the selection is the engineer's.",
+            format!("{}. Entered class '{entered}'", s.text()),
+            if s.class.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(entered)) { Outcome::Ok } else { Outcome::Differs },
+        );
+    }
     line(
         td("3.19"),
         "Columns are in accordance with CD 354 and CC 481.",
@@ -678,7 +939,7 @@ pub fn check_lighting(data: &LightingData, inputs: &CheckInputs) -> LightingChec
     line(
         BS.to_string(),
         "Performance requirements of the lighting classes.",
-        "Not held: BS 5489-1:2003 refers to BS EN 13201-2 for luminance, uniformity, threshold increment and illuminance and does not reproduce them".to_string(),
+        "BS 5489-1:2003 refers to BS EN 13201-2 for luminance, uniformity, threshold increment and illuminance and does not reproduce them; the class values used above are from the Stockmar handbook (secondary source)".to_string(),
         Outcome::Information,
     );
 
@@ -843,6 +1104,8 @@ mod tests {
             speed_limit_mph: Some(60.0),
             aadt: Some(12000.0),
             maintenance_factor: Some(0.85),
+            // Class M3 at its limits (Lav 1.0, Uo 0.40, TI 15 %): met, so nothing is left to enter.
+            photometry: PhotometricResults { l_av_cd_m2: Some(1.0), u_o: Some(0.4), ti_percent: Some(15.0), ..Default::default() },
             ..Default::default()
         };
         let c = check_lighting(&d, &inputs);
@@ -990,5 +1253,204 @@ mod tests {
             i.column.bracket_outreach_m = 1.0;
         }
         assert!(find(&check_lighting(&d, &inputs), "cl. 5.2.1.2").is_empty());
+    }
+
+    /// The performance lines of `class` for the entered results.
+    fn perf(class: &str, ph: PhotometricResults) -> Vec<CheckLine> {
+        let mut d = data(Arrangement::SingleRight);
+        if let LightingDefinition::Installation(i) = &mut d.definition {
+            i.lighting_class = class.to_string();
+        }
+        let c = check_lighting(&d, &CheckInputs { photometry: ph, ..Default::default() });
+        c.lines.into_iter().filter(|l| l.clause.contains("Stockmar") && l.requirement.starts_with(&format!("Class {}", class.trim().to_uppercase()))).collect()
+    }
+
+    fn by<'a>(lines: &'a [CheckLine], what: &str) -> &'a CheckLine {
+        lines.iter().find(|l| l.requirement.contains(what)).unwrap_or_else(|| panic!("no line for {what}"))
+    }
+
+    #[test]
+    fn m_class_results_at_the_limit_and_either_side() {
+        // M3 (handbook Table 5.1, p. 7): Lav 1.00, Uo 0.40, Ul 0.60, wet Uo 0.15, TI 15 %, EIR 0.30.
+        let at = PhotometricResults {
+            source: "test calc".to_string(),
+            l_av_cd_m2: Some(1.0),
+            u_o: Some(0.40),
+            u_l: Some(0.60),
+            u_o_wet: Some(0.15),
+            ti_percent: Some(15.0),
+            eir: Some(0.30),
+            ..Default::default()
+        };
+        let lines = perf("M3", at.clone());
+        for what in ["Lav", "Uo (dry)", "Ul", "Uo (wet)", "TI", "EIR"] {
+            assert_eq!(by(&lines, what).outcome, Outcome::Ok, "{what} at the limit");
+        }
+        assert!(by(&lines, "Lav").clause.contains("Table 5.1") && by(&lines, "Lav").clause.contains("p. 7"));
+        assert!(by(&lines, "Lav").requirement.contains("at least 1 cd/m2") && by(&lines, "TI").requirement.contains("at most 15 %"));
+        assert!(by(&lines, "Lav").finding.contains("test calc") && by(&lines, "Lav").finding.contains("calculated outside this crate"));
+        // Just inside the limits.
+        let inside = PhotometricResults {
+            l_av_cd_m2: Some(1.01),
+            u_o: Some(0.41),
+            u_l: Some(0.61),
+            u_o_wet: Some(0.16),
+            ti_percent: Some(14.9),
+            eir: Some(0.31),
+            ..at.clone()
+        };
+        assert!(perf("M3", inside).iter().skip(1).all(|l| l.outcome == Outcome::Ok));
+        // Just outside every limit: each criterion fails.
+        let outside = PhotometricResults {
+            l_av_cd_m2: Some(0.99),
+            u_o: Some(0.39),
+            u_l: Some(0.59),
+            u_o_wet: Some(0.14),
+            ti_percent: Some(15.1),
+            eir: Some(0.29),
+            ..at
+        };
+        let lines = perf("m3", outside.clone());
+        for what in ["Lav", "Uo (dry)", "Ul", "Uo (wet)", "TI", "EIR"] {
+            assert_eq!(by(&lines, what).outcome, Outcome::Fails, "{what} outside");
+        }
+        // The report says it is a secondary source and that the crate computes no photometry.
+        assert!(lines[0].finding.contains("secondary source") && lines[0].finding.contains("BS EN 13201-2:2015 itself"));
+        // The same results against the stricter M2 (Lav 1.50) fail on luminance only.
+        let m2 = perf("M2", PhotometricResults { l_av_cd_m2: Some(1.4), u_o: Some(0.4), u_l: Some(0.7), ti_percent: Some(10.0), ..Default::default() });
+        assert_eq!(by(&m2, "Lav").outcome, Outcome::Fails);
+        assert_eq!((by(&m2, "Uo (dry)").outcome, by(&m2, "Ul").outcome, by(&m2, "TI").outcome), (Outcome::Ok, Outcome::Ok, Outcome::Ok));
+        // M5 and M6 have Uo 0.35: 0.35 passes, 0.34 fails.
+        assert_eq!(by(&perf("M5", PhotometricResults { u_o: Some(0.35), ..Default::default() }), "Uo (dry)").outcome, Outcome::Ok);
+        assert_eq!(by(&perf("M6", PhotometricResults { u_o: Some(0.34), ..Default::default() }), "Uo (dry)").outcome, Outcome::Fails);
+    }
+
+    #[test]
+    fn m_class_with_nothing_entered_asks_and_says_no_photometry_is_computed() {
+        let lines = perf("M3", PhotometricResults::default());
+        for what in ["Lav", "Uo (dry)", "TI"] {
+            let l = by(&lines, what);
+            assert_eq!(l.outcome, Outcome::InputNeeded, "{what}");
+            assert!(l.finding.contains("computes no photometry"));
+        }
+        // Conditional criteria are for information, not demanded.
+        for what in ["Ul", "Uo (wet)", "EIR"] {
+            assert_eq!(by(&lines, what).outcome, Outcome::Information, "{what}");
+        }
+        // Failing and asking show in the notes.
+        let mut d = data(Arrangement::SingleRight);
+        let c = check_lighting(&d, &CheckInputs::default());
+        assert!(c.notes().iter().any(|n| n.message.contains("Class M3") && n.message.contains("computes no photometry")));
+        // A label that is not a class of the 2015 standard is information; nothing is compared.
+        if let LightingDefinition::Installation(i) = &mut d.definition {
+            i.lighting_class = "ME3a".to_string();
+        }
+        let c = check_lighting(&d, &CheckInputs { photometry: PhotometricResults { l_av_cd_m2: Some(0.1), ..Default::default() }, ..Default::default() });
+        let l = c.lines.iter().find(|l| l.finding.contains("is not a class M1 to M6")).unwrap();
+        assert_eq!(l.outcome, Outcome::Information);
+        assert!(c.passes());
+    }
+
+    #[test]
+    fn c_class_results() {
+        // C2 (handbook Table 5.2, p. 9): Eav 20 lx, Uo 0.40, TI 10 % (15 % at low or very low speed).
+        let at = PhotometricResults { e_av_lx: Some(20.0), u_o_e: Some(0.40), ..Default::default() };
+        let lines = perf("C2", at.clone());
+        assert_eq!((by(&lines, "Eav").outcome, by(&lines, "Uo(E)").outcome), (Outcome::Ok, Outcome::Ok));
+        assert!(by(&lines, "Eav").clause.contains("Table 5.2") && by(&lines, "Eav").clause.contains("p. 9"));
+        assert_eq!(by(&lines, "TI").outcome, Outcome::Information);
+        let below = perf("C2", PhotometricResults { e_av_lx: Some(19.9), u_o_e: Some(0.39), ..Default::default() });
+        assert_eq!((by(&below, "Eav").outcome, by(&below, "Uo(E)").outcome), (Outcome::Fails, Outcome::Fails));
+        // TI is informative: it differs, never fails; the column depends on the speed.
+        let ti = |v: f64, low: Option<bool>| perf("C2", PhotometricResults { ti_percent: Some(v), low_or_very_low_speed: low, ..at.clone() });
+        assert_eq!(by(&ti(10.0, Some(false)), "TI for very high").outcome, Outcome::Ok);
+        assert_eq!(by(&ti(10.1, Some(false)), "TI for very high").outcome, Outcome::Differs);
+        assert_eq!(by(&ti(15.0, Some(true)), "TI for low").outcome, Outcome::Ok);
+        assert_eq!(by(&ti(15.1, Some(true)), "TI for low").outcome, Outcome::Differs);
+        assert_eq!(by(&ti(12.0, None), "TI").outcome, Outcome::InputNeeded);
+        // C5 has Eav 7.5 lx and TI 15 / 20 %.
+        let c5 = perf("C5", PhotometricResults { e_av_lx: Some(7.5), u_o_e: Some(0.4), ti_percent: Some(20.0), low_or_very_low_speed: Some(true), ..Default::default() });
+        assert!(c5.iter().skip(1).all(|l| l.outcome == Outcome::Ok));
+    }
+
+    #[test]
+    fn p_class_results() {
+        // P4 (handbook Table 5.3, p. 10): Eh,av 5.0, Eh,min 1.0, TI 30 %, Ev,min 1.5, Esc,min 1.0.
+        let ph = |av: f64, min: f64| PhotometricResults { e_av_lx: Some(av), e_h_min_lx: Some(min), facial_recognition_necessary: Some(false), ..Default::default() };
+        let lines = perf("P4", ph(5.0, 1.0));
+        assert_eq!((by(&lines, "Eh,av").outcome, by(&lines, "Eh,min").outcome), (Outcome::Ok, Outcome::Ok));
+        assert!(by(&lines, "Eh,min").clause.contains("Table 5.3") && by(&lines, "Eh,min").clause.contains("p. 10"));
+        assert_eq!(by(&lines, "Ev,min").outcome, Outcome::Information);
+        // Below the minimum, either criterion.
+        let lines = perf("P4", ph(4.99, 0.99));
+        assert!(lines.iter().filter(|l| l.requirement.contains("at least")).all(|l| l.outcome == Outcome::Fails));
+        // The note under the table: the average must not exceed 1.5 times 5.0 = 7.5 lx.
+        let upper = |v: f64| perf("P4", ph(v, 1.0)).into_iter().find(|l| l.requirement.contains("1.5 times")).unwrap();
+        assert_eq!(upper(7.5).outcome, Outcome::Ok);
+        assert!(upper(7.5).requirement.contains("at most 7.5 lx"));
+        assert_eq!(upper(7.51).outcome, Outcome::Fails);
+        // Facial recognition: each entered illuminance is compared; none entered asks; unknown asks.
+        let face = |v: Option<f64>, sc: Option<f64>| {
+            perf("P4", PhotometricResults { e_av_lx: Some(5.0), e_h_min_lx: Some(1.0), facial_recognition_necessary: Some(true), e_v_min_lx: v, e_sc_min_lx: sc, ..Default::default() })
+        };
+        let l = face(Some(1.5), Some(0.99));
+        assert_eq!((by(&l, "Ev,min").outcome, by(&l, "Esc,min").outcome), (Outcome::Ok, Outcome::Fails));
+        let l = face(Some(1.49), Some(1.0));
+        assert_eq!((by(&l, "Ev,min").outcome, by(&l, "Esc,min").outcome), (Outcome::Fails, Outcome::Ok));
+        let l = face(None, None);
+        assert_eq!((by(&l, "Ev,min").outcome, by(&l, "Esc,min").outcome), (Outcome::InputNeeded, Outcome::InputNeeded));
+        let l = face(Some(1.5), None);
+        assert_eq!(by(&l, "Esc,min").outcome, Outcome::Information);
+        let l = perf("P4", PhotometricResults { e_av_lx: Some(5.0), e_h_min_lx: Some(1.0), ..Default::default() });
+        assert_eq!(by(&l, "facial recognition is necessary").outcome, Outcome::InputNeeded);
+        // The TI of the P classes is the handbook's addition: it differs, never fails.
+        let t = |v: f64| perf("P4", PhotometricResults { ti_percent: Some(v), ..ph(5.0, 1.0) });
+        assert_eq!(by(&t(30.0), "recommendation").outcome, Outcome::Ok);
+        assert_eq!(by(&t(30.1), "recommendation").outcome, Outcome::Differs);
+        // P1 and P6 rows: P1 needs 15 / 3.0, P6 needs 2.0 / 0.4.
+        assert_eq!(perf("P1", ph(14.9, 3.0)).iter().filter(|l| l.outcome == Outcome::Fails).count(), 1);
+        assert!(perf("P6", ph(2.0, 0.4)).iter().all(|l| l.outcome != Outcome::Fails));
+        // P7: performance not determined.
+        let p7 = perf("P7", PhotometricResults::default());
+        assert!(p7.iter().any(|l| l.finding.contains("performance not determined") && l.outcome == Outcome::Information));
+        assert!(p7.iter().all(|l| l.outcome != Outcome::InputNeeded));
+    }
+
+    #[test]
+    fn a_failing_class_requirement_fails_the_check_and_the_class_selection_is_a_suggestion() {
+        use crate::en13201::selection::*;
+        let mut d = data(Arrangement::SingleRight);
+        let bad = CheckInputs { photometry: PhotometricResults { l_av_cd_m2: Some(0.9), ..Default::default() }, ..Default::default() };
+        let c = check_lighting(&d, &bad);
+        assert!(!c.passes());
+        assert!(c.notes().iter().any(|n| n.severity == Severity::Error && n.message.contains("Table 5.1")));
+        // Hand-worked selection: high speed 1 + moderate volume 0 + mixed 1 + separated 0 +
+        // moderate junctions 0 + parked 1 + moderate ambient 0 + easy 0 = 3, so 6 - 3 = M3.
+        let m = MSelection {
+            design_speed: DesignSpeed::High,
+            traffic_volume: TrafficVolume::Moderate,
+            traffic_composition: TrafficComposition::Mixed,
+            carriageway_separated: true,
+            junction_density: JunctionDensity::Moderate,
+            parked_vehicles_present: true,
+            ambient_luminance: AmbientLuminance::Moderate,
+            navigational_task: NavigationalTask::Easy,
+        };
+        let inputs = CheckInputs { class_selection: Some(ClassSelectionInput::M(m)), ..Default::default() };
+        let c = check_lighting(&d, &inputs);
+        let l = c.lines.iter().find(|l| l.clause.contains("CEN/TR 13201-1:2014")).unwrap();
+        assert_eq!(l.outcome, Outcome::Ok);
+        assert!(l.finding.contains("suggests class M3") && l.finding.contains("Suggestion only") && l.clause.contains("Tables 4.1 to 4.3, pp. 4 to 6"));
+        // A different entered class differs from the suggestion; it does not fail.
+        if let LightingDefinition::Installation(i) = &mut d.definition {
+            i.lighting_class = "M2".to_string();
+        }
+        let c = check_lighting(&d, &inputs);
+        assert_eq!(c.lines.iter().find(|l| l.clause.contains("CEN/TR 13201-1:2014")).unwrap().outcome, Outcome::Differs);
+        assert!(c.passes());
+        // No selection entered: no line.
+        assert!(check_lighting(&d, &CheckInputs::default()).lines.iter().all(|l| !l.clause.contains("CEN/TR 13201-1:2014")));
+        let text = check_lighting(&d, &inputs).calculation().join("\n");
+        assert!(text.contains("secondary source") && !text.contains('\u{2014}'));
     }
 }

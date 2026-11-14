@@ -36,6 +36,7 @@ or table in a comment.
 | DMRB CD 109 *Highway link design* | Version 1.1.0, 30 October 2026 | standardsforhighways.co.uk | Table 2.10, stopping sight distance, called on by TD 501 clause 3.11 |
 | DMRB CD 377 *Requirements for road restraint systems* | Version 5.0.1, 27 February 2026 | standardsforhighways.co.uk | Clauses 2.2, 2.3 and 2.6.1 item 16, called on by TD 501 clause 3.4 |
 | **BS 5489-1:2003** incorporating Corrigendum No. 1, *Code of practice for the design of road lighting, Part 1* | **2003: superseded** | the owner's copy (not in the repository; copyright BSI) | Table 2, clauses 5.2.1.2, 5.2.3.3, 6.4.4, Tables B.1 to B.5, Table D.1. Module `bs5489_2003` |
+| **Stockmar, *Handbook about Interpretation of EN 13201*** (LiTG, INTERREG Central Europe CE 452 "Dynamic Light", deliverable D.T4.1.4, October 2017, 32 pages) | **Secondary source.** Interprets EN 13201-2:2015, EN 13201-5:2015 and CEN/TR 13201-1:2014 | the owner's copy (not in the repository) | Tables 4.1 to 4.3, 5.1 to 5.3 (pages 4 to 6, 7, 9, 10). Module `en13201` |
 | MoWT *Road Design Manual Volume 1: Geometric Design* | January 2010 | uace.or.ug | Section 12.8 "Lighting" (pages 259 and 260). Secondary reference only |
 | TII DN-LHT-03038 *Design of Road Lighting for the Strategic Motorway and All Purpose Trunk Road Network* | February 2012 (the NRA addendum to UK TD 34/07 of August 2007, which TD 501 has since replaced) | the owner's copy | Paragraphs 2.9, 2.15. Irish; secondary reference only |
 
@@ -53,19 +54,62 @@ Only the core DMRB documents were read, not their National Application Annexes.
 TD 501 hands the lighting class (clause 3.6), the performance values (2.1), the maintenance
 factor (3.8), conflict areas (3.10) and, with CD 377, the column off-set (3.4) to BS 5489-1,
 BS EN 13201-2, ILP PLG02, ILP TR30 and BS EN 12767, and reproduces none of them. Of those only
-BS 5489-1:2003 has been read. **BS EN 13201-2 has not been supplied, and BS 5489-1:2003 does not
-reproduce it**, so this crate contains:
+BS 5489-1:2003 has been read. **BS EN 13201-2 itself has not been supplied, and BS 5489-1:2003
+does not reproduce it.** The class values come from a secondary source instead:
 
-- no luminance, uniformity, threshold increment, surround ratio or illuminance value for any
-  lighting class: compliance with a class cannot be shown here;
+> **The owner should confirm every value in module `en13201` against BS EN 13201-2:2015 itself
+> (and the selection weights against CEN/TR 13201-1:2014) before it is relied on.** They are
+> read from Stockmar's *Handbook about Interpretation of EN 13201* (LiTG, 2017), not from the
+> standards. The handbook gives its own table numbers and no EN table number, so every citation
+> reads "EN 13201-2:2015 as reproduced in Stockmar, Handbook about Interpretation of EN 13201,
+> Table 5.n, p. n", and every report line that uses them carries that warning.
+
+> **BS 5489-1:2003 is still superseded** (see above); that notice stands. Its ME, CE and S class
+> names are not classes of EN 13201-2:2015, so an entered "ME3a" is not compared with the
+> handbook's tables.
+
+So this crate contains:
+
+- the M, C and P class values of EN 13201-2:2015 as the handbook reproduces them (below), and a
+  comparison of results the engineer **enters** with them. **It computes no photometry**: no
+  luminance, illuminance, uniformity, threshold increment or edge illuminance is calculated, and
+  every report line about them says so. Compliance with a class is shown only as far as the
+  engineer's entered results show it;
+- no HS, SC or EV class, and no energy performance indicator formula (the handbook gives none);
 - no spacing, mounting height or spacing-to-height rule (BS 5489-1:2003 tabulates none; they
   come from the photometric calculation);
-- no M, C or P class selection (current editions);
+- a class suggestion from CEN/TR 13201-1:2014 (weighting parameters), labelled as a suggestion
+  from a technical report and never a requirement;
 - no passive safety class by speed (ILP TR30 and BS EN 12767 are not held).
 
-The lighting class stays a label the engineer enters. Where a check needs a current figure the
-engineer enters it with its source and the report says whose figure it is. A missing input gives
-an `INPUT NEEDED` line, never an assumed value.
+The lighting class stays a label the engineer enters; "M3" (any case) resolves to its table row,
+while "ME3a" and other labels do not and give an information line. A missing input gives an
+`INPUT NEEDED` line, never an assumed value.
+
+### EN 13201-2:2015 as reproduced in the handbook (module `en13201`)
+
+Which edition the handbook interprets: EN 13201-2:2015 (performance requirements), EN
+13201-5:2015 (energy performance indicators), and CEN/TR 13201-1:2014 (selection of lighting
+classes), with EN 13201-3:2015 and -4:2015 only named. It mentions the 2004 edition of the
+technical report only as the superseded first edition.
+
+| Constant | Taken | Handbook |
+|---|---|---|
+| `TABLE_5_1_M` | M1 to M6: `L_av` 2.00, 1.50, 1.00, 0.75, 0.50, 0.30 cd/m2; `U_o` 0.40 (M1 to M4), 0.35 (M5, M6); `U_l` 0.70, 0.70, 0.60, 0.60, 0.40, 0.40; wet `U_o` 0.15 for all; `TI` 10, 10, 15, 15, 15, 20 %; `EIR` 0.35, 0.35, 0.30 (M3 to M6) | Table 5.1, p. 7 |
+| `TABLE_5_2_C` | C0 to C5: `E_av` 50, 30, 20, 15, 10, 7.5 lx; `U_o(E)` 0.40; `TI` 10, 10, 10, 15, 15, 15 % at very high, high or moderate speed and 15, 15, 15, 20, 20, 20 % at low or very low speed (informative) | Table 5.2, p. 9 |
+| `TABLE_5_3_P`, `P_E_AV_MAX_FACTOR` | P1 to P6: `E_h,av` 15, 10, 7.5, 5.0, 3.0, 2.0 lx; `E_h,min` 3.0, 2.0, 1.5, 1.0, 0.6, 0.4 lx; `E_v,min` 5.0, 3.0, 2.5, 1.5, 1.0, 0.6 lx and `E_sc,min` 3.0, 2.0, 1.5, 1.0, 0.6, 0.4 lx where facial recognition is necessary; `TI` 20, 25, 25, 30, 30, 35 % (the handbook's addition); P7 "performance not determined"; the average must not exceed 1.5 times the class value | Table 5.3 and its note, p. 10 |
+| `selection::weight_*`, `suggest_m`, `suggest_c`, `suggest_p` | CEN/TR 13201-1:2014 weighting values per parameter option; class number is 6 minus the sum (M1 to M6, C0 to C5, P1 to P6; outside that, no class) | Tables 4.1, 4.2, 4.3, pp. 4 to 6, and text pp. 5 to 7 |
+
+Readings to confirm: the handbook does not word the direction of each limit. Luminance,
+illuminance, uniformity and edge illuminance ratio are read as minimum maintained values and
+threshold increment as a maximum; results are compared as entered, without rounding. The P3
+semi-cylindrical value is printed "1,5" and read as 1.5. The P-class threshold increment column
+is the handbook's own addition to a table it calls "corrected and modified", so it is reported as
+a recommendation (`DIFFERS`), as is the informative C-class threshold increment; the other
+criteria can fail. The uniformity limit of 1.5 times is applied as the handbook words it.
+Longitudinal uniformity, wet uniformity and edge illuminance ratio are conditional in the handbook
+(long uninterrupted road; wet surface with reflectance data; adjacent footway or cycle path
+without requirements), so they give an information line when not entered.
 
 ### Citations for values in code
 
@@ -116,7 +160,11 @@ BS 5489-1:2003 is superseded.
 | Unlit gap at least 4 × SSD | TD 501 3.11; CD 109 Table 2.10 | exact; SSD from the table at the design speed or as entered |
 | Supply capacity = load + 20 % | TD 501 5.7, 5.8 | arithmetic on the entered powers, luminaires only |
 | Design outputs entered | TD 501 6.53, 6.54 | lists what is missing |
-| Performance, energy indicators, column structure | TD 501 2.1, 4.2, 6.50, 3.19 | stated as not verified |
+| Entered `L_av`, `U_o`, `U_l`, wet `U_o`, `TI`, `EIR` against the entered M class | EN 13201-2:2015 as reproduced in Stockmar, Table 5.1, p. 7 | each can fail except as noted; without entry `INPUT NEEDED` (`U_l`, wet `U_o` and `EIR` conditional: `INFORMATION`) |
+| Entered `E_av`, `U_o(E)`, `TI` against the entered C class | as above, Table 5.2, p. 9 | `E_av`, `U_o(E)` can fail; `TI` is informative and gives `DIFFERS`, in the column for the entered speed |
+| Entered `E_h,av` (and not above 1.5 times), `E_h,min`, `E_v,min`, `E_sc,min`, `TI` against the entered P class | as above, Table 5.3, p. 10 | illuminances can fail; `E_v,min` and `E_sc,min` only where facial recognition is entered as necessary; `TI` is a recommendation: `DIFFERS` |
+| Class suggested by the CEN/TR 13201-1 weighting values | CEN/TR 13201-1:2014 as reproduced in Stockmar, Tables 4.1 to 4.3, pp. 4 to 6 | suggestion only: the entered class matching is `OK`, otherwise `DIFFERS`, never a failure; entered only when `class_selection` is set |
+| Energy indicators, column structure | TD 501 4.2, 6.50, 3.19 | stated as not verified; no PDI or AECI formula is held |
 | Lighting class suggested for the road type and ADT | TD 501 3.6; BS 5489-1:2003 Table B.2 | superseded and informative: a different entered class is a difference, not a failure |
 | Conflict area class from the approach class | TD 501 3.10; BS 5489-1:2003 Table B.3 | as above |
 | Column clearance by design speed | TD 501 3.4; BS 5489-1:2003 Table 2 | exact at 50, 80, 100, 120 km/h; can fail; set-back is to the column axis |
@@ -246,6 +294,22 @@ let def = Installation {
 let id = add_installation(&mut doc, &alignment, def)?;           // or add_column(&mut doc, &alignment, SingleColumn { .. })
 let data = afrobim_lighting::lighting_of(&doc, id)?;
 let report = design::check_lighting(&data, &design::CheckInputs::default()).calculation();
+
+// Entering calculated results (from a photometric calculation done elsewhere) compares them
+// with the entered class, e.g. "M3": each line cites the handbook table.
+let inputs = design::CheckInputs {
+    photometry: design::PhotometricResults {
+        source: "DIALux file LZ-01, 12 Nov 2026".into(),
+        l_av_cd_m2: Some(1.04), u_o: Some(0.43), u_l: Some(0.61), ti_percent: Some(12.0),
+        ..Default::default()
+    },
+    // optional: a CEN/TR 13201-1 suggestion beside the entered class
+    class_selection: None,
+    ..Default::default()
+};
+let report = design::check_lighting(&data, &inputs).calculation();
+// en13201::lookup("M3") gives the table row; en13201::selection::suggest_m(&MSelection { .. }).text()
+// gives a suggestion with its notice.
 let csv = schedule_to_csv(&LightingQuantities::of_document(&doc));
 ```
 
@@ -304,17 +368,42 @@ let csv = schedule_to_csv(&LightingQuantities::of_document(&doc));
 14. Class names: an entered "M3" will always show as differing from the 2003 table's "ME3a".
     That is the edition gap, not a design fault.
 
+15. The handbook's table numbers (4.1 to 4.3 in its chapter 3, 5.1 to 5.4 in its chapter 4) do
+    not follow its chapter numbers, and its introduction labels EN 13201-2:2015 "Part 5: Energy
+    performance indicators". The tables are cited by the numbers printed on them, with the printed
+    page (the PDF page is two higher).
+16. The handbook words the C-class threshold increment as an informative criterion and
+    recommends the lower-speed column for EN 13201-2:2015 (p. 9); the report asks which column
+    applies (`low_or_very_low_speed`) rather than choosing.
+17. The handbook's selection text says careful selection gives class numbers 1 to 6 (M, P) and 0
+    to 5 (C). A sum outside that range gives no class here instead of clamping to M1, C0 or
+    P1 or to the weakest class.
+
 ## Not done
 
 - **Photometry**: no illuminance, luminance, uniformity, threshold increment or
   edge illuminance calculation, no IES LM-63 or EULUMDAT reader, no lumen method. The
-  photometric file name is a reference only. Compliance with a lighting class cannot be shown
-  with this crate.
-- The performance requirements of the lighting classes (BS EN 13201-2): not supplied, not
-  reproduced by BS 5489-1:2003 or TD 501, so not coded.
+  photometric file name is a reference only. Compliance with a lighting class can be shown only
+  from results the engineer enters.
+- **Left out of the handbook** because it gives them only as a figure, as loose description or
+  not at all: Table 5.4 (classes of comparable level, a grid read against rated luminances; the
+  `L_av = q0 x E_av` and `L_av = rho / pi x E_av` relations are stated but not coded); the figures
+  (flicker against spacing, stopping distance against speed, threshold increment against
+  adaptation luminance); the speed ranges for the selection options (given as examples, section
+  7.1, p. 14); the option descriptions (the handbook omits them) and the junction density rule
+  (more than three intersections per kilometre, p. 16, reported not coded); the alternative
+  selection method of CEN/TR 13201-1 Annex B (described on p. 19, no table); the adaptive
+  lighting reductions; the HS, SC and EV classes (not in the handbook); and the energy
+  performance indicators of EN 13201-5 (below).
+- **Power density indicator and annual energy consumption indicator (EN 13201-5)**: not coded.
+  Section 9 (pp. 20 to 21) names the indicators and describes related measures in words (power
+  over area, power over illuminance, power over area and illuminance, installed power times
+  annual operating time, and their densities) under names and units that are not stated as the
+  standard's formulae, and has no worked example. Nothing is taken from memory.
 - The current BS 5489-1 (2020): class selection, maintenance factors and clearances of the
   current edition.
 - Energy performance indicators (BS EN 13201-5), energy and carbon assessment, whole-life cost.
+  (The handbook gives no formula for the indicators: see above.)
 - Column and foundation structural design (BS EN 40, CD 354, PD 6547). The wind design in
   `afrobim-supports` is for sign posts to the IHE Sign Structures Guide and must not be used for
   lighting columns.

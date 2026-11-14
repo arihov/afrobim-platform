@@ -9,8 +9,12 @@
 //! editions of those standards have not been read. The owner's copy of **BS 5489-1:2003, a
 //! superseded edition**, is held in [`bs5489_2003`] (column clearances, class selection tables,
 //! luminaire maintenance factors) and is labelled as superseded wherever it is used. BS EN
-//! 13201-2 is not held, so this crate has **no luminance, illuminance, uniformity or threshold
-//! increment value and no spacing rule**, and the lighting class is a label the engineer enters.
+//! 13201-2 is not held; the class values of EN 13201-2:2015 and the class selection of CEN/TR
+//! 13201-1:2014 are taken from a **secondary source**, Stockmar's *Handbook about Interpretation
+//! of EN 13201* (LiTG, 2017), in [`en13201`], and are to be confirmed against the standard. There
+//! is **no spacing rule and no photometry**: the engineer enters calculated results, which
+//! [`design::check_lighting`] compares with the class values. The lighting class is a label the
+//! engineer enters.
 //! The [`design`] module checks only what these documents and the DMRB documents TD 501 names
 //! (TA 501, CD 109, CD 377) state in a form that can be applied exactly, and says in each line
 //! where the requirement comes from. The MoWT *Road Design Manual Volume 1: Geometric Design*
@@ -26,6 +30,8 @@
 //!   schematic solids from the positions stored in the element.
 //! - [`LightingQuantities`], [`schedule_to_csv`], [`summary_to_csv`]: the take-off.
 //! - [`design::check_lighting`]: the requirement checks, line by line.
+//! - [`en13201`]: the M, C and P class requirements and the CEN/TR 13201-1 weighting selection
+//!   (a suggestion), as reproduced in the Stockmar handbook.
 //! - [`bs5489_2003`]: the tables of the superseded BS 5489-1:2003, in one module so that a
 //!   later edition can replace it.
 //!
@@ -44,13 +50,15 @@
 //!
 //! # Not in this crate
 //!
-//! Photometry of any kind (illuminance, luminance, uniformity, glare, energy indicators), column
+//! Photometry of any kind (calculating illuminance, luminance, uniformity or glare; energy
+//! indicators), the HS, SC and EV classes, column
 //! and foundation structural design (BS EN 40, CD 354), electrical design (cables, feeder
 //! pillars, voltage drop, protection), energy and carbon assessment, tunnels, high mast
 //! lighting, and costs. See the README.
 
 pub mod bs5489_2003;
 pub mod design;
+pub mod en13201;
 mod geometry;
 mod layout;
 mod model;
