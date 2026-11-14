@@ -178,17 +178,7 @@ impl Live {
         }
 
         // The model-wide check, from each element's own module messages.
-        let notes: std::collections::HashMap<ElementId, Result<Vec<Note>, String>> =
-            doc.elements().iter().filter(|e| registry.get(&e.category).is_some()).map(|e| (e.id, registry.generate(e).map(|g: Generated| g.notes))).collect();
-        let labels: std::collections::HashMap<String, String> = registry.categories().map(|(c, n)| (c.to_string(), n.to_string())).collect();
-        let notes_of = |id: ElementId| notes.get(&id).cloned();
-        let label_of = |c: &str| labels.get(c).cloned().unwrap_or_else(|| c.to_string());
-        let vis_src = crate::visibility_ui::any_stored(doc).then(|| {
-            let solids = |e: &Element| registry.generate(e).map(|g| g.solids).unwrap_or_default();
-            let x: std::collections::HashMap<ElementId, f64> = doc.elements().iter().filter_map(|e| registry.generate(e).ok().and_then(|g| afrobim_visibility::derived_x_height(&g.derived)).map(|v| (e.id, v))).collect();
-            crate::visibility_ui::source_for(doc, &solids, x)
-        });
-        let report = check_all::run_all(doc, &Sources { notes_of: &notes_of, label_of: &label_of, vis: vis_src.as_ref() });
+        let report = check_report(doc, registry);
         if report.rows.is_empty() {
             live.missing.push((FEED_CHECKS, "No element in the document has a check.".into()));
         } else {
@@ -200,6 +190,22 @@ impl Live {
     fn why(&self, feed: &str) -> String {
         self.missing.iter().find(|(f, _)| *f == feed).map(|(_, w)| w.clone()).unwrap_or_else(|| "No data.".into())
     }
+}
+
+/// The model-wide check of the document, from each element's own module messages and, when any
+/// sign has stored visibility inputs, the obstruction scene built from the modules' solids.
+pub fn check_report(doc: &Document, registry: &ModuleRegistry) -> check_all::Report {
+    let notes: std::collections::HashMap<ElementId, Result<Vec<Note>, String>> =
+        doc.elements().iter().filter(|e| registry.get(&e.category).is_some()).map(|e| (e.id, registry.generate(e).map(|g: Generated| g.notes))).collect();
+    let labels: std::collections::HashMap<String, String> = registry.categories().map(|(c, n)| (c.to_string(), n.to_string())).collect();
+    let notes_of = |id: ElementId| notes.get(&id).cloned();
+    let label_of = |c: &str| labels.get(c).cloned().unwrap_or_else(|| c.to_string());
+    let vis_src = crate::visibility_ui::any_stored(doc).then(|| {
+        let solids = |e: &Element| registry.generate(e).map(|g| g.solids).unwrap_or_default();
+        let x: std::collections::HashMap<ElementId, f64> = doc.elements().iter().filter_map(|e| registry.generate(e).ok().and_then(|g| afrobim_visibility::derived_x_height(&g.derived)).map(|v| (e.id, v))).collect();
+        crate::visibility_ui::source_for(doc, &solids, x)
+    });
+    check_all::run_all(doc, &Sources { notes_of: &notes_of, label_of: &label_of, vis: vis_src.as_ref() })
 }
 
 /// The cost S-curve (cumulative percent of the total against date) in a box 100 by 60 units, in

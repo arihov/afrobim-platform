@@ -25,6 +25,7 @@ mod markings_glue;
 mod modules_glue;
 mod photometry_ui;
 mod reference_models;
+mod report_pack;
 mod render;
 mod ribbon;
 mod road_dialogs;

@@ -53,6 +53,7 @@ pub struct AfroBimApp {
     pub(crate) refs: crate::reference_models::RefUi,
     pub(crate) vis: crate::visibility_ui::VisUi,
     pub(crate) photo: crate::photometry_ui::PhotoUi,
+    pub(crate) pack: crate::report_pack::PackUi,
     /// The name of the last IFC file exported, which BCF topics name as their model.
     pub(crate) last_ifc_name: Option<String>,
     signs_ready: bool,
@@ -162,6 +163,7 @@ impl AfroBimApp {
             refs: Default::default(),
             vis: Default::default(),
             photo: Default::default(),
+            pack: Default::default(),
             last_ifc_name: None,
             signs_ready,
             module_status,
@@ -389,6 +391,16 @@ impl AfroBimApp {
             match app.compose_sheets(name.as_deref()).and_then(|c| crate::sheets_glue::export_headless(&c, &path)) {
                 Ok(line) => eprintln!("AfroBIM: {line}"),
                 Err(e) => eprintln!("AfroBIM: sheet export failed: {e}"),
+            }
+            app.quit = true;
+        }
+        if let Some(path) = app.options.export_pack.clone() {
+            app.pack_compose();
+            if let Some(pack) = app.pack.pack.clone() {
+                match crate::report_pack::write_all(&pack, &path) {
+                    Ok(w) => eprintln!("AfroBIM: wrote {}", w.join(", ")),
+                    Err(e) => eprintln!("AfroBIM: {e}"),
+                }
             }
             app.quit = true;
         }
@@ -1054,7 +1066,7 @@ impl AfroBimApp {
                 self.vis_run(sign.map(|id| vec![id]));
             }
             Action::Photometry => self.photo_open(),
-            Action::ReportPack => self.status = "not wired yet".into(),
+            Action::ReportPack => self.pack_open(),
             Action::IfcRef => self.ifcref_pick(),
             Action::RefModels => self.refs.list_open = true,
             Action::Programme => {
@@ -1968,6 +1980,7 @@ impl AfroBimApp {
         self.issues_windows(ctx);
         self.visibility_windows(ctx);
         self.photometry_windows(ctx);
+        self.pack_windows(ctx);
         self.coordination_windows(ctx);
         self.schedule_windows(ctx);
         self.cost_windows(ctx);
@@ -2555,6 +2568,11 @@ impl AfroBimApp {
     /// The categories the registered modules own, with their display names.
     pub(crate) fn module_categories(&self) -> Vec<(String, String)> {
         self.modules.categories().map(|(c, n)| (c.to_string(), n.to_string())).collect()
+    }
+
+    /// The label of the sign design standard in use, for the report pack.
+    pub(crate) fn standard_label(&self) -> String {
+        signs_glue::STANDARDS.iter().find(|(id, _, _)| *id == self.standard).map(|(id, label, _)| format!("{id} ({label})")).unwrap_or_else(|| self.standard.clone())
     }
 
     /// The title of the calculation pack: the document's file name, else "Untitled".
