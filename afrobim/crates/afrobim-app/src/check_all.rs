@@ -222,6 +222,7 @@ fn check_element(doc: &Document, e: &Element, m: &mut Maker) {
         c if c == restraint::CATEGORY => restraint_check(doc, e, m),
         c if c == pavement::PAVEMENT_CATEGORY => pavement_check(doc, e, m),
         c if c == afrobim_markings::CATEGORY => rules(e, "Marking rules (Traffic Signs Manual Chapter 5 checks of the marking engine)", m),
+        c if c == alignment_glue::CATEGORY => alignment_check(doc, e, m),
         _ => {}
     }
 }
@@ -257,7 +258,9 @@ pub fn run_all(doc: &Document, src: &Sources) -> Report {
 /// Why a category has no check.
 fn no_check_reason(category: &str) -> String {
     match category {
-        c if c == alignment_glue::CATEGORY => "an alignment is geometry; the alignment crate checks nothing against a standard".into(),
+        c if c == alignment_glue::CATEGORY => "an imported alignment is geometry with no PIs to check; a designed alignment is checked against your limits table (ALIGNCHECK)".into(),
+        c if c == afrobim_design::DESIGN_CATEGORY => "this holds the PIs and PVIs of a designed alignment; the alignment element it built carries the check".into(),
+        c if c == afrobim_design::OPTIONS_CATEGORY => "an option set is a comparison of designs, not a check".into(),
         c if c == afrobim_corridor::CORRIDOR_CATEGORY => "the corridor crate builds sections and earthworks volumes and holds no design check".into(),
         c if c == afrobim_corridor::SURFACE_CATEGORY => "a ground surface is survey data; there is nothing to check".into(),
         c if c == supports_glue::POST_CATEGORY || c == supports_glue::FOUNDATION_CATEGORY => "posts and foundations are checked with the sign they support (sign support design)".into(),
@@ -266,6 +269,33 @@ fn no_check_reason(category: &str) -> String {
         c if c == crate::coordination_glue::CATEGORY => "clash tests are run with CLASH, not here".into(),
         c if c == afrobim_progress::PROGRESS_CATEGORY => "site progress is a record, not a check".into(),
         _ => "the engines hold no check for this category".into(),
+    }
+}
+
+// ─── designed alignments ────────────────────────────────────────────────────────────────
+
+/// The geometric checks of a designed alignment against the limits table whose path and design
+/// speed row were stored on it by ALIGNCHECK. An imported alignment has no design and no row.
+fn alignment_check(doc: &Document, e: &Element, m: &mut Maker) {
+    use crate::design_glue::{check_for_report, report_lines, AlignmentCheck};
+    use afrobim_design::CheckStatus;
+    let check = "Alignment geometry against the limits table (ALIGNCHECK)";
+    match check_for_report(doc, e.id) {
+        None => {}
+        Some(AlignmentCheck::InputNeeded(why)) => m.push(e, check, Status::InputNeeded, why, Vec::new()),
+        Some(AlignmentCheck::NotChecked(why)) => m.push(e, check, Status::NotChecked, why, Vec::new()),
+        Some(AlignmentCheck::Failed(why)) => m.push(e, check, Status::NotChecked, format!("the design could not be read: {why}"), Vec::new()),
+        Some(AlignmentCheck::Report(r)) => {
+            let (pass, fail, none) = (r.count(CheckStatus::Pass), r.count(CheckStatus::Fail), r.count(CheckStatus::NotChecked));
+            let lines = report_lines(&r);
+            if fail > 0 {
+                m.push(e, check, Status::Fails, format!("{fail} check(s) fail against the limits of row {}; {pass} pass, {none} have no limit in the table and were not checked", r.row_label), lines);
+            } else if pass == 0 {
+                m.push(e, check, Status::NotChecked, format!("none of the {none} check(s) has a limit in the table, so nothing was checked"), lines);
+            } else {
+                m.push(e, check, Status::Passes, format!("{pass} check(s) pass against row {}; {none} have no limit in the table and were not checked (a pass is not a certification)", r.row_label), lines);
+            }
+        }
     }
 }
 
@@ -630,6 +660,34 @@ mod tests {
         def.placeholder = false;
         let _ = a;
         afrobim_drainage::add_side_drain(doc, mark, &def).unwrap()
+    }
+
+    #[test]
+    fn a_designed_alignment_is_checked_against_its_stored_limits_and_an_imported_one_has_no_row() {
+        use crate::design_glue as dg;
+        let (mut doc, _imported) = doc_with_road();
+        let (_, a) = dg::create(&mut doc, "Designed", 0.0, &[(0.0, 1000.0), (400.0, 1000.0), (400.0, 1300.0)]).unwrap();
+        let rows = |doc: &Document| report(doc).rows.into_iter().filter(|r| r.check.starts_with("Alignment geometry")).collect::<Vec<_>>();
+        // Nothing stored: input needed, naming the dialog. The imported alignment has no row.
+        let r = rows(&doc);
+        assert_eq!(r.len(), 1);
+        assert_eq!((r[0].status, r[0].mark.as_str()), (Status::InputNeeded, "Designed"));
+        assert!(r[0].reason.contains("ALIGNCHECK"));
+        // A stored path with no limits: not checked.
+        dg::store_check(&mut doc, a, &dg::AlignCheckInputs::default());
+        assert_eq!(rows(&doc)[0].status, Status::NotChecked);
+        // A limits file (arbitrary test numbers): a radius needs entering first, then it fails or passes by the table.
+        let d = dg::design_of_alignment(&doc, a).unwrap();
+        dg::edit_horizontal(&mut doc, d, dg::HEdit::SetRadius(1, 100.0)).unwrap();
+        let dir = std::env::temp_dir().join(format!("afrobim-chk-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("limits.csv");
+        std::fs::write(&path, "#name,test\n#source,test fixture\nlabel,min_radius_m\nrow,150\n").unwrap();
+        dg::store_check(&mut doc, a, &dg::AlignCheckInputs { limits_path: path.display().to_string(), row_label: "row".into() });
+        assert_eq!(rows(&doc)[0].status, Status::Fails);
+        std::fs::write(&path, "#name,test\n#source,test fixture\nlabel,min_radius_m\nrow,50\n").unwrap();
+        assert_eq!(rows(&doc)[0].status, Status::Passes);
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
