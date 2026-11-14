@@ -3,9 +3,11 @@
 
 #![allow(dead_code)]
 
+pub mod cases;
 pub mod roads;
 pub mod site;
 pub mod step;
+pub mod synth;
 
 use std::collections::BTreeMap;
 

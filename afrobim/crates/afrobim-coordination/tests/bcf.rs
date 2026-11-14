@@ -309,8 +309,7 @@ fn an_issue_from_a_clash_has_a_stable_guid_and_the_clash_data() {
 
 #[test]
 fn merge_issues_replaces_by_guid() {
-    let mut co = Coordination::default();
-    co.issues = rich_issues();
+    let mut co = Coordination { issues: rich_issues(), ..Coordination::default() };
     let mut again = co.issues.clone();
     again[0].title = "renamed".into();
     again.push(Issue::with_guid("00000000-0000-4000-8000-000000000001", "new", "x", 0));
@@ -463,4 +462,34 @@ fn the_buildingsmart_2_1_test_cases_import() {
     eprintln!("{} files, {topics} topics", files.len());
     assert!(failed.is_empty(), "{failed:?}");
     assert!(topics >= files.len() / 2);
+}
+
+#[test]
+fn bcf_components_select_the_objects_of_the_exported_ifc() {
+    // An issue about two elements, exported as BCF next to the IFC the same project name produced:
+    // every component GlobalId must be the GlobalId of a product of that IFC with the same name.
+    use afrobim_ifc::import::{import_ifc_bytes, ImportOptions as IfcImportOptions};
+    use afrobim_ifc::{write_ifc, IfcElementInput, IfcOptions};
+    use afrobim_kernel::{Document, Pt};
+    let mut doc = Document::default();
+    let a = doc.add("sign", "ADS-001", Pt::new(0.0, 0.0), 1200.0, 800.0, "0", serde_json::json!({}));
+    let b = doc.add("sign", "ADS-002", Pt::new(2000.0, 0.0), 1200.0, 800.0, "0", serde_json::json!({}));
+    let inputs = [IfcElementInput { element: doc.find(a).unwrap(), generated: None }, IfcElementInput { element: doc.find(b).unwrap(), generated: None }];
+    let ifc = write_ifc(&doc, &inputs, &IfcOptions { project_name: PROJECT.into(), timestamp: Some(0), ..IfcOptions::default() });
+    let model = import_ifc_bytes(ifc.into_bytes(), &IfcImportOptions::default()).unwrap();
+    let mut co = Coordination::default();
+    let issue = co.new_issue("Check both signs", "ann", 0);
+    issue.elements = vec![ElementRef::element(a, "ADS-001"), ElementRef::element(b, "ADS-002")];
+    let selected = issue.elements.clone();
+    issue.add_viewpoint(None).selected = selected;
+    let bytes = export_bcf(&co.issues, &options()).unwrap().bytes;
+    let entries = read_zip(&bytes).unwrap();
+    let vp_file = entries.iter().find(|e| e.name.ends_with("viewpoint.bcfv")).unwrap();
+    let text = String::from_utf8(vp_file.data.clone()).unwrap();
+    let doc_xml = roxmltree::Document::parse(&text).unwrap();
+    let guids: Vec<&str> = doc_xml.descendants().filter(|n| n.tag_name().name() == "Component").filter_map(|n| n.attribute("IfcGuid")).collect();
+    assert_eq!(guids.len(), 2);
+    let mut names: Vec<&str> = guids.iter().map(|g| model.find_global_id(g).unwrap_or_else(|| panic!("{g} is not in the IFC")).name.as_str()).collect();
+    names.sort();
+    assert_eq!(names, vec!["ADS-001", "ADS-002"]);
 }
