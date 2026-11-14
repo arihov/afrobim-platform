@@ -74,6 +74,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-cost"
+version = "0.1.0"
+dependencies = [
+ "afrobim-corridor",
+ "afrobim-drainage",
+ "afrobim-draw",
+ "afrobim-fabrication",
+ "afrobim-gantry",
+ "afrobim-kernel",
+ "afrobim-lighting",
+ "afrobim-markings",
+ "afrobim-pavement",
+ "afrobim-restraint",
+ "afrobim-supports",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-drainage"
 version = "0.1.0"
 dependencies = [

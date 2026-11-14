@@ -1,0 +1,24 @@
+[package]
+name = "afrobim-cost"
+description = "AfroBIM 5D: bill of quantities, estimate, cash flow and interim payment from the model's quantities"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-draw = { path = "../afrobim-draw" }
+afrobim-kernel = { path = "../afrobim-kernel" }
+afrobim-fabrication = { path = "../afrobim-fabrication" }
+afrobim-supports = { path = "../afrobim-supports" }
+afrobim-markings = { path = "../afrobim-markings" }
+afrobim-drainage = { path = "../afrobim-drainage" }
+afrobim-gantry = { path = "../afrobim-gantry" }
+afrobim-lighting = { path = "../afrobim-lighting" }
+afrobim-restraint = { path = "../afrobim-restraint" }
+afrobim-pavement = { path = "../afrobim-pavement" }
+afrobim-corridor = { path = "../afrobim-corridor" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
