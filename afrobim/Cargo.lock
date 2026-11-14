@@ -131,6 +131,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-restraint"
+version = "0.1.0"
+dependencies = [
+ "afrobim-alignment",
+ "afrobim-draw",
+ "afrobim-kernel",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-signs"
 version = "0.1.0"
 dependencies = [
