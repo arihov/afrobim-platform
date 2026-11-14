@@ -24,11 +24,30 @@ pub struct PackLocation {
     pub format: &'static str,
 }
 
-/// A pack read without its fonts: enough for the catalog tools.
+/// The part of a catalog entry the catalog tools report.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CatalogRow {
+    pub key: String,
+    pub name: String,
+    pub family: String,
+    pub series: String,
+    pub scheme: String,
+    pub symbol_id: Option<String>,
+}
+
+impl From<&PackCatalogEntry> for CatalogRow {
+    fn from(e: &PackCatalogEntry) -> CatalogRow {
+        CatalogRow { key: e.key.clone(), name: e.name.clone(), family: e.family.clone(), series: e.series.clone(), scheme: e.scheme.clone(), symbol_id: e.symbol_id.clone() }
+    }
+}
+
+/// A pack as the catalog tools need it. A single-file JSON pack is read without its fonts. A
+/// folder pack (`pack.xml`) is read the way the desktop app reads it, by loading the sign engine,
+/// so it needs the Transport fonts as well.
 #[derive(Debug)]
 pub struct LoadedPack {
     pub pack: RulePack,
-    pub catalog: Vec<PackCatalogEntry>,
+    pub catalog: Vec<CatalogRow>,
 }
 
 pub struct Engine {
@@ -158,16 +177,31 @@ impl Engine {
         }
         let failed = |e: afrobim_signs::SignError| {
             let hint = if loc.format == "xml-folder" {
-                " (XML folder packs are not read by the AfroBIM engine yet)"
+                " (an XML folder pack is read through the sign engine, as the desktop app reads it, so it needs the Transport fonts: check the fonts folder and the pack's section files)"
             } else {
                 ""
             };
             ToolError::new(format!("rule pack '{}' failed to load{hint}: {e}", loc.id))
         };
-        let pack = RulePack::load(&loc.path).map_err(failed)?;
-        let std = StdRules::load(&loc.path, &pack).map_err(failed)?;
-        let catalog = std.catalog.map(|c| c.entries).unwrap_or_default();
-        let loaded = Rc::new(LoadedPack { pack, catalog });
+        let loaded = if loc.format == "xml-folder" {
+            // The same call the desktop app makes: `SignEngine::load` reads a folder pack from its
+            // `pack.xml`. The engine is kept, so a later layout does not read the pack again.
+            let fonts = self.fonts_dir()?.to_path_buf();
+            let engine = SignEngine::load(&loc.path, &fonts).map_err(failed)?;
+            let catalog = engine
+                .catalog()
+                .iter()
+                .map(|e| CatalogRow { key: e.key.clone(), name: e.name.clone(), family: e.family.clone(), series: e.series.clone(), scheme: e.scheme.clone(), symbol_id: e.symbol_id.clone() })
+                .collect();
+            let loaded = Rc::new(LoadedPack { pack: engine.pack().clone(), catalog });
+            self.engines.insert(loc.id.clone(), Rc::new(engine));
+            loaded
+        } else {
+            let pack = RulePack::load(&loc.path).map_err(failed)?;
+            let std = StdRules::load(&loc.path, &pack).map_err(failed)?;
+            let catalog = std.catalog.map(|c| c.entries.iter().map(CatalogRow::from).collect()).unwrap_or_default();
+            Rc::new(LoadedPack { pack, catalog })
+        };
         self.packs.insert(loc.id.clone(), loaded.clone());
         Ok(loaded)
     }
@@ -343,6 +377,27 @@ mod tests {
                 .to_string(),
             "rule pack not found: x"
         );
+    }
+
+    #[test]
+    fn the_uganda_folder_pack_loads_as_the_desktop_app_loads_it() {
+        let mut engine = Engine::new(testing::settings());
+        let loaded = engine.load_pack(Some("UG-TSM-2004")).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(loaded.pack.id, "UG-TSM-2004");
+        assert!(!loaded.catalog.is_empty());
+        // The same engine lays a sign out: the catalog entry the pack registers, seeded and laid out.
+        let signs = engine.sign_engine(Some("ug-tsm-2004")).unwrap();
+        assert_eq!(signs.pack_id(), "UG-TSM-2004");
+        let first = &loaded.catalog[0];
+        let sign = from_catalog(&signs, &first.key, None).unwrap();
+        let layout = run(&signs, &sign).unwrap();
+        let (w, h) = size_mm(&layout);
+        assert!(w > 0.0 && h > 0.0, "{} laid out at {w} x {h}", first.key);
+        // Without the fonts the folder pack says what is missing, instead of claiming the engine cannot read it.
+        let tmp = TempDir::new("noug");
+        let mut bare = Engine::new(testing::settings_with_fonts(tmp.path()));
+        let err = bare.load_pack(Some("UG-TSM-2004")).unwrap_err().to_string();
+        assert!(err.contains("UG-TSM-2004") && !err.contains("not read by the AfroBIM engine"), "{err}");
     }
 
     #[test]

@@ -70,8 +70,10 @@ other tools need them. If the pack or the fonts are missing the server still sta
 tools that need them say what to set. The fonts are third-party files and are not part of
 AfroBIM.
 
-Only single-file JSON packs can be loaded today. A folder pack such as `UG-TSM-2004` is listed
-by `list_packs` with the reason it could not be loaded.
+Both pack formats load. A single-file JSON pack is read without its fonts. A folder pack such as
+`UG-TSM-2004` (a folder holding `pack.xml`) is read the way the desktop app reads it, through the
+sign engine (`afrobim-signs`, `xml_pack.rs`), so listing it, searching its catalog and laying out
+its signs all need the Transport fonts; without them `list_packs` shows the reason against it.
 
 ## Build
 
@@ -199,8 +201,8 @@ Differences that remain:
 
 - `quantities` is not here yet. It needs the quantities engine, which is being ported in
   `afrobim-fabrication`.
-- The Uganda pack (`UG-TSM-2004`, an XML folder pack) is listed but cannot be loaded until the
-  Rust engine reads it.
+- The Uganda pack (`UG-TSM-2004`, an XML folder pack) loads through the sign engine, so unlike a
+  JSON pack its catalog needs the fonts folder too.
 - Fonts come from `AFROBIM_FONTS` / `--fonts`, not `SIGNCORE_FONTS`, and `list_packs` returns
   `fonts_dir: null` when no fonts folder was found.
 - `initialize` reports the server as `afrobim` and advertises only the `tools` capability (the
