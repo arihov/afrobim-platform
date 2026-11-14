@@ -135,7 +135,7 @@ impl Frame {
 /// Categories whose solids are modelled directly in site coordinates (X east, Y north, Z up from
 /// their site placement) and are shown only in the 3D site view, never on the design sheet.
 pub(crate) fn is_site_solid(category: &str) -> bool {
-    category == crate::markings_glue::CATEGORY
+    category == crate::markings_glue::CATEGORY || crate::modules_glue::owns(category)
 }
 
 impl AfroBimApp {
@@ -168,9 +168,10 @@ impl AfroBimApp {
     fn frame_of(&self, e: &afrobim_kernel::Element, site_mode: bool) -> Option<Frame> {
         let support = crate::supports_glue::is_support(&e.category);
         if is_site_solid(&e.category) {
-            // Laid out in site coordinates already: shown in the site view only, unrotated.
+            // Modelled for the site: shown in the site view only, in the frame of the placement.
             let s = e.site.as_ref().filter(|_| site_mode)?;
-            return Some(Frame { origin: [s.x, s.y, s.z], cos: 1.0, sin: 0.0 });
+            let (sin, cos) = s.rotation_deg.to_radians().sin_cos();
+            return Some(Frame { origin: [s.x, s.y, s.z], cos, sin });
         }
         if site_mode {
             let s = e.site.as_ref()?;

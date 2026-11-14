@@ -19,6 +19,8 @@ afrobim-ifc = { path = "../afrobim-ifc" }
 afrobim-fabrication = { path = "../afrobim-fabrication" }
 afrobim-supports = { path = "../afrobim-supports" }
 afrobim-markings = { path = "../afrobim-markings" }
+afrobim-drainage = { path = "../afrobim-drainage" }
+afrobim-gantry = { path = "../afrobim-gantry" }
 afrobim-alignment = { path = "../afrobim-alignment" }
 serde.workspace = true
 serde_json.workspace = true

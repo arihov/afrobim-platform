@@ -41,9 +41,11 @@ name = "afrobim-app"
 version = "0.1.0"
 dependencies = [
  "afrobim-alignment",
+ "afrobim-drainage",
  "afrobim-draw",
  "afrobim-dxf",
  "afrobim-fabrication",
+ "afrobim-gantry",
  "afrobim-ifc",
  "afrobim-kernel",
  "afrobim-markings",

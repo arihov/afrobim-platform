@@ -123,6 +123,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
     const ROADS: &[Panel] = &[
         ALIGNMENT,
         Panel { title: "Markings", items: &[Big(Icon::Markings, "Road markings", "MARKINGS")] },
+        Panel { title: "Drainage", items: &[Big(Icon::Drainage, "Side drain", "DRAIN"), Big(Icon::Drainage, "Pipe culvert", "CULVERT"), Big(Icon::Design, "Check", "CHECK")] },
         Panel {
             title: "Road modules",
             items: &[
@@ -130,12 +131,11 @@ fn panels(tab: Tab) -> &'static [Panel] {
                 Planned(Icon::Barrier, "Road restraint", "Safety barriers and guardrails along an alignment"),
                 Planned(Icon::Lighting, "Street lighting", "Columns and luminaires by station"),
                 Planned(Icon::Pavement, "Pavement", "Pavement layers and quantities"),
-                Planned(Icon::Drainage, "Drainage", "Side drains, culverts and chambers"),
                 Planned(Icon::Terrain, "Corridor", "Cross-sections and earthworks along an alignment"),
             ],
         },
     ];
-    const STRUCTURES: &[Panel] = &[SUPPORTS, Panel { title: "Structure modules", items: &[Planned(Icon::Barrier, "Gantry", "Portal and cantilever sign gantries"), Planned(Icon::Clash, "Clash check", "Find elements that occupy the same space")] }];
+    const STRUCTURES: &[Panel] = &[SUPPORTS, Panel { title: "Gantries", items: &[Big(Icon::Barrier, "Portal gantry", "GANTRY"), Big(Icon::Barrier, "Cantilever gantry", "CANTILEVER"), Big(Icon::Station, "Hang sign", "HANG"), Small(Icon::NoSupports, "Take sign off", "UNHANG"), Small(Icon::Design, "Check", "CHECK")] }, Panel { title: "Structure modules", items: &[Planned(Icon::Clash, "Clash check", "Find elements that occupy the same space")] }];
     const OUTPUT: &[Panel] = &[EXPORT, Panel { title: "Document", items: &[Big(Icon::Save, "Save", "SAVE"), Big(Icon::SaveAs, "Save as", "SAVEAS"), Big(Icon::Quit, "Quit", "QUIT")] }];
     const MANAGE: &[Panel] = &[
         STANDARD,

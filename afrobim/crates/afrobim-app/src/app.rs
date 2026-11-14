@@ -12,7 +12,7 @@ use egui::{Color32, Key, KeyboardShortcut, Modifiers, PointerButton, RichText, S
 use crate::commands::{self, Action, COMMANDS};
 use crate::icons::{self, Icon};
 use crate::render::{ElementMesh, Representation};
-use crate::{alignment_glue, markings_glue, signs_glue, supports_glue, Options};
+use crate::{alignment_glue, markings_glue, modules_glue, signs_glue, supports_glue, Options};
 
 /// A module's output for one element, kept until the element's definition changes.
 pub(crate) struct Cached {
@@ -53,6 +53,13 @@ pub struct AfroBimApp {
     design_dialog: Option<(ElementId, String, f64, supports_glue::DesignRequest)>,
     /// The "Road marking" dialog: alignment and request.
     marking_dialog: Option<(Option<ElementId>, markings_glue::MarkingRequest)>,
+    /// The "add a road element" dialog: kind, alignment, start and end station, distance, right side.
+    road_dialog: Option<(usize, Option<ElementId>, f64, f64, f64, bool)>,
+    /// The drain capacity check dialog: drain, design flow in m³/s, UK DMRB instead of MoWT.
+    drain_check_dialog: Option<(ElementId, f64, bool)>,
+    /// The "hang a sign on a gantry" dialog: sign, gantry, over a lane, lane number, offset, and
+    /// the level of the sign's lower edge above the underside of the boom.
+    hang_dialog: Option<(ElementId, Option<ElementId>, bool, usize, f64, f64, bool)>,
     /// The last support calculation: sign mark and its lines.
     design_report: Option<(String, Vec<String>)>,
     /// The "Place on alignment" dialog: sign, alignment, station (m), offset (m), right side.
@@ -90,6 +97,7 @@ impl AfroBimApp {
         supports_glue::register(&mut modules);
         alignment_glue::register(&mut modules);
         markings_glue::register(&mut modules);
+        modules_glue::register(&mut modules);
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
             Ok(l) => {
@@ -126,6 +134,9 @@ impl AfroBimApp {
             supports_dialog: None,
             design_dialog: None,
             marking_dialog: None,
+            road_dialog: None,
+            drain_check_dialog: None,
+            hang_dialog: None,
             design_report: None,
             station_dialog: None,
             new_prop_key: String::new(),
@@ -216,6 +227,18 @@ impl AfroBimApp {
                             if let Err(e) = markings_glue::add(&mut app.doc, alignment_id, &request) {
                                 app.status = e;
                             }
+                        }
+                    }
+                }
+            }
+            // Demo only: a side drain, a pipe culvert and a portal gantry on the first alignment,
+            // all with their placeholder dimensions.
+            if app.options.demo {
+                if let Some((alignment_id, a)) = alignment_glue::alignments(&app.doc).into_iter().next().and_then(|(id, _)| Some((id, alignment_glue::alignment_of(&app.doc, id)?))) {
+                    let (s0, len) = (a.start_station_m, a.length());
+                    for (kind, from, to, offset) in [(0, 0.05, 0.45, 7.0), (1, 0.25, 0.25, 0.0), (2, 0.35, 0.35, 0.0)] {
+                        if let Err(e) = modules_glue::add(&mut app.doc, kind, alignment_id, s0 + len * from, s0 + len * to, offset) {
+                            app.status = e;
                         }
                     }
                 }
@@ -554,6 +577,12 @@ impl AfroBimApp {
                         path.set_extension("csv");
                     }
                     self.export_quantities(path.clone());
+                    for (suffix, csv) in modules_glue::quantities(&self.doc) {
+                        match std::fs::write(path.with_extension(suffix), csv) {
+                            Ok(()) => self.status.push_str(&format!(" Wrote {}.", path.with_extension(suffix).display())),
+                            Err(e) => self.status.push_str(&format!(" {suffix} not written: {e}.")),
+                        }
+                    }
                     if let Some((schedule, summary, rows)) = markings_glue::quantities(&self.doc) {
                         let written = std::fs::write(path.with_extension("markings.csv"), schedule).and_then(|()| std::fs::write(path.with_extension("markings.summary.csv"), summary));
                         match written {
@@ -646,6 +675,9 @@ impl AfroBimApp {
                 (None, _) => self.status = "Select one sign first, then place it on an alignment.".into(),
                 (_, None) => self.status = "There is no alignment yet. Import one with File → Import LandXML.".into(),
             },
+            Action::AddSupports | Action::DesignSupports if self.selected_sign().is_some_and(|id| modules_glue::on_gantry(&self.doc, id)) => {
+                self.status = "This sign hangs on a gantry, so it takes no posts. Take it off the gantry first (UNHANG).".into();
+            }
             Action::AddSupports => match self.selected_sign() {
                 Some(id) => self.supports_dialog = Some((id, String::new(), 2, 150.0)),
                 None => self.status = "Select one sign first, then add its supports.".into(),
@@ -664,6 +696,41 @@ impl AfroBimApp {
                     self.marking_dialog = Some((Some(first), request));
                 }
                 None => self.status = "There is no alignment yet. Import one with File → Import LandXML.".into(),
+            },
+            Action::AddRoadElement(kind) => match alignment_glue::alignments(&self.doc).first().map(|a| a.0) {
+                Some(first) => {
+                    let (start, end) = alignment_glue::alignment_of(&self.doc, first).map(|a| (a.start_station_m, a.end_station_m())).unwrap_or((0.0, 0.0));
+                    self.road_dialog = Some((kind as usize, Some(first), start, end, 5.0, false));
+                }
+                None => self.status = "There is no alignment yet. Import one with File → Import LandXML.".into(),
+            },
+            Action::CheckElement => match self.doc.primary() {
+                Some(id) => match modules_glue::check(&self.doc, id) {
+                    modules_glue::Check::Lines(Ok(lines)) => {
+                        let mark = self.doc.find(id).map(|e| e.name.clone()).unwrap_or_default();
+                        self.status = format!("Checked {mark}. Read the calculation.");
+                        self.design_report = Some((mark, lines));
+                    }
+                    modules_glue::Check::Lines(Err(e)) => self.status = format!("Not checked: {e}"),
+                    modules_glue::Check::DrainFlow => self.drain_check_dialog = Some((id, 0.1, false)),
+                    modules_glue::Check::None => self.status = "Select a gantry or a side drain to check. Sign supports are checked with DESIGN.".into(),
+                },
+                None => self.status = "Select a gantry or a side drain first.".into(),
+            },
+            Action::HangSign => match (self.selected_sign(), modules_glue::gantries(&self.doc).first().map(|g| g.0)) {
+                (Some(sign), Some(first)) => self.hang_dialog = Some((sign, Some(first), false, 1, 0.0, 0.0, true)),
+                (None, _) => self.status = "Select one sign first, then hang it on a gantry.".into(),
+                (_, None) => self.status = "There is no gantry yet. Add one from the Structures tab.".into(),
+            },
+            Action::UnhangSign => match self.selected_sign() {
+                Some(sign) => match modules_glue::unhang_sign(&mut self.doc, sign) {
+                    Ok(()) => {
+                        self.status = "The sign is off its gantry.".into();
+                        self.schedule_commit(ctx);
+                    }
+                    Err(e) => self.status = e,
+                },
+                None => self.status = "Select the sign to take off its gantry.".into(),
             },
             Action::RemoveSupports => match self.selected_sign() {
                 Some(id) => {
@@ -689,6 +756,7 @@ impl AfroBimApp {
         match alignment_glue::import_landxml(&mut self.doc, &path) {
             Ok((added, notes)) => {
                 markings_glue::sync(&mut self.doc);
+                modules_glue::sync_all(&mut self.doc);
                 self.status = format!("Imported {added} alignment(s) from {}.", path.display());
                 for note in notes.iter().take(6) {
                     self.log(format!("LandXML: {note}"));
@@ -1091,6 +1159,7 @@ impl AfroBimApp {
             ui.add_space(4.0);
             ui.label(RichText::new("PROPERTIES").small().strong().weak());
             ui.separator();
+            let mut definition_edited: Option<ElementId> = None;
             let mut changed = false;
             egui::ScrollArea::vertical().id_salt("props").max_height((ui.available_height() - 170.0).max(120.0)).auto_shrink([false, false]).show(ui, |ui| {
                 let selected = self.doc.selection().len();
@@ -1138,6 +1207,11 @@ impl AfroBimApp {
                     changed |= signs_glue::edit_ui(ui, &mut e.data);
                 } else if supports_glue::is_support(&e.category) {
                     changed |= supports_glue::edit_ui(ui, &mut e.data);
+                } else if modules_glue::owns(&e.category) {
+                    if supports_glue::edit_ui(ui, &mut e.data) {
+                        changed = true;
+                        definition_edited = Some(id);
+                    }
                 }
 
                 if let Some((derived, notes)) = derived {
@@ -1197,6 +1271,11 @@ impl AfroBimApp {
                     }
                 });
             });
+            if let Some(id) = definition_edited {
+                if let Some(problem) = modules_glue::after_edit(&mut self.doc, id) {
+                    self.status = format!("Not applied yet: {problem}");
+                }
+            }
             if changed {
                 self.schedule_commit(ctx);
             }
@@ -1666,6 +1745,186 @@ impl AfroBimApp {
                 self.marking_dialog = Some((alignment, req));
             } else if keep {
                 self.marking_dialog = Some((alignment, req));
+            }
+        }
+
+        if let Some((kind, mut alignment, mut start, mut end, mut distance, mut right)) = self.road_dialog.take() {
+            let info = &modules_glue::KINDS[kind.min(modules_glue::KINDS.len() - 1)];
+            let choices = alignment_glue::alignments(&self.doc);
+            let (mut keep, mut add) = (true, false);
+            egui::Window::new(format!("Add a {}", info.label.to_lowercase())).collapsible(false).resizable(false).show(ctx, |ui| {
+                egui::Grid::new("road-element").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                    ui.label("Alignment");
+                    let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
+                    egui::ComboBox::from_id_salt("road-alignment").selected_text(current).show_ui(ui, |ui| {
+                        for (id, name) in &choices {
+                            ui.selectable_value(&mut alignment, Some(*id), name);
+                        }
+                    });
+                    ui.end_row();
+                    ui.label(if info.span { "Start station (m)" } else { "Station (m)" });
+                    ui.add(egui::DragValue::new(&mut start).speed(1.0));
+                    ui.end_row();
+                    if info.span {
+                        ui.label("End station (m)");
+                        ui.add(egui::DragValue::new(&mut end).speed(1.0));
+                        ui.end_row();
+                    }
+                    if info.offset {
+                        ui.label("Offset from the alignment (m)");
+                        ui.horizontal(|ui| {
+                            ui.add(egui::DragValue::new(&mut distance).speed(0.1).range(0.0..=200.0));
+                            ui.selectable_value(&mut right, false, "Left");
+                            ui.selectable_value(&mut right, true, "Right");
+                        });
+                        ui.end_row();
+                    }
+                });
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new("It is added with placeholder dimensions that are not design values: select it and set every dimension in Properties, then run CHECK. Stations are internal stations.")
+                        .small()
+                        .weak(),
+                );
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(alignment.is_some(), egui::Button::new("Add")).clicked() {
+                        add = true;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        keep = false;
+                    }
+                });
+            });
+            if add {
+                let offset = if right { distance } else { -distance };
+                match alignment.ok_or_else(|| "Choose an alignment.".to_string()).and_then(|a| modules_glue::add(&mut self.doc, kind, a, start, end, offset)) {
+                    Ok(mark) => {
+                        self.sync_generated();
+                        if let Some(id) = self.doc.elements().iter().find(|e| e.name == mark).map(|e| e.id) {
+                            self.doc.select(&[id], SelectMode::Replace);
+                        }
+                        self.status = format!("Added {mark} with placeholder dimensions. Set them in Properties.");
+                        self.fitted_3d = false;
+                        self.schedule_commit(ctx);
+                    }
+                    Err(e) => {
+                        self.status = format!("Not added: {e}");
+                        self.road_dialog = Some((kind, alignment, start, end, distance, right));
+                    }
+                }
+            } else if keep {
+                self.road_dialog = Some((kind, alignment, start, end, distance, right));
+            }
+        }
+
+        if let Some((drain, mut flow, mut dmrb)) = self.drain_check_dialog.take() {
+            let mark = self.doc.find(drain).map(|e| e.name.clone()).unwrap_or_default();
+            let (mut keep, mut run) = (true, false);
+            egui::Window::new(format!("Check the capacity of {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
+                egui::Grid::new("drain-check").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                    ui.label("Design flow (m³/s)");
+                    ui.add(egui::DragValue::new(&mut flow).speed(0.01).range(0.001..=500.0));
+                    ui.end_row();
+                    ui.label("Basis");
+                    ui.vertical(|ui| {
+                        ui.radio_value(&mut dmrb, false, "MoWT Road Design Manual Vol. 2 (2010)");
+                        ui.radio_value(&mut dmrb, true, "UK DMRB (CG 501, CD 521)");
+                    });
+                    ui.end_row();
+                });
+                ui.add_space(4.0);
+                ui.label(RichText::new("The design flow is the engineer's: AfroBIM holds no rainfall data. The drain's gradient, lining and roughness are those entered in Properties.").small().weak());
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Check").clicked() {
+                        run = true;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        keep = false;
+                    }
+                });
+            });
+            if run {
+                match modules_glue::check_drain(&self.doc, drain, dmrb, flow) {
+                    Ok(lines) => {
+                        self.status = format!("Checked {mark}. Read the calculation.");
+                        self.design_report = Some((mark, lines));
+                    }
+                    Err(e) => {
+                        self.status = format!("Not checked: {e}");
+                        self.drain_check_dialog = Some((drain, flow, dmrb));
+                    }
+                }
+            } else if keep {
+                self.drain_check_dialog = Some((drain, flow, dmrb));
+            }
+        }
+
+        if let Some((sign, mut gantry, mut by_lane, mut lane, mut offset, mut bottom, mut up)) = self.hang_dialog.take() {
+            let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
+            let choices = modules_glue::gantries(&self.doc);
+            let (mut keep, mut hang) = (true, false);
+            egui::Window::new(format!("Hang {mark} on a gantry")).collapsible(false).resizable(false).show(ctx, |ui| {
+                egui::Grid::new("hang").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                    ui.label("Gantry");
+                    let current = choices.iter().find(|c| Some(c.0) == gantry).map(|c| c.1.clone()).unwrap_or_default();
+                    egui::ComboBox::from_id_salt("hang-gantry").selected_text(current).show_ui(ui, |ui| {
+                        for (id, name) in &choices {
+                            ui.selectable_value(&mut gantry, Some(*id), name);
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Position");
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.radio_value(&mut by_lane, false, "Offset from the centreline (m)");
+                            ui.add_enabled(!by_lane, egui::DragValue::new(&mut offset).speed(0.1));
+                        });
+                        ui.horizontal(|ui| {
+                            ui.radio_value(&mut by_lane, true, "Over lane number");
+                            ui.add_enabled(by_lane, egui::DragValue::new(&mut lane).range(1..=12));
+                        });
+                    });
+                    ui.end_row();
+                    if !by_lane {
+                        ui.label("Faces traffic travelling");
+                        ui.horizontal(|ui| {
+                            ui.selectable_value(&mut up, true, "Up-station");
+                            ui.selectable_value(&mut up, false, "Down-station");
+                        });
+                        ui.end_row();
+                    }
+                    ui.label("Lower edge above the boom underside (mm)");
+                    ui.add(egui::DragValue::new(&mut bottom).speed(10.0));
+                    ui.end_row();
+                });
+                ui.add_space(4.0);
+                ui.label(RichText::new("Lanes are those entered on the gantry, numbered from 1 at the left. A negative level hangs the sign below the boom. Run CHECK on the gantry afterwards for headroom.").small().weak());
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(gantry.is_some(), egui::Button::new("Hang")).clicked() {
+                        hang = true;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        keep = false;
+                    }
+                });
+            });
+            if hang {
+                match gantry.ok_or_else(|| "Choose a gantry.".to_string()).and_then(|g| modules_glue::hang_sign(&mut self.doc, g, sign, by_lane.then_some(lane), offset, bottom, up)) {
+                    Ok(note) => {
+                        self.status = note;
+                        self.fitted_3d = false;
+                        self.schedule_commit(ctx);
+                    }
+                    Err(e) => {
+                        self.status = format!("Not hung: {e}");
+                        self.hang_dialog = Some((sign, gantry, by_lane, lane, offset, bottom, up));
+                    }
+                }
+            } else if keep {
+                self.hang_dialog = Some((sign, gantry, by_lane, lane, offset, bottom, up));
             }
         }
 

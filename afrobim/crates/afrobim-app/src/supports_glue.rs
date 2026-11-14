@@ -205,7 +205,7 @@ fn label(key: &str) -> String {
 fn edit_value(ui: &mut egui::Ui, path: &str, value: &mut Value) -> bool {
     let Some(map) = value.as_object_mut() else { return false };
     let mut changed = false;
-    let keys: Vec<String> = map.keys().filter(|k| *k != "placeholder").cloned().collect();
+    let keys: Vec<String> = map.keys().filter(|k| !crate::modules_glue::HIDDEN_KEYS.contains(&k.as_str())).cloned().collect();
     egui::Grid::new(format!("def-{path}")).num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
         for key in &keys {
             let Some(v) = map.get_mut(key) else { continue };
@@ -241,10 +241,21 @@ fn edit_value(ui: &mut egui::Ui, path: &str, value: &mut Value) -> bool {
         }
     });
     for key in &keys {
-        if let Some(v @ Value::Object(_)) = map.get_mut(key) {
-            ui.add_space(4.0);
-            ui.label(label(key));
-            ui.indent(format!("{path}/{key}"), |ui| changed |= edit_value(ui, &format!("{path}/{key}"), v));
+        match map.get_mut(key) {
+            Some(v @ Value::Object(_)) => {
+                ui.add_space(4.0);
+                ui.label(label(key));
+                ui.indent(format!("{path}/{key}"), |ui| changed |= edit_value(ui, &format!("{path}/{key}"), v));
+            }
+            // A list of groups (legs, carriageways, lanes, layers): each item in turn.
+            Some(Value::Array(items)) if items.iter().all(Value::is_object) && !items.is_empty() => {
+                for (i, item) in items.iter_mut().enumerate() {
+                    ui.add_space(4.0);
+                    ui.label(format!("{} {}", label(key).trim_end_matches('s'), i + 1));
+                    ui.indent(format!("{path}/{key}/{i}"), |ui| changed |= edit_value(ui, &format!("{path}/{key}/{i}"), item));
+                }
+            }
+            _ => {}
         }
     }
     changed
