@@ -36,6 +36,7 @@ mod classes;
 pub mod design;
 mod geometry;
 mod module;
+mod products;
 mod quantities;
 mod run;
 
@@ -51,6 +52,7 @@ pub use module::{
     add_barrier_run, alignment_named, barrier_run_of, barrier_runs, sync_barrier_runs, update_barrier_run, BarrierElement, RestraintModule,
     CATEGORY, NOTE_LEVELS_ZERO, NOTE_SCHEMATIC, RESTRAINT_LAYER,
 };
+pub use products::{parse_products_csv, Product, ProductCsvError, PRODUCTS_CSV_HEADER};
 pub use quantities::{runs_to_csv, summary_to_csv, ClassTotal, RestraintQuantities, RunQuantities, SkippedRun, RUNS_CSV_HEADER, SUMMARY_CSV_HEADER};
 pub use run::{BarrierRun, ConnectedSystem, EndTreatment, TrafficFace, Transition};
 
