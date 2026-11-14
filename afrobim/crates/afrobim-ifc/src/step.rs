@@ -66,6 +66,21 @@ pub fn step_real(value: f64) -> String {
     text
 }
 
+/// An angle or a direction ratio as a STEP literal: like [`step_real`] but rounded to 1e-12, since
+/// a micro-radian is a millimetre at a kilometre.
+pub(crate) fn step_fine(value: f64) -> String {
+    if !value.is_finite() {
+        return "0.".to_string();
+    }
+    let rounded = (value * 1e12).round() / 1e12;
+    let rounded = if rounded == 0.0 { 0.0 } else { rounded };
+    let mut text = format!("{rounded}");
+    if !text.contains('.') {
+        text.push('.');
+    }
+    text
+}
+
 /// `(a,b,c)` from already encoded parts.
 pub(crate) fn list<I: IntoIterator<Item = String>>(parts: I) -> String {
     let mut out = String::from("(");
