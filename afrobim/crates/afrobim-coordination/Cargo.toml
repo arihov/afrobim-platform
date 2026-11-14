@@ -1,0 +1,13 @@
+[package]
+name = "afrobim-coordination"
+description = "Clash detection between model elements: hard and clearance clashes, rules, stable results, CSV and JSON reports"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-draw = { path = "../afrobim-draw" }
+afrobim-kernel = { path = "../afrobim-kernel" }
+serde.workspace = true
+serde_json.workspace = true
