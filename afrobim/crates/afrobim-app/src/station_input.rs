@@ -115,6 +115,33 @@ mod tests {
     }
 
     #[test]
+    fn a_road_dialog_stands_the_element_at_the_internal_station_of_the_displayed_one() {
+        // The demo alignment (corridor.xml) has two station equations: from internal 1300 the
+        // displayed station jumps ahead to 1350, and from internal 1600 it falls back from 1650
+        // to 1500, so displayed 1550 occurs twice. This is the conversion the pipe culvert
+        // dialog does before it calls `modules_glue::add`.
+        let mut doc = Document::default();
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../afrobim-alignment/tests/landxml/corridor.xml");
+        alignment_glue::import_landxml(&mut doc, &path).unwrap();
+        let (id, _) = alignment_glue::alignments(&doc).remove(0);
+        let a = alignment_glue::alignment_of(&doc, id).unwrap();
+        assert!(a.station_equations.region_count() > 1);
+        // Left as "occurs once", an ambiguous station is refused and the places are listed.
+        assert!(displayed_to_internal(&a, 1550.0, 0).is_err());
+        let first = displayed_to_internal(&a, 1550.0, 2).unwrap();
+        let second = displayed_to_internal(&a, 1550.0, 3).unwrap();
+        assert!((first - 1500.0).abs() < 1e-6 && (second - 1650.0).abs() < 1e-6, "{first} {second}");
+        // Typed as an internal station, 1550 would be a different place from either.
+        assert!((second - 1550.0).abs() > 50.0);
+        let mark = crate::modules_glue::add(&mut doc, 1, id, second, second, 0.0).unwrap();
+        let e = doc.elements().iter().find(|e| e.name == mark).unwrap();
+        let station = e.data.get("station_m").and_then(|v| v.as_f64()).expect("a culvert stores its internal station");
+        assert!((station - 1650.0).abs() < 1e-6, "{station}");
+        // The alignment reads that internal station back as the displayed one the engineer typed.
+        assert!((a.displayed_station(station).unwrap().station_m - 1550.0).abs() < 1e-6);
+    }
+
+    #[test]
     fn without_equations_displayed_is_internal() {
         let mut a = with_equation();
         a.station_equations.equations.clear();

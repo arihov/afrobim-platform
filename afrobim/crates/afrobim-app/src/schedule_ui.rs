@@ -1388,5 +1388,5 @@ pub fn open_date_control(app: &mut AfroBimApp) {
     app.sched.date_open = true;
     app.sched.fourd_on = true;
     app.view_3d = true;
-    app.status = "4D date control open: the 3D view is coloured by the chosen date.".into();
+    app.status = "4D date control open.".into();
 }

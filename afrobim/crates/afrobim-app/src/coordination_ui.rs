@@ -213,7 +213,7 @@ impl AfroBimApp {
     }
 
     /// Frames the clash point in the 3D view and highlights the two elements.
-    fn zoom_to_clash(&mut self, c: &Clash) {
+    pub(crate) fn zoom_to_clash(&mut self, c: &Clash) {
         self.view_3d = true;
         self.fitted_3d = true;
         self.coord.highlight = vec![c.element_a, c.element_b];
@@ -222,7 +222,7 @@ impl AfroBimApp {
         self.camera.yaw = (-60.0f64).to_radians();
         self.camera.pitch = 30.0f64.to_radians();
         self.camera.fit_sphere(c.point, (diag * 3.0).max(1500.0));
-        self.status = format!("{}: {} and {} at {:.2}, {:.2}, {:.2} m. The two elements are highlighted.", c.id, c.mark_a, c.mark_b, c.point[0] / 1000.0, c.point[1] / 1000.0, c.point[2] / 1000.0);
+        self.status = format!("{}: {} and {} highlighted.", c.id, c.mark_a, c.mark_b);
     }
 
     pub(crate) fn export_clashes_csv(&mut self) {

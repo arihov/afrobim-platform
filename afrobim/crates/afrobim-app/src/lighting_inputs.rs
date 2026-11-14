@@ -261,7 +261,7 @@ pub fn show(ctx: &egui::Context, doc: &Document, slot: &mut Option<LightingCheck
     let mark = doc.find(d.element).map(|e| e.name.clone()).unwrap_or_default();
     let (mut keep, mut run) = (true, false);
     egui::Window::new(format!("Lighting check inputs for {mark}")).collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
-        ui.label(RichText::new("Enter what you have established elsewhere. Every field starts empty; a field left empty stops the checks that need it and the report says so. Photometric values are the maintained results of your own calculation: AfroBIM computes no photometry and keeps no class tables of its own beyond those cited in the report.").small().weak());
+        ui.label(RichText::new("Enter what you have established elsewhere. Every field starts empty; a field left empty stops the checks that need it and the report says so. Photometric values are the maintained results of your own calculation: AfroBIM computes no photometry.").small().weak());
         egui::ScrollArea::vertical().max_height(480.0).auto_shrink([false, false]).show(ui, |ui| {
             let f = &mut d.form;
             ui.label(RichText::new("The road and the installation").strong());

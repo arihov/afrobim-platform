@@ -313,6 +313,9 @@ impl AfroBimApp {
             app.coord.results_open = false;
             app.status = "Ready.".into();
         }
+        if let Some(c) = app.options.zoom_clash.and_then(|n| app.coord.co.results.clashes.get(n).cloned()) {
+            app.zoom_to_clash(&c);
+        }
         if let Some(n) = app.options.subtab {
             app.cost.set_subtab(n);
         }
