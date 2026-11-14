@@ -13,7 +13,8 @@ use roxmltree::{Document as Xml, Node};
 use crate::calendar::Calendar;
 use crate::cpm::Schedule;
 use crate::date::{Date, Weekday};
-use crate::model::{Activity, Constraint, LinkType, MilestoneKind, Programme, Status};
+use crate::model::{Activity, Constraint, LinkType, MilestoneKind, Programme, Status, SummaryTask};
+use crate::wbs::{outline, wbs_rollup, OutlineKind, RollupBasis};
 
 /// Minutes written for one working day (8 hours, 08:00-12:00 and 13:00-17:00).
 pub const MINUTES_PER_DAY: i64 = 480;
@@ -70,8 +71,32 @@ fn weekday_of(day_type: u32) -> Option<Weekday> {
 ///
 /// Not carried: milestone kind, weights, 4D links, baseline, required finish, free-form notes.
 pub fn export_mspdi(p: &Programme, schedule: Option<&Schedule>) -> String {
+    export_mspdi_with_report(p, schedule).0
+}
+
+/// Like [`export_mspdi`], also returning what the file does not carry.
+///
+/// The WBS is written as summary tasks (`Summary` 1, `OutlineLevel`, `OutlineNumber`) in outline
+/// order ([`crate::outline`]). MSPDI holds one constraint per task, so a task with more than one
+/// keeps its primary constraint and the rest are listed in the report.
+pub fn export_mspdi_with_report(p: &Programme, schedule: Option<&Schedule>) -> (String, crate::xer::ExportReport) {
+    let mut rep = crate::xer::ExportReport::default();
     let mut x = String::new();
-    let uid_of: HashMap<&str, usize> = p.activities.iter().enumerate().map(|(i, a)| (a.id.as_str(), i + 1)).collect();
+    let items = outline(p);
+    let mut uid_of: HashMap<&str, usize> = HashMap::new();
+    let mut sum_uid: HashMap<usize, usize> = HashMap::new();
+    for (k, it) in items.iter().enumerate() {
+        match it.kind {
+            OutlineKind::Activity(i) => {
+                uid_of.insert(p.activities[i].id.as_str(), k + 1);
+            }
+            OutlineKind::Summary(i) => {
+                sum_uid.insert(i, k + 1);
+            }
+        }
+    }
+    let rollup = schedule.and_then(|s| wbs_rollup(p, s, RollupBasis::Duration).ok());
+    let mut counters: Vec<usize> = Vec::new();
     let cal_uid = |name: &str| p.calendars.iter().position(|c| c.name == name).map(|i| i + 1).unwrap_or(1);
     let pcal = p.calendar_named(&p.calendar);
     x.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n");
@@ -122,12 +147,42 @@ pub fn export_mspdi(p: &Programme, schedule: Option<&Schedule>) -> String {
         x.push_str("    </Calendar>\n");
     }
     x.push_str("  </Calendars>\n  <Tasks>\n");
-    for (i, a) in p.activities.iter().enumerate() {
-        let uid = i + 1;
+    for (k, it) in items.iter().enumerate() {
+        let uid = k + 1;
+        counters.truncate(it.level);
+        while counters.len() < it.level {
+            counters.push(0);
+        }
+        counters[it.level - 1] += 1;
+        let outline_number = counters.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(".");
+        let a = match it.kind {
+            OutlineKind::Summary(si) => {
+                let sm = &p.summaries[si];
+                x.push_str(&format!("    <Task>\n      <UID>{uid}</UID>\n      <ID>{uid}</ID>\n      <Name>{}</Name>\n      <Type>1</Type>\n      <IsNull>0</IsNull>\n", esc(&sm.name)));
+                x.push_str(&format!("      <WBS>{}</WBS>\n      <OutlineNumber>{outline_number}</OutlineNumber>\n      <OutlineLevel>{}</OutlineLevel>\n", esc(&sm.wbs), it.level));
+                if let Some(r) = rollup.as_ref().and_then(|ru| ru.row(&sm.id)) {
+                    if let (Some(a), Some(b)) = (r.start, r.finish) {
+                        x.push_str(&format!("      <Start>{a}T08:00:00</Start>\n      <Finish>{b}T17:00:00</Finish>\n"));
+                        if let Some(c) = p.calendar_named(&p.calendar) {
+                            x.push_str(&format!("      <Duration>{}</Duration>\n      <DurationFormat>7</DurationFormat>\n", dur(c.wd_between(a, b.add_days(1)))));
+                        }
+                    }
+                    x.push_str(&format!("      <PercentComplete>{}</PercentComplete>\n", r.percent_complete.round() as i64));
+                }
+                x.push_str("      <Milestone>0</Milestone>\n      <Summary>1</Summary>\n");
+                x.push_str(&format!("      <ExtendedAttribute>\n        <FieldID>{TEXT1_FIELD_ID}</FieldID>\n        <Value>{}</Value>\n      </ExtendedAttribute>\n", esc(&sm.id)));
+                x.push_str("    </Task>\n");
+                continue;
+            }
+            OutlineKind::Activity(ai) => &p.activities[ai],
+        };
         let row = schedule.and_then(|s| s.row(&a.id));
         let status = a.status();
         x.push_str(&format!("    <Task>\n      <UID>{uid}</UID>\n      <ID>{uid}</ID>\n      <Name>{}</Name>\n      <Type>1</Type>\n      <IsNull>0</IsNull>\n", esc(&a.name)));
-        x.push_str(&format!("      <WBS>{}</WBS>\n      <OutlineNumber>{uid}</OutlineNumber>\n      <OutlineLevel>1</OutlineLevel>\n", esc(&a.wbs)));
+        x.push_str(&format!("      <WBS>{}</WBS>\n      <OutlineNumber>{outline_number}</OutlineNumber>\n      <OutlineLevel>{}</OutlineLevel>\n", esc(&a.wbs), it.level));
+        if a.constraints().count() > 1 {
+            rep.warnings.push(format!("activity {}: MSPDI holds one constraint per task; only the primary one was written", a.id));
+        }
         if let Some(r) = row {
             // A finish milestone sits at the end of its day, everything else starts at 08:00.
             let at_end = a.is_milestone() && a.milestone_kind == MilestoneKind::Finish;
@@ -173,7 +228,10 @@ pub fn export_mspdi(p: &Programme, schedule: Option<&Schedule>) -> String {
         x.push_str("    </Task>\n");
     }
     x.push_str("  </Tasks>\n</Project>\n");
-    x
+    if p.activities.iter().any(|a| a.location.is_some()) {
+        rep.warnings.push("activity location ranges (time-location chart) are not written".into());
+    }
+    (x, rep)
 }
 
 fn child<'a, 'i>(n: Node<'a, 'i>, name: &str) -> Option<Node<'a, 'i>> {
@@ -224,8 +282,9 @@ fn duration_minutes(s: &str) -> Option<f64> {
     Some(total)
 }
 
-/// Reads an MSPDI file into a programme. Summary tasks and null tasks are skipped; links to them
-/// are dropped; whatever cannot be represented is listed in the report.
+/// Reads an MSPDI file into a programme. Summary tasks become [`SummaryTask`]s (the parent comes
+/// from `OutlineLevel`) and the tasks under them get their parent; the project summary task (UID 0)
+/// and null tasks are skipped. Links to a summary or null task are dropped; whatever cannot be represented is listed in the report.
 pub fn import_mspdi(xml: &str) -> Result<(Programme, ImportReport), MspdiError> {
     let doc = Xml::parse(xml).map_err(|e| MspdiError::Xml(e.to_string()))?;
     let root = doc.root_element();
@@ -325,7 +384,7 @@ pub fn import_mspdi(xml: &str) -> Result<(Programme, ImportReport), MspdiError> 
         calendars.push(Calendar { name, working_days: weekdays, holidays });
     }
     let calendar = cal_name_of.get(&proj_cal_uid).cloned().ok_or(MspdiError::Missing("calendar for the project CalendarUID"))?;
-    let mut p = Programme { name: text(root, "Title").or(text(root, "Name")).unwrap_or("").to_string(), start, calendars, calendar, activities: vec![], dependencies: vec![], links: vec![], data_date: text(root, "StatusDate").and_then(Date::parse), required_finish: None, baseline: None };
+    let mut p = Programme { name: text(root, "Title").or(text(root, "Name")).unwrap_or("").to_string(), start, calendars, calendar, activities: vec![], dependencies: vec![], links: vec![], data_date: text(root, "StatusDate").and_then(Date::parse), required_finish: None, baseline: None, summaries: vec![] };
 
     let days_of = |minutes: f64, what: &str, id: &str, rep: &mut ImportReport| -> u32 {
         let d = minutes / mpd as f64;
@@ -338,6 +397,8 @@ pub fn import_mspdi(xml: &str) -> Result<(Programme, ImportReport), MspdiError> 
     };
 
     let mut id_of_uid: HashMap<i64, String> = HashMap::new();
+    // Open summary tasks by outline level, for the parent of the next task.
+    let mut stack: Vec<(i64, String)> = Vec::new();
     let mut pending: Vec<(String, i64, LinkType, f64, i64)> = Vec::new(); // successor id, pred uid, type, lag minutes, lag format
     if let Some(tasks) = child(root, "Tasks") {
         for t in tasks.children().filter(|t| t.is_element() && t.tag_name().name() == "Task") {
@@ -346,24 +407,41 @@ pub fn import_mspdi(xml: &str) -> Result<(Programme, ImportReport), MspdiError> 
                 continue;
             }
             let name = text(t, "Name").unwrap_or("").to_string();
-            if int(t, "Summary") == Some(1) {
-                if uid != 0 {
-                    rep.warnings.push(format!("summary task '{name}' (UID {uid}) was skipped; its subtasks were imported"));
-                }
-                continue;
-            }
-            let id = t
+            let level = int(t, "OutlineLevel").filter(|l| *l >= 0).unwrap_or(1);
+            let text1 = t
                 .children()
                 .filter(|c| c.is_element() && c.tag_name().name() == "ExtendedAttribute")
                 .find(|e| text(*e, "FieldID") == Some(TEXT1_FIELD_ID))
                 .and_then(|e| text(e, "Value"))
                 .filter(|v| !v.is_empty())
-                .map(str::to_string)
-                .unwrap_or_else(|| uid.to_string());
+                .map(str::to_string);
+            if int(t, "Summary") == Some(1) {
+                // UID 0 is the project summary task: it is the project itself, not a WBS node.
+                if uid == 0 {
+                    continue;
+                }
+                let mut sid = text1.unwrap_or_else(|| format!("S{uid}"));
+                if p.summaries.iter().any(|s| s.id == sid) {
+                    sid = format!("{sid} ({uid})");
+                }
+                while stack.last().is_some_and(|(l, _)| *l >= level) {
+                    stack.pop();
+                }
+                let parent = stack.last().map(|(_, id)| id.as_str());
+                p.summaries.push(SummaryTask::new(&sid, text(t, "WBS").unwrap_or(""), &name, parent));
+                stack.push((level, sid));
+                continue;
+            }
+            while stack.last().is_some_and(|(l, _)| *l >= level) {
+                stack.pop();
+            }
+            let parent = stack.last().map(|(_, id)| id.clone());
+            let id = text1.unwrap_or_else(|| uid.to_string());
             id_of_uid.insert(uid, id.clone());
             let milestone = int(t, "Milestone") == Some(1);
             let minutes = text(t, "Duration").and_then(duration_minutes).ok_or(MspdiError::Missing("Task Duration"))?;
             let mut a = Activity::new(&id, text(t, "WBS").unwrap_or(""), &name, if milestone { 0 } else { days_of(minutes, "duration", &id, &mut rep) });
+            a.parent = parent;
             if !milestone && a.duration == 0 {
                 rep.warnings.push(format!("task {id} has zero duration but is not marked as a milestone; it is imported as a milestone"));
             }

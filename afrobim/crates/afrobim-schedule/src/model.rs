@@ -82,6 +82,81 @@ pub struct Activity {
     pub weight: Option<f64>,
     #[serde(default)]
     pub progress: Progress,
+    /// The summary task (WBS node) this activity sits under, by [`SummaryTask::id`]. `None` for a
+    /// flat programme or an activity at the top level.
+    #[serde(default)]
+    pub parent: Option<String>,
+    /// Further constraints besides [`Activity::constraint`] (which stays the primary one). Only the
+    /// three kinds of [`Constraint`] exist; see the README for why no more were added.
+    #[serde(default)]
+    pub extra_constraints: Vec<Constraint>,
+    /// Where along an alignment the work is, for the time-location chart. Optional.
+    #[serde(default)]
+    pub location: Option<LocationRange>,
+}
+
+/// The direction in which a linear activity moves along its alignment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum WorkDirection {
+    /// The work front moves towards increasing station: it is at the lower station of the range on
+    /// the early start day and at the higher one on the early finish day.
+    #[default]
+    Increasing,
+    /// The opposite: it starts at the higher station and finishes at the lower one.
+    Decreasing,
+    /// The whole range is worked together over the activity's dates (a culvert, a structure, a
+    /// layer treated as one block): the chart shows a bar, not a diagonal.
+    Fixed,
+}
+
+/// The part of an alignment an activity works on. Stations are chainages in metres along the named
+/// alignment; the two ends may be entered in either order.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LocationRange {
+    pub alignment: String,
+    pub from_m: f64,
+    pub to_m: f64,
+    #[serde(default)]
+    pub direction: WorkDirection,
+    /// Calendar days the crew occupies any one station. When given, a moving activity is drawn as
+    /// a parallelogram that thick in time instead of a line. Entered by the user, never assumed.
+    #[serde(default)]
+    pub dwell_days: Option<u32>,
+}
+
+impl LocationRange {
+    pub fn new(alignment: &str, from_m: f64, to_m: f64, direction: WorkDirection) -> LocationRange {
+        LocationRange { alignment: alignment.to_string(), from_m, to_m, direction, dwell_days: None }
+    }
+
+    pub fn low(&self) -> f64 {
+        self.from_m.min(self.to_m)
+    }
+
+    pub fn high(&self) -> f64 {
+        self.from_m.max(self.to_m)
+    }
+}
+
+/// A summary task: a node of the work breakdown structure. It has no duration or logic of its own;
+/// its dates and percent complete roll up from the activities and summaries below it (see
+/// [`crate::wbs_rollup`]).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SummaryTask {
+    /// Unique among summary tasks.
+    pub id: String,
+    /// The WBS code shown to the user (for example `1.2`).
+    pub wbs: String,
+    pub name: String,
+    /// The summary task above this one, `None` at the top.
+    #[serde(default)]
+    pub parent: Option<String>,
+}
+
+impl SummaryTask {
+    pub fn new(id: &str, wbs: &str, name: &str, parent: Option<&str>) -> SummaryTask {
+        SummaryTask { id: id.to_string(), wbs: wbs.to_string(), name: name.to_string(), parent: parent.map(str::to_string) }
+    }
 }
 
 impl Activity {
@@ -96,7 +171,15 @@ impl Activity {
             milestone_kind: MilestoneKind::default(),
             weight: None,
             progress: Progress::default(),
+            parent: None,
+            extra_constraints: Vec::new(),
+            location: None,
         }
+    }
+
+    /// Every constraint on the activity: the primary one first, then the extra ones.
+    pub fn constraints(&self) -> impl Iterator<Item = Constraint> + '_ {
+        self.constraint.into_iter().chain(self.extra_constraints.iter().copied())
     }
 
     pub fn is_milestone(&self) -> bool {
@@ -199,6 +282,10 @@ pub struct Programme {
     pub required_finish: Option<Date>,
     #[serde(default)]
     pub baseline: Option<Baseline>,
+    /// The work breakdown structure: summary tasks, parent to child by [`SummaryTask::parent`].
+    /// Empty for a flat programme.
+    #[serde(default)]
+    pub summaries: Vec<SummaryTask>,
 }
 
 impl Programme {
@@ -215,7 +302,18 @@ impl Programme {
             data_date: None,
             required_finish: None,
             baseline: None,
+            summaries: Vec::new(),
         }
+    }
+
+    pub fn summary(&self, id: &str) -> Option<&SummaryTask> {
+        self.summaries.iter().find(|s| s.id == id)
+    }
+
+    /// Adds a summary task and returns it.
+    pub fn add_summary(&mut self, s: SummaryTask) -> &mut SummaryTask {
+        self.summaries.push(s);
+        self.summaries.last_mut().expect("just pushed")
     }
 
     pub fn add_activity(&mut self, a: Activity) -> &mut Activity {
