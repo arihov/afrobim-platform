@@ -56,7 +56,8 @@ pub fn add(doc: &mut Document, alignment: &Alignment) -> Option<ElementId> {
     Some(id)
 }
 
-/// Imports every horizontal alignment of a LandXML file. Returns how many were added and the
+/// Imports every alignment of a LandXML file, with its profile, superelevation and station
+/// equations where the file has them. Returns how many were added and the
 /// importer's notes (unsupported elements, skipped alignments).
 pub fn import_landxml(doc: &mut Document, path: &Path) -> Result<(usize, Vec<String>), String> {
     let import = afrobim_alignment::read_landxml(path).map_err(|e| e.to_string())?;
@@ -72,7 +73,14 @@ pub fn import_landxml(doc: &mut Document, path: &Path) -> Result<(usize, Vec<Str
 /// Stands a sign at a station and offset on an alignment and moves its supports with it.
 /// `right` chooses the side looking up-station; the offset is entered as a distance from the
 /// centreline. Traffic keeps left (the UK and Uganda). Returns a note for the status line.
-pub fn place_sign(doc: &mut Document, sign: ElementId, alignment_id: ElementId, station_m: f64, distance_m: f64, right: bool) -> Result<String, String> {
+/// The number of stationing regions of an alignment: 1 without station equations.
+pub fn region_count(doc: &Document, alignment_id: ElementId) -> usize {
+    alignment_of(doc, alignment_id).map(|a| a.station_equations.region_count()).unwrap_or(1)
+}
+
+/// `station_m` is the station shown on the drawings. `region` says which stationing region it is
+/// in (0 before the first station equation); None accepts only a station that occurs once.
+pub fn place_sign(doc: &mut Document, sign: ElementId, alignment_id: ElementId, station_m: f64, region: Option<usize>, distance_m: f64, right: bool) -> Result<String, String> {
     let alignment = alignment_of(doc, alignment_id).ok_or("That alignment cannot be read.")?;
     let location = SignLocation {
         alignment: Some(alignment.name.clone()),
@@ -80,7 +88,9 @@ pub fn place_sign(doc: &mut Document, sign: ElementId, alignment_id: ElementId, 
         offset: Some(distance_m.abs()),
         side: Some(if right { SignSide::Right } else { SignSide::Left }),
     };
-    let placement = afrobim_alignment::place(&alignment, &location, TrafficSide::Left).map_err(|e| e.to_string())?;
+    // The station is the one shown on the drawings: read through the station equations, if any.
+    let options = afrobim_alignment::PlaceOptions { station: afrobim_alignment::StationReference::Displayed { region }, ..Default::default() };
+    let placement = afrobim_alignment::place_with(&alignment, &location, TrafficSide::Left, &options).map_err(|e| e.to_string())?;
     let position = placement.positions.first().ok_or("The alignment gave no position for that station.")?;
     let site = position.site_placement(&alignment.name);
     let mark = {
@@ -89,8 +99,9 @@ pub fn place_sign(doc: &mut Document, sign: ElementId, alignment_id: ElementId, 
         e.name.clone()
     };
     let _ = afrobim_supports::sync_support_sites(doc, sign);
+    let level = if alignment.profile.is_some() { format!(", centreline level {:.3} m", position.z_mm / 1000.0) } else { String::new() };
     Ok(format!(
-        "{mark} placed on {} at {} , {:.2} m {}.",
+        "{mark} placed on {} at {} , {:.2} m {}{level}.",
         alignment.name,
         afrobim_alignment::format_station(station_m, 3),
         distance_m.abs(),

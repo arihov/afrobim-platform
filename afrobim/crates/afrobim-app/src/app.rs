@@ -54,7 +54,9 @@ pub struct AfroBimApp {
     /// The last support calculation: sign mark and its lines.
     design_report: Option<(String, Vec<String>)>,
     /// The "Place on alignment" dialog: sign, alignment, station (m), offset (m), right side.
-    station_dialog: Option<(ElementId, Option<ElementId>, f64, f64, bool)>,
+    /// Sign, alignment, displayed station, offset, right side, and the stationing region as
+    /// typed (0 = not stated, else the region number counted from 1).
+    station_dialog: Option<(ElementId, Option<ElementId>, f64, f64, bool, usize)>,
     new_prop_key: String,
 
     pub(crate) grid_on: bool,
@@ -214,8 +216,10 @@ impl AfroBimApp {
                             .collect();
                         let step = a.length() / (signs.len() as f64 + 1.0);
                         for (i, id) in signs.into_iter().enumerate() {
-                            let station = a.start_station_m + step * (i as f64 + 1.0);
-                            if let Err(e) = alignment_glue::place_sign(&mut app.doc, id, alignment_id, station, 4.0, i % 2 == 1) {
+                            let internal = a.start_station_m + step * (i as f64 + 1.0);
+                            let shown = a.displayed_station(internal);
+                            let (station, region) = shown.map(|d| (d.station_m, Some(d.region))).unwrap_or((internal, None));
+                            if let Err(e) = alignment_glue::place_sign(&mut app.doc, id, alignment_id, station, region, 4.0, i % 2 == 1) {
                                 app.status = e;
                             }
                         }
@@ -611,7 +615,7 @@ impl AfroBimApp {
                 (Some(sign), Some(first)) => {
                     let known = self.doc.find(sign).and_then(|e| e.site.as_ref()).map(|s| (s.station_m.unwrap_or(0.0), s.offset_m.unwrap_or(3.0)));
                     let (station, offset) = known.unwrap_or((0.0, 3.0));
-                    self.station_dialog = Some((sign, Some(first), station, offset.abs(), offset > 0.0));
+                    self.station_dialog = Some((sign, Some(first), station, offset.abs(), offset > 0.0, 0));
                 }
                 (None, _) => self.status = "Select one sign first, then place it on an alignment.".into(),
                 (_, None) => self.status = "There is no alignment yet. Import one with File → Import LandXML.".into(),
@@ -1553,7 +1557,7 @@ impl AfroBimApp {
             }
         }
 
-        if let Some((sign, mut alignment, mut station, mut offset, mut right)) = self.station_dialog.take() {
+        if let Some((sign, mut alignment, mut station, mut offset, mut right, mut region)) = self.station_dialog.take() {
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let choices = alignment_glue::alignments(&self.doc);
             let (mut keep, mut place) = (true, false);
@@ -1570,6 +1574,17 @@ impl AfroBimApp {
                     ui.label("Station (m)");
                     ui.add(egui::DragValue::new(&mut station).speed(1.0));
                     ui.end_row();
+                    let regions = alignment.map(|a| alignment_glue::region_count(&self.doc, a)).unwrap_or(1);
+                    if regions > 1 {
+                        ui.label("Stationing region");
+                        ui.horizontal(|ui| {
+                            ui.add(egui::DragValue::new(&mut region).range(0..=regions));
+                            ui.label(RichText::new(format!("1 to {regions}; 0 if the station occurs once")).small().weak());
+                        });
+                        ui.end_row();
+                    } else {
+                        region = 0;
+                    }
                     ui.label("Offset from centreline (m)");
                     ui.add(egui::DragValue::new(&mut offset).speed(0.1).range(0.0..=200.0));
                     ui.end_row();
@@ -1594,7 +1609,7 @@ impl AfroBimApp {
             });
             if place {
                 if let Some(a) = alignment {
-                    match alignment_glue::place_sign(&mut self.doc, sign, a, station, offset, right) {
+                    match alignment_glue::place_sign(&mut self.doc, sign, a, station, region.checked_sub(1), offset, right) {
                         Ok(note) => {
                             self.status = note;
                             self.fitted_3d = false;
@@ -1602,12 +1617,12 @@ impl AfroBimApp {
                         }
                         Err(e) => {
                             self.status = format!("Not placed: {e}");
-                            self.station_dialog = Some((sign, alignment, station, offset, right));
+                            self.station_dialog = Some((sign, alignment, station, offset, right, region));
                         }
                     }
                 }
             } else if keep {
-                self.station_dialog = Some((sign, alignment, station, offset, right));
+                self.station_dialog = Some((sign, alignment, station, offset, right, region));
             }
         }
 

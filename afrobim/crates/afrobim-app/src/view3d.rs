@@ -378,9 +378,25 @@ impl AfroBimApp {
                 if site_mode {
                     if let Some(a) = crate::alignment_glue::alignment_of(&self.doc, e.id) {
                         let centre = Stroke::new(2.0_f32, Color32::from_rgb(0xE8, 0xC5, 0x47));
-                        let pts = a.polyline(5.0);
+                        // At the profile's level where the alignment has one, else on z = 0.
+                        let (start, end) = (a.start_station_m, a.end_station_m());
+                        let steps = (((end - start) / 5.0).ceil() as usize).clamp(1, 20_000);
+                        let pts: Vec<[f64; 3]> = (0..=steps)
+                            .filter_map(|i| {
+                                let s = start + (end - start) * i as f64 / steps as f64;
+                                let p = a.point_at(s)?;
+                                // Beyond the profile's ends the line is shown at the end level, so
+                                // that it does not drop to zero.
+                                let z = a
+                                    .profile
+                                    .as_ref()
+                                    .and_then(|profile| profile.range().and_then(|(lo, hi)| profile.elevation_at(s.clamp(lo, hi)).ok()))
+                                    .unwrap_or(0.0);
+                                Some([p.x * 1000.0, p.y * 1000.0, z * 1000.0])
+                            })
+                            .collect();
                         for w in pts.windows(2) {
-                            line([w[0].0 * 1000.0, w[0].1 * 1000.0, 0.0], [w[1].0 * 1000.0, w[1].1 * 1000.0, 0.0], centre);
+                            line(w[0], w[1], centre);
                         }
                     }
                 }
