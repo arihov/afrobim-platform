@@ -73,7 +73,10 @@ name = "afrobim-coordination"
 version = "0.1.0"
 dependencies = [
  "afrobim-draw",
+ "afrobim-ifc",
  "afrobim-kernel",
+ "flate2",
+ "roxmltree",
  "serde",
  "serde_json",
 ]

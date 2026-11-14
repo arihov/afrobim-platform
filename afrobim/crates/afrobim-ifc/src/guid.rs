@@ -66,6 +66,15 @@ pub(crate) fn uuid_v5(name: &str) -> [u8; 16] {
     uuid
 }
 
+/// The RFC 4122 version 5 UUID of `name` in the AfroBIM namespace, as 32 hex digits in the
+/// 8-4-4-4-12 form (lower case). Used for identifiers outside IFC that must be stable, for
+/// example the GUIDs of BCF topics.
+pub fn name_uuid(name: &str) -> String {
+    let u = uuid_v5(name);
+    let h: String = u.iter().map(|b| format!("{b:02x}")).collect();
+    format!("{}-{}-{}-{}-{}", &h[0..8], &h[8..12], &h[12..16], &h[16..20], &h[20..32])
+}
+
 /// The 22-character IFC form of a UUID.
 pub(crate) fn compress(uuid: [u8; 16]) -> String {
     let n = u128::from_be_bytes(uuid);
@@ -105,6 +114,16 @@ mod tests {
         let mut one = [0u8; 16];
         one[15] = 1;
         assert_eq!(compress(one), "0000000000000000000001");
+    }
+
+    #[test]
+    fn name_uuid_is_hyphenated_lower_case_version_5() {
+        let u = name_uuid("x");
+        assert_eq!(u.len(), 36);
+        assert_eq!(&u[14..15], "5");
+        assert_eq!(u, name_uuid("x"));
+        assert_ne!(u, name_uuid("y"));
+        assert_eq!(u, u.to_lowercase());
     }
 
     #[test]

@@ -38,7 +38,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use afrobim_draw::{Colour, Primitive};
 use afrobim_kernel::{Document, Element, ElementId, Generated};
 
-pub use guid::global_id;
+pub use guid::{global_id, name_uuid};
 pub use model::{
     export_ifc_model, write_ifc_model, ALIGNMENT_CATEGORY, ALIGNMENT_CHORD_M, CORRIDOR_CATEGORY, CULVERT_CATEGORY, DRAIN_CATEGORY, FOUNDATION_CATEGORY, GANTRY_CATEGORY, LIGHTING_CATEGORY,
     MARKING_CATEGORY, PAVEMENT_CATEGORY, POST_CATEGORY, PROP_DESIGN_BASIS, RESTRAINT_CATEGORY, SURFACE_CATEGORY,
