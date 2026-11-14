@@ -144,7 +144,8 @@ impl PavementType {
 /// `T · 365 · p` is returned.
 pub fn cumulative_traffic(daily_first_year: f64, growth_percent: f64, period_years: u32) -> f64 {
     let (r, p) = (growth_percent / 100.0, f64::from(period_years));
-    let factor = if r == 0.0 { p } else { ((1.0 + r).powf(p) - 1.0) / r };
+    // (1 + r)^p − 1 written as expm1(p·ln(1 + r)), which keeps its accuracy as r goes to zero.
+    let factor = if r == 0.0 { p } else { (p * r.ln_1p()).exp_m1() / r };
     daily_first_year * 365.0 * factor
 }
 
