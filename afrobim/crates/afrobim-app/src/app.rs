@@ -52,6 +52,7 @@ pub struct AfroBimApp {
     pub(crate) issues: crate::issues_ui::IssuesUi,
     pub(crate) refs: crate::reference_models::RefUi,
     pub(crate) vis: crate::visibility_ui::VisUi,
+    pub(crate) photo: crate::photometry_ui::PhotoUi,
     /// The name of the last IFC file exported, which BCF topics name as their model.
     pub(crate) last_ifc_name: Option<String>,
     signs_ready: bool,
@@ -160,6 +161,7 @@ impl AfroBimApp {
             issues: Default::default(),
             refs: Default::default(),
             vis: Default::default(),
+            photo: Default::default(),
             last_ifc_name: None,
             signs_ready,
             module_status,
@@ -396,6 +398,13 @@ impl AfroBimApp {
             let nums: Vec<f64> = parts.filter_map(|p| p.trim().parse().ok()).collect();
             app.refs.quiet = true;
             app.refs.start_import(std::path::Path::new(&path), &nums);
+        }
+        if let Some(path) = app.options.photometry.clone() {
+            app.photo_open();
+            app.photo_load_file(&path);
+            if app.options.photometry_run {
+                app.photo_demo_run();
+            }
         }
         if app.options.capture_viewpoint {
             // Take a viewpoint of the demo issue from the current 3D camera and snapshot it.
@@ -1044,7 +1053,8 @@ impl AfroBimApp {
                 let sign = self.doc.primary().filter(|id| self.doc.find(*id).is_some_and(|e| e.category == afrobim_visibility::SIGN_CATEGORY));
                 self.vis_run(sign.map(|id| vec![id]));
             }
-            Action::Photometry | Action::ReportPack => self.status = "not wired yet".into(),
+            Action::Photometry => self.photo_open(),
+            Action::ReportPack => self.status = "not wired yet".into(),
             Action::IfcRef => self.ifcref_pick(),
             Action::RefModels => self.refs.list_open = true,
             Action::Programme => {
@@ -1957,6 +1967,7 @@ impl AfroBimApp {
         self.reference_windows(ctx);
         self.issues_windows(ctx);
         self.visibility_windows(ctx);
+        self.photometry_windows(ctx);
         self.coordination_windows(ctx);
         self.schedule_windows(ctx);
         self.cost_windows(ctx);

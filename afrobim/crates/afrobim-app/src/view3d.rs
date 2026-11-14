@@ -614,6 +614,7 @@ impl AfroBimApp {
 
         // The limiting sight line and its obstruction for the selected sign (VISIBILITY).
         self.vis.paint_overlay(painter, cam, rect);
+        self.photo.paint_overlay(painter, cam, rect);
 
         // Clash markers: a ring and a cross at each live clash.
         if self.coord.markers {

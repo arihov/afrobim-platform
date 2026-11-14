@@ -23,6 +23,7 @@ mod issues_ui;
 mod lighting_inputs;
 mod markings_glue;
 mod modules_glue;
+mod photometry_ui;
 mod reference_models;
 mod render;
 mod ribbon;
@@ -118,6 +119,9 @@ pub struct Options {
     /// After a visibility run: `drawings` shows only the drawings window, `overlay` only the 3D
     /// view framed on the sign with the limiting sight line (to look at each without a pointer).
     pub vis_view: Option<String>,
+    /// With `--photometry`: fill the window with arbitrary demo settings (80 percent maintenance factor, 60 m
+    /// contribution distance, 3 m by 1 m cells, orientation accepted) and run, for a screenshot.
+    pub photometry_run: bool,
 }
 
 fn parse_args() -> Options {
@@ -153,6 +157,7 @@ fn parse_args() -> Options {
             "--frames-step" => o.frames_step = args.next().and_then(|v| v.parse().ok()),
             "--frames-from" => o.frames_from = args.next(),
             "--frames-to" => o.frames_to = args.next(),
+            "--photometry-run" => o.photometry_run = true,
             "--vis-view" => o.vis_view = args.next(),
             "--capture-viewpoint" => o.capture_viewpoint = true,
             "--ifcref" => o.ifcref = args.next(),

@@ -216,6 +216,30 @@ fn need<T: Copy>(v: Option<T>, what: &str) -> Result<T, String> {
 }
 
 impl Form {
+    /// Writes photometric results into the entries (the source label, and every result that is set),
+    /// as the PHOTOMETRY window does for "use these results in the class check".
+    pub fn set_photometry(&mut self, ph: &PhotometricResults) {
+        let n = |v: f64| afrobim_sheets::trim_number(v, 6);
+        self.ph_source = ph.source.clone();
+        for (slot, value) in [
+            (&mut self.l_av, ph.l_av_cd_m2),
+            (&mut self.u_o, ph.u_o),
+            (&mut self.u_l, ph.u_l),
+            (&mut self.u_o_wet, ph.u_o_wet),
+            (&mut self.ti, ph.ti_percent),
+            (&mut self.eir, ph.eir),
+            (&mut self.e_av, ph.e_av_lx),
+            (&mut self.u_o_e, ph.u_o_e),
+            (&mut self.e_h_min, ph.e_h_min_lx),
+            (&mut self.e_v_min, ph.e_v_min_lx),
+            (&mut self.e_sc_min, ph.e_sc_min_lx),
+        ] {
+            if let Some(v) = value {
+                *slot = n(v);
+            }
+        }
+    }
+
     /// The inputs the engineer entered, or the first entry that cannot be read.
     pub fn inputs(&self) -> Result<CheckInputs, String> {
         let mut gaps = Vec::new();
@@ -353,7 +377,7 @@ pub fn show(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<LightingC
     let mark = doc.find(d.element).map(|e| e.name.clone()).unwrap_or_default();
     let (mut keep, mut run) = (true, false);
     crate::win::new(ctx, format!("Lighting check inputs for {mark}")).collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
-        ui.label(RichText::new("Enter what you have established elsewhere. Every field starts empty; a field left empty stops the checks that need it and the report says so. Photometric values are the maintained results of your own calculation: AfroBIM computes no photometry.").small().weak());
+        ui.label(RichText::new("Enter what you have established elsewhere. Every field starts empty; a field left empty stops the checks that need it and the report says so. Photometric values are the maintained results of a calculation: enter those from your lighting package, or run PHOTOMETRY on a luminaire file and use its results here (the entries are then labelled as computed by AfroBIM). AfroBIM's own photometry is not an EN 13201-3 calculation, has not been validated against DIALux, Relux or AGi32, calculates luminance only from an r-table you supply, and does not compute TI, U_l or the wet U_o: enter those from your own calculation.").small().weak());
         egui::ScrollArea::vertical().max_height(480.0).auto_shrink([false, false]).show(ui, |ui| {
             let f = &mut d.form;
             ui.label(RichText::new("The road and the installation").strong());
@@ -409,7 +433,7 @@ pub fn show(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<LightingC
             }
 
             ui.add_space(8.0);
-            ui.label(RichText::new("Photometric results of your calculation (maintained values)").strong());
+            ui.label(RichText::new("Photometric results (maintained values), entered or from PHOTOMETRY").strong());
             egui::Grid::new("lc-photo").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
                 field(ui, "Where the results come from", &mut f.ph_source, "program, file, date");
                 field(ui, "L_av, average luminance (cd/m2)", &mut f.l_av, "M classes");
