@@ -4,6 +4,11 @@ mod alignment_glue;
 mod app;
 mod canvas;
 mod commands;
+mod coordination_glue;
+mod coordination_ui;
+mod cost_glue;
+mod cost_ui;
+mod demo_glue;
 mod icons;
 mod lighting_inputs;
 mod markings_glue;
@@ -12,6 +17,8 @@ mod render;
 mod ribbon;
 mod road_dialogs;
 mod road_glue;
+mod schedule_glue;
+mod schedule_ui;
 mod signs_glue;
 mod station_input;
 mod supports_glue;
@@ -51,6 +58,10 @@ pub struct Options {
     /// Run this command once at start-up, on the element named by `--focus` when there is one
     /// (to look at a dialog or window without a pointer).
     pub run: Option<String>,
+    /// Show the model at this date (YYYY-MM-DD) in the 3D view, coloured by the programme.
+    pub date: Option<String>,
+    /// Sub-tab to show in the Bill and Estimate windows (0 is the first), to look at each without a pointer.
+    pub subtab: Option<u8>,
 }
 
 fn parse_args() -> Options {
@@ -69,6 +80,8 @@ fn parse_args() -> Options {
             "--landxml" => o.landxml = args.next().map(PathBuf::from),
             "--focus" => o.focus = args.next(),
             "--run" => o.run = args.next(),
+            "--date" => o.date = args.next(),
+            "--subtab" => o.subtab = args.next().and_then(|v| v.parse().ok()),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),
             other if !other.starts_with("--") => o.open = Some(PathBuf::from(other)),
             _ => {}

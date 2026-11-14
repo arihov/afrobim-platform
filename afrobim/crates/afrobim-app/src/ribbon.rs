@@ -21,13 +21,16 @@ pub enum Tab {
     Signs,
     Roads,
     Structures,
+    Coordination,
+    FourD,
+    FiveD,
     Output,
     Manage,
     View,
     Help,
 }
 
-pub const TABS: [(Tab, &str); 12] = [
+pub const TABS: [(Tab, &str); 15] = [
     (Tab::Home, "Home"),
     (Tab::Edit, "Edit"),
     (Tab::Insert, "Insert"),
@@ -36,6 +39,9 @@ pub const TABS: [(Tab, &str); 12] = [
     (Tab::Signs, "Signs"),
     (Tab::Roads, "Roads"),
     (Tab::Structures, "Structures"),
+    (Tab::Coordination, "Coordination"),
+    (Tab::FourD, "4D"),
+    (Tab::FiveD, "5D"),
     (Tab::Output, "Output"),
     (Tab::Manage, "Manage"),
     (Tab::View, "View"),
@@ -129,7 +135,30 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Pavement", items: &[Big(Icon::Pavement, "Pavement", "PAVEMENT"), Big(Icon::Design, "Pavement design", "PAVEDESIGN")] },
         Panel { title: "Earthworks", items: &[Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Corridor, "Corridor", "CORRIDOR"), Big(Icon::Section, "Sections", "SECTIONS")] },
     ];
-    const STRUCTURES: &[Panel] = &[SUPPORTS, Panel { title: "Gantries", items: &[Big(Icon::Barrier, "Portal gantry", "GANTRY"), Big(Icon::Barrier, "Cantilever gantry", "CANTILEVER"), Big(Icon::Station, "Hang sign", "HANG"), Small(Icon::NoSupports, "Take sign off", "UNHANG"), Small(Icon::Design, "Check", "CHECK")] }, Panel { title: "Structure modules", items: &[Planned(Icon::Clash, "Clash check", "Find elements that occupy the same space")] }];
+    const STRUCTURES: &[Panel] = &[SUPPORTS, Panel { title: "Gantries", items: &[Big(Icon::Barrier, "Portal gantry", "GANTRY"), Big(Icon::Barrier, "Cantilever gantry", "CANTILEVER"), Big(Icon::Station, "Hang sign", "HANG"), Small(Icon::NoSupports, "Take sign off", "UNHANG"), Small(Icon::Design, "Check", "CHECK")] }];
+    const COORDINATION: &[Panel] = &[
+        Panel { title: "Tests", items: &[Big(Icon::ClashTests, "Clash tests", "CLASHTESTS")] },
+        Panel { title: "Run", items: &[Big(Icon::Clash, "Run tests", "CLASH"), Big(Icon::ClashList, "Results", "CLASHES")] },
+        Panel { title: "Display", items: &[Big(Icon::Marker, "Clash markers", "CLASHMARKERS")] },
+        Panel { title: "Report", items: &[Big(Icon::Csv, "Export clashes", "CLASHCSV")] },
+    ];
+    const FOURD: &[Panel] = &[
+        Panel { title: "Programme", items: &[Big(Icon::Activities, "Activities", "PROGRAMME"), Big(Icon::Calendar, "Calendar", "CALENDAR"), Big(Icon::Schedule, "Schedule", "SCHEDULE")] },
+        Panel { title: "Chart", items: &[Big(Icon::Gantt, "Gantt chart", "GANTT")] },
+        Panel { title: "Baseline", items: &[Big(Icon::Baseline, "Set baseline", "BASELINE"), Big(Icon::Variance, "Variance", "VARIANCE")] },
+        Panel { title: "Progress", items: &[Big(Icon::Progress, "Progress", "PROGRESS")] },
+        Panel { title: "Links", items: &[Big(Icon::Link, "Link elements", "LINK4D"), Big(Icon::LinkReport, "Link report", "LINKREPORT")] },
+        Panel { title: "Date", items: &[Big(Icon::DateSlider, "4D date", "FOURD")] },
+        Panel { title: "MS Project", items: &[Big(Icon::MspIn, "Import", "MSPIN"), Big(Icon::MspOut, "Export", "MSPOUT"), Big(Icon::Csv, "Reports", "PROGCSV")] },
+    ];
+    const FIVED: &[Panel] = &[
+        Panel { title: "Bill", items: &[Big(Icon::Bill, "Bill and rules", "BILL")] },
+        Panel { title: "Rates", items: &[Big(Icon::Rates, "Rate library", "RATES"), Big(Icon::Currency, "Currency", "CURRENCY")] },
+        Panel { title: "Estimate", items: &[Big(Icon::Estimate, "Estimate", "ESTIMATE")] },
+        Panel { title: "Time", items: &[Big(Icon::CashFlow, "Cash flow", "CASHFLOW")] },
+        Panel { title: "Payment", items: &[Big(Icon::Certificate, "Interim certificate", "CERTIFICATE")] },
+        Panel { title: "Export", items: &[Big(Icon::Csv, "Cost reports", "COSTCSV")] },
+    ];
     const OUTPUT: &[Panel] = &[EXPORT, Panel { title: "Document", items: &[Big(Icon::Save, "Save", "SAVE"), Big(Icon::SaveAs, "Save as", "SAVEAS"), Big(Icon::Quit, "Quit", "QUIT")] }];
     const MANAGE: &[Panel] = &[
         STANDARD,
@@ -160,6 +189,9 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Tab::Signs => &[], // built from the active standard's templates, see `show`
         Tab::Roads => ROADS,
         Tab::Structures => STRUCTURES,
+        Tab::Coordination => COORDINATION,
+        Tab::FourD => FOURD,
+        Tab::FiveD => FIVED,
         Tab::Output => OUTPUT,
         Tab::Manage => MANAGE,
         Tab::View => VIEW,
