@@ -1,6 +1,6 @@
 [package]
 name = "afrobim-ifc"
-description = "IFC 4.3 export of AfroBIM documents"
+description = "IFC 4.3 export of AfroBIM documents, and IFC import (IFC2X3, IFC4, IFC4X3) as a reference model"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

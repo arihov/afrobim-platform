@@ -14,8 +14,10 @@
 //! sets and quantities the README tabulates. For a document with none of those it writes the same
 //! bytes as [`export_ifc`], which stays as it was: signs on the upright sheet.
 //!
-//! The crate only writes; it has no importer. See the crate README for the entity mapping, the
-//! placement convention and how to validate a file.
+//! The `import` module reads IFC files (IFC2X3, IFC4, IFC4X3) as a reference model for display and
+//! clash checking: [`import::import_ifc`]. The writer above does not change. See the crate README
+//! for the entity mapping, the placement convention, how to validate a file and what the importer
+//! reads.
 //!
 //! ```
 //! use afrobim_ifc::{write_ifc, IfcElementInput, IfcOptions};
@@ -29,6 +31,7 @@
 //! ```
 
 mod guid;
+pub mod import;
 mod mesh;
 mod model;
 mod step;
@@ -38,7 +41,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use afrobim_draw::{Colour, Primitive};
 use afrobim_kernel::{Document, Element, ElementId, Generated};
 
-pub use guid::global_id;
+pub use guid::{global_id, name_uuid};
 pub use model::{
     export_ifc_model, write_ifc_model, ALIGNMENT_CATEGORY, ALIGNMENT_CHORD_M, CORRIDOR_CATEGORY, CULVERT_CATEGORY, DRAIN_CATEGORY, FOUNDATION_CATEGORY, GANTRY_CATEGORY, LIGHTING_CATEGORY,
     MARKING_CATEGORY, PAVEMENT_CATEGORY, POST_CATEGORY, PROP_DESIGN_BASIS, RESTRAINT_CATEGORY, SURFACE_CATEGORY,

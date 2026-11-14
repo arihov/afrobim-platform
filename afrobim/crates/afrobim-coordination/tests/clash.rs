@@ -302,7 +302,7 @@ fn results_merge_across_runs() {
     let a = boxed(1, [0.0; 3], [100.0; 3]);
     let b = boxed(2, [50.0; 3], [150.0; 3]);
     let apart = boxed(2, [500.0; 3], [600.0; 3]);
-    let mut co = Coordination { tests: vec![ClashTest::hard("T", Selection::all(), Selection::all()), ClashTest::hard("Other", Selection::all(), Selection::all())], results: ClashResults::default() };
+    let mut co = Coordination { tests: vec![ClashTest::hard("T", Selection::all(), Selection::all()), ClashTest::hard("Other", Selection::all(), Selection::all())], results: ClashResults::default(), ..Coordination::default() };
 
     co.run(&Scene::new(vec![a.clone(), b.clone()]));
     assert_eq!(co.results.clashes.len(), 2);
@@ -355,7 +355,7 @@ fn ids_are_stable_and_symmetric() {
 fn reports_and_persistence_round_trip() {
     let a = boxed(1, [0.0; 3], [100.0; 3]);
     let b = body(2, "pipe, \"main\"", vec![cube([50.0; 3], [150.0; 3])]);
-    let mut co = Coordination { tests: vec![hard()], results: ClashResults::default() };
+    let mut co = Coordination { tests: vec![hard()], results: ClashResults::default(), ..Coordination::default() };
     co.run(&Scene::new(vec![a, b]));
     let id = co.results.clashes[0].id.clone();
     co.results.review(&id, Status::Active, "say \"hello\", then fix", "me");
