@@ -265,7 +265,10 @@ impl AfroBimApp {
                 let normal = if facing < 0.0 { [-normal[0], -normal[1], -normal[2]] } else { normal };
                 let projected: Option<Vec<(Pos2, f64)>> = p.iter().map(|q| cam.project(*q, rect)).collect();
                 let Some(projected) = projected else { continue };
-                let depth = projected.iter().map(|(_, d)| *d).sum::<f64>() / 3.0;
+                // The ground is a backdrop: its triangles are large, so sorting them by centre
+                // against the small things that stand on them goes wrong. They are painted
+                // first (in order among themselves) and everything else over them.
+                let depth = projected.iter().map(|(_, d)| *d).sum::<f64>() / 3.0 + if crate::modules_glue::is_surface(&e.category) { 1.0e12 } else { 0.0 };
                 let shade = (0.45 + 0.55 * dot(normal, light).max(0.0)) as f32;
                 let [r, g, b] = mesh.colour;
                 let mut colour = Color32::from_rgb((r as f32 * shade) as u8, (g as f32 * shade) as u8, (b as f32 * shade) as u8);

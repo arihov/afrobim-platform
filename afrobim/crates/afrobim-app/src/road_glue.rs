@@ -735,3 +735,103 @@ pub fn quantities(doc: &Document) -> (Vec<(String, String)>, Vec<String>) {
     }
     (files, problems)
 }
+
+// ─── the demonstration ──────────────────────────────────────────────────────────────────
+
+/// Adds one of each road module on the first alignment of the document, for `--demo`, and
+/// returns what could not be added and why.
+///
+/// **Every number in this function is an arbitrary demonstration value.** None is a design
+/// value, a value from a standard or a recommendation: they are chosen only so that each module
+/// has something to show on the test alignments. The ground is a made-up undulating surface
+/// built here, not a survey.
+pub fn demo(doc: &mut Document) -> Vec<String> {
+    let mut problems = Vec::new();
+    let Some((id, _)) = alignment_glue::alignments(doc).into_iter().next() else { return vec!["There is no alignment yet. Import one with File → Import LandXML.".to_string()] };
+    let Some(a) = alignment_glue::alignment_of(doc, id) else { return vec!["That alignment cannot be read.".to_string()] };
+    let at = |fraction: f64| a.start_station_m + a.length() * fraction;
+
+    // A made-up ground: a gentle undulation about the profile's start level over the alignment's
+    // plan extent plus a margin (arbitrary: 1 m below that level, 4 m of relief, 25 m grid, 150 m margin).
+    let plan = a.polyline(20.0);
+    let (x0, x1) = plan.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| (lo.min(p.0), hi.max(p.0)));
+    let (y0, y1) = plan.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| (lo.min(p.1), hi.max(p.1)));
+    let base = a.profile.as_ref().and_then(|p| p.range().and_then(|(lo, _)| p.elevation_at(lo).ok())).unwrap_or(0.0);
+    let (margin, step) = (150.0, 25.0);
+    let (nx, ny) = (((x1 - x0 + 2.0 * margin) / step).ceil() as usize + 1, ((y1 - y0 + 2.0 * margin) / step).ceil() as usize + 1);
+    let ground = corridor::Tin::from_grid(x0 - margin, y0 - margin, step, step, nx.max(2), ny.max(2), |x, y| base - 1.0 + 4.0 * (x / 90.0).sin() * (y / 70.0).cos());
+    let surface = match ground {
+        Ok(tin) => corridor::add_surface(doc, "Demo ground", &tin, Some("built in code for the demo")).map_err(|e| e.to_string()),
+        Err(e) => Err(e.to_string()),
+    };
+
+    // A corridor over the first half of the alignment: 3.3 m lanes falling 3 % away from the
+    // centreline, 1.2 m paved shoulders falling 4 %, 2 : 1 side slopes, 0.4 m formation, 20 m sections.
+    match surface {
+        Ok(surface) => {
+            let mut req = CorridorRequest::empty("Demo corridor");
+            req.surface = Some(surface);
+            req.lane_width_m = 3.3;
+            req.lane_crossfall_percent = 3.0;
+            req.shoulder = Some(ShoulderRequest { width_m: 1.2, crossfall_percent: 4.0 });
+            req.shoulder_paved = true;
+            req.cut_run_per_rise = 2.0;
+            req.fill_run_per_rise = 2.0;
+            req.formation_depth_m = 0.4;
+            req.interval_m = 20.0;
+            let mut def = req.definition();
+            def.start_station_m = Some(at(0.0));
+            def.end_station_m = Some(at(0.5));
+            note(&mut problems, "Corridor", corridor::add_corridor(doc, id, surface, def).map(|_| ()).map_err(|e| e.to_string()));
+        }
+        Err(e) => problems.push(format!("Ground surface: {e}")),
+    }
+
+    // Street lighting: staggered columns every 40 m on the first stretch; one extra column.
+    let mut req = LightingRequest::empty("LZ-01", at(0.03), at(0.3));
+    req.arrangement = 2;
+    req.spacing_m = 40.0;
+    req.carriageway_width_m = 6.6;
+    req.setback_m = 1.0;
+    req.column = ColumnFields { mounting_height_m: 8.0, bracket_outreach_m: 1.0, tilt_deg: 0.0, product: "Demo luminaire".into(), lumen_output_lm: 5000.0, power_w: 50.0 };
+    req.lighting_class = "demo".into();
+    note(&mut problems, "Street lighting", add_lighting(doc, id, &req).map(|_| ()));
+    let mut col = ColumnRequest::empty("LC-901", at(0.7));
+    col.distance_m = 5.0;
+    col.right = true;
+    col.column = req.column.clone();
+    note(&mut problems, "Light column", add_light_column(doc, id, &col).map(|_| ()));
+
+    // A safety barrier run on the right: the 5th containment level in the crate's list, the 4th
+    // working width class, impact severity A, a 0.7 m beam, posts at 2 m, a terminal at each end.
+    let mut req = RestraintRequest::empty("VRS-001", at(0.1), at(0.2));
+    req.distance_m = 5.5;
+    req.right = true;
+    req.containment = 4;
+    req.working_width = 3;
+    req.beam_height_m = 0.7;
+    req.post_spacing_m = Some(2.0);
+    req.start_terminal = Some(0);
+    req.end_terminal = Some(0);
+    note(&mut problems, "Road restraint", add_restraint(doc, id, &req).map(|_| ()));
+
+    // A pavement on the second half: 6.6 m wide, 2.5 % cross-fall, four layers of 40, 100, 150
+    // and 200 mm, with 1.2 m shoulders.
+    let mut req = PavementRequest::empty("PV-001", at(0.55), at(0.95));
+    req.carriageway_width_m = 6.6;
+    req.crossfall_percent = 2.5;
+    req.layers = [("Surfacing", 1, 40.0), ("Base", 2, 100.0), ("Subbase", 5, 150.0), ("Selected layer", 8, 200.0)]
+        .iter()
+        .map(|(name, material, thickness_mm)| LayerRow { name: name.to_string(), material: *material, thickness_mm: *thickness_mm })
+        .collect();
+    req.left_shoulder = Some(ShoulderRequest { width_m: 1.2, crossfall_percent: 4.0 });
+    req.right_shoulder = Some(ShoulderRequest { width_m: 1.2, crossfall_percent: 4.0 });
+    note(&mut problems, "Pavement", add_pavement(doc, id, &req).map(|_| ()));
+    problems
+}
+
+fn note(problems: &mut Vec<String>, what: &str, result: Result<(), String>) {
+    if let Err(e) = result {
+        problems.push(format!("{what}: {e}"));
+    }
+}

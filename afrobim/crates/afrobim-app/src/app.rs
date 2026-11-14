@@ -257,6 +257,13 @@ impl AfroBimApp {
                     }
                 }
             }
+            // Demo only: one each of ground surface, corridor, street lighting, barrier run and
+            // pavement. Their values are arbitrary demo values, see `road_glue::demo`.
+            if app.options.demo {
+                for problem in road_glue::demo(&mut app.doc) {
+                    app.status = problem;
+                }
+            }
             // Demo only: stand the supported signs along the first alignment, alternating sides.
             if app.options.demo {
                 if let Some((alignment_id, _)) = alignment_glue::alignments(&app.doc).into_iter().next() {
