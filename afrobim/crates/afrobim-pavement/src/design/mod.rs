@@ -7,6 +7,7 @@
 //! | [`DesignMethod`] | Module | Basis |
 //! |---|---|---|
 //! | `MowtRdmVol3` | [`mowt`] | Uganda MoWT *Road Design Manual Volume 3: Pavement Design, Part I: Flexible Pavements* (January 2010) |
+//! | `DmrbCd226` | [`dmrb`] | UK DMRB CD 224 *Traffic assessment* (Revision 0, March 2020) and CD 226 *Design for new pavement construction* (Version 0.1.0, November 2021) |
 //!
 //! Every method returns its own typed result and implements [`DesignResult`], which gives the
 //! common output: a line-by-line calculation with references, the warnings, and (where the
@@ -16,6 +17,7 @@
 //!
 //! The result of any of them is a calculation for an engineer to check, not a certified design.
 
+pub mod dmrb;
 pub mod mowt;
 mod mowt_catalogue;
 
@@ -28,18 +30,22 @@ pub enum DesignMethod {
     /// Uganda MoWT Road Design Manual Volume 3, Part I (January 2010): catalogue of flexible
     /// pavement structures by traffic class and subgrade class.
     MowtRdmVol3,
+    /// UK Design Manual for Roads and Bridges: design traffic to CD 224 and the flexible
+    /// pavement requirements of CD 226 that are stated as equations or tables.
+    DmrbCd226,
 }
 
 impl DesignMethod {
     /// Every method available, in the order they are offered.
     pub fn all() -> &'static [DesignMethod] {
-        &[DesignMethod::MowtRdmVol3]
+        &[DesignMethod::MowtRdmVol3, DesignMethod::DmrbCd226]
     }
 
     /// Short name for a menu.
     pub fn name(self) -> &'static str {
         match self {
             DesignMethod::MowtRdmVol3 => "Uganda MoWT Road Design Manual Vol. 3",
+            DesignMethod::DmrbCd226 => "UK DMRB CD 224 / CD 226",
         }
     }
 
@@ -48,6 +54,9 @@ impl DesignMethod {
         match self {
             DesignMethod::MowtRdmVol3 => {
                 "Republic of Uganda, Ministry of Works and Transport, Road Design Manual Volume 3: Pavement Design, Part I: Flexible Pavements, January 2010"
+            }
+            DesignMethod::DmrbCd226 => {
+                "UK Design Manual for Roads and Bridges, CD 224 Traffic assessment, Revision 0, March 2020, and CD 226 Design for new pavement construction, Version 0.1.0, November 2021 (both since superseded)"
             }
         }
     }
@@ -79,12 +88,14 @@ pub trait DesignResult {
 #[non_exhaustive]
 pub enum DesignInput {
     Mowt(mowt::MowtInput),
+    Dmrb(dmrb::DmrbInput),
 }
 
 impl DesignInput {
     pub fn method(&self) -> DesignMethod {
         match self {
             DesignInput::Mowt(_) => DesignMethod::MowtRdmVol3,
+            DesignInput::Dmrb(_) => DesignMethod::DmrbCd226,
         }
     }
 }
@@ -93,6 +104,7 @@ impl DesignInput {
 pub fn design(input: &DesignInput) -> Result<Box<dyn DesignResult>, DesignError> {
     match input {
         DesignInput::Mowt(i) => Ok(Box::new(mowt::design(i)?)),
+        DesignInput::Dmrb(i) => Ok(Box::new(dmrb::design(i)?)),
     }
 }
 
