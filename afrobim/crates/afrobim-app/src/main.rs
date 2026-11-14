@@ -6,6 +6,7 @@ mod canvas;
 mod commands;
 mod icons;
 mod render;
+mod ribbon;
 mod signs_glue;
 mod supports_glue;
 mod view3d;
@@ -20,6 +21,10 @@ use eframe::egui;
 pub struct Options {
     pub screenshot: Option<PathBuf>,
     pub demo: bool,
+    /// Ribbon tab to start on, e.g. `Roads`.
+    pub tab: Option<String>,
+    /// Show the ribbon preview card of this command at start-up (to check it without a pointer).
+    pub preview: Option<String>,
     /// With `--demo`: size the demo supports for wind (MoWT open terrain, the dialog's starting
     /// ground values) instead of leaving placeholders, and show the first calculation.
     pub design: bool,
@@ -46,6 +51,8 @@ fn parse_args() -> Options {
         match a.as_str() {
             "--screenshot" => o.screenshot = args.next().map(PathBuf::from),
             "--demo" => o.demo = true,
+            "--tab" => o.tab = args.next(),
+            "--preview" => o.preview = args.next(),
             "--design" => o.design = true,
             "--3d" => o.view3d = true,
             "--standard" => o.standard = args.next(),

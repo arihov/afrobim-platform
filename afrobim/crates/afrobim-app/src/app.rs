@@ -41,6 +41,7 @@ pub struct AfroBimApp {
     cmd_input: String,
     cmd_log: Vec<String>,
     last_action: Option<Action>,
+    ribbon_tab: crate::ribbon::Tab,
     show_help: bool,
     show_about: bool,
     show_library: bool,
@@ -111,6 +112,7 @@ impl AfroBimApp {
             cmd_input: String::new(),
             cmd_log: vec!["AfroBIM model space. Type a command or pick a tool. ? lists commands.".into()],
             last_action: None,
+            ribbon_tab: options.tab.as_deref().and_then(crate::ribbon::tab_named).unwrap_or(crate::ribbon::Tab::Home),
             show_help: false,
             show_about: false,
             show_library: false,
@@ -575,6 +577,7 @@ impl AfroBimApp {
             Action::RepReal => self.rep = Representation::Real,
             Action::RepOutlined => self.rep = Representation::Outlined,
             Action::ToggleCanvas => self.dark_canvas = !self.dark_canvas,
+            Action::ToggleMarks => self.show_labels = !self.show_labels,
             Action::ToggleTheme => {
                 self.dark_theme = !self.dark_theme;
                 ctx.set_visuals(if self.dark_theme { egui::Visuals::dark() } else { egui::Visuals::light() });
@@ -862,6 +865,9 @@ impl AfroBimApp {
                     ui.separator();
                     item(ui, "Standard signs…", "LIBRARY", Action::Library);
                 });
+                ui.menu_button("Annotate", |ui| {
+                    item(ui, "Show / hide element marks", "MARKS", Action::ToggleMarks);
+                });
                 ui.menu_button("Format", |ui| {
                     for (i, (id, label, _)) in signs_glue::STANDARDS.iter().enumerate() {
                         let mark = if *id == self.standard { "● " } else { "   " };
@@ -880,6 +886,15 @@ impl AfroBimApp {
                     ui.separator();
                     item(ui, "Arrange", "", Action::Arrange);
                 });
+                ui.menu_button("Manage", |ui| {
+                    for (i, (id, label, _)) in signs_glue::STANDARDS.iter().enumerate() {
+                        let mark = if *id == self.standard { "● " } else { "   " };
+                        item(ui, &format!("{mark}Design standard: {label}"), id, Action::Standard(i as u8));
+                    }
+                    ui.separator();
+                    item(ui, "Dark / light theme", "THEME", Action::ToggleTheme);
+                    item(ui, "Dark / light model space", "CANVAS", Action::ToggleCanvas);
+                });
                 ui.menu_button("Help", |ui| {
                     item(ui, "Command list", "?", Action::Help);
                     item(ui, "About AfroBIM", "", Action::About);
@@ -891,40 +906,32 @@ impl AfroBimApp {
         });
     }
 
+    /// The ribbon: every command as an icon button, grouped in tabs and panels.
     fn toolbar(&mut self, ctx: &egui::Context) {
+        let (grid, snap, ortho, marks, three_d, real) = (self.grid_on, self.ctl.snap_on, self.ctl.ortho_on, self.show_labels, self.view_3d, self.rep == Representation::Real);
+        let standard = self.standard.clone();
+        let is_on = move |a: Action| match a {
+            Action::ToggleGrid => grid,
+            Action::ToggleSnap => snap,
+            Action::ToggleOrtho => ortho,
+            Action::ToggleMarks => marks,
+            Action::Toggle3d => three_d,
+            Action::RepReal => real,
+            Action::RepOutlined => !real,
+            Action::Standard(i) => signs_glue::STANDARDS.get(i as usize).is_some_and(|s| s.0 == standard),
+            _ => false,
+        };
+        let mut tab = self.ribbon_tab;
+        let mut pick = None;
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                let groups: [&[(Icon, &str, Action)]; 5] = [
-                    &[(Icon::New, "New (Ctrl+N)", Action::New), (Icon::Open, "Open (Ctrl+O)", Action::Open), (Icon::Save, "Save (Ctrl+S)", Action::Save)],
-                    &[(Icon::Undo, "Undo (Ctrl+Z)", Action::Undo), (Icon::Redo, "Redo (Ctrl+Y)", Action::Redo)],
-                    &[(Icon::Move, "MOVE (M)", Action::Move), (Icon::Copy, "COPY (CO)", Action::Copy), (Icon::Erase, "ERASE (E or Delete)", Action::Erase)],
-                    &[
-                        (Icon::ZoomExtents, "Zoom extents (Z)", Action::ZoomExtents),
-                        (Icon::ZoomWindow, "Zoom window (ZW)", Action::ZoomWindow),
-                        (Icon::ZoomIn, "Zoom in", Action::ZoomIn),
-                        (Icon::ZoomOut, "Zoom out", Action::ZoomOut),
-                    ],
-                    &[(Icon::Arrange, "Arrange in rows", Action::Arrange), (Icon::Theme, "Dark / light theme", Action::ToggleTheme)],
-                ];
-                let mut pick = None;
-                for (n, group) in groups.iter().enumerate() {
-                    if n > 0 {
-                        ui.add_space(4.0);
-                        ui.separator();
-                        ui.add_space(4.0);
-                    }
-                    for (icon, tip, action) in group.iter() {
-                        if icons::button(ui, *icon, tip).clicked() {
-                            pick = Some(*action);
-                        }
-                    }
-                }
-                if let Some(a) = pick {
-                    self.run(ctx, a);
-                }
-            });
+            ui.add_space(2.0);
+            pick = crate::ribbon::show(ui, &mut tab, &self.standard, self.signs_ready, &is_on);
+            ui.add_space(1.0);
         });
+        self.ribbon_tab = tab;
+        if let Some(a) = pick {
+            self.run(ctx, a);
+        }
     }
 
     fn status_bar(&mut self, ctx: &egui::Context) {
@@ -1518,6 +1525,14 @@ impl AfroBimApp {
             } else if keep {
                 self.design_dialog = Some((sign, height, entered, req));
             }
+        }
+
+        if let Some(command) = self.options.preview.clone() {
+            egui::Window::new("Command preview").collapsible(false).resizable(false).title_bar(false).default_pos([420.0, 190.0]).show(ctx, |ui| {
+                if !crate::ribbon::preview_of(ui, &command) {
+                    ui.label(format!("No ribbon button runs {command}."));
+                }
+            });
         }
 
         if let Some((mark, lines)) = self.design_report.take() {
