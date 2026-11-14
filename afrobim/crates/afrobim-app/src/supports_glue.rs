@@ -1,11 +1,12 @@
 //! Posts and foundations in the app: registering their modules, the generic definition editor,
 //! and the hand-over to `afrobim-supports` for adding supports to a sign and measuring them.
 //!
-//! Supports are modelled from dimensions the engineer enters. Nothing here sizes a post or a
-//! foundation: a new support starts with placeholder dimensions and says so until they are edited.
+//! `add` gives a sign supports with placeholder dimensions for the engineer to set. `design`
+//! sizes steel CHS posts and planted foundations for wind to the UK method; see
+//! `afrobim_supports::design` for what that covers and what it leaves to the engineer.
 
 use afrobim_kernel::{Document, ElementId, ModuleRegistry};
-use afrobim_supports::{FoundationDefinition, FoundationModule, PostDefinition, PostModule, QuantityOptions, SupportArrangement, SupportQuantities};
+use afrobim_supports::{design, FoundationDefinition, FoundationModule, PostDefinition, PostModule, QuantityOptions, SupportArrangement, SupportQuantities};
 use serde_json::Value;
 
 pub use afrobim_supports::{FOUNDATION_CATEGORY, POST_CATEGORY, PROP_MOUNTING_HEIGHT_MM, PROP_POSITION_ALONG_SIGN_MM, PROP_SETBACK_MM};
@@ -29,6 +30,119 @@ pub fn add(doc: &mut Document, sign: ElementId, mounting_height_mm: f64, posts: 
     afrobim_supports::add_supports(doc, sign, &arrangement, &post, &FoundationDefinition::placeholder())
         .map(|ids| ids.len())
         .map_err(|e| e.to_string())
+}
+
+/// Where the basic wind pressure comes from.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WindChoice {
+    /// MoWT Road Design Manual Vol. 4 (2010), Table 2, open terrain (categories 1 and 2).
+    MowtOpen,
+    /// The same table, built-up areas (categories 3 and 4).
+    MowtBuiltUp,
+    /// A pressure the engineer enters, kN/m².
+    Entered(f64),
+}
+
+/// What the "Design supports" dialog collects. Every ground value is the engineer's.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DesignRequest {
+    pub mounting_height_mm: f64,
+    pub posts: u32,
+    pub edge_inset_mm: f64,
+    pub wind: WindChoice,
+    pub ground_factor: f64,
+    /// True designs to CD 354 (post diameter only); false to PD 6547 (concrete surround).
+    pub cd354: bool,
+    pub foundation_diameter_mm: f64,
+    pub min_planting_depth_mm: f64,
+}
+
+impl DesignRequest {
+    /// Starting values for the dialog. The ground factor is the "poor" value and the
+    /// foundation diameter and minimum depth are those of the IHE guide's Example 1; they are
+    /// starting points to be confirmed, not recommendations.
+    pub fn starting(mounting_height_mm: f64, posts: u32) -> Self {
+        DesignRequest {
+            mounting_height_mm,
+            posts,
+            edge_inset_mm: 150.0,
+            wind: WindChoice::MowtOpen,
+            ground_factor: design::GROUND_FACTOR_POOR_KN_M2_PER_M,
+            cd354: false,
+            foundation_diameter_mm: 400.0,
+            min_planting_depth_mm: 800.0,
+        }
+    }
+}
+
+/// The mounting height and post count of the sign's present supports, if it has any.
+pub fn present(doc: &Document, sign: ElementId) -> Option<(f64, u32)> {
+    let ids = afrobim_supports::supports_of(doc, sign);
+    let posts: Vec<_> = ids.iter().filter_map(|id| doc.find(*id)).filter(|e| e.category == POST_CATEGORY).collect();
+    let height = posts.first()?.properties.get(PROP_MOUNTING_HEIGHT_MM)?.parse().ok()?;
+    Some((height, posts.len() as u32))
+}
+
+/// Sizes steel CHS posts and planted foundations for the sign to the UK method (IHE Sign
+/// Structures Guide 2021, BS EN 12899-1) and replaces the sign's supports with them. Returns
+/// the calculation, line by line. The face is taken as its full bounding rectangle.
+pub fn design(doc: &mut Document, sign: ElementId, req: &DesignRequest) -> Result<Vec<String>, String> {
+    let e = doc.find(sign).ok_or("the sign is not in the document")?;
+    let geometry = design::SignGeometry {
+        width_mm: e.width,
+        height_mm: e.height,
+        mounting_height_mm: req.mounting_height_mm,
+        face_area_m2: None,
+        buried_above_foundation_mm: 0.0,
+        post_count: req.posts,
+    };
+    let height = geometry.total_height_m();
+    let table = |terrain, name: &str| {
+        design::mowt_velocity_pressure(height, terrain)
+            .map(|wb| (wb, format!("MoWT Road Design Manual Vol. 4 (2010) Table 2, {name}, height to top {height:.2} m")))
+            .ok_or_else(|| format!("MoWT Table 2 stops at 30 m and the sign's top is at {height:.2} m"))
+    };
+    let (wb, source) = match req.wind {
+        WindChoice::MowtOpen => table(design::MowtTerrain::Open, "open terrain")?,
+        WindChoice::MowtBuiltUp => table(design::MowtTerrain::BuiltUp, "built-up area")?,
+        WindChoice::Entered(wb) => (wb, "entered by the engineer".to_string()),
+    };
+    let ground = design::PlantedGround {
+        method: if req.cd354 { design::PlantedMethod::Cd354 } else { design::PlantedMethod::Pd6547 { foundation_diameter_mm: req.foundation_diameter_mm } },
+        ground_factor_kn_m2_per_m: req.ground_factor,
+        min_planting_depth_mm: req.min_planting_depth_mm,
+    };
+    let result = design::design_supports(&geometry, wb, &design::COMMON_CHS_MM, design::S355_YIELD_N_MM2, &ground, &design::DesignFactors::default()).map_err(|e| e.to_string())?;
+
+    let section = result.post.section;
+    let depth = result.foundation.planting_depth_mm;
+    let post = PostDefinition {
+        section: afrobim_supports::Section::Chs { outside_diameter_mm: section.outside_diameter_mm, wall_mm: section.wall_mm },
+        length_mm: 0.0, // set from the arrangement when the supports are added
+        embedment_mm: depth,
+        material: "S355".into(),
+        finish: String::new(),
+        placeholder: false,
+    };
+    // The concrete surround is modelled in both methods; CD 354 only leaves it out of Mg.
+    let foundation = FoundationDefinition {
+        shape: afrobim_supports::FoundationShape::Cylinder { diameter_mm: req.foundation_diameter_mm.max(section.outside_diameter_mm), depth_mm: depth },
+        top_below_ground_mm: 0.0,
+        concrete: String::new(),
+        blinding_mm: None,
+        socket: None,
+        placeholder: false,
+    };
+    let mut arrangement = SupportArrangement::new(req.mounting_height_mm, req.posts, req.edge_inset_mm);
+    arrangement.setback_mm = section.outside_diameter_mm / 2.0;
+    let ids = afrobim_supports::replace_supports(doc, sign, &arrangement, &post, &foundation).map_err(|e| e.to_string())?;
+    let basis = format!("IHE Sign Structures Guide 2021; wb = {wb} kN/m² ({source}); G = {} kN/m² per m", req.ground_factor);
+    for id in ids {
+        if let Some(e) = doc.find_mut(id) {
+            e.properties.insert("design_basis".into(), basis.clone());
+        }
+    }
+    Ok(result.calculation(&source))
 }
 
 pub fn remove(doc: &mut Document, sign: ElementId) -> usize {
@@ -125,4 +239,34 @@ pub fn edit_ui(ui: &mut egui::Ui, data: &mut Value) -> bool {
         }
     }
     changed
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use afrobim_kernel::Pt;
+
+    #[test]
+    fn design_replaces_placeholders_with_sized_supports() {
+        let mut doc = Document::default();
+        let sign = doc.add("sign", "S1", Pt::new(0.0, 0.0), 900.0, 900.0, "Signs", serde_json::json!({}));
+        add(&mut doc, sign, 2000.0, 1, 150.0).unwrap();
+        assert_eq!(present(&doc, sign), Some((2000.0, 1)));
+        let mut req = DesignRequest::starting(2000.0, 1);
+        req.wind = WindChoice::Entered(1.0);
+        let lines = design(&mut doc, sign, &req).unwrap();
+        assert!(lines.iter().any(|l| l.contains("CHS 76.1 × 3.2")), "{lines:#?}");
+        assert!(!lines.iter().any(|l| l.contains("FAILS")));
+        let ids = afrobim_supports::supports_of(&doc, sign);
+        assert_eq!(ids.len(), 2);
+        for id in ids {
+            let e = doc.find(id).unwrap();
+            assert!(e.data.get("placeholder").is_none());
+            assert!(e.properties["design_basis"].contains("entered by the engineer"));
+        }
+        // MoWT open terrain, 5 m row.
+        req.wind = WindChoice::MowtOpen;
+        let lines = design(&mut doc, sign, &req).unwrap();
+        assert!(lines.iter().any(|l| l.contains("wb = 0.81 kN/m²") && l.contains("Table 2")), "{lines:#?}");
+    }
 }

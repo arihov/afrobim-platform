@@ -1,13 +1,12 @@
 //! Sign supports: posts and foundations as model elements.
 //!
-//! This crate MODELS supports. The engineer enters every dimension; the crate turns those
-//! dimensions into solids, a sheet elevation and quantities by plain geometry. It is not a
-//! design tool:
+//! The modelling side of this crate takes dimensions and turns them into solids, a sheet
+//! elevation and quantities by plain geometry. It holds no table of steel grades, concrete
+//! classes, embedment rules or clearances and makes no claim of compliance.
 //!
-//! * it does not size a post or a foundation for wind or any other load;
-//! * it holds no table of standard sections, steel grades, concrete classes, embedment rules or
-//!   clearances;
-//! * it makes no claim that any dimension, count or spacing complies with a standard.
+//! The [`design`] module is separate: it sizes a steel CHS post and a planted foundation for
+//! wind to the UK method (IHE Sign Structures Guide 2021, BS EN 12899-1), and states in its own
+//! documentation what it covers, what it leaves as inputs and what it does not do.
 //!
 //! The only built-in numbers are the `PLACEHOLDER_*` constants (round starting values so that a
 //! new element is drawable; every element created from them carries an Info note saying so) and
@@ -29,6 +28,7 @@
 //! See the crate README for how each quantity is computed.
 
 mod arrangement;
+pub mod design;
 mod foundation;
 mod hosting;
 mod post;

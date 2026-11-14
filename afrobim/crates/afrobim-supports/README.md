@@ -3,25 +3,43 @@
 Sign posts and foundations as AfroBIM model elements: definitions, 3D solids, a sheet
 elevation, validation notes and quantities.
 
-## What this does not do
+## Two parts
 
-**This crate is not a design tool.** Read this section before relying on anything it produces.
+**Modelling** (posts, foundations, solids, quantities). Every dimension is entered by the
+engineer or written by the design module. The crate draws those dimensions and measures them by
+plain geometry. It holds no steel grades, concrete classes, clearances, rates or costs, and
+material, finish and concrete are free text it never interprets.
 
-- **No structural design.** It does not size, check or rate a post, a foundation, a fixing or a
-  connection. It does not know whether one post or three is enough.
-- **No wind loading.** No wind speed, pressure, exposure, drag factor or load combination is
-  held or computed.
-- **No standard section tables.** There is no catalogue of tubes, hollow sections or rolled
-  shapes, no steel grades, no concrete classes, no embedment rules and no clearances. A section
-  is whatever dimensions the engineer types in.
-- **No compliance claim.** No dimension, default, count or spacing here is presented as meeting
-  any standard, and no clause is cited. Material, finish and concrete are free text that the
-  crate stores and prints but never interprets.
-- **No rates or costs.**
+**Design** (`design` module). Sizes a steel CHS post and a planted foundation for wind.
 
-Every dimension is entered by the engineer. The crate draws those dimensions and measures them
-by plain geometry. If a number looks reasonable, that is because someone entered it, not because
-the software checked it.
+| Item | Basis |
+|---|---|
+| Method | IHE *Sign Structures Guide 2021*, applying BS EN 12899-1:2007 and its UK National Annex |
+| Wind force | `Fw = cf · wb · Aref`; `cf` from the Table NA.2 force coefficients, interpolated |
+| Factors | γF = 1.35 (ULS), 1.0 (SLS), class PAF1; γm = 1.05 for steel; γf3 = 1.0 |
+| Post checks | Bending and shear at the top of the foundation; 0.5 kN point load with torsion on a single post; temporary deflection at the top of the sign against 25 mm/m (TDB4) under the 1-year wind |
+| Member capacity | First principles: BS EN 1993-1-1 classification, plastic (class 1, 2) or elastic (class 3) resistance of the nominal tube. Class 4 is refused |
+| Planted foundation | `Mg = G·D·P³/10 ≥ 1.25 · MDS`, fulcrum at `P/√2`; PD 6547 (D = concrete surround) or CD 354 rev 1 (D = post); `P ≥ 2D` |
+| Wind for Uganda | MoWT *Road Design Manual Vol. 4: Bridge Design* (January 2010), Section 5.3, Table 2 velocity pressures, by height to top and terrain |
+
+Verified against the guide's Appendix C: Example 1 (wind force, post, planted foundation by both
+methods) and Example 2 (wind force and post). One printed figure in the guide does not follow
+from its own expression (Example 2, 2.4.6: 28.17 mm printed, 28.37 mm evaluated); the test
+records this.
+
+Limits, stated plainly:
+
+- **Inputs, not defaults:** the ground factor `G` (only the guide's "poor" value, 230, is held)
+  and the BS EN 40-2 Table 7 minimum planting depth. Neither table is in this repository.
+- **Interpretation:** using the MoWT bridge-manual velocity pressure as the sign's basic wind
+  pressure `wb` is a reading of two documents that do not refer to each other. The manual's
+  Figure 2 wind map is blank in the published PDF, so no regional variation is available.
+- **Not covered:** spread foundations, slopes, wind funnelling and orography, wind on the posts,
+  passively safe supports, eccentric signs, fixings, the sign plate, sections other than CHS.
+- **Section list:** `COMMON_CHS_MM` is a convenience list of common nominal sizes, not a
+  statement of what any supplier stocks.
+
+The output is a calculation for an engineer to check. It is not a certified design.
 
 ### The built-in numbers
 

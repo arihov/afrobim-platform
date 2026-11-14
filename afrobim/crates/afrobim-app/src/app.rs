@@ -48,6 +48,10 @@ pub struct AfroBimApp {
     library_filter: String,
     /// The "Add supports" dialog: sign, mounting height as typed, number of posts, edge inset.
     supports_dialog: Option<(ElementId, String, u32, f64)>,
+    /// The "Design supports" dialog: sign, mounting height as typed, entered wind pressure, request.
+    design_dialog: Option<(ElementId, String, f64, supports_glue::DesignRequest)>,
+    /// The last support calculation: sign mark and its lines.
+    design_report: Option<(String, Vec<String>)>,
     /// The "Place on alignment" dialog: sign, alignment, station (m), offset (m), right side.
     station_dialog: Option<(ElementId, Option<ElementId>, f64, f64, bool)>,
     new_prop_key: String,
@@ -113,6 +117,8 @@ impl AfroBimApp {
             library,
             library_filter: String::new(),
             supports_dialog: None,
+            design_dialog: None,
+            design_report: None,
             station_dialog: None,
             new_prop_key: String::new(),
             grid_on: true,
@@ -166,7 +172,18 @@ impl AfroBimApp {
             // the placeholder dimensions, to show posts and foundations in the model.
             let signs: Vec<ElementId> = app.doc.elements().iter().filter(|e| e.category == signs_glue::CATEGORY).map(|e| e.id).take(4).collect();
             for (i, id) in signs.into_iter().enumerate() {
-                let _ = supports_glue::add(&mut app.doc, id, 2000.0, if i == 0 { 2 } else { 1 }, 300.0);
+                let posts = if i == 0 { 2 } else { 1 };
+                let _ = supports_glue::add(&mut app.doc, id, 2000.0, posts, 300.0);
+                if app.options.design {
+                    let mut req = supports_glue::DesignRequest::starting(2000.0, posts);
+                    req.edge_inset_mm = 300.0;
+                    let mark = app.doc.find(id).map(|e| e.name.clone()).unwrap_or_default();
+                    match supports_glue::design(&mut app.doc, id, &req) {
+                        Ok(lines) if app.design_report.is_none() => app.design_report = Some((mark, lines)),
+                        Ok(_) => {}
+                        Err(e) => app.status = format!("{mark}: supports not designed: {e}"),
+                    }
+                }
             }
             app.sync_generated();
             if let Some(first) = app.doc.elements().first().map(|e| e.id) {
@@ -597,6 +614,13 @@ impl AfroBimApp {
                 Some(id) => self.supports_dialog = Some((id, String::new(), 2, 150.0)),
                 None => self.status = "Select one sign first, then add its supports.".into(),
             },
+            Action::DesignSupports => match self.selected_sign() {
+                Some(id) => {
+                    let (height, posts) = supports_glue::present(&self.doc, id).map(|(h, n)| (h.to_string(), n)).unwrap_or((String::new(), 1));
+                    self.design_dialog = Some((id, height, 1.0, supports_glue::DesignRequest::starting(0.0, posts)));
+                }
+                None => self.status = "Select one sign first, then design its supports.".into(),
+            },
             Action::RemoveSupports => match self.selected_sign() {
                 Some(id) => {
                     let n = supports_glue::remove(&mut self.doc, id);
@@ -844,6 +868,7 @@ impl AfroBimApp {
                 ui.menu_button("Modify", |ui| {
                     item(ui, "Place the sign on an alignment…", "STATION", Action::PlaceOnAlignment);
                     item(ui, "Add supports to the sign…", "SUPPORTS", Action::AddSupports);
+                    item(ui, "Design the sign's supports…", "DESIGN", Action::DesignSupports);
                     item(ui, "Remove the sign's supports", "NOSUPPORTS", Action::RemoveSupports);
                     ui.separator();
                     item(ui, "Move", "M", Action::Move);
@@ -1349,7 +1374,7 @@ impl AfroBimApp {
                 });
                 ui.add_space(6.0);
                 ui.label(
-                    RichText::new("Posts and foundations are added with placeholder dimensions. AfroBIM does not size them for wind load or check them against a standard: set every dimension in Properties.")
+                    RichText::new("Posts and foundations are added with placeholder dimensions. Set every dimension in Properties, or size them for wind with Modify → Design the sign's supports (DESIGN).")
                         .small()
                         .weak(),
                 );
@@ -1376,6 +1401,110 @@ impl AfroBimApp {
                 }
             } else if keep {
                 self.supports_dialog = Some((sign, height, posts, inset));
+            }
+        }
+
+        if let Some((sign, mut height, mut entered, mut req)) = self.design_dialog.take() {
+            use supports_glue::WindChoice;
+            let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
+            let (mut keep, mut run) = (true, false);
+            egui::Window::new(format!("Design supports for {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
+                egui::Grid::new("design").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                    ui.label("Mounting height (mm)");
+                    ui.add(egui::TextEdit::singleline(&mut height).hint_text("ground to the sign's lower edge").desired_width(190.0));
+                    ui.end_row();
+                    ui.label("Number of posts");
+                    ui.add(egui::DragValue::new(&mut req.posts).range(1..=6));
+                    ui.end_row();
+                    ui.label("Edge inset (mm)");
+                    ui.add(egui::DragValue::new(&mut req.edge_inset_mm).speed(5.0).range(0.0..=5000.0));
+                    ui.end_row();
+                    ui.label("Basic wind pressure");
+                    ui.vertical(|ui| {
+                        ui.radio_value(&mut req.wind, WindChoice::MowtOpen, "MoWT Vol. 4 Table 2, open terrain");
+                        ui.radio_value(&mut req.wind, WindChoice::MowtBuiltUp, "MoWT Vol. 4 Table 2, built-up area");
+                        ui.horizontal(|ui| {
+                            let is_entered = matches!(req.wind, WindChoice::Entered(_));
+                            if ui.radio(is_entered, "Entered (kN/m²)").clicked() || is_entered {
+                                req.wind = WindChoice::Entered(entered);
+                            }
+                            if ui.add(egui::DragValue::new(&mut entered).speed(0.01).range(0.05..=5.0)).changed() {
+                                req.wind = WindChoice::Entered(entered);
+                            }
+                        });
+                    });
+                    ui.end_row();
+                    ui.label("Foundation method");
+                    ui.vertical(|ui| {
+                        ui.radio_value(&mut req.cd354, false, "PD 6547 (concrete surround resists)");
+                        ui.radio_value(&mut req.cd354, true, "CD 354 rev 1 (post alone resists)");
+                    });
+                    ui.end_row();
+                    ui.label("Foundation diameter (mm)");
+                    ui.add(egui::DragValue::new(&mut req.foundation_diameter_mm).speed(10.0).range(100.0..=2000.0));
+                    ui.end_row();
+                    ui.label("Ground factor G (kN/m² per m)");
+                    ui.add(egui::DragValue::new(&mut req.ground_factor).speed(5.0).range(1.0..=2000.0));
+                    ui.end_row();
+                    ui.label("Minimum planting depth (mm)");
+                    ui.add(egui::DragValue::new(&mut req.min_planting_depth_mm).speed(10.0).range(100.0..=3000.0));
+                    ui.end_row();
+                });
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new(
+                        "Steel S355 CHS posts and planted foundations on level ground, to the IHE Sign Structures Guide 2021 (BS EN 12899-1). \
+                         G = 230 is the guide's value for poor ground; the minimum planting depth is from BS EN 40-2 Table 7, which AfroBIM does not hold. \
+                         Confirm both. The result is a calculation for an engineer to check.",
+                    )
+                    .small()
+                    .weak(),
+                );
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    let valid = height.trim().parse::<f64>().is_ok_and(|h| h >= 0.0);
+                    if ui.add_enabled(valid, egui::Button::new("Design")).clicked() {
+                        run = true;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        keep = false;
+                    }
+                });
+            });
+            if run {
+                req.mounting_height_mm = height.trim().parse().unwrap_or(0.0);
+                self.sync_generated(); // the sign's size must be current
+                match supports_glue::design(&mut self.doc, sign, &req) {
+                    Ok(lines) => {
+                        self.status = format!("Designed the supports of {mark}. Check the calculation.");
+                        self.design_report = Some((mark, lines));
+                        self.schedule_commit(ctx);
+                    }
+                    Err(e) => {
+                        self.status = format!("Supports not designed: {e}");
+                        self.design_dialog = Some((sign, height, entered, req));
+                    }
+                }
+            } else if keep {
+                self.design_dialog = Some((sign, height, entered, req));
+            }
+        }
+
+        if let Some((mark, lines)) = self.design_report.take() {
+            let mut open = true;
+            egui::Window::new(format!("Support calculation for {mark}")).open(&mut open).default_width(640.0).show(ctx, |ui| {
+                egui::ScrollArea::vertical().max_height(460.0).show(ui, |ui| {
+                    for line in &lines {
+                        let text = RichText::new(line).small();
+                        ui.label(if line.contains("FAILS") || line.starts_with("Check:") { text.color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)) } else { text });
+                    }
+                });
+                if ui.button("Copy").clicked() {
+                    ctx.copy_text(lines.join("\n"));
+                }
+            });
+            if open {
+                self.design_report = Some((mark, lines));
             }
         }
 
