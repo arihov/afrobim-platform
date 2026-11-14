@@ -17,8 +17,15 @@ interchangeable.
 
 | Method | Module | Status |
 |---|---|---|
-| Uganda MoWT *Road Design Manual Volume 3: Pavement Design*, Part I: Flexible Pavements (January 2010) | `design::mowt` | Implemented: traffic, classes, catalogue |
+| Uganda MoWT *Road Design Manual Volume 3: Pavement Design*, Part I: Flexible Pavements (January 2010) | `design::mowt` | Traffic, classes, catalogue: gives a structure |
+| UK DMRB CD 224 *Traffic assessment* and CD 226 *Design for new pavement construction* | `design::dmrb` | Design traffic in full; of the thickness design only what is an equation. **No complete structure**, and from superseded revisions (see below) |
+| *AASHTO Guide for Design of Pavement Structures* (1993), flexible | `design::aashto93` | Design equation solved for SN; layered SN check of an entered structure |
 | South Africa (SAPEM / TRH4) | none | Not built. `DesignMethod` and `DesignInput` are `#[non_exhaustive]`; a new method is one sub-module, one variant of each and an implementation of `DesignResult` |
+
+Every method gives the same kind of output through the `DesignResult` trait: `calculation()`
+(line by line, with references), `warnings()` and `layers()` (a stack for a
+`PavementDefinition`, when the method arrives at one). `design::design(&DesignInput)` runs
+whichever method the input belongs to; `DesignMethod::all()` lists them for a menu.
 
 ### Why the MoWT manual first: an assumption
 
@@ -177,6 +184,116 @@ between its layers. **A user who relies on a structure should look at the chart.
 | Section 1.2 and Appendix B | Minimum cross-fall 2.5 %; Appendix B says "about 3 per cent" is suitable | The reminder uses the 2.5 % minimum |
 | Table 5.2 | Layer coefficients and `DSN = a1·h1 + a2·h2 + a3·h3`, but no required structural number (refers to the 1989 SATCC guide) | Not implemented |
 
+## Design: `design::dmrb`
+
+Sources obtained, both from `standardsforhighways.co.uk`:
+
+| Document | Revision read | Status |
+|---|---|---|
+| CD 224 *Traffic assessment* | Revision 0, March 2020 (`/tses/attachments/257e5888-2bfd-492d-92d4-ecf7d40428b0`) | Superseded by Version 0.1.0 (2025) |
+| CD 226 *Design for new pavement construction* | Version 0.1.0, 29 November 2021 (`/tses/attachments/9654b4de-efa7-4843-8598-295019387077`) | Superseded by Version 0.2.0 (2025) |
+
+**The current revisions could not be obtained.** The site lists its documents through a search
+application; only the attachment addresses of these earlier revisions could be found, and both
+PDFs are stamped SUPERSEDED. Everything below is from the revisions in the table, every
+calculation carries a note saying so, and the factors must be compared with the current
+documents before this method is relied on.
+
+| Item | In code | Source |
+|---|---|---|
+| Growth factors G, 5 to 40 years: OGV1 + PSV 1.02 ... 1.24; OGV2 1.04 ... 1.54; all commercial vehicles 1.45 at 40 years | `growth_factor` | CD 224 Table 2.12, clause 2.13 |
+| G = 1.0 for past traffic | `TrafficInput::past_traffic` | CD 224 clause 2.17 |
+| Flow after i years `Fi = F(1 + R)^i`, R = 1.07 %, 2.10 %, 1.54 % | `flow_after_years` | CD 224 Equation 2.14, Table 2.12 Note 2 |
+| Wear factors WM and WN for seven classes, two categories and all commercial vehicles | `wear_factor` | CD 224 Table 2.18 |
+| Percentage in the heaviest loaded lane P, by lanes and flow | `heaviest_lane_percent` | CD 224 Table 2.21 |
+| `Tc = 365·F·G·W·10⁻⁶`, `T = ΣTc·Y·P` | `design_traffic` | CD 224 Equations 2.23a, 2.23b |
+| OGV2 not less than 70 % on new schemes (warning) | `design_traffic` | CD 224 clause 2.7 |
+| Foundation class 1 to 20 msa, class 2 to 80 msa; EME2 on class 3 or 4; 40 year life; minimum 1 msa; crushed rock or slag above 80 msa | `design` | CD 226 clauses 2.4, 2.5, 2.7, 2.17, 2.19, 2.22 |
+| Total asphalt over an HBGM base `H = −16.05(log T)² + 101 log T + 45.8`, 100 to 180 mm, 180 mm from 80 msa, up to 400 msa, rounded up to 5 mm | `asphalt_over_hbgm_mm` | CD 226 Equation 2.24 and Notes 1 to 3 |
+
+**Verified against** the three worked examples of CD 224 (Tables 2.23.1N1, N2, N3: 51, 100 and
+157 msa).
+
+**Not done, because CD 226 Version 0.1.0 gives it only as a chart:** the total asphalt
+thickness of a flexible pavement with an asphalt base, and the thickness of an HBGM base, are
+curves on the nomograph of Figure 2.20 with no equation or table. They are not read off the
+figure. `DmrbDesign::layers()` is therefore always `None`: this method gives the design traffic
+and the stated requirements, not a structure. Worked example A1.2 (320 mm of asphalt above
+80 msa on a class 3 foundation) is a nomograph reading and is not reproduced.
+
+| Where | What | What the code does |
+|---|---|---|
+| CD 224 Table 2.23.1N1 | The 6-axle articulated line prints Tc = 0.93 msa; its own factors give 0.95, which the printed total of 2.87 also needs | Computes 0.95 |
+| CD 224 Table 2.12 | G only at 5, 10 ... 40 years | Other periods need G entered; nothing is interpolated |
+| CD 224 Tables 2.4, 2.12, 2.18 | Growth rows are by category, wear rows by class; "3 and 4-axle articulated" is one wear row | A class takes the growth row of its category, as the worked example does |
+| CD 224 Table 2.21 | Covers 2 or more lanes; the "4 or more" expressions give 62.2 and 62.4 % either side of 10 500 cv/day | One lane is taken as 100 % with a warning; each expression is used in its printed range |
+| CD 226 Equation 2.24, Appendix A1.1 | The equation gives 174.6 mm at 60 msa (175 mm rounded up to 5 mm); the worked example reads 180 mm from the nomograph, whose scale is in 10 mm bands | Returns the equation's 175 mm and prints the difference |
+| CD 226 Equation 2.24 | `log` without a base | Base 10, the reading that gives 180 mm at 80 msa |
+
+## Design: `design::aashto93`
+
+The 1993 AASHTO Guide is not free and **was not read**. The method is taken from two documents
+that reproduce it:
+
+| Short name | Document | Where from |
+|---|---|---|
+| FHWA | Federal Highway Administration, *Geotechnical Aspects of Pavements Reference Manual*, FHWA NHI-05-037 (2006), Appendix C "1993 AASHTO Design Method" | `https://www.fhwa.dot.gov/engineering/geotech/pubs/05037/ac.cfm` |
+| Notes | T. H. Fadhil and T. M. Ahmed, *Flexible Pavement AASHTO 1993*, postgraduate lecture notes, Department of Civil Engineering, University of Anbar, 30 pages | Supplied by the owner; not in the repository |
+
+The design equation, the structural number expression and the table of standard normal
+deviates were compared between the two: **they are identical**, term for term and value for
+value.
+
+| Item | In code | Source |
+|---|---|---|
+| `log10 W18 = ZR·S0 + 9.36·log10(SN+1) − 0.20 + log10(ΔPSI/(4.2−1.5)) / (0.40 + 1094/(SN+1)^5.19) + 2.32·log10(MR) − 8.07`, MR in psi | `log10_w18` | FHWA Eq. C.2; Notes Eq. 4.1 |
+| Solved for SN by bisection between 0 and 30 | `required_structural_number` | FHWA C.2 and C.4 |
+| Reliability to ZR, 18 listed values, no interpolation | `standard_normal_deviate` | FHWA Table C-3 (reproduced in the Notes) |
+| `SN = a1·D1 + a2·D2·m2 + a3·D3·m3`, D in inches | `structural_number` | FHWA Eq. C.3; Notes Eq. 4.15 |
+| SN required above each unbound layer from that layer's modulus | `design` | FHWA Appendix C, procedure step 8 |
+| `W18 = 365·Σ(AADT·LEF)·G·DD·DL` | `design_lane_esals` | Notes Eq. 4.5 |
+| Effective roadbed modulus from relative damage `uf = 1.18×10⁸·MR^−2.32` | `effective_roadbed_modulus_psi` | Notes, "Equation 7.8" |
+| `R_stage = R_overall^(1/n)` | `stage_reliability_percent` | Notes, section 4.1.7 |
+
+**Inputs, never defaults:** W18, reliability or ZR, S0, ΔPSI, roadbed MR, and for each layer
+its thickness, layer coefficient `a` and drainage coefficient `m`. The engineer enters a
+structure; the module checks it and reports the thickness each layer would need. It does not
+choose thicknesses and does not round.
+
+**Cited suggestions** (`design::aashto93::suggestions`). Values the two sources print, for an
+application to show beside an input, labelled with `FHWA_SOURCE` or `NOTES_SOURCE` (both end
+"as reproduced from the AASHTO 1993 Guide"). They are never applied silently:
+
+| Suggestion | Source |
+|---|---|
+| Reliability ranges by functional class, urban and rural | FHWA Table C-2 (Notes Table 4.4) |
+| S0 for flexible pavements 0.35 to 0.50, 0.45 commonly used; po 4.2, pt 2.5 or higher for major highways | FHWA Appendix C, "Reliability" and "Serviceability" |
+| AASHO Road Test average layer coefficients 0.44, 0.14, 0.11 | Notes, "Structural Number (SN)" |
+| `a2 = 0.249·log10(EBS) − 0.977`; `a3 = 0.227·log10(ESB) − 0.839` | Notes Eqs. 4.17, 4.18 |
+| Drainage coefficient ranges by drainage quality and moisture exposure | Notes Table 4.6 |
+
+The layer coefficient charts for asphalt concrete, cement-treated and bituminous-treated bases
+(Notes Figures 4.10 to 4.14) are nomographs: those coefficients are inputs only.
+
+**Verified against** FHWA Appendix C (W18 = 11.6 million, R = 90 %, S0 = 0.45, ΔPSI = 1.7,
+MR = 7 500 psi: SN = 5.07, SN2 = 2.43, D2 = 14.3 in); the Notes' nomograph example (SN = 5.0)
+and Appendix H example (SN = 5.6 read from the chart, 5.55 by the equation); and the Notes'
+Example 1 (W18 = 5.35 × 10⁶).
+
+| Where | What | What the code does |
+|---|---|---|
+| FHWA and Notes | Equation, SN expression and ZR table | No difference found |
+| FHWA Appendix C, step 8 | SN above the granular base (EBS = 40 000 psi) printed as 2.62; Equation C.2 with the printed inputs gives 2.74 (SN = 2.62 carries 8.8 million ESALs, not 11.6) | Follows the equation; the test records both |
+| FHWA Eq. C.5 | Printed `ΔPSI = pt − po` | ΔPSI is entered as a positive loss |
+| Notes, Example 1 | Table gives 2.24 ESALs for 6-axle trucks; the calculation uses 2.44, and the answer follows from 2.44 | Test records both (5.35 and 5.28 million) |
+| Notes, Appendix H | Seasons add up to 13 months; effective MR printed as 5.7 × 10³ psi, but the Notes' own relative damage expression gives 5 470 psi for them | MR is an input; the helper returns 5 470 psi |
+| Notes Table 4.6 | A scan with no decimal points ("1 40-1 35") | Decimal points restored in the suggestions |
+| Units | The Guide works in psi and inches | Thickness entered in mm and divided by 25.4; modulus in psi |
+
+Not done for AASHTO 1993: rigid pavements, overlays, serviceability loss from swelling and
+frost heave, minimum layer thicknesses and rounding, CBR to MR correlations, load equivalency
+factors by axle type.
+
 ## Using it from the application
 
 ```rust
@@ -186,8 +303,10 @@ use afrobim_pavement::design::{mowt, DesignResult};
 // Once, with the other modules:
 registry.register(Box::new(PavementModule::default()));
 
-// Design (ribbon: Roads > Pavement design):
-let result = mowt::design(&input)?;            // or design::design(&DesignInput::Mowt(input))?
+// Design (ribbon: Roads > Pavement design). The engineer picks the method:
+//   DesignMethod::all()  ->  [MowtRdmVol3, DmrbCd226, Aashto1993], each with name() and reference()
+//   design::design(&DesignInput::Mowt(..) | Dmrb(..) | Aashto93(..)) -> Box<dyn DesignResult>
+let result = mowt::design(&input)?;            // or the typed dmrb::design / aashto93::design
 let lines: Vec<String> = result.calculation(); // show or print
 let layers = result.layers();                  // None when the manual gives no structure
 

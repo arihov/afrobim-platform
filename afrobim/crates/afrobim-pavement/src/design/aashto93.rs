@@ -449,7 +449,7 @@ pub mod suggestions {
         }
     }
 
-    /// FHWA Appendix C, "Reliability": for flexible pavements S0 "typically range[s] between
+    /// FHWA Appendix C, "Reliability": for flexible pavements S0 values "typically range between
     /// 0.35 and 0.50, with a value of 0.45 commonly used for design". (low, high, commonly used)
     pub const S0_FLEXIBLE_FHWA: (f64, f64, f64) = (0.35, 0.50, 0.45);
 
