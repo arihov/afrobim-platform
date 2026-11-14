@@ -492,3 +492,62 @@ fn review_sheets_render_without_warnings_about_layout() {
         assert!(out.status.success());
     }
 }
+
+#[test]
+fn a_profile_view_annotates_pvis_grades_and_curves() {
+    // The fixture profile: PVIs (0, 1100), (400, 1106 with a 120 m parabola), (900, 1098 with a
+    // 160 m parabola), (1500, 1104). Grades: 6 / 400 = +1.50 %, -8 / 500 = -1.60 %, 6 / 600 =
+    // +1.00 %. Curve at 400: A = -1.6 - 1.5 = -3.10 %, L = 120, K = 120 / 3.1 = 38.71, from 340
+    // to 460. Curve at 900: A = 1.0 + 1.6 = 2.60 %, L = 160, K = 160 / 2.6 = 61.54, from 820 to 980.
+    let f = fixture();
+    let model = Model { doc: &f.doc, registry: &f.registry };
+    let v = ProfileView::new("MC1", 0.0, 1500.0, Scale(8000.0), 20.0);
+    let mut set = SheetSet::new("s");
+    set.sources.push(SheetSource::Single(SheetSpec::new("P", Page::default(), vec![ViewDef::full(ViewKind::Profile(v))])));
+    let composed = compose_set(&model, &set);
+    let s = &composed.sheets[0];
+    let t = texts(s);
+    for want in ["+1.50 %", "-1.60 %", "+1.00 %"] {
+        assert!(t.iter().any(|x| x == want), "missing grade {want}: {t:?}");
+    }
+    let has = |needle: &str| t.iter().any(|x| x.contains(needle));
+    assert!(has("EL 1106.000") && has("EL 1098.000") && has("EL 1100.000") && has("EL 1104.000"), "{t:?}");
+    assert!(has("L 120.000   A -3.10 %   K 38.71") && has("L 160.000   A +2.60 %   K 61.54"), "{t:?}");
+    // Curve ends at 340 and 460, 820 and 980 are before the equation at 1000, so they read as they are.
+    assert!(has("PVC 0+340.000   PVT 0+460.000") && has("PVC 0+820.000   PVT 0+980.000"), "{t:?}");
+    // No limit and no pass or fail is applied anywhere in the sheet.
+    assert!(!t.iter().any(|x| x.to_lowercase().contains("pass") || x.to_lowercase().contains("fail") || x.to_lowercase().contains("minimum")));
+    // Annotation texts never overlap each other (staggered rows) and stay on the sheet.
+    let boxes: Vec<(f64, f64, f64, f64)> = s
+        .texts()
+        .filter(|t| t.layer == layers::PROFILE_NOTES && t.rotation_deg == 0.0)
+        .map(|t| (t.at.x, t.at.y, t.at.x + text_width(&t.text, t.height_mm, false), t.at.y + t.height_mm))
+        .collect();
+    assert!(boxes.len() >= 8);
+    for (i, a) in boxes.iter().enumerate() {
+        assert!(a.0 >= 0.0 && a.2 <= s.width_mm && a.3 <= s.height_mm);
+        for b in &boxes[i + 1..] {
+            assert!(!(a.0 < b.2 && b.0 < a.2 && a.1 < b.3 && b.1 < a.3), "annotation texts overlap: {a:?} {b:?}");
+        }
+    }
+    // Switching it off removes every annotation.
+    let mut off = ProfileView::new("MC1", 0.0, 1500.0, Scale(8000.0), 20.0);
+    off.annotations = ProfileAnnotations::none();
+    let mut set2 = SheetSet::new("s");
+    set2.sources.push(SheetSource::Single(SheetSpec::new("P", Page::default(), vec![ViewDef::full(ViewKind::Profile(off))])));
+    let plain = compose_set(&model, &set2);
+    assert!(!plain.sheets[0].items.iter().any(|i| i.layer() == layers::PROFILE_NOTES));
+}
+
+#[test]
+fn a_source_can_have_its_own_numbering_prefix() {
+    let f = fixture();
+    let model = Model { doc: &f.doc, registry: &f.registry };
+    let mut set = plan_series();
+    set.sources.push(SheetSource::Single(SheetSpec::new("NOTES", Page::default(), vec![ViewDef::full(ViewKind::Notes(Notes { heading: None, paragraphs: vec!["x".into()], numbered: false }))])));
+    set.sources[1].template_mut().number_prefix = Some("TR-N-".into());
+    let (expanded, _) = expand(&model, &set);
+    let n = expanded.len();
+    assert_eq!(expanded[n - 1].number, "TR-N-001");
+    assert_eq!(expanded[0].number, "TR-PL-001");
+}

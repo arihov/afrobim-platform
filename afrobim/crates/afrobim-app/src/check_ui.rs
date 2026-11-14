@@ -200,7 +200,7 @@ impl AfroBimApp {
             self.checks.report_open = false;
             return;
         };
-        egui::Window::new("Check the whole model").open(&mut open).default_width(900.0).default_height(640.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Check the whole model").open(&mut open).default_width(900.0).default_height(640.0).show(ctx, |ui| {
             ui.label(
                 RichText::new("Every check an engine has, on every element it applies to, with the inputs kept on each element. A pass means the engine's own lines passed on those inputs: it is a calculation for an engineer to check, not a certification. Warnings the engines raise are in the calculation lines, as the engines wrote them.")
                     .small()
@@ -338,7 +338,7 @@ impl AfroBimApp {
         let mark = self.doc.find(d.element).map(|e| e.name.clone()).unwrap_or_default();
         let has_rational = inputs::load::<RationalInputs>(&self.doc, d.element, inputs::KEY_RATIONAL).is_some();
         let (mut keep, mut run, mut rational) = (true, false, false);
-        egui::Window::new(format!("Check the capacity of {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
+        crate::win::new(ctx, format!("Check the capacity of {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
             egui::Grid::new("drain-check").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                 flow_rows(ui, &mut d.form.flow_m3_s, &mut d.form.flow_from_rational, has_rational, &mut rational);
                 ui.label("Basis");
@@ -392,7 +392,7 @@ impl AfroBimApp {
         let mark = self.doc.find(d.element).map(|e| e.name.clone()).unwrap_or_default();
         let has_rational = inputs::load::<RationalInputs>(&self.doc, d.element, inputs::KEY_RATIONAL).is_some();
         let (mut keep, mut run, mut rational) = (true, false, false);
-        egui::Window::new(format!("Check the culvert {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
+        crate::win::new(ctx, format!("Check the culvert {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
             egui::Grid::new("culvert-check").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                 flow_rows(ui, &mut d.form.flow_m3_s, &mut d.form.flow_from_rational, has_rational, &mut rational);
                 ui.label("Manning's n of the barrel");
@@ -489,7 +489,7 @@ impl AfroBimApp {
         let Some(mut d) = self.checks.rational.take() else { return };
         let target = d.element.and_then(|id| self.doc.find(id)).map(|e| e.name.clone());
         let (mut keep, mut calculate, mut use_it) = (true, false, false);
-        egui::Window::new(match &target {
+        crate::win::new(ctx, match &target {
             Some(mark) => format!("Rational method for {mark}"),
             None => "Rational method".to_string(),
         })

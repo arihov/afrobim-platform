@@ -491,7 +491,7 @@ impl AfroBimApp {
         }
         if let Some(lines) = self.sched.import_report.clone() {
             let mut open = true;
-            egui::Window::new("MS Project import report").open(&mut open).default_width(560.0).show(ctx, |ui| {
+            crate::win::new(ctx, "MS Project import report").open(&mut open).default_width(560.0).show(ctx, |ui| {
                 egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
                     for l in &lines {
                         ui.label(l);
@@ -516,7 +516,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut changed = false;
         let s = &mut self.sched;
-        egui::Window::new("Programme: activities and logic").open(&mut open).default_width(900.0).default_height(560.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Programme: activities and logic").open(&mut open).default_width(900.0).default_height(560.0).show(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
                 ui.label("There is no programme yet. Enter its name, its start date and its working weekdays. None are assumed.");
                 egui::Grid::new("new-prog").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
@@ -770,7 +770,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut changed = false;
         let s = &mut self.sched;
-        egui::Window::new("Programme calendar").open(&mut open).default_width(460.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Programme calendar").open(&mut open).default_width(460.0).show(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
                 ui.label("Create the programme first (PROGRAMME).");
                 return;
@@ -879,7 +879,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut rerun = false;
         let s = &self.sched;
-        egui::Window::new("Schedule").open(&mut open).default_width(1000.0).default_height(480.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Schedule").open(&mut open).default_width(1000.0).default_height(480.0).show(ctx, |ui| {
             match &s.result {
                 None => {
                     ui.label("There is no programme yet (PROGRAMME).");
@@ -953,7 +953,7 @@ impl AfroBimApp {
     fn gantt_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let s = &mut self.sched;
-        egui::Window::new("Gantt chart").open(&mut open).default_width(1100.0).default_height(520.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Gantt chart").open(&mut open).default_width(1100.0).default_height(520.0).show(ctx, |ui| {
             match (&s.result, &s.gantt) {
                 (Some(Ok(_)), Some(g)) => {
                     ui.horizontal(|ui| {
@@ -980,7 +980,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut set = false;
         let s = &mut self.sched;
-        egui::Window::new("Set baseline").open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
+        crate::win::new(ctx, "Set baseline").open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
             match (&s.prog, &s.result) {
                 (Some(p), Some(Ok(sch))) => {
                     if let Some(b) = &p.baseline {
@@ -1016,7 +1016,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut csv = false;
         let s = &self.sched;
-        egui::Window::new("Variance against the baseline").open(&mut open).default_width(760.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Variance against the baseline").open(&mut open).default_width(760.0).show(ctx, |ui| {
             let (Some(p), Some(Ok(sch))) = (&s.prog, &s.result) else {
                 ui.label("There is no schedule yet.");
                 return;
@@ -1079,7 +1079,7 @@ impl AfroBimApp {
         let mut changed = false;
         let mut reschedule = false;
         let s = &mut self.sched;
-        egui::Window::new("Progress").open(&mut open).default_width(820.0).default_height(460.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Progress").open(&mut open).default_width(820.0).default_height(460.0).show(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
                 ui.label("There is no programme yet (PROGRAMME).");
                 return;
@@ -1167,7 +1167,7 @@ impl AfroBimApp {
         layers.dedup();
         let doc = &self.doc;
         let s = &mut self.sched;
-        egui::Window::new("Link elements to activities").open(&mut open).default_width(760.0).default_height(520.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Link elements to activities").open(&mut open).default_width(760.0).default_height(520.0).show(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
                 ui.label("There is no programme yet (PROGRAMME).");
                 return;
@@ -1276,7 +1276,7 @@ impl AfroBimApp {
         let mut select: Option<ElementId> = None;
         let doc = &self.doc;
         let s = &self.sched;
-        egui::Window::new("Link report").open(&mut open).default_width(620.0).default_height(480.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Link report").open(&mut open).default_width(620.0).default_height(480.0).show(ctx, |ui| {
             let Some(p) = &s.prog else {
                 ui.label("There is no programme yet (PROGRAMME).");
                 return;
@@ -1343,7 +1343,7 @@ impl AfroBimApp {
         let doc = &self.doc;
         let s = &mut self.sched;
         let by_record = &mut self.construction.colour_by_record;
-        egui::Window::new("4D date").open(&mut open).default_width(560.0).show(ctx, |ui| {
+        crate::win::new(ctx, "4D date").open(&mut open).default_width(560.0).show(ctx, |ui| {
             let (Some((lo, hi)), Some(date)) = (span, s.date) else {
                 ui.label("Create and schedule a programme to use the date control (PROGRAMME).");
                 return;

@@ -57,6 +57,7 @@ dependencies = [
  "afrobim-progress",
  "afrobim-restraint",
  "afrobim-schedule",
+ "afrobim-sheets",
  "afrobim-signs",
  "afrobim-supports",
  "eframe",

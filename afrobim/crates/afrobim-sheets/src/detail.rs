@@ -47,15 +47,19 @@ pub struct DetailView {
     /// Pick the scale automatically: the smallest of 1, 2, 5 times a power of ten that fits.
     pub fit: bool,
     pub caption: String,
+    /// The name of a live data feed that replaces an inline drawing each time the set is composed
+    /// (the application sets and reads it; this crate leaves it alone).
+    #[serde(default)]
+    pub feed: Option<String>,
 }
 
 impl DetailView {
     pub fn element(name: &str, scale: Scale, caption: &str) -> DetailView {
-        DetailView { source: DetailSource::Element(name.to_string()), scale, unit_mm: 1.0, fit: false, caption: caption.to_string() }
+        DetailView { source: DetailSource::Element(name.to_string()), scale, unit_mm: 1.0, fit: false, caption: caption.to_string(), feed: None }
     }
 
     pub fn inline(drawing: Drawing, labels: Vec<DetailLabel>, scale: Scale, unit_mm: f64, caption: &str) -> DetailView {
-        DetailView { source: DetailSource::Inline { drawing, labels }, scale, unit_mm, fit: false, caption: caption.to_string() }
+        DetailView { source: DetailSource::Inline { drawing, labels }, scale, unit_mm, fit: false, caption: caption.to_string(), feed: None }
     }
 }
 

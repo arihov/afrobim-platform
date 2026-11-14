@@ -33,7 +33,10 @@ pub struct AfroBimApp {
     pub(crate) doc: Document,
     pub(crate) view: ViewTransform,
     pub(crate) ctl: CanvasController,
-    modules: ModuleRegistry,
+    pub(crate) modules: ModuleRegistry,
+    /// The drawing sheets: project information, the sheet-set manager, the title block editor and
+    /// the preview.
+    pub(crate) sheets: crate::sheets_ui::SheetsUi,
     /// Clash tests and results, the programme and the estimate: windows and copies of the
     /// document elements that hold them.
     pub(crate) coord: CoordUi,
@@ -122,6 +125,7 @@ impl AfroBimApp {
         modules.register(Box::new(afrobim_schedule::ScheduleModule::default()));
         modules.register(Box::new(afrobim_cost::EstimateModule));
         modules.register(Box::new(afrobim_progress::ProgressModule));
+        crate::sheets_glue::register(&mut modules);
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
             Ok(l) => {
@@ -136,6 +140,7 @@ impl AfroBimApp {
             view: ViewTransform::default(),
             ctl: CanvasController::default(),
             modules,
+            sheets: crate::sheets_ui::SheetsUi::default(),
             coord: CoordUi::default(),
             sched: SchedUi::default(),
             cost: CostUi::default(),
@@ -305,6 +310,10 @@ impl AfroBimApp {
             for problem in crate::demo_glue::add_records(&mut app.doc) {
                 app.status = problem;
             }
+            // Demo only: the DEMO project information and a demo sheet set (see `sheets_glue::demo`).
+            for problem in crate::sheets_glue::demo(&mut app.doc) {
+                app.status = problem;
+            }
         }
         app.sync_generated();
         if app.options.demo {
@@ -338,6 +347,22 @@ impl AfroBimApp {
             eprintln!("AfroBIM: {}", app.status);
             app.export_sheets(dir);
             eprintln!("AfroBIM: {}", app.status);
+            app.quit = true;
+        }
+        if let Some(kind) = app.options.sheet_form {
+            let doc = &app.doc;
+            app.sheets.open_form_for_screenshot(doc, kind);
+        }
+        if let Some(page) = app.options.sheet {
+            app.sheets.page = page;
+        }
+        if let Some(path) = app.options.export_set.clone() {
+            app.sheets.sync(&app.doc);
+            let name = app.options.sheet_set.clone();
+            match app.compose_sheets(name.as_deref()).and_then(|c| crate::sheets_glue::export_headless(&c, &path)) {
+                Ok(line) => eprintln!("AfroBIM: {line}"),
+                Err(e) => eprintln!("AfroBIM: sheet export failed: {e}"),
+            }
             app.quit = true;
         }
         if let Some(path) = app.options.export_ifc.clone() {
@@ -452,6 +477,7 @@ impl AfroBimApp {
         self.cost = CostUi::default();
         self.construction = ConstructionUi::default();
         self.checks = CheckUi::default();
+        self.sheets = crate::sheets_ui::SheetsUi::default();
         self.corridor_cache.clear();
     }
 
@@ -1006,6 +1032,7 @@ impl AfroBimApp {
             Action::SiteRecord | Action::SiteLog | Action::RollUp | Action::Evm | Action::LookAhead => self.construction_open(action),
             Action::SiteView => self.toggle_site_colour(),
             Action::EvmCsv => self.export_evm_csvs(),
+            Action::SheetSets | Action::SheetPreview | Action::TitleBlock | Action::ProjectInfo | Action::SheetPdf | Action::SheetDxf => self.sheets_action(action),
             Action::Help => self.show_help = true,
             Action::About => self.show_about = true,
             Action::Quit => self.quit = true,
@@ -1663,6 +1690,8 @@ impl AfroBimApp {
 
     fn canvas(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ctx, |ui| {
+            // Every window opens inside this area, below the menu and the ribbon (see `win`).
+            crate::win::set_work_rect(ctx, ui.max_rect());
             if self.view_3d {
                 self.canvas_3d(ui);
                 return;
@@ -1773,8 +1802,9 @@ impl AfroBimApp {
         self.cost_windows(ctx);
         self.construction_windows(ctx);
         self.check_windows(ctx);
+        self.sheets_windows(ctx);
         let mut help = self.show_help;
-        egui::Window::new("Commands").open(&mut help).default_width(520.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Commands").open(&mut help).default_width(520.0).show(ctx, |ui| {
             egui::Grid::new("cmds").num_columns(3).striped(true).spacing([14.0, 4.0]).show(ui, |ui| {
                 for c in COMMANDS {
                     ui.label(RichText::new(c.name).monospace().strong());
@@ -1790,7 +1820,7 @@ impl AfroBimApp {
 
         let mut library_open = self.show_library;
         let mut insert: Option<(String, serde_json::Value)> = None;
-        egui::Window::new("Standard signs").open(&mut library_open).default_width(420.0).default_height(520.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Standard signs").open(&mut library_open).default_width(420.0).default_height(520.0).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Find");
                 ui.add(egui::TextEdit::singleline(&mut self.library_filter).hint_text("key or name").desired_width(f32::INFINITY));
@@ -1831,7 +1861,7 @@ impl AfroBimApp {
         if let Some((sign, mut height, mut posts, mut inset)) = self.supports_dialog.take() {
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let (mut keep, mut add) = (true, false);
-            egui::Window::new(format!("Supports for {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
+            crate::win::new(ctx, format!("Supports for {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
                 egui::Grid::new("supports").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                     ui.label("Mounting height (mm)");
                     ui.add(egui::TextEdit::singleline(&mut height).hint_text("ground to the sign's lower edge").desired_width(190.0));
@@ -1879,7 +1909,7 @@ impl AfroBimApp {
             use supports_glue::WindChoice;
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let (mut keep, mut run) = (true, false);
-            egui::Window::new(format!("Design supports for {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
+            crate::win::new(ctx, format!("Design supports for {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
                 egui::Grid::new("design").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                     ui.label("Mounting height (mm)");
                     ui.add(egui::TextEdit::singleline(&mut height).hint_text("ground to the sign's lower edge").desired_width(190.0));
@@ -1992,7 +2022,7 @@ impl AfroBimApp {
             let choices = alignment_glue::alignments(&self.doc);
             let types = markings_glue::line_types();
             let (mut keep, mut lay) = (true, false);
-            egui::Window::new("Road marking").collapsible(false).resizable(false).show(ctx, |ui| {
+            crate::win::new(ctx, "Road marking").collapsible(false).resizable(false).show(ctx, |ui| {
                 let spec = &types[req.line.min(types.len() - 1)];
                 egui::Grid::new("marking").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                     ui.label("Alignment");
@@ -2092,7 +2122,7 @@ impl AfroBimApp {
             let info = &modules_glue::KINDS[kind.min(modules_glue::KINDS.len() - 1)];
             let choices = alignment_glue::alignments(&self.doc);
             let (mut keep, mut add) = (true, false);
-            egui::Window::new(format!("Add a {}", info.label.to_lowercase())).collapsible(false).resizable(false).show(ctx, |ui| {
+            crate::win::new(ctx, format!("Add a {}", info.label.to_lowercase())).collapsible(false).resizable(false).show(ctx, |ui| {
                 egui::Grid::new("road-element").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                     ui.label("Alignment");
                     let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
@@ -2178,7 +2208,7 @@ impl AfroBimApp {
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let choices = modules_glue::gantries(&self.doc);
             let (mut keep, mut hang) = (true, false);
-            egui::Window::new(format!("Hang {mark} on a gantry")).collapsible(false).resizable(false).show(ctx, |ui| {
+            crate::win::new(ctx, format!("Hang {mark} on a gantry")).collapsible(false).resizable(false).show(ctx, |ui| {
                 egui::Grid::new("hang").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                     ui.label("Gantry");
                     let current = choices.iter().find(|c| Some(c.0) == gantry).map(|c| c.1.clone()).unwrap_or_default();
@@ -2242,7 +2272,7 @@ impl AfroBimApp {
         }
 
         if let Some(command) = self.options.preview.clone() {
-            egui::Window::new("Command preview").collapsible(false).resizable(false).title_bar(false).default_pos([420.0, 190.0]).show(ctx, |ui| {
+            crate::win::new(ctx, "Command preview").collapsible(false).resizable(false).title_bar(false).default_pos([420.0, 190.0]).show(ctx, |ui| {
                 if !crate::ribbon::preview_of(ui, &command) {
                     ui.label(format!("No ribbon button runs {command}."));
                 }
@@ -2251,7 +2281,7 @@ impl AfroBimApp {
 
         if let Some((mark, lines)) = self.design_report.take() {
             let mut open = true;
-            egui::Window::new(format!("Calculation for {mark}")).open(&mut open).default_width(640.0).show(ctx, |ui| {
+            crate::win::new(ctx, format!("Calculation for {mark}")).open(&mut open).default_width(640.0).show(ctx, |ui| {
                 egui::ScrollArea::vertical().max_height(460.0).show(ui, |ui| {
                     for line in &lines {
                         let text = RichText::new(line).small();
@@ -2272,7 +2302,7 @@ impl AfroBimApp {
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let choices = alignment_glue::alignments(&self.doc);
             let (mut keep, mut place) = (true, false);
-            egui::Window::new(format!("Place {mark} on an alignment")).collapsible(false).resizable(false).show(ctx, |ui| {
+            crate::win::new(ctx, format!("Place {mark} on an alignment")).collapsible(false).resizable(false).show(ctx, |ui| {
                 egui::Grid::new("station").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                     ui.label("Alignment");
                     let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
@@ -2338,7 +2368,7 @@ impl AfroBimApp {
         }
 
         let mut about = self.show_about;
-        egui::Window::new("About AfroBIM").open(&mut about).collapsible(false).resizable(false).show(ctx, |ui| {
+        crate::win::new(ctx, "About AfroBIM").open(&mut about).collapsible(false).resizable(false).show(ctx, |ui| {
             ui.heading("AfroBIM");
             ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
             ui.add_space(6.0);

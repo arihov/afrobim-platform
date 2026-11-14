@@ -256,7 +256,7 @@ impl AfroBimApp {
             let mut edit: Option<usize> = None;
             let mut delete: Option<usize> = None;
             let mut add = false;
-            egui::Window::new("Clash tests").open(&mut open).default_width(760.0).show(ctx, |ui| {
+            crate::win::new(ctx, "Clash tests").open(&mut open).default_width(760.0).show(ctx, |ui| {
                 ui.set_min_width(720.0);
                 ui.label(RichText::new("A test checks one selection of elements against another. Hard tests find solids that overlap; clearance tests find solids closer than the tolerance you enter. AfroBIM offers no tolerances: they come from your project requirements.").small().weak());
                 ui.add_space(4.0);
@@ -317,7 +317,7 @@ impl AfroBimApp {
         if let Some(mut form) = self.coord.form.take() {
             let (cats, layers) = glue::selectable(&self.doc);
             let (mut keep, mut save) = (true, false);
-            egui::Window::new(if form.index.is_some() { "Edit clash test" } else { "Add a clash test" }).collapsible(false).resizable(false).default_width(560.0).show(ctx, |ui| {
+            crate::win::new(ctx, if form.index.is_some() { "Edit clash test" } else { "Add a clash test" }).collapsible(false).resizable(false).default_width(560.0).show(ctx, |ui| {
                 egui::Grid::new("clash-form").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                     ui.label("Name");
                     ui.add_sized([300.0, 20.0], egui::TextEdit::singleline(&mut form.name).hint_text("e.g. Services against structures"));
@@ -401,7 +401,7 @@ impl AfroBimApp {
             let mut run = false;
             let mut zoom: Option<usize> = None;
             let names: Vec<String> = self.coord.co.tests.iter().map(|t| t.name.clone()).collect();
-            egui::Window::new("Clash results").open(&mut open).default_width(1060.0).default_height(420.0).show(ctx, |ui| {
+            crate::win::new(ctx, "Clash results").open(&mut open).default_width(1060.0).default_height(420.0).show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Test");
                     let shown = self.coord.filter_test.clone().unwrap_or_else(|| "all".to_string());

@@ -384,7 +384,7 @@ impl AfroBimApp {
             })
             .collect();
         let c = &mut self.construction;
-        egui::Window::new("Record site progress").open(&mut open).default_width(560.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Record site progress").open(&mut open).default_width(560.0).show(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(620.0).auto_shrink([true, true]).show(ui, |ui| {
                 let r = &mut c.rec;
                 ui.label(RichText::new("Elements").strong());
@@ -583,7 +583,7 @@ impl AfroBimApp {
             ids.dedup();
             ids.into_iter().map(|id| (id, doc.find(id).map(|e| e.name.clone()).unwrap_or_else(|| format!("element {}", id.0)))).collect()
         };
-        egui::Window::new("Site records").open(&mut open).default_width(860.0).default_height(460.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Site records").open(&mut open).default_width(860.0).default_height(460.0).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Element");
                 let shown = c.filter.element.and_then(|id| with_records.iter().find(|w| w.0 == id)).map(|w| w.1.clone()).unwrap_or_else(|| "all".into());
@@ -659,7 +659,7 @@ impl AfroBimApp {
         let has_prog = self.sched.prog.is_some();
         let doc = &self.doc;
         let c = &mut self.construction;
-        egui::Window::new("Roll up site progress and update the programme").open(&mut open).default_width(900.0).default_height(560.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Roll up site progress and update the programme").open(&mut open).default_width(900.0).default_height(560.0).show(ctx, |ui| {
             if !has_prog {
                 ui.label("There is no programme yet. Create one in PROGRAMME and link the elements to its activities.");
                 return;
@@ -791,7 +791,7 @@ impl AfroBimApp {
         let baselined: Vec<String> = self.sched.prog.as_ref().and_then(|p| p.baseline.as_ref()).map(|b| b.entries.iter().map(|e| e.id.clone()).collect()).unwrap_or_default();
         let has_estimate = matches!(self.cost.result, Some(Ok(_)));
         let c = &mut self.construction;
-        egui::Window::new("Earned value").open(&mut open).default_width(980.0).default_height(720.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Earned value").open(&mut open).default_width(980.0).default_height(720.0).show(ctx, |ui| {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 ui.label(
                     RichText::new("Definitions are in the afrobim-progress README and are algebraic: no published standard was held. Actual cost is entered, never derived: until it is, every cost figure reads input needed. Name the EAC formula wherever you quote the EAC.")
@@ -967,7 +967,7 @@ impl AfroBimApp {
         let from = self.sched.prog.as_ref().and_then(|p| p.data_date);
         let c = &mut self.construction;
         let mut changed = false;
-        egui::Window::new("Look-ahead and delays").open(&mut open).default_width(900.0).default_height(520.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Look-ahead and delays").open(&mut open).default_width(900.0).default_height(520.0).show(ctx, |ui| {
             ui.label(
                 RichText::new("Taken from the programme as it stands after the roll-up was applied. The look-ahead lists activities not started whose early start, or not complete whose early finish, falls in the days after the data date. The delay list holds activities that finish later than their baseline, worst first.")
                     .small()

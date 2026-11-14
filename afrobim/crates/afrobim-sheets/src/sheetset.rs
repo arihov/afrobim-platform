@@ -58,11 +58,15 @@ pub struct SheetSpec {
     pub title_block: TitleBlockLayout,
     pub fields: SheetFields,
     pub views: Vec<ViewDef>,
+    /// Replaces the set's numbering prefix for the sheets made from this source, and restarts the
+    /// count at the set's start number for them. `None` follows the set's numbering.
+    #[serde(default)]
+    pub number_prefix: Option<String>,
 }
 
 impl SheetSpec {
     pub fn new(title: &str, page: Page, views: Vec<ViewDef>) -> SheetSpec {
-        SheetSpec { title: title.to_string(), page, title_block: TitleBlockLayout::default(), fields: SheetFields::default(), views }
+        SheetSpec { title: title.to_string(), page, title_block: TitleBlockLayout::default(), fields: SheetFields::default(), views, number_prefix: None }
     }
 
     /// The rectangle the views share: the frame less the title block.
@@ -118,6 +122,27 @@ pub enum SheetSource {
     PlanSeries(PlanSeries),
     TableSeries(TableSeries),
     SectionSeries(SectionSeries),
+}
+
+impl SheetSource {
+    /// The sheet (or the template of the series) this source makes sheets from.
+    pub fn template(&self) -> &SheetSpec {
+        match self {
+            SheetSource::Single(s) => s,
+            SheetSource::PlanSeries(p) => &p.template,
+            SheetSource::TableSeries(t) => &t.template,
+            SheetSource::SectionSeries(t) => &t.template,
+        }
+    }
+
+    pub fn template_mut(&mut self) -> &mut SheetSpec {
+        match self {
+            SheetSource::Single(s) => s,
+            SheetSource::PlanSeries(p) => &mut p.template,
+            SheetSource::TableSeries(t) => &mut t.template,
+            SheetSource::SectionSeries(t) => &mut t.template,
+        }
+    }
 }
 
 /// A sheet set: numbering, styles and the sheets (or series of sheets) in order.
@@ -191,7 +216,11 @@ pub fn expand(model: &Model, set: &SheetSet) -> (Vec<ExpandedSheet>, Vec<String>
     let styles = &set.styles;
     for source in &set.sources {
         let first = out.len();
-        let number = |j: usize| set.numbering.number(first + j);
+        let own_prefix = source.template().number_prefix.clone();
+        let number = |j: usize| match &own_prefix {
+            Some(p) => Numbering { prefix: p.clone(), ..set.numbering.clone() }.number(j),
+            None => set.numbering.number(first + j),
+        };
         match source {
             SheetSource::Single(spec) => out.push(ExpandedSheet { number: number(0), spec: spec.clone() }),
             SheetSource::PlanSeries(p) => {
@@ -378,12 +407,7 @@ impl Module for SheetsModule {
         let (mut primitives, mut x) = (Vec::new(), 0.0);
         let mut height: f64 = 1.0;
         for source in &set.sources {
-            let spec = match source {
-                SheetSource::Single(s) => s,
-                SheetSource::PlanSeries(p) => &p.template,
-                SheetSource::TableSeries(t) => &t.template,
-                SheetSource::SectionSeries(t) => &t.template,
-            };
+            let spec = source.template();
             let (w, h) = spec.page.dimensions_mm();
             let q = [Pt2::new(x, 0.0), Pt2::new(x + w, 0.0), Pt2::new(x + w, h), Pt2::new(x, h)];
             for i in 0..4 {

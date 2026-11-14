@@ -429,8 +429,8 @@ foundation's `GrossVolume` against its mesh (1e-6), a pavement course's `Volume`
   marking, the 50 mm skin of an unlined drain, gantry members as the boxes and cylinders of their
   entered envelopes. None of these dimensions is in a quantity or a standard set.
 - **Vertical position is the module's.** Markings, lighting and restraint carry the profile
-  levels; a pavement is modelled at z = 0 at its carriageway centre and a side drain with its top
-  edges at z = 0 (neither uses the vertical profile); culverts sit at the entered inverts; the
+  levels; a pavement and a side drain follow the alignment's profile level (held at the end
+  levels beyond the profile's ends, and at zero where the alignment has no profile); culverts sit at the entered inverts; the
   corridor and the ground carry elevations. Exported where the 3D view draws them, they therefore
   do not all stand at the profile.
 - **Terminals and transitions have no geometry**: the module draws none. They are products with a
