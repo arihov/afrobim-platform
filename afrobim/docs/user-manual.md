@@ -173,7 +173,7 @@ The site view shows:
 - signs at their stations, facing their traffic, on their posts and foundations;
 - other elements with solids and a site placement, such as posts, foundations, drains, culverts and gantries, in their site positions.
 
-Road marking lines are drawn at ground level, not at the profile level. See Notes for the maintainer.
+Road marking lines are drawn at the alignment's profile level.
 
 ## 4. Working with commands
 
@@ -766,7 +766,7 @@ Each row gives a document, the edition the code uses, what it governs and any wa
 
 ## 10. Notes for the maintainer
 
-- **Markings in 3D.** The workspace README says road marking lines show in the 3D view "at the profile level". `view3d.rs` takes each site-placed element's height from its placement, and marking placements have z = 0, so the lines sit at ground level. Only the alignment centreline is drawn at profile level. The markings README agrees with the code. This manual follows the code, which looks like a defect to fix.
+- **Markings in 3D.** Marking placements have z = 0, but the marking solids themselves are generated at the alignment's profile level (`afrobim-markings` `plan_at_level`), so the lines follow the road profile in the 3D view.
 - **Ribbon status.** The workspace README's ribbon paragraph says road markings, drainage and gantries are not built yet. `ribbon.rs` enables MARKINGS, DRAIN, CULVERT, CHECK, GANTRY, CANTILEVER, HANG and UNHANG. This manual follows the ribbon.
 - **Uganda pack in the MCP server.** The MCP README and the server's error hint say XML folder packs are not read by the AfroBIM engine yet. The desktop app does load `UG-TSM-2004`, through `afrobim-signs/src/xml_pack.rs` and the app's standards list. The MCP server still calls `RulePack::load` on the folder, so it refuses it. The hint's wording is out of date. The manual says the app loads the pack and the server does not.
 - **Crate list.** The workspace README's layout omits `afrobim-lighting`, `afrobim-restraint`, `afrobim-corridor` and `afrobim-pavement`, which are members in `Cargo.toml`. Section 6 covers them.
