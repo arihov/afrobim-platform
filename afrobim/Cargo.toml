@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/afrobim-draw", "crates/afrobim-kernel", "crates/afrobim-signs", "crates/afrobim-dxf", "crates/afrobim-fabrication", "crates/afrobim-mcp", "crates/afrobim-ifc", "crates/afrobim-alignment", "crates/afrobim-supports", "crates/afrobim-app"]
+members = ["crates/afrobim-draw", "crates/afrobim-kernel", "crates/afrobim-signs", "crates/afrobim-dxf", "crates/afrobim-fabrication", "crates/afrobim-mcp", "crates/afrobim-ifc", "crates/afrobim-alignment", "crates/afrobim-supports", "crates/afrobim-corridor", "crates/afrobim-app"]
 # The Python extension is built with maturin and needs a Python toolchain, so it stays outside
 # the workspace: `cargo build --workspace` must work on a machine without Python.
 exclude = ["python"]
