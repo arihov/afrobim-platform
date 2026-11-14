@@ -58,19 +58,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "afrobim-corridor"
-version = "0.1.0"
-dependencies = [
- "afrobim-alignment",
- "afrobim-draw",
- "afrobim-kernel",
- "roxmltree",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "afrobim-draw"
 version = "0.1.0"
 dependencies = [
@@ -120,18 +107,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "afrobim-lighting"
-version = "0.1.0"
-dependencies = [
- "afrobim-alignment",
- "afrobim-draw",
- "afrobim-kernel",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "afrobim-mcp"
 version = "0.1.0"
 dependencies = [
@@ -144,7 +119,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "afrobim-restraint"
+name = "afrobim-pavement"
 version = "0.1.0"
 dependencies = [
  "afrobim-alignment",
