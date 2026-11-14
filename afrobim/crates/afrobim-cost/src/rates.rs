@@ -152,7 +152,8 @@ pub struct RateLibrary {
 
 impl RateLibrary {
     /// Adds a rate, replacing one with the same item code and currency.
-    pub fn set(&mut self, rate: Rate) {
+    pub fn set(&mut self, mut rate: Rate) {
+        rate.currency = rate.currency.trim().to_uppercase();
         match self.rates.iter_mut().find(|r| r.item_code == rate.item_code && r.currency.eq_ignore_ascii_case(&rate.currency)) {
             Some(r) => *r = rate,
             None => self.rates.push(rate),

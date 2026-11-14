@@ -55,6 +55,7 @@ impl QuantitySet {
         QuantitySet::default()
     }
 
+    #[allow(clippy::too_many_arguments)]
     /// Adds a line and returns its id. A non-finite quantity is not added; it is recorded as skipped.
     pub fn push(
         &mut self,
@@ -76,6 +77,7 @@ impl QuantitySet {
         Some(self.push_decimal(element, mark, category, description, q, unit, attributes))
     }
 
+    #[allow(clippy::too_many_arguments)]
     /// Adds a line with an exact quantity (a count, for instance).
     pub fn push_decimal(
         &mut self,

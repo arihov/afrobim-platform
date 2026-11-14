@@ -22,3 +22,7 @@ afrobim-corridor = { path = "../afrobim-corridor" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+afrobim-alignment = { path = "../afrobim-alignment" }
+afrobim-signs = { path = "../afrobim-signs" }

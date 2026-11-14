@@ -365,9 +365,9 @@ mod tests {
 
     #[test]
     fn product_is_exact_then_rounded_once() {
-        // 12.345 x 1250.35 = 15435.55575 exactly; to 2 decimals 15435.56.
+        // 12.345 x 1250.35 = 15435.57075 exactly; to 2 decimals 15435.57.
         let p = d("12.345").mul_rounded(d("1250.35"), Rounding::half_up(2));
-        assert_eq!(p, d("15435.56"));
+        assert_eq!(p, d("15435.57"));
         // 15% of 200.05 = 30.0075.
         assert_eq!(d("200.05").percent_of(d("15"), Rounding::half_up(2)), d("30.01"));
         assert_eq!(d("1000").mul_ratio(3, 7, Rounding::half_up(2)), d("428.57"));
