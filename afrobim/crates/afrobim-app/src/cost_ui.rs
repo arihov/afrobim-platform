@@ -443,7 +443,7 @@ impl AfroBimApp {
         let mut refresh = false;
         let mut status: Option<String> = None;
         let c = &mut self.cost;
-        egui::Window::new("Bill of quantities").open(&mut open).default_width(980.0).default_height(560.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Bill of quantities").open(&mut open).default_width(980.0).default_height(560.0).show(ctx, |ui| {
             if c.est.is_none() {
                 ui.label("There is no estimate yet.");
                 return;
@@ -879,7 +879,7 @@ impl AfroBimApp {
         let c = &mut self.cost;
         let currencies = c.defined_currencies();
         let unpriced: Vec<(String, String)> = c.live().map(|r| r.unpriced.iter().map(|u| (u.code.clone(), u.reason.clone())).collect()).unwrap_or_default();
-        egui::Window::new("Rate library").open(&mut open).default_width(960.0).default_height(520.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Rate library").open(&mut open).default_width(960.0).default_height(520.0).show(ctx, |ui| {
             let Some(est) = c.est.as_mut() else {
                 ui.label("There is no estimate yet.");
                 return;
@@ -1006,7 +1006,7 @@ impl AfroBimApp {
         let mut changed = false;
         let mut status: Option<String> = None;
         let c = &mut self.cost;
-        egui::Window::new("Currency").open(&mut open).default_width(620.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Currency").open(&mut open).default_width(620.0).show(ctx, |ui| {
             let Some(est) = c.est.as_mut() else {
                 ui.label("There is no estimate yet.");
                 return;
@@ -1148,7 +1148,7 @@ impl AfroBimApp {
         let current_id = self.cost.id;
         let c = &mut self.cost;
         let decimals = c.decimals();
-        egui::Window::new("Estimate").open(&mut open).default_width(1020.0).default_height(600.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Estimate").open(&mut open).default_width(1020.0).default_height(600.0).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Estimate");
                 let name = c.est.as_ref().map(|e| e.name.clone()).unwrap_or_default();
@@ -1608,7 +1608,7 @@ impl AfroBimApp {
         let sched_ready = matches!(self.sched.result, Some(Ok(_))) && self.sched.states.is_some();
         let c = &mut self.cost;
         let decimals = c.decimals();
-        egui::Window::new("Cash flow").open(&mut open).default_width(900.0).default_height(640.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Cash flow").open(&mut open).default_width(900.0).default_height(640.0).show(ctx, |ui| {
             let Some(est) = c.est.as_mut() else {
                 ui.label("There is no estimate yet.");
                 return;
@@ -1800,7 +1800,7 @@ impl AfroBimApp {
         let sched_percent = self.sched.prog.is_some();
         let c = &mut self.cost;
         let decimals = c.decimals();
-        egui::Window::new("Interim payment certificate").open(&mut open).default_width(960.0).default_height(700.0).show(ctx, |ui| {
+        crate::win::new(ctx, "Interim payment certificate").open(&mut open).default_width(960.0).default_height(700.0).show(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(620.0).auto_shrink([false, true]).show(ui, |ui| {
             ui.label(RichText::new("This module encodes no FIDIC clause and no other contract's terms. Every percentage, cap, threshold and amount below is your own contract data, entered by you: AfroBIM only does the arithmetic on it and does not decide what a contract entitles anyone to.").color(WARN));
             let (Some(est), Some(Ok(result))) = (c.est.as_ref(), c.result.as_ref()) else {

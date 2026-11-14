@@ -298,7 +298,7 @@ fn lighting_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add) = (true, false);
-    egui::Window::new("Street lighting installation").collapsible(false).resizable(false).show(ctx, |ui| {
+    crate::win::new(ctx, "Street lighting installation").collapsible(false).resizable(false).show(ctx, |ui| {
         egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
             egui::Grid::new("lighting").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                 alignment_row(ui, "lighting-alignment", &choices, &mut alignment);
@@ -360,7 +360,7 @@ fn column_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Opt
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add) = (true, false);
-    egui::Window::new("Lighting column").collapsible(false).resizable(false).show(ctx, |ui| {
+    crate::win::new(ctx, "Lighting column").collapsible(false).resizable(false).show(ctx, |ui| {
         egui::Grid::new("column").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
             alignment_row(ui, "column-alignment", &choices, &mut alignment);
             ui.label("Mark");
@@ -416,7 +416,7 @@ fn barrier_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Op
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add) = (true, false);
-    egui::Window::new("Safety barrier run").collapsible(false).resizable(false).show(ctx, |ui| {
+    crate::win::new(ctx, "Safety barrier run").collapsible(false).resizable(false).show(ctx, |ui| {
         egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
             egui::Grid::new("barrier").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                 alignment_row(ui, "barrier-alignment", &choices, &mut alignment);
@@ -501,7 +501,7 @@ fn speed_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Elem
     let Some((id, mut speed)) = slot.take() else { return };
     let mark = doc.find(id).map(|e| e.name.clone()).unwrap_or_default();
     let (mut keep, mut run) = (true, false);
-    egui::Window::new(format!("Check {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
+    crate::win::new(ctx, format!("Check {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
         egui::Grid::new("speed").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
             ui.label("Speed limit");
             ui.horizontal(|ui| {
@@ -537,7 +537,7 @@ fn pavement_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add, mut design_first) = (true, false, false);
-    egui::Window::new("Pavement").collapsible(false).resizable(false).show(ctx, |ui| {
+    crate::win::new(ctx, "Pavement").collapsible(false).resizable(false).show(ctx, |ui| {
         egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
             egui::Grid::new("pavement").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                 alignment_row(ui, "pavement-alignment", &choices, &mut alignment);
@@ -603,7 +603,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
     let Some(mut d) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut run, mut create) = (true, false, false);
-    egui::Window::new("Pavement design").collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
+    crate::win::new(ctx, "Pavement design").collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.label("Method");
             for (i, m) in road_glue::METHODS.iter().enumerate() {
@@ -883,7 +883,7 @@ fn corridor_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
     let choices = alignment_glue::alignments(doc);
     let surfaces = afrobim_corridor::surfaces(doc);
     let (mut keep, mut add) = (true, false);
-    egui::Window::new("Corridor").collapsible(false).resizable(false).show(ctx, |ui| {
+    crate::win::new(ctx, "Corridor").collapsible(false).resizable(false).show(ctx, |ui| {
         egui::Grid::new("corridor").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
             alignment_row(ui, "corridor-alignment", &choices, &mut alignment);
             ui.label("Ground surface");
@@ -974,7 +974,7 @@ fn sections_window(ctx: &egui::Context, slot: &mut Option<SectionsView>) {
     let Some(mut v) = slot.take() else { return };
     let mut open = true;
     let dark = ctx.style().visuals.dark_mode;
-    egui::Window::new(format!("Cross-sections of {}", v.mark)).open(&mut open).default_width(700.0).show(ctx, |ui| {
+    crate::win::new(ctx, format!("Cross-sections of {}", v.mark)).open(&mut open).default_width(700.0).show(ctx, |ui| {
         let last = v.corridor.sections.len() - 1;
         ui.horizontal(|ui| {
             ui.label("Station");
