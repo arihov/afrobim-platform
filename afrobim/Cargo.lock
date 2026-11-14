@@ -61,6 +61,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-coordination"
+version = "0.1.0"
+dependencies = [
+ "afrobim-draw",
+ "afrobim-kernel",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "afrobim-corridor"
 version = "0.1.0"
 dependencies = [
