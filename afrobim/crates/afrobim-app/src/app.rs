@@ -384,8 +384,9 @@ impl AfroBimApp {
         }
     }
 
-    /// Writes the whole model as IFC 4.3: each sign an `IfcSign` with its artwork, properties
-    /// and quantities. Faces stand upright, arranged as on the sheet (see the afrobim-ifc README).
+    /// Writes the whole model as IFC 4.3: signs with their artwork, posts and foundations as
+    /// solids aggregated with their sign, elements at their site positions, and alignments.
+    /// Elements not placed on site stand upright as on the sheet (see the afrobim-ifc README).
     fn export_ifc(&mut self, path: PathBuf) {
         self.sync_generated();
         let inputs: Vec<afrobim_ifc::IfcElementInput> = self
@@ -402,7 +403,7 @@ impl AfroBimApp {
             application: format!("AfroBIM {}", env!("CARGO_PKG_VERSION")),
             ..afrobim_ifc::IfcOptions::default()
         };
-        let export = afrobim_ifc::export_ifc(&self.doc, &inputs, &options);
+        let export = afrobim_ifc::export_ifc_model(&self.doc, &inputs, &options);
         match std::fs::write(&path, export.text) {
             Ok(()) => {
                 self.status = format!("Exported {} element(s) to {}.", inputs.len(), path.display());
