@@ -35,6 +35,11 @@ pub const FEED_SCURVE: &str = "s_curve";
 pub const FEED_WBS_GANTT: &str = "wbs_gantt";
 pub const FEED_TIME_LOCATION: &str = "time_location";
 pub const FEED_COST_SCURVE: &str = "cost_s_curve";
+/// `vis_plan:<sign mark>` and `vis_profile:<sign mark>`: the sign visibility drawings of VISIBILITY.
+pub const FEED_VIS_PLAN: &str = "vis_plan";
+pub const FEED_VIS_PROFILE: &str = "vis_profile";
+/// `light_contours:<installation mark>`: iso-illuminance contours of the stored photometry run.
+pub const FEED_LIGHT_CONTOURS: &str = "light_contours";
 
 /// The kinds of schedule table a sheet can carry, as (feed name, label, default sheet title).
 pub const TABLE_KINDS: [(&str, &str, &str); 6] = [
@@ -47,14 +52,22 @@ pub const TABLE_KINDS: [(&str, &str, &str); 6] = [
 ];
 
 /// The kinds of detail sheet, as (feed name or "element", label, default sheet title).
-pub const DETAIL_KINDS: [(&str, &str, &str); 6] = [
+pub const DETAIL_KINDS: [(&str, &str, &str); 9] = [
     ("element", "A selected sign face", "SIGN FACE"),
     (FEED_GANTT, "The Gantt chart", "CONSTRUCTION PROGRAMME"),
     (FEED_SCURVE, "S-curve of the programme", "PROGRAMME S-CURVE"),
     (FEED_WBS_GANTT, "The Gantt chart with summary tasks (WBS)", "PROGRAMME BY WBS"),
     (FEED_TIME_LOCATION, "Time-location chart", "TIME-LOCATION CHART"),
     (FEED_COST_SCURVE, "S-curve of the cash flow (cost)", "COST S-CURVE"),
+    (FEED_VIS_PLAN, "Sign visibility, plan envelope (of a sign)", "SIGN VISIBILITY PLAN"),
+    (FEED_VIS_PROFILE, "Sign visibility, sight-line profile (of a sign)", "SIGN VISIBILITY PROFILE"),
+    (FEED_LIGHT_CONTOURS, "Lighting, iso-illuminance contours (of an installation)", "LIGHTING CONTOURS"),
 ];
+
+/// True for the detail feeds that name an element after a colon.
+pub fn feed_needs_element(feed: &str) -> bool {
+    [FEED_VIS_PLAN, FEED_VIS_PROFILE, FEED_LIGHT_CONTOURS].contains(&feed)
+}
 
 /// The live data the feeds read, collected from the document.
 #[derive(Default)]
@@ -70,6 +83,8 @@ pub struct Live {
     pub wbs_gantt: Option<(Drawing, Vec<DetailLabel>)>,
     pub time_location: Option<(Drawing, Vec<DetailLabel>)>,
     pub cost_scurve: Option<(Drawing, Vec<DetailLabel>)>,
+    /// Drawings fed by an element, by `kind:mark` (visibility plan and profile, lighting contours).
+    pub by_element: std::collections::HashMap<String, (Drawing, Vec<DetailLabel>)>,
     /// Why a feed has no data, by feed name.
     pub missing: Vec<(&'static str, String)>,
 }
@@ -169,6 +184,8 @@ impl Live {
             }
         }
 
+        live.add_element_drawings(doc, registry);
+
         // Clash results.
         let (_, co) = crate::coordination_glue::load(doc);
         if co.results.clashes.is_empty() {
@@ -187,7 +204,55 @@ impl Live {
         live
     }
 
+    /// The drawings that belong to one element: the sign visibility plan and profile of each sign
+    /// with accepted inputs, and the contours of each lighting installation with a stored run.
+    fn add_element_drawings(&mut self, doc: &Document, registry: &ModuleRegistry) {
+        if crate::visibility_ui::any_stored(doc) {
+            let solids = |e: &Element| registry.generate(e).map(|g| g.solids).unwrap_or_default();
+            let x: std::collections::HashMap<ElementId, f64> = doc.elements().iter().filter_map(|e| registry.generate(e).ok().and_then(|g| afrobim_visibility::derived_x_height(&g.derived)).map(|v| (e.id, v))).collect();
+            let src = crate::visibility_ui::source_for(doc, &solids, x);
+            for e in doc.elements().iter().filter(|e| e.category == afrobim_visibility::SIGN_CATEGORY && e.site.is_some()) {
+                if afrobim_visibility::load(doc, e.id).is_none() || !crate::visibility_ui::eye_height_accepted(doc, e.id) {
+                    continue;
+                }
+                let a = crate::visibility_ui::analyse(doc, &src, e.id);
+                let (plan, profile) = crate::visibility_ui::drawings_of(&a, Some(&src.scene), 5.0);
+                for (feed, d) in [(FEED_VIS_PLAN, plan), (FEED_VIS_PROFILE, profile)] {
+                    if let Some(d) = d {
+                        let labels = d.labels.iter().map(|l| DetailLabel::new(l.at, &l.text)).collect();
+                        self.by_element.insert(format!("{feed}:{}", e.name), (d.drawing, labels));
+                    }
+                }
+            }
+        }
+        for e in doc.elements().iter().filter(|e| e.category == afrobim_lighting::CATEGORY) {
+            if !matches!(afrobim_lighting::calc::photometry_settings_of(doc, e.id), Ok(Some(_))) {
+                continue;
+            }
+            let Ok(data) = afrobim_lighting::lighting_of(doc, e.id) else { continue };
+            let name = match &data.definition {
+                afrobim_lighting::LightingDefinition::Installation(i) => i.alignment.clone(),
+                afrobim_lighting::LightingDefinition::Column(c) => c.alignment.clone(),
+            };
+            let alignment = crate::alignment_glue::alignments(doc).into_iter().find(|a| a.1 == name).and_then(|a| crate::alignment_glue::alignment_of(doc, a.0));
+            let Ok(run) = afrobim_lighting::calc::run_stored_photometry(doc, e.id, alignment.as_ref(), None) else { continue };
+            let class = data.definition.lighting_class().to_string();
+            let Some(area) = run.primary_area_for_class(&class).map(|s| s.to_string()).or_else(|| run.result.areas.first().map(|a| a.name.clone())) else { continue };
+            let levels = crate::photometry_ui::levels_for(&run, &area, "");
+            if let (Some(c), _) = crate::photometry_ui::drawings_of(&run, &data, &area, &levels) {
+                let labels = c.labels.iter().map(|l| DetailLabel::new(Pt2::new(l.x, l.y), &l.text)).collect();
+                self.by_element.insert(format!("{FEED_LIGHT_CONTOURS}:{}", e.name), (c.drawing, labels));
+            }
+        }
+    }
+
     fn why(&self, feed: &str) -> String {
+        if let Some((kind, mark)) = feed.split_once(':') {
+            return match kind {
+                FEED_LIGHT_CONTOURS => format!("There is no stored photometry run for '{mark}': run PHOTOMETRY for it first."),
+                _ => format!("There is no visibility drawing for '{mark}': store accepted visibility inputs for the sign (VISIBILITY) and place it on an alignment."),
+            };
+        }
         self.missing.iter().find(|(f, _)| *f == feed).map(|(_, w)| w.clone()).unwrap_or_else(|| "No data.".into())
     }
 }
@@ -323,6 +388,7 @@ pub fn feed_set(set: &mut SheetSet, model: &Model, live: &Live) -> Vec<String> {
                             FEED_WBS_GANTT => live.wbs_gantt.clone(),
                             FEED_TIME_LOCATION => live.time_location.clone(),
                             FEED_COST_SCURVE => live.cost_scurve.clone(),
+                            other if other.contains(':') => live.by_element.get(other).cloned(),
                             _ => None,
                         };
                         match data {

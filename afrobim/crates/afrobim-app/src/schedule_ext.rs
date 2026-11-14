@@ -547,7 +547,10 @@ impl AfroBimApp {
         let chosen = self.sched.ext.tl_alignment.clone().filter(|n| alignments.iter().any(|a| a.1 == *n)).or_else(|| resolved.alignments().first().cloned()).or_else(|| alignments.first().map(|a| a.1.clone()));
         let options = self.tl_options(chosen.clone());
         let chart = match &self.sched.result {
-            Some(Ok(s)) => time_location_chart(&p, s, &resolved, &options),
+            Some(Ok(s)) => time_location_chart(&p, s, &resolved, &options).map(|mut c| {
+                relabel_stations(&self.doc, &mut c);
+                c
+            }),
             _ => None,
         };
         let csv = match &self.sched.result {
@@ -891,6 +894,41 @@ pub fn time_location_for_sheet(p: &Programme, s: &Schedule, doc: &afrobim_kernel
         return Err("No activity has a location range: enter ranges in TIMELOCATION, or link activities to elements placed on an alignment.".into());
     }
     let alignment = glue::setting(doc, glue::KEY_TL_ALIGNMENT).filter(|n| resolved.alignments().contains(n));
-    let chart: TimeLocationChart = time_location_chart(p, s, &resolved, &TimeLocationOptions { alignment, ..Default::default() }).ok_or("The time-location chart has nothing to plot on that alignment.")?;
+    let mut chart: TimeLocationChart = time_location_chart(p, s, &resolved, &TimeLocationOptions { alignment, ..Default::default() }).ok_or("The time-location chart has nothing to plot on that alignment.")?;
+    relabel_stations(doc, &mut chart);
     Ok((chart.drawing, chart.labels.into_iter().map(|l| (l.at, l.text)).collect()))
+}
+
+/// The station scale of the chart is in internal stations (the engine knows nothing of station
+/// equations). Where the alignment has equations, each station label is rewritten as the station
+/// shown on the drawings (app-side labelling: the engine cannot do it). Without equations the labels
+/// are left as the engine wrote them.
+pub fn relabel_stations(doc: &afrobim_kernel::Document, chart: &mut TimeLocationChart) {
+    let Some(a) = crate::alignment_glue::alignments(doc).into_iter().find(|a| a.1 == chart.alignment).and_then(|a| crate::alignment_glue::alignment_of(doc, a.0)) else { return };
+    if a.station_equations.region_count() <= 1 {
+        return;
+    }
+    for l in chart.labels.iter_mut().filter(|l| l.kind == TlLabelKind::Station) {
+        if let Some(internal) = l.text.trim().parse::<f64>().ok() {
+            if let Some(d) = a.displayed_station(internal) {
+                l.text = afrobim_alignment::format_station(d.station_m, 0);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod relabel_tests {
+    use super::*;
+
+    #[test]
+    fn the_time_location_scale_is_labelled_in_displayed_stations_where_there_are_equations() {
+        let doc = crate::sheets_glue::test_support::demo_doc();
+        let (_, p) = crate::schedule_glue::load(&doc).unwrap();
+        let s = afrobim_schedule::schedule_with(&p, &afrobim_schedule::ScheduleOptions { critical: crate::schedule_glue::critical_basis_of(&doc) }).unwrap();
+        let (aid, _) = crate::alignment_glue::alignments(&doc).remove(0);
+        assert!(crate::alignment_glue::alignment_of(&doc, aid).unwrap().station_equations.region_count() > 1);
+        let (_, labels) = time_location_for_sheet(&p, &s, &doc).unwrap();
+        assert!(labels.iter().any(|(_, t)| t.contains('+')), "station labels read as chainage, e.g. 1+500: {:?}", labels.iter().map(|l| l.1.clone()).take(12).collect::<Vec<_>>());
+    }
 }

@@ -984,6 +984,9 @@ mod tests {
         // The drawings exist for a swept sign and are offered as sheet feeds by the same data.
         let (plan, profile) = drawings_of(&a, Some(&src.scene), 5.0);
         assert!(plan.is_some() && profile.is_some());
+        // The two drawings are offered to the sheets as detail feeds named after the sign.
+        let live = crate::sheets_glue::Live::from_doc(&doc, &crate::sheets_glue::test_support::registry(), None);
+        assert!(live.by_element.contains_key("vis_plan:VS-1") && live.by_element.contains_key("vis_profile:VS-1"), "{:?}", live.by_element.keys().collect::<Vec<_>>());
         // CHECKALL carries a row for the sign, with the engine's lines.
         let report = crate::check_all::run_all(&doc, &crate::check_all::Sources { notes_of: &|_| None, label_of: &|c| c.to_string(), vis: Some(&src) });
         let row = report.rows.iter().find(|r| r.mark == "VS-1" && r.check.starts_with("Sign visibility")).expect("a CHECKALL row for the visibility");

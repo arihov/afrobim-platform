@@ -87,6 +87,11 @@ pub struct SourceForm {
     alignment: String,
     from: String,
     to: String,
+    /// Stationing region of the first and last station as picked (0: the station occurs once).
+    from_region: usize,
+    to_region: usize,
+    /// How many stationing regions the alignment has (set for the window; 1 shows no picker).
+    regions: usize,
     scale: String,
     // plan
     length: String,
@@ -135,6 +140,9 @@ impl SourceForm {
             alignment: String::new(),
             from: String::new(),
             to: String::new(),
+            from_region: 0,
+            to_region: 0,
+            regions: 1,
             scale: String::new(),
             length: String::new(),
             overlap: String::new(),
@@ -221,7 +229,11 @@ impl SourceForm {
                 ViewKind::Detail(d) => {
                     f.kind = FormKind::Detail;
                     match (&d.source, &d.feed) {
-                        (_, Some(feed)) => f.detail_kind = DETAIL_KINDS.iter().position(|k| k.0 == feed).unwrap_or(1),
+                        (_, Some(feed)) => {
+                            let (kind, rest) = feed.split_once(':').unwrap_or((feed.as_str(), ""));
+                            f.detail_kind = DETAIL_KINDS.iter().position(|k| k.0 == kind).unwrap_or(1);
+                            f.element = rest.to_string();
+                        }
                         (afrobim_sheets::DetailSource::Element(name), None) => {
                             f.detail_kind = 0;
                             f.element = name.clone();
@@ -266,6 +278,54 @@ impl SourceForm {
         }
         let _ = defaults;
         f
+    }
+}
+
+/// The internal station of a station typed as shown on the drawings (see `station_input`).
+fn internal_of(a: Option<&afrobim_alignment::Alignment>, shown: f64, region: usize) -> Result<f64, String> {
+    match a {
+        Some(a) => crate::station_input::displayed_to_internal(a, shown, region),
+        None => Ok(shown),
+    }
+}
+
+/// A station text field with the region picker when the alignment has station equations.
+fn station_text_row(ui: &mut Ui, label: &str, text: &mut String, region: &mut usize, hint: &str, regions: usize) {
+    ui.label(label);
+    ui.horizontal(|ui| {
+        ui.add(egui::TextEdit::singleline(text).hint_text(hint).desired_width(170.0));
+        if regions > 1 {
+            ui.label("region");
+            ui.add(egui::DragValue::new(region).range(0..=regions)).on_hover_text(format!("1 to {regions}; 0 if the station occurs once"));
+        } else {
+            *region = 0;
+        }
+    });
+    ui.end_row();
+}
+
+impl SourceForm {
+    /// The alignment the form's stations are on: the chosen one, or for sections the document's
+    /// only alignment.
+    fn alignment_obj(&self, doc: &Document) -> Option<afrobim_alignment::Alignment> {
+        let all = crate::alignment_glue::alignments(doc);
+        let name = if self.kind == FormKind::Sections { (all.len() == 1).then(|| all[0].1.clone())? } else { self.alignment.clone() };
+        let (id, _) = all.into_iter().find(|a| a.1 == name)?;
+        crate::alignment_glue::alignment_of(doc, id)
+    }
+
+    /// Turns the internal stations a stored source holds into the stations shown on the drawings,
+    /// with their regions, for the edit form.
+    fn to_displayed(&mut self, doc: &Document) {
+        let Some(a) = self.alignment_obj(doc) else { return };
+        self.regions = a.station_equations.region_count();
+        for (text, region) in [(&mut self.from, &mut self.from_region), (&mut self.to, &mut self.to_region)] {
+            if let Ok(v) = text.trim().parse::<f64>() {
+                let (shown, r) = crate::station_input::internal_to_displayed(&a, v);
+                *text = afrobim_sheets::trim_number(shown, 6);
+                *region = r;
+            }
+        }
     }
 }
 
@@ -346,8 +406,9 @@ impl SourceForm {
                 if overlap < 0.0 || overlap >= length {
                     return Err("The overlap must be at least 0 and less than the sheet length.".into());
                 }
-                let from = parse_opt(&self.from, "the first station")?;
-                let to = parse_opt(&self.to, "the last station")?;
+                let al = self.alignment_obj(doc);
+                let from = parse_opt(&self.from, "the first station")?.map(|v| internal_of(al.as_ref(), v, self.from_region)).transpose()?;
+                let to = parse_opt(&self.to, "the last station")?.map(|v| internal_of(al.as_ref(), v, self.to_region)).transpose()?;
                 if let (Some(a), Some(b)) = (from, to) {
                     if b <= a {
                         return Err("The last station must be beyond the first.".into());
@@ -368,7 +429,9 @@ impl SourceForm {
                 need_alignment(&self.alignment)?;
                 let h = parse_pos(&self.scale, "the horizontal scale 1:n (n)")?;
                 let vs = parse_pos(&self.v_scale, "the vertical scale 1:m (m)")?;
-                let (from, to) = (parse(&self.from, "the first station")?, parse(&self.to, "the last station")?);
+                let al = self.alignment_obj(doc);
+                let from = internal_of(al.as_ref(), parse(&self.from, "the first station")?, self.from_region)?;
+                let to = internal_of(al.as_ref(), parse(&self.to, "the last station")?, self.to_region)?;
                 if to <= from {
                     return Err("The last station must be beyond the first.".into());
                 }
@@ -391,14 +454,17 @@ impl SourceForm {
                 let per_sheet = parse_count(&self.per_sheet, "the number of sections on a sheet")?;
                 match self.mode {
                     0 => {
-                        v.from_station_m = parse_opt(&self.from, "the first station")?;
-                        v.to_station_m = parse_opt(&self.to, "the last station")?;
+                        let al = self.alignment_obj(doc);
+                        v.from_station_m = parse_opt(&self.from, "the first station")?.map(|x| internal_of(al.as_ref(), x, self.from_region)).transpose()?;
+                        v.to_station_m = parse_opt(&self.to, "the last station")?.map(|x| internal_of(al.as_ref(), x, self.to_region)).transpose()?;
                     }
                     mode => {
                         let corridor = afrobim_corridor::corridor_of(doc, id).map_err(|e| format!("Corridor '{}' cannot be built: {e}", self.corridor))?;
                         let have: Vec<f64> = corridor.sections.iter().map(|s| s.station_m).collect();
                         let wanted: Vec<f64> = if mode == 1 {
-                            let (from, to) = (parse(&self.from, "the first station")?, parse(&self.to, "the last station")?);
+                            let al = self.alignment_obj(doc);
+                            let from = internal_of(al.as_ref(), parse(&self.from, "the first station")?, self.from_region)?;
+                            let to = internal_of(al.as_ref(), parse(&self.to, "the last station")?, self.to_region)?;
                             let step = parse_pos(&self.interval, "the interval between sections (m)")?;
                             let mut out: Vec<f64> = Vec::new();
                             for s in have.iter().copied().filter(|s| *s >= from - 1e-6 && *s <= to + 1e-6) {
@@ -408,7 +474,7 @@ impl SourceForm {
                             }
                             out
                         } else {
-                            self.list.split(|c: char| c == ',' || c == ';' || c.is_whitespace()).filter(|t| !t.is_empty()).map(|t| parse(t, "a station in the list")).collect::<Result<Vec<f64>, String>>()?
+                            self.list.split(|c: char| c == ',' || c == ';' || c.is_whitespace()).filter(|t| !t.is_empty()).map(|t| parse(t, "a station in the list").and_then(|v| internal_of(self.alignment_obj(doc).as_ref(), v, 0))).collect::<Result<Vec<f64>, String>>()?
                         };
                         let found: Vec<f64> = wanted.iter().copied().filter(|w| have.iter().any(|h| (h - w).abs() <= 1e-3)).collect();
                         if found.is_empty() {
@@ -444,7 +510,14 @@ impl SourceForm {
                     let empty = Drawing { primitives: vec![], extents: afrobim_draw::Extents { min: Pt2::new(0.0, 0.0), max: Pt2::new(1.0, 1.0) } };
                     let mut d = afrobim_sheets::DetailView::inline(empty, vec![], Scale(1.0), 1.0, self.title.trim());
                     d.fit = true;
-                    d.feed = Some(feed.to_string());
+                    d.feed = Some(if glue::feed_needs_element(feed) {
+                        if self.element.trim().is_empty() {
+                            return Err("Enter the mark of the sign or installation the drawing is of.".into());
+                        }
+                        format!("{feed}:{}", self.element.trim())
+                    } else {
+                        feed.to_string()
+                    });
                     d
                 };
                 Ok(SheetSource::Single(spec(vec![ViewDef::full(ViewKind::Detail(detail))])))
@@ -1052,7 +1125,9 @@ impl AfroBimApp {
                     ui.label(RichText::new("No sheets yet. Add one from a template below.").small().weak());
                 }
                 if let Some(i) = edit {
-                    s.form = Some(SourceForm::from_source(i, &set.sources[i], s.defaults));
+                    let mut form = SourceForm::from_source(i, &set.sources[i], s.defaults);
+                    form.to_displayed(&self.doc);
+                    s.form = Some(form);
                 }
                 if let Some(i) = up {
                     set.sources.swap(i, i - 1);
@@ -1113,6 +1188,7 @@ impl AfroBimApp {
         let mut built: Option<(Option<usize>, SheetSource)> = None;
         if let Some(mut f) = s.form.take() {
             let mut keep = true;
+            f.regions = f.alignment_obj(&self.doc).map(|a| a.station_equations.region_count()).unwrap_or(1);
             let range_note = ranges.iter().find(|r| r.0 == f.alignment).map(|r| r.1.clone()).unwrap_or_default();
             let title = if f.editing.is_some() { format!("Edit sheet: {}", f.kind.short()) } else { format!("Add: {}", f.kind.short()) };
             crate::win::new(ctx, title).collapsible(false).default_width(560.0).show(ctx, |ui| {
@@ -1467,8 +1543,8 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
         match f.kind {
             FormKind::Plan => {
                 combo_row(ui, "Alignment", "form-alignment", &mut f.alignment, alignments, false);
-                text_row(ui, "First station (m)", &mut f.from, "empty: the alignment's start");
-                text_row(ui, "Last station (m)", &mut f.to, "empty: the alignment's end");
+                station_text_row(ui, "First station (as drawn)", &mut f.from, &mut f.from_region, "empty: the alignment's start", f.regions);
+                station_text_row(ui, "Last station (as drawn)", &mut f.to, &mut f.to_region, "empty: the alignment's end", f.regions);
                 text_row(ui, "Length on each sheet (m)", &mut f.length, "enter the length");
                 text_row(ui, "Overlap (m)", &mut f.overlap, "enter the overlap, 0 for none");
                 text_row(ui, "Scale 1:", &mut f.scale, "enter n");
@@ -1487,8 +1563,8 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
             }
             FormKind::Profile => {
                 combo_row(ui, "Alignment", "form-alignment", &mut f.alignment, alignments, false);
-                text_row(ui, "First station (m)", &mut f.from, "enter the station");
-                text_row(ui, "Last station (m)", &mut f.to, "enter the station");
+                station_text_row(ui, "First station (as drawn)", &mut f.from, &mut f.from_region, "enter the station", f.regions);
+                station_text_row(ui, "Last station (as drawn)", &mut f.to, &mut f.to_region, "enter the station", f.regions);
                 text_row(ui, "Horizontal scale 1:", &mut f.scale, "enter n");
                 text_row(ui, "Vertical scale 1:", &mut f.v_scale, "enter m");
                 text_row(ui, "Datum level (m)", &mut f.datum, "empty: a grid line under the lowest level");
@@ -1515,10 +1591,10 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
                 });
                 ui.end_row();
                 if f.mode == 2 {
-                    text_row(ui, "Stations (m)", &mut f.list, "for example 100, 150, 200");
+                    text_row(ui, "Stations (as drawn)", &mut f.list, "for example 100, 150, 200");
                 } else {
-                    text_row(ui, "First station (m)", &mut f.from, if f.mode == 0 { "empty: the first section" } else { "enter the station" });
-                    text_row(ui, "Last station (m)", &mut f.to, if f.mode == 0 { "empty: the last section" } else { "enter the station" });
+                    station_text_row(ui, "First station (as drawn)", &mut f.from, &mut f.from_region, if f.mode == 0 { "empty: the first section" } else { "enter the station" }, f.regions);
+                    station_text_row(ui, "Last station (as drawn)", &mut f.to, &mut f.to_region, if f.mode == 0 { "empty: the last section" } else { "enter the station" }, f.regions);
                     if f.mode == 1 {
                         text_row(ui, "Interval (m)", &mut f.interval, "enter the interval");
                     }
@@ -1563,6 +1639,13 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
                     combo_row(ui, "Sign", "form-sign", &mut f.element, signs, false);
                     text_row(ui, "Scale 1:", &mut f.scale, "empty: the scale that fits");
                 } else {
+                    if glue::feed_needs_element(DETAIL_KINDS[f.detail_kind.min(DETAIL_KINDS.len() - 1)].0) {
+                        if DETAIL_KINDS[f.detail_kind.min(DETAIL_KINDS.len() - 1)].0 == glue::FEED_LIGHT_CONTOURS {
+                            text_row(ui, "Installation mark", &mut f.element, "the mark of the lighting element");
+                        } else {
+                            combo_row(ui, "Sign", "form-sign-vis", &mut f.element, signs, false);
+                        }
+                    }
                     ui.label("");
                     ui.label(RichText::new("Fitted to the sheet; filled from the model each time the set is composed.").small().weak());
                     ui.end_row();
@@ -1582,7 +1665,7 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
     });
     if !range_note.is_empty() && matches!(f.kind, FormKind::Plan | FormKind::Profile) {
         ui.label(RichText::new(range_note).small().weak());
-        ui.label(RichText::new("Stations are entered as internal stations (the alignment's own running distance); the sheets print displayed stations, with station equations honoured.").small().weak());
+        ui.label(RichText::new("Stations are entered as the stations shown on the drawings. With station equations, pick the region where a station occurs more than once; AfroBIM converts to internal stations.").small().weak());
     }
     if f.kind == FormKind::Props {
         ui.label(RichText::new("This sheet was not made by these forms: its title, paper and numbering can be changed here.").small().weak());
@@ -1937,12 +2020,40 @@ mod tests {
     }
 
     #[test]
+    fn the_sheet_forms_take_displayed_stations_with_a_region_and_convert_them_to_internal() {
+        // The demo alignment has station equations: displayed 1550 occurs twice, at internal 1500 and 1650.
+        let doc = demo_doc();
+        let mut f = form(FormKind::Profile, &doc);
+        f.title = "PROFILE".into();
+        f.from = "1550".into();
+        f.to = "1700".into();
+        f.scale = "5000".into();
+        f.v_scale = "250".into();
+        f.grid_sta = "100".into();
+        f.grid_lvl = "2".into();
+        // Left as "occurs once", the ambiguous station is refused.
+        assert!(f.build(&doc, None).is_err());
+        f.from_region = 2;
+        f.to_region = 3;
+        let src = f.build(&doc, None).unwrap();
+        let SheetSource::Single(spec) = &src else { panic!("not a single sheet") };
+        let ViewKind::Profile(v) = &spec.views[0].kind else { panic!("not a profile") };
+        assert!((v.from_station_m - 1500.0).abs() < 1e-6, "{}", v.from_station_m);
+        assert!(v.to_station_m > v.from_station_m);
+        // The edit form shows the stations as drawn, with their regions.
+        let mut g = SourceForm::from_source(0, &src, Page::default());
+        g.to_displayed(&doc);
+        assert_eq!((g.from.as_str(), g.from_region), ("1550", 2));
+        assert!(g.build(&doc, Some(&src)).unwrap() == src);
+    }
+
+    #[test]
     fn a_profile_form_takes_two_scales_and_keeps_them_when_edited() {
         let doc = demo_doc();
         let mut f = form(FormKind::Profile, &doc);
         f.title = "PROFILE".into();
         f.from = "1000".into();
-        f.to = "1900".into();
+        f.to = "1250".into();
         f.scale = "5000".into();
         f.v_scale = "250".into();
         f.grid_sta = "100".into();
@@ -2094,7 +2205,8 @@ mod tests {
             set.sources.push(f.build(&doc, None).unwrap());
         }
         let mut d = SourceForm::new(FormKind::Detail, page);
-        for i in 1..DETAIL_KINDS.len() {
+        // The feeds that stand alone; the three that name an element are tested with their engines.
+        for i in 1..6 {
             d.detail_kind = i;
             d.title = DETAIL_KINDS[i].2.to_string();
             set.sources.push(d.build(&doc, None).unwrap());
