@@ -48,6 +48,11 @@ pub struct AfroBimApp {
     pub(crate) checks: CheckUi,
     /// The alignment design tools: the plan editor, the PI table, the profile editor, checks and options.
     pub(crate) design: crate::design_ui::DesignUi,
+    /// Issues, BCF, reference models, sign visibility, photometry and the report pack.
+    pub(crate) issues: crate::issues_ui::IssuesUi,
+    pub(crate) refs: crate::reference_models::RefUi,
+    /// The name of the last IFC file exported, which BCF topics name as their model.
+    pub(crate) last_ifc_name: Option<String>,
     signs_ready: bool,
     module_status: String,
     standard: String,
@@ -124,6 +129,7 @@ impl AfroBimApp {
         markings_glue::register(&mut modules);
         modules_glue::register(&mut modules);
         crate::coordination_glue::register(&mut modules);
+        modules.register(Box::new(crate::reference_models::RefModule));
         modules.register(Box::new(afrobim_schedule::ScheduleModule::default()));
         modules.register(Box::new(afrobim_cost::EstimateModule));
         modules.register(Box::new(afrobim_progress::ProgressModule));
@@ -150,6 +156,9 @@ impl AfroBimApp {
             construction: ConstructionUi::default(),
             checks: CheckUi::default(),
             design: Default::default(),
+            issues: Default::default(),
+            refs: Default::default(),
+            last_ifc_name: None,
             signs_ready,
             module_status,
             standard,
@@ -327,6 +336,10 @@ impl AfroBimApp {
         if app.options.demo {
             app.run_clash_tests();
             app.coord.results_open = false;
+            // Demo only: one made-up issue with a viewpoint (see `demo_glue::add_issue`).
+            if crate::demo_glue::add_issue(&mut app.coord.co).is_some() {
+                app.store_coordination();
+            }
             app.status = "Ready.".into();
         }
         if let Some(c) = app.options.zoom_clash.and_then(|n| app.coord.co.results.clashes.get(n).cloned()) {
@@ -372,6 +385,22 @@ impl AfroBimApp {
                 Err(e) => eprintln!("AfroBIM: sheet export failed: {e}"),
             }
             app.quit = true;
+        }
+        if let Some(spec) = app.options.ifcref.clone() {
+            let mut parts = spec.split(',');
+            let path = parts.next().unwrap_or_default().to_string();
+            let nums: Vec<f64> = parts.filter_map(|p| p.trim().parse().ok()).collect();
+            app.refs.quiet = true;
+            app.refs.start_import(std::path::Path::new(&path), &nums);
+        }
+        if app.options.capture_viewpoint {
+            // Take a viewpoint of the demo issue from the current 3D camera and snapshot it.
+            if let Some(g) = app.coord.co.issues.first().map(|i| i.guid.clone()) {
+                app.view_3d = true;
+                if let Err(e) = app.viewpoint_capture(&g) {
+                    app.status = e;
+                }
+            }
         }
         if let Some(path) = app.options.xer_in.clone() {
             app.import_xer_path(&path);
@@ -598,11 +627,12 @@ impl AfroBimApp {
             .doc
             .elements()
             .iter()
+            .filter(|e| e.category != crate::reference_models::CATEGORY)
             .map(|e| afrobim_ifc::IfcElementInput { element: e, generated: self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()) })
             .collect();
         // The project name scopes the GlobalIds, so use the document's file name: re-exporting
         // the same saved document keeps every element's identity.
-        let project = self.path.as_ref().and_then(|p| p.file_stem()).map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "AfroBIM model".into());
+        let project = self.ifc_project_name();
         let options = afrobim_ifc::IfcOptions {
             project_name: project,
             application: format!("AfroBIM {}", env!("CARGO_PKG_VERSION")),
@@ -611,6 +641,7 @@ impl AfroBimApp {
         let export = afrobim_ifc::export_ifc_model(&self.doc, &inputs, &options);
         match std::fs::write(&path, export.text) {
             Ok(()) => {
+                self.last_ifc_name = path.file_name().map(|n| n.to_string_lossy().to_string());
                 self.status = format!("Exported {} element(s) to {}.", inputs.len(), path.display());
                 for note in export.notes.iter().take(5) {
                     self.log(format!("IFC: {note}"));
@@ -621,6 +652,11 @@ impl AfroBimApp {
             }
             Err(e) => self.status = format!("Could not write {}: {e}", path.display()),
         }
+    }
+
+    /// The project name the IFC export uses (it scopes the GlobalIds), also the one BCF files use.
+    pub(crate) fn ifc_project_name(&self) -> String {
+        self.path.as_ref().and_then(|p| p.file_stem()).map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "AfroBIM model".into())
     }
 
     /// The signs an export covers: the selection, or every sign when nothing is selected.
@@ -993,6 +1029,15 @@ impl AfroBimApp {
                 self.status = format!("Clash markers {}.", if self.coord.markers { "shown in the 3D view" } else { "hidden" });
             }
             Action::ClashCsv => self.export_clashes_csv(),
+            Action::Issues => self.open_issues(),
+            Action::BcfOut => {
+                self.coord.sync(&self.doc);
+                self.issues.bcf_out_open = true;
+            }
+            Action::BcfIn => self.issues.bcf_in_open = true,
+            Action::Visibility | Action::Photometry | Action::ReportPack => self.status = "not wired yet".into(),
+            Action::IfcRef => self.ifcref_pick(),
+            Action::RefModels => self.refs.list_open = true,
             Action::Programme => {
                 self.sched.sync(&self.doc);
                 self.sched.table_open = true;
@@ -1397,6 +1442,13 @@ impl AfroBimApp {
                     item(ui, "Clash results…", "CLASHES", Action::ClashResults);
                     item(ui, "Show / hide clash markers", "CLASHMARKERS", Action::ClashMarkers);
                     item(ui, "Export clashes (CSV)…", "CLASHCSV", Action::ClashCsv);
+                    ui.separator();
+                    item(ui, "Issues…", "ISSUES", Action::Issues);
+                    item(ui, "Export issues as BCF…", "BCFOUT", Action::BcfOut);
+                    item(ui, "Import issues from BCF…", "BCFIN", Action::BcfIn);
+                    ui.separator();
+                    item(ui, "IFC reference model…", "IFCREF", Action::IfcRef);
+                    item(ui, "Reference models…", "REFMODELS", Action::RefModels);
                 });
                 ui.menu_button("4D", |ui| {
                     item(ui, "Activities and logic…", "PROGRAMME", Action::Programme);
@@ -1888,6 +1940,13 @@ impl AfroBimApp {
     }
 
     fn windows(&mut self, ctx: &egui::Context) {
+        self.snapshot_tick(ctx);
+        if self.hide_windows_for_snapshot() {
+            return;
+        }
+        self.reference_tick(ctx);
+        self.reference_windows(ctx);
+        self.issues_windows(ctx);
         self.coordination_windows(ctx);
         self.schedule_windows(ctx);
         self.cost_windows(ctx);
@@ -2484,13 +2543,18 @@ impl AfroBimApp {
 
     fn screenshot_mode(&mut self, ctx: &egui::Context) {
         let Some(path) = self.options.screenshot.clone() else { return };
+        // Wait for a viewpoint snapshot or a running import before the picture is taken.
+        if self.issues.snap.is_some() || self.refs.busy() {
+            ctx.request_repaint();
+            return;
+        }
         self.frames += 1;
         if self.frames == 8 {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
         }
         let shot = ctx.input(|i| {
             i.events.iter().find_map(|e| match e {
-                egui::Event::Screenshot { image, .. } => Some(image.clone()),
+                egui::Event::Screenshot { image, user_data, .. } if user_data.data.is_none() => Some(image.clone()),
                 _ => None,
             })
         });

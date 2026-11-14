@@ -12,7 +12,7 @@ use afrobim_coordination::{Body, Coordination};
 use afrobim_draw::{Drawing, Extents, Primitive, Pt2};
 use afrobim_kernel::{Document, Element, ElementId, Generated, Module, ModuleRegistry, Pt};
 
-use crate::view3d::{frame_in, WorldCtx};
+use crate::view3d::{frame_in, Camera as OrbitCamera, WorldCtx};
 
 pub const CATEGORY: &str = "coordination";
 pub const LAYER: &str = "Coordination";
@@ -20,7 +20,7 @@ const NAME: &str = "Clash tests";
 
 /// Elements that hold documents, not model geometry: they are never offered to a clash test.
 pub fn is_record(category: &str) -> bool {
-    [CATEGORY, afrobim_schedule::SCHEDULE_CATEGORY, afrobim_cost::ESTIMATE_CATEGORY, afrobim_progress::PROGRESS_CATEGORY, afrobim_design::DESIGN_CATEGORY, afrobim_design::OPTIONS_CATEGORY].contains(&category)
+    [CATEGORY, afrobim_schedule::SCHEDULE_CATEGORY, afrobim_cost::ESTIMATE_CATEGORY, afrobim_progress::PROGRESS_CATEGORY, afrobim_design::DESIGN_CATEGORY, afrobim_design::OPTIONS_CATEGORY, crate::reference_models::CATEGORY].contains(&category)
 }
 
 /// The module of the coordination element: it draws a small marker on the sheet and reports the
@@ -91,6 +91,12 @@ pub fn bodies(ctx: &WorldCtx, site_mode: bool) -> Vec<Body> {
             Some(Body::from_element(e, meshes, &frame.placement()))
         })
         .collect()
+}
+
+/// The coordination camera of a viewpoint taken from the orbit camera of the 3D view (world mm).
+pub fn viewpoint_camera(cam: &OrbitCamera) -> afrobim_coordination::Camera {
+    let (direction, up) = cam.look();
+    afrobim_coordination::Camera { position: cam.eye(), direction, up, projection: afrobim_coordination::Projection::Perspective { fov_deg: crate::view3d::FOV_DEG } }
 }
 
 /// The categories and layers of the elements a test can select from, sorted.

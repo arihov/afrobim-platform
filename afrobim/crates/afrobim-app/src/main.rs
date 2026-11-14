@@ -19,9 +19,11 @@ mod design_profile;
 mod design_ui;
 mod design_windows;
 mod icons;
+mod issues_ui;
 mod lighting_inputs;
 mod markings_glue;
 mod modules_glue;
+mod reference_models;
 mod render;
 mod ribbon;
 mod road_dialogs;
@@ -103,6 +105,15 @@ pub struct Options {
     /// Open the sheet-set manager with the add form of this template (0 plan, 1 profile, 2 sections,
     /// 3 schedule, 4 detail, 5 notes), to look at it without a pointer.
     pub sheet_form: Option<usize>,
+    /// Import this IFC file as a reference model at start-up: `path` or `path,dx,dy,dz,rotation`
+    /// (offsets in mm, rotation in degrees), to look at the result without a file dialog.
+    pub ifcref: Option<String>,
+    /// Load this IES or LDT file into the photometry window at start-up.
+    pub photometry: Option<PathBuf>,
+    /// Write the calculation report pack here (`.pdf`, `.txt` or `.csv`; the other two variants go beside it), then exit.
+    pub export_pack: Option<PathBuf>,
+    /// Take a viewpoint (camera and snapshot) of the first issue from the 3D view at start-up.
+    pub capture_viewpoint: bool,
 }
 
 fn parse_args() -> Options {
@@ -138,6 +149,10 @@ fn parse_args() -> Options {
             "--frames-step" => o.frames_step = args.next().and_then(|v| v.parse().ok()),
             "--frames-from" => o.frames_from = args.next(),
             "--frames-to" => o.frames_to = args.next(),
+            "--capture-viewpoint" => o.capture_viewpoint = true,
+            "--ifcref" => o.ifcref = args.next(),
+            "--photometry" => o.photometry = args.next().map(PathBuf::from),
+            "--export-pack" => o.export_pack = args.next().map(PathBuf::from),
             "--sheet" => o.sheet = args.next().and_then(|v| v.parse().ok()),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),
             other if !other.starts_with("--") => o.open = Some(PathBuf::from(other)),

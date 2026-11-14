@@ -68,6 +68,13 @@ pub enum Action {
     ClashResults,
     ClashMarkers,
     ClashCsv,
+    /// The Issues window.
+    Issues,
+    BcfOut,
+    BcfIn,
+    /// Import IFC files as read-only reference models.
+    IfcRef,
+    RefModels,
     // 4D
     Programme,
     Calendar,
@@ -100,6 +107,12 @@ pub enum Action {
     CheckAll,
     /// Peak flow by the rational method.
     Rational,
+    /// Sign visibility: inputs, results and drawings for the selected sign or all signs.
+    Visibility,
+    /// Photometry from an IES or LDT file for a lighting installation.
+    Photometry,
+    /// The calculation report pack (PDF, text and CSV).
+    ReportPack,
     // Construction
     SiteRecord,
     SiteLog,
@@ -198,6 +211,11 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "CLASHES", aliases: &["CLASHRESULTS"], help: "Open the clash results: filter, review, comment, assign, zoom to a clash", action: Action::ClashResults },
     CommandInfo { name: "CLASHMARKERS", aliases: &[], help: "Show or hide the clash markers in the 3D view", action: Action::ClashMarkers },
     CommandInfo { name: "CLASHCSV", aliases: &[], help: "Export the clash results as CSV", action: Action::ClashCsv },
+    CommandInfo { name: "ISSUES", aliases: &["ISSUELIST", "TOPICS"], help: "Open the issues: raise them from clashes or by hand, comment, assign, keep viewpoints from the 3D camera with a snapshot", action: Action::Issues },
+    CommandInfo { name: "BCFOUT", aliases: &["EXPORTBCF"], help: "Export the issues as BCF 2.1 (not tested in other BCF tools; BCF 3.0 is not supported)", action: Action::BcfOut },
+    CommandInfo { name: "BCFIN", aliases: &["IMPORTBCF"], help: "Import issues from a BCF 2.1 file and show what could not be carried", action: Action::BcfIn },
+    CommandInfo { name: "IFCREF", aliases: &["REFERENCEMODEL", "IMPORTIFC"], help: "Import IFC files as read-only reference models, stored by path and hash, shown in the 3D site view and usable in clash tests", action: Action::IfcRef },
+    CommandInfo { name: "REFMODELS", aliases: &["REFERENCES", "REFLIST"], help: "List the reference models: visibility, transparency, alignment offset and rotation, import report, and the properties of a picked product", action: Action::RefModels },
     CommandInfo { name: "PROGRAMME", aliases: &["ACTIVITIES", "PROG"], help: "Edit the construction programme: activities, durations, constraints and dependencies", action: Action::Programme },
     CommandInfo { name: "CALENDAR", aliases: &["WORKDAYS"], help: "Edit the programme calendar: working weekdays and the days off you enter", action: Action::Calendar },
     CommandInfo { name: "SCHEDULE", aliases: &["CPM"], help: "Run the critical path method and show dates, float, the critical path and any problems", action: Action::ScheduleRun },
@@ -234,6 +252,9 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "COSTCSV", aliases: &["COSTREPORTS"], help: "Export every cost report as CSV into a folder", action: Action::CostCsv },
     CommandInfo { name: "CHECKALL", aliases: &["CHECKMODEL", "CALCPACK"], help: "Run every check on every element and open one report: a status per element, the calculation lines, filters, CSV and a calculation pack", action: Action::CheckAll },
     CommandInfo { name: "RATIONAL", aliases: &["RUNOFF"], help: "Peak flow by the rational method from the catchment areas, runoff coefficients and intensity you enter; keep it on the selected drain or culvert", action: Action::Rational },
+    CommandInfo { name: "VISIBILITY", aliases: &["SIGHTLINE", "SIGNVISIBILITY"], help: "Sign visibility along the alignment: enter the inputs for the selected sign or all signs, run, and see the check lines with citations, the plan envelope and the sight-line profile", action: Action::Visibility },
+    CommandInfo { name: "PHOTOMETRY", aliases: &["IES", "LDT", "LUMINAIREFILE"], help: "Load an IES or LDT file for the selected lighting installation, check it and see its polar diagram, then calculate illuminance on grids you define", action: Action::Photometry },
+    CommandInfo { name: "REPORTPACK", aliases: &["CALCREPORT", "REPORTS"], help: "Compose the calculation report pack (one A4 PDF, plain text and CSV): cover, contents, design basis, every check and the summaries", action: Action::ReportPack },
     CommandInfo { name: "SITEREC", aliases: &["SITERECORD"], help: "Record percent complete or a measured quantity at a date for the selected elements, or by category, layer or mark pattern", action: Action::SiteRecord },
     CommandInfo { name: "SITELOG", aliases: &["SITERECORDS"], help: "List the site records, filtered by element and date", action: Action::SiteLog },
     CommandInfo { name: "ROLLUP", aliases: &["PROGRESSUPDATE"], help: "Roll the element records up to the activities, see the inferred actual dates, then apply the update to the programme and reschedule", action: Action::RollUp },

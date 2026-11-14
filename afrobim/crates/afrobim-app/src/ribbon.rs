@@ -115,7 +115,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
     const INSERT: &[Panel] = &[
         Panel { title: "Signs", items: &[Big(Icon::Library, "Standard signs", "LIBRARY")] },
         Panel { title: "Import", items: &[Big(Icon::Alignment, "LandXML alignments", "LANDXML"), Big(Icon::Open, "AfroBIM document", "OPEN"), Planned(Icon::Schedule, "Sign schedule", "Import a sign schedule from CSV or XML")] },
-        Panel { title: "Reference", items: &[Planned(Icon::Dxf, "DXF underlay", "Attach a DXF drawing as a background reference"), Big(Icon::Surface, "Survey surface", "SURFACE")] },
+        Panel { title: "Reference", items: &[Planned(Icon::Dxf, "DXF underlay", "Attach a DXF drawing as a background reference"), Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::RefModel, "IFC reference model", "IFCREF"), Big(Icon::RefList, "Reference models", "REFMODELS")] },
     ];
     const ANNOTATE: &[Panel] = &[
         Panel { title: "Marks", items: &[Big(Icon::Marks, "Element marks", "MARKS")] },
@@ -134,7 +134,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
         ALIGNMENT,
         Panel { title: "Markings", items: &[Big(Icon::Markings, "Road markings", "MARKINGS")] },
         Panel { title: "Drainage", items: &[Big(Icon::Drainage, "Side drain", "DRAIN"), Big(Icon::Drainage, "Pipe culvert", "CULVERT"), Big(Icon::Rational, "Rational flow", "RATIONAL"), Big(Icon::Design, "Check", "CHECK")] },
-        Panel { title: "Lighting", items: &[Big(Icon::Lighting, "Street lighting", "LIGHTING"), Big(Icon::Lighting, "Light column", "LIGHTCOLUMN")] },
+        Panel { title: "Lighting", items: &[Big(Icon::Lighting, "Street lighting", "LIGHTING"), Big(Icon::Lighting, "Light column", "LIGHTCOLUMN"), Big(Icon::Photometry, "Photometry", "PHOTOMETRY")] },
         Panel { title: "Restraint", items: &[Big(Icon::Barrier, "Road restraint", "BARRIER")] },
         Panel { title: "Pavement", items: &[Big(Icon::Pavement, "Pavement", "PAVEMENT"), Big(Icon::Design, "Pavement design", "PAVEDESIGN")] },
         Panel { title: "Earthworks", items: &[Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Corridor, "Corridor", "CORRIDOR"), Big(Icon::Section, "Sections", "SECTIONS")] },
@@ -142,7 +142,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
     const DESIGN: &[Panel] = &[
         Panel { title: "Alignment", items: &[Big(Icon::AlignDesign, "New alignment", "ALIGNDESIGN"), Big(Icon::AlignEdit, "Edit in plan", "ALIGNEDIT"), Big(Icon::PiTable, "PI table", "PITABLE"), Big(Icon::Labels, "Curve labels", "ALIGNLABELS")] },
         Panel { title: "Profile", items: &[Big(Icon::ProfileDesign, "Profile editor", "PROFILEDESIGN")] },
-        Panel { title: "Checks", items: &[Big(Icon::AlignCheck, "Design checks", "ALIGNCHECK"), Big(Icon::CheckAll, "Check the model", "CHECKALL")] },
+        Panel { title: "Checks", items: &[Big(Icon::AlignCheck, "Design checks", "ALIGNCHECK"), Big(Icon::CheckAll, "Check the model", "CHECKALL"), Big(Icon::Visibility, "Sign visibility", "VISIBILITY")] },
         Panel { title: "Options", items: &[Big(Icon::Options, "Options", "OPTIONS")] },
         Panel {
             title: "Exchange",
@@ -159,6 +159,8 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Run", items: &[Big(Icon::Clash, "Run tests", "CLASH"), Big(Icon::ClashList, "Results", "CLASHES")] },
         Panel { title: "Display", items: &[Big(Icon::Marker, "Clash markers", "CLASHMARKERS")] },
         Panel { title: "Report", items: &[Big(Icon::Csv, "Export clashes", "CLASHCSV")] },
+        Panel { title: "Issues", items: &[Big(Icon::Issue, "Issues", "ISSUES"), Big(Icon::BcfOut, "BCF export", "BCFOUT"), Big(Icon::BcfIn, "BCF import", "BCFIN")] },
+        Panel { title: "Reference models", items: &[Big(Icon::RefModel, "IFC reference", "IFCREF"), Big(Icon::RefList, "Models", "REFMODELS")] },
     ];
     const FOURD: &[Panel] = &[
         Panel { title: "Programme", items: &[Big(Icon::Activities, "Activities", "PROGRAMME"), Big(Icon::Wbs, "WBS", "WBS"), Big(Icon::Calendar, "Calendar", "CALENDAR"), Big(Icon::Schedule, "Schedule", "SCHEDULE"), Big(Icon::CriticalPath, "Critical basis", "CRITICAL")] },
@@ -191,6 +193,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
             title: "Sheets",
             items: &[Big(Icon::SheetSet, "Sheet sets", "SHEETSET"), Big(Icon::Real, "Preview", "SHEETPREVIEW"), Big(Icon::TitleBlock, "Title block", "TITLEBLOCK"), Big(Icon::Pdf, "Sheets PDF", "SHEETPDF"), Big(Icon::Dxf, "Sheets DXF", "SHEETDXF")],
         },
+        Panel { title: "Reports", items: &[Big(Icon::ReportPack, "Report pack", "REPORTPACK")] },
         Panel { title: "Document", items: &[Big(Icon::Save, "Save", "SAVE"), Big(Icon::SaveAs, "Save as", "SAVEAS"), Big(Icon::Quit, "Quit", "QUIT")] }];
     const MANAGE: &[Panel] = &[
         STANDARD,
@@ -438,6 +441,7 @@ pub fn show(ui: &mut Ui, tab: &mut Tab, standard: &str, signs_ready: bool, is_on
                     }
                     panel(ui, "Catalogue", &mut pick, is_on, |ui, pick, on| items(ui, &[Big(Icon::Library, "Standard signs", "LIBRARY")], pick, on));
                 });
+                panel(ui, "Visibility", &mut pick, is_on, |ui, pick, on| items(ui, &[Big(Icon::Visibility, "Sign visibility", "VISIBILITY")], pick, on));
                 panel(ui, STANDARD.title, &mut pick, is_on, |ui, pick, on| items(ui, STANDARD.items, pick, on));
                 panel(ui, "Fabrication", &mut pick, is_on, |ui, pick, on| items(ui, &[Big(Icon::Quantities, "Quantities", "QUANTITIES"), Big(Icon::Sheets, "Fabrication sheets", "SHEETS")], pick, on));
             } else {

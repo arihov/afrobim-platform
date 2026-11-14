@@ -47,6 +47,8 @@ impl Default for Camera {
 
 /// Vertical field of view.
 const FOV: f64 = 0.61; // 35°
+/// The same, in degrees, for saved viewpoints.
+pub const FOV_DEG: f64 = 0.61 * 180.0 / std::f64::consts::PI;
 const NEAR: f64 = 1.0;
 
 impl Camera {
@@ -77,6 +79,21 @@ impl Camera {
         let focal = viewport.height() as f64 / (2.0 * (FOV / 2.0).tan());
         let c = viewport.center();
         Some((pos2((c.x as f64 + dot(d, right) / z * focal) as f32, (c.y as f64 - dot(d, up) / z * focal) as f32), z))
+    }
+
+    /// The viewing direction (unit) and the up vector of the view, world axes.
+    pub fn look(&self) -> (V3, V3) {
+        let (_, up, forward) = self.basis();
+        (forward, up)
+    }
+
+    /// Looks from `position` along `direction`, with the orbit target `distance` ahead.
+    pub fn set_look(&mut self, position: V3, direction: V3, distance: f64) {
+        let d = norm(direction);
+        self.distance = distance.clamp(50.0, 5.0e9);
+        self.target = [position[0] + d[0] * self.distance, position[1] + d[1] * self.distance, position[2] + d[2] * self.distance];
+        self.pitch = (-d[2]).clamp(-1.0, 1.0).asin().clamp(-1.45, 1.45);
+        self.yaw = (-d[1]).atan2(-d[0]);
     }
 
     pub fn orbit(&mut self, dx_px: f64, dy_px: f64) {
@@ -339,7 +356,7 @@ impl AfroBimApp {
     }
 
     /// World-space corners of everything the current mode shows, for framing and the ground grid.
-    fn shown_points(&self, site_mode: bool) -> Vec<V3> {
+    pub(crate) fn shown_points(&self, site_mode: bool) -> Vec<V3> {
         let mut points = Vec::new();
         for e in self.doc.elements() {
             if e.category == crate::alignment_glue::CATEGORY {
@@ -365,6 +382,9 @@ impl AfroBimApp {
             } else {
                 points.extend([frame.at(0.0, 0.0, 0.0), frame.at(e.width, 0.0, e.height)]);
             }
+        }
+        if let Some((lo, hi)) = self.refs.world_bounds() {
+            points.extend([lo, hi]);
         }
         points
     }
@@ -407,6 +427,12 @@ impl AfroBimApp {
         }
         if response.double_clicked() {
             self.fit_3d();
+        } else if response.clicked() {
+            if let Some(at) = response.interact_pointer_pos() {
+                if let Some(hit) = self.refs.pick(&self.camera, rect, at) {
+                    self.refs.picked = Some(hit);
+                }
+            }
         }
 
         self.sync_generated();
@@ -580,6 +606,7 @@ impl AfroBimApp {
             }
             items.push((depth, shapes));
         }
+        self.refs.draw(cam, rect, dark, &mut items);
         items.sort_by(|a, b| b.0.total_cmp(&a.0));
         for (_, shapes) in items {
             painter.extend(shapes);

@@ -129,6 +129,11 @@ impl CoordUi {
         }
     }
 
+    /// Records that the document's coordination data is what this copy holds.
+    pub fn mark_loaded(&mut self, doc: &afrobim_kernel::Document) {
+        self.loaded = doc.elements().iter().find(|e| e.category == glue::CATEGORY).map(|e| e.data.clone()).unwrap_or_default();
+    }
+
     /// The clashes a marker is drawn for: those still live.
     pub fn marked(&self) -> impl Iterator<Item = &Clash> {
         self.co.results.clashes.iter().filter(|c| matches!(c.status, Status::New | Status::Active | Status::Reviewed))
@@ -184,11 +189,13 @@ impl AfroBimApp {
             return;
         }
         let site_mode = self.site_mode();
-        let bodies = {
+        let mut bodies = {
             let solids = |id: ElementId| self.meshes_by_id(id);
             let origin = |id: ElementId| self.corridor_cache.get(&id)?.solids.as_ref().ok().map(|s| s.origin);
             glue::bodies(&WorldCtx { doc: &self.doc, solids_of: &solids, corridor_origin: &origin }, site_mode)
         };
+        // Reference models read from IFC take part as bodies of category `reference:<model>`.
+        bodies.extend(self.refs.bodies());
         let n = bodies.len();
         let scene = Scene::new(bodies);
         let stats = self.coord.co.run(&scene);
@@ -258,6 +265,7 @@ impl AfroBimApp {
             let mut add = false;
             crate::win::new(ctx, "Clash tests").open(&mut open).default_width(760.0).show(ctx, |ui| {
                 ui.set_min_width(720.0);
+                ui.label(RichText::new("Reference models appear in the selections as categories 'reference:<model>' (pick one model) and by their IFC entity type under layers (for example IFCWALL).").small().weak());
                 ui.label(RichText::new("A test checks one selection of elements against another. Hard tests find solids that overlap; clearance tests find solids closer than the tolerance you enter. AfroBIM offers no tolerances: they come from your project requirements.").small().weak());
                 ui.add_space(4.0);
                 if self.coord.co.tests.is_empty() {
@@ -315,7 +323,14 @@ impl AfroBimApp {
 
         // ── the add / edit form ──
         if let Some(mut form) = self.coord.form.take() {
-            let (cats, layers) = glue::selectable(&self.doc);
+            let (mut cats, mut layers) = glue::selectable(&self.doc);
+            let (ref_cats, ref_layers) = self.refs.selectable();
+            cats.extend(ref_cats);
+            for l in ref_layers {
+                if !layers.contains(&l) {
+                    layers.push(l);
+                }
+            }
             let (mut keep, mut save) = (true, false);
             crate::win::new(ctx, if form.index.is_some() { "Edit clash test" } else { "Add a clash test" }).collapsible(false).resizable(false).default_width(560.0).show(ctx, |ui| {
                 egui::Grid::new("clash-form").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {

@@ -246,3 +246,25 @@ fn add_clash_tests(doc: &mut Document) -> Result<(), String> {
     co.tests.push(ClashTest::clearance("Demo clearance: lighting against barrier", Selection::category(afrobim_lighting::CATEGORY), Selection::category(afrobim_restraint::CATEGORY), 3000.0));
     crate::coordination_glue::store(doc, &co).map(|_| ())
 }
+
+/// One demo issue with a viewpoint, so the Issues window has something to show. **Everything in it
+/// is made up for the demo**: the title and comment say so, and the 6 m viewing distance is an
+/// arbitrary choice. It is raised from the first clash when there is one.
+pub fn add_issue(co: &mut Coordination) -> Option<String> {
+    let author = "Demo author (made up)";
+    let now = crate::issues_ui::now_unix();
+    let guid = match co.results.clashes.first().map(|c| c.id.clone()) {
+        Some(id) => co.raise_issue_from_clash(&id, author, now)?,
+        None => co.new_issue("DEMO issue", author, now).guid.clone(),
+    };
+    let issue = co.issue_mut(&guid)?;
+    issue.title = format!("DEMO (made up): {}", issue.title);
+    issue.description = format!("Demo issue made for --demo, not a review finding. {}", issue.description);
+    issue.assignee = "Demo assignee (made up)".into();
+    issue.add_comment(author, now, "Demo comment. Nothing here is a real finding.");
+    if issue.location.is_none() {
+        issue.location = Some([0.0, 0.0, 0.0]);
+    }
+    issue.add_location_viewpoint([-1.0, -1.0, 0.6], 6000.0, afrobim_coordination::Projection::Perspective { fov_deg: crate::view3d::FOV_DEG });
+    Some(guid)
+}
