@@ -134,8 +134,27 @@ impl Frame {
 
 /// Categories whose solids are modelled directly in site coordinates (X east, Y north, Z up from
 /// their site placement) and are shown only in the 3D site view, never on the design sheet.
+///
+/// That includes lighting, restraint, pavement and corridors (through `modules_glue::owns`) and
+/// ground surfaces. A corridor has no solids of its own: its surfaces are built from the
+/// corridor and cached by the app (`AfroBimApp::corridor_cache`).
 pub(crate) fn is_site_solid(category: &str) -> bool {
-    category == crate::markings_glue::CATEGORY || crate::modules_glue::owns(category)
+    category == crate::markings_glue::CATEGORY || crate::modules_glue::owns(category) || crate::modules_glue::is_surface(category)
+}
+
+/// The alignment's centreline as site points in millimetres, at the profile's level where the
+/// alignment has one (held at the end levels beyond the profile's ends) and at zero where not.
+fn centreline_points(a: &afrobim_alignment::Alignment, step_m: f64) -> Vec<V3> {
+    let (start, end) = (a.start_station_m, a.end_station_m());
+    let steps = (((end - start) / step_m).ceil() as usize).clamp(1, 20_000);
+    (0..=steps)
+        .filter_map(|i| {
+            let s = start + (end - start) * i as f64 / steps as f64;
+            let p = a.point_at(s)?;
+            let z = a.profile.as_ref().and_then(|profile| profile.range().and_then(|(lo, hi)| profile.elevation_at(s.clamp(lo, hi)).ok())).unwrap_or(0.0);
+            Some([p.x * 1000.0, p.y * 1000.0, z * 1000.0])
+        })
+        .collect()
 }
 
 impl AfroBimApp {
@@ -170,6 +189,11 @@ impl AfroBimApp {
         if is_site_solid(&e.category) {
             // Modelled for the site: shown in the site view only, in the frame of the placement.
             let s = e.site.as_ref().filter(|_| site_mode)?;
+            if e.category == afrobim_corridor::CORRIDOR_CATEGORY {
+                // The built surfaces have their own origin (the least plan point of the sections).
+                let built = self.corridor_cache.get(&e.id)?.solids.as_ref().ok()?;
+                return Some(Frame { origin: built.origin, cos: 1.0, sin: 0.0 });
+            }
             let (sin, cos) = s.rotation_deg.to_radians().sin_cos();
             return Some(Frame { origin: [s.x, s.y, s.z], cos, sin });
         }
@@ -198,14 +222,36 @@ impl AfroBimApp {
         Some(Frame { origin: [sign.origin.x + u - max_x / 2.0, setback - max_y / 2.0, sign.origin.y - mounting], cos: 1.0, sin: 0.0 })
     }
 
+    /// The meshes an element is shown with in 3D: its generated solids, or for a corridor the
+    /// surfaces built from it.
+    fn meshes_of(&self, e: &afrobim_kernel::Element) -> Option<&[afrobim_draw::Mesh3]> {
+        if e.category == afrobim_corridor::CORRIDOR_CATEGORY {
+            return self.corridor_cache.get(&e.id)?.solids.as_ref().ok().map(|s| s.meshes.as_slice());
+        }
+        self.cache.get(&e.id)?.generated.as_ref().ok().map(|g| g.solids.as_slice())
+    }
+
+    /// Lowest and highest world corner of an element's meshes in its frame, for framing.
+    fn mesh_bounds(&self, e: &afrobim_kernel::Element, frame: Frame) -> Option<(V3, V3)> {
+        let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+        for v in self.meshes_of(e)?.iter().flat_map(|m| m.vertices.iter()) {
+            let p = frame.at(v[0], v[1], v[2]);
+            for i in 0..3 {
+                lo[i] = lo[i].min(p[i]);
+                hi[i] = hi[i].max(p[i]);
+            }
+        }
+        (lo[0] <= hi[0]).then_some((lo, hi))
+    }
+
     /// The triangles of a support's solids, flat-shaded, each with its own view depth.
     fn support_triangles(&self, e: &afrobim_kernel::Element, frame: Frame, rect: Rect, items: &mut Vec<(f64, Vec<Shape>)>) {
-        let Some(Ok(generated)) = self.cache.get(&e.id).map(|c| c.generated.as_ref()) else { return };
+        let Some(solids) = self.meshes_of(e) else { return };
         let cam = &self.camera;
         let light = norm([-0.35, -0.75, 0.55]);
         let selected = self.doc.is_selected(e.id);
         let both_sides = is_site_solid(&e.category);
-        for mesh in &generated.solids {
+        for mesh in solids {
             for t in &mesh.triangles {
                 let p: Vec<V3> = t.iter().map(|i| mesh.vertices[*i as usize]).map(|v| frame.at(v[0], v[1], v[2])).collect();
                 let normal = norm(cross(sub(p[1], p[0]), sub(p[2], p[0])));
@@ -248,14 +294,18 @@ impl AfroBimApp {
                 let used = self.doc.elements().iter().any(|x| x.site.as_ref().and_then(|p| p.alignment.as_deref()) == Some(e.name.as_str()));
                 if site_mode && used {
                     if let Some(a) = crate::alignment_glue::alignment_of(&self.doc, e.id) {
-                        points.extend(a.polyline(50.0).into_iter().map(|(x, y)| [x * 1000.0, y * 1000.0, 0.0]));
+                        points.extend(centreline_points(&a, 50.0));
                     }
                 }
                 continue;
             }
             let Some(frame) = self.frame_of(e, site_mode) else { continue };
             if is_site_solid(&e.category) {
-                points.extend([frame.at(0.0, 0.0, 0.0), frame.at(e.width, e.height, 0.0)]);
+                // The corners of the solids themselves, so that levels well above zero are framed.
+                match self.mesh_bounds(e, frame) {
+                    Some((lo, hi)) => points.extend([lo, hi]),
+                    None => points.extend([frame.at(0.0, 0.0, 0.0), frame.at(e.width, e.height, 0.0)]),
+                }
             } else if crate::supports_glue::is_support(&e.category) {
                 points.push(frame.at(0.0, 0.0, 0.0));
             } else {
@@ -314,6 +364,16 @@ impl AfroBimApp {
         if let Some(mark) = self.options.focus.clone() {
             let site_mode = self.site_mode();
             if let Some((frame, e)) = self.doc.elements().iter().find(|e| e.name == mark).and_then(|e| self.frame_of(e, site_mode).map(|f| (f, e))) {
+                if is_site_solid(&e.category) {
+                    // A site element: frame its solids, looking at them from the south-east above.
+                    if let Some((lo, hi)) = self.mesh_bounds(e, frame) {
+                        let centre = [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, (lo[2] + hi[2]) / 2.0];
+                        self.camera.yaw = (-60.0f64).to_radians();
+                        self.camera.pitch = 30.0f64.to_radians();
+                        self.camera.fit_sphere(centre, dot(sub(hi, lo), sub(hi, lo)).sqrt() / 2.0);
+                        return;
+                    }
+                }
                 let centre = frame.at(e.width / 2.0, 0.0, e.height / 2.0);
                 // Look at the face from in front of it, a little to one side.
                 let facing = frame.facing();
@@ -364,7 +424,7 @@ impl AfroBimApp {
         }
         // Ground grid: at site level 0, or just below the lowest element of the upright sheet.
         // A depth cue, not a surveyed surface. The step grows so there are never too many lines.
-        let ground = if site_mode { 0.0 } else { lo[2] - 300.0 };
+        let ground = if site_mode && !points.is_empty() { lo[2] } else if site_mode { 0.0 } else { lo[2] - 300.0 };
         let span = (hi[0] - lo[0]).max(hi[1] - lo[1]).max(4000.0);
         let mut step = 1000.0;
         while span / step > 40.0 {
@@ -398,22 +458,7 @@ impl AfroBimApp {
                     if let Some(a) = crate::alignment_glue::alignment_of(&self.doc, e.id) {
                         let centre = Stroke::new(2.0_f32, Color32::from_rgb(0xE8, 0xC5, 0x47));
                         // At the profile's level where the alignment has one, else on z = 0.
-                        let (start, end) = (a.start_station_m, a.end_station_m());
-                        let steps = (((end - start) / 5.0).ceil() as usize).clamp(1, 20_000);
-                        let pts: Vec<[f64; 3]> = (0..=steps)
-                            .filter_map(|i| {
-                                let s = start + (end - start) * i as f64 / steps as f64;
-                                let p = a.point_at(s)?;
-                                // Beyond the profile's ends the line is shown at the end level, so
-                                // that it does not drop to zero.
-                                let z = a
-                                    .profile
-                                    .as_ref()
-                                    .and_then(|profile| profile.range().and_then(|(lo, hi)| profile.elevation_at(s.clamp(lo, hi)).ok()))
-                                    .unwrap_or(0.0);
-                                Some([p.x * 1000.0, p.y * 1000.0, z * 1000.0])
-                            })
-                            .collect();
+                        let pts = centreline_points(&a, 5.0);
                         for w in pts.windows(2) {
                             line(w[0], w[1], centre);
                         }

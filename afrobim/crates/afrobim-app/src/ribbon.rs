@@ -105,7 +105,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
     const INSERT: &[Panel] = &[
         Panel { title: "Signs", items: &[Big(Icon::Library, "Standard signs", "LIBRARY")] },
         Panel { title: "Import", items: &[Big(Icon::Alignment, "LandXML alignments", "LANDXML"), Big(Icon::Open, "AfroBIM document", "OPEN"), Planned(Icon::Schedule, "Sign schedule", "Import a sign schedule from CSV or XML")] },
-        Panel { title: "Reference", items: &[Planned(Icon::Dxf, "DXF underlay", "Attach a DXF drawing as a background reference"), Planned(Icon::Terrain, "Survey surface", "Import a ground surface from LandXML or points")] },
+        Panel { title: "Reference", items: &[Planned(Icon::Dxf, "DXF underlay", "Attach a DXF drawing as a background reference"), Big(Icon::Surface, "Survey surface", "SURFACE")] },
     ];
     const ANNOTATE: &[Panel] = &[
         Panel { title: "Marks", items: &[Big(Icon::Marks, "Element marks", "MARKS")] },
@@ -124,16 +124,10 @@ fn panels(tab: Tab) -> &'static [Panel] {
         ALIGNMENT,
         Panel { title: "Markings", items: &[Big(Icon::Markings, "Road markings", "MARKINGS")] },
         Panel { title: "Drainage", items: &[Big(Icon::Drainage, "Side drain", "DRAIN"), Big(Icon::Drainage, "Pipe culvert", "CULVERT"), Big(Icon::Design, "Check", "CHECK")] },
-        Panel {
-            title: "Road modules",
-            items: &[
-
-                Planned(Icon::Barrier, "Road restraint", "Safety barriers and guardrails along an alignment"),
-                Planned(Icon::Lighting, "Street lighting", "Columns and luminaires by station"),
-                Planned(Icon::Pavement, "Pavement", "Pavement layers and quantities"),
-                Planned(Icon::Terrain, "Corridor", "Cross-sections and earthworks along an alignment"),
-            ],
-        },
+        Panel { title: "Lighting", items: &[Big(Icon::Lighting, "Street lighting", "LIGHTING"), Small(Icon::Lighting, "Light column", "LIGHTCOLUMN")] },
+        Panel { title: "Restraint", items: &[Big(Icon::Barrier, "Road restraint", "BARRIER")] },
+        Panel { title: "Pavement", items: &[Big(Icon::Pavement, "Pavement", "PAVEMENT"), Big(Icon::Design, "Pavement design", "PAVEDESIGN")] },
+        Panel { title: "Earthworks", items: &[Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Corridor, "Corridor", "CORRIDOR"), Big(Icon::Section, "Sections", "SECTIONS")] },
     ];
     const STRUCTURES: &[Panel] = &[SUPPORTS, Panel { title: "Gantries", items: &[Big(Icon::Barrier, "Portal gantry", "GANTRY"), Big(Icon::Barrier, "Cantilever gantry", "CANTILEVER"), Big(Icon::Station, "Hang sign", "HANG"), Small(Icon::NoSupports, "Take sign off", "UNHANG"), Small(Icon::Design, "Check", "CHECK")] }, Panel { title: "Structure modules", items: &[Planned(Icon::Clash, "Clash check", "Find elements that occupy the same space")] }];
     const OUTPUT: &[Panel] = &[EXPORT, Panel { title: "Document", items: &[Big(Icon::Save, "Save", "SAVE"), Big(Icon::SaveAs, "Save as", "SAVEAS"), Big(Icon::Quit, "Quit", "QUIT")] }];

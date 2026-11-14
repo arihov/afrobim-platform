@@ -9,6 +9,8 @@ mod markings_glue;
 mod modules_glue;
 mod render;
 mod ribbon;
+mod road_dialogs;
+mod road_glue;
 mod signs_glue;
 mod supports_glue;
 mod view3d;

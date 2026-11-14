@@ -1,15 +1,22 @@
 //! Road modules that share one pattern in the app: an element is added on an alignment with
 //! placeholder dimensions, edited in Properties, checked, measured, and shown in the 3D site
-//! view from its solids. Drainage (side drains, pipe culverts) and gantries are wired here.
+//! view from its solids. Drainage (side drains, pipe culverts) and gantries are wired here, with
+//! the keeping-in-step, check and quantity hooks of street lighting, road restraint, pavement and
+//! corridors. Those four have no placeholder definition, so they are added from their own
+//! dialogs (see `road_glue`) with values the engineer enters.
 //!
 //! Nothing in this file holds an engineering value: the crates behind it do, with citations.
 
 use afrobim_alignment::Alignment;
+use afrobim_corridor as corridor;
 use afrobim_drainage::{self as drainage, design::DesignBasis};
 use afrobim_gantry::{self as gantry, GantryDefinition, SignPosition};
 use afrobim_kernel::{Document, ElementId, ModuleRegistry};
+use afrobim_lighting as lighting;
+use afrobim_pavement as pavement;
+use afrobim_restraint as restraint;
 
-use crate::alignment_glue;
+use crate::{alignment_glue, road_glue};
 
 /// One kind of element this glue can add.
 pub struct Kind {
@@ -32,17 +39,60 @@ pub fn register(modules: &mut ModuleRegistry) {
     modules.register(Box::new(drainage::SideDrainModule::default()));
     modules.register(Box::new(drainage::PipeCulvertModule::default()));
     modules.register(Box::new(gantry::GantryModule));
+    modules.register(Box::new(lighting::LightingModule));
+    modules.register(Box::new(restraint::RestraintModule));
+    modules.register(Box::new(pavement::PavementModule::default()));
+    modules.register(Box::new(corridor::SurfaceModule::default()));
+    modules.register(Box::new(corridor::CorridorModule));
 }
 
 /// Categories whose elements are edited with the generic definition editor and drawn in the 3D
 /// site view from their solids, in the frame of their site placement.
 pub fn owns(category: &str) -> bool {
-    [drainage::DRAIN_CATEGORY, drainage::CULVERT_CATEGORY, gantry::GANTRY_CATEGORY].contains(&category)
+    [
+        drainage::DRAIN_CATEGORY,
+        drainage::CULVERT_CATEGORY,
+        gantry::GANTRY_CATEGORY,
+        lighting::CATEGORY,
+        restraint::CATEGORY,
+        pavement::PAVEMENT_CATEGORY,
+        corridor::CORRIDOR_CATEGORY,
+    ]
+    .contains(&category)
+}
+
+/// A ground surface: shown in the 3D site view from its mesh, never edited as a definition (its
+/// data is the whole TIN).
+pub fn is_surface(category: &str) -> bool {
+    category == corridor::SURFACE_CATEGORY
 }
 
 /// Keys of a definition that the generic editor leaves alone: caches and records the crates
-/// maintain themselves.
-pub const HIDDEN_KEYS: [&str; 6] = ["placeholder", "route", "geometry", "signs", "reference_level_m", "alignment"];
+/// maintain themselves (a lighting element's computed layout, a barrier run's resolved
+/// geometry, a corridor's summary and its element references).
+pub const HIDDEN_KEYS: [&str; 10] = ["placeholder", "route", "geometry", "signs", "reference_level_m", "alignment", "layout", "resolved", "computed", "surface"];
+
+/// The words a text field of a definition may take, where the field is a choice among named
+/// values. Typing them freely would leave the definition unreadable between keystrokes.
+pub fn choices(key: &str) -> Option<Vec<String>> {
+    let names = |list: &[&str]| Some(list.iter().map(|s| s.to_string()).collect());
+    match key {
+        "arrangement" => names(&["SingleLeft", "SingleRight", "Staggered", "Opposite", "TwinCentral"]),
+        "end_treatment" => names(&["KeepSpacing", "ColumnAtEnd", "EqualiseSpacing"]),
+        "first_side" => names(&["Left", "Right", "Central"]),
+        "low_side" => names(&["Left", "Right"]),
+        "traffic_face" => names(&["left", "right", "both"]),
+        "containment" => Some(restraint::ContainmentLevel::ALL.iter().map(|c| c.label().to_string()).collect()),
+        "working_width" => Some(restraint::WorkingWidthClass::ALL.iter().map(|c| c.label().to_string()).collect()),
+        "impact_severity" => names(&["A", "B", "C"]),
+        "material" => names(&["SurfaceDressing", "HotMixAsphalt", "GranularBase", "CementedBase", "BituminousBase", "GranularSubbase", "CementedSubbase", "CementedUpperSubbase", "SelectedLayer"]),
+        _ => None,
+    }
+}
+
+/// Text fields that name a variant which cannot be changed by typing (the variant carries its own
+/// fields). They are shown, not edited.
+pub const READ_ONLY_KEYS: [&str; 6] = ["crossfall_shape", "start_end", "end_end", "kind", "layers", "aim"];
 
 fn alignment_for(doc: &Document, id: ElementId) -> Result<Alignment, String> {
     alignment_glue::alignment_of(doc, id).ok_or_else(|| "That alignment cannot be read.".to_string())
@@ -87,16 +137,39 @@ pub fn after_edit(doc: &mut Document, id: ElementId) -> Option<String> {
         let problems = drainage::sync_drainage(doc);
         return (!problems.is_empty()).then(|| problems.join(" "));
     }
-    None
+    let refreshed = match category.as_str() {
+        c if c == lighting::CATEGORY => road_glue::refresh_lighting(doc, id),
+        c if c == restraint::CATEGORY => road_glue::refresh_restraint(doc, id),
+        c if c == pavement::PAVEMENT_CATEGORY => road_glue::refresh_pavement(doc, id),
+        c if c == corridor::CORRIDOR_CATEGORY => road_glue::refresh_corridor(doc, id),
+        _ => Ok(()),
+    };
+    refreshed.err()
 }
 
 /// Re-synchronises everything this glue owns, e.g. after alignments were imported again.
-pub fn sync_all(doc: &mut Document) {
-    let _ = drainage::sync_drainage(doc);
-    let gantries: Vec<ElementId> = doc.elements().iter().filter(|e| e.category == gantry::GANTRY_CATEGORY).map(|e| e.id).collect();
-    for id in gantries {
-        let _ = after_edit(doc, id);
+/// Returns what could not be brought up to date and why.
+pub fn sync_all(doc: &mut Document) -> Vec<String> {
+    let mut problems = drainage::sync_drainage(doc);
+    let ids: Vec<(ElementId, String)> = doc
+        .elements()
+        .iter()
+        .filter(|e| [gantry::GANTRY_CATEGORY, lighting::CATEGORY, pavement::PAVEMENT_CATEGORY, corridor::CORRIDOR_CATEGORY].contains(&e.category.as_str()))
+        .map(|e| (e.id, e.name.clone()))
+        .collect();
+    for (id, name) in ids {
+        if let Some(why) = after_edit(doc, id) {
+            problems.push(format!("{name}: {why}"));
+        }
     }
+    // The restraint crate synchronises all its runs at once.
+    for (id, result) in restraint::sync_barrier_runs(doc) {
+        if let Err(why) = result {
+            problems.push(format!("{}: {why}", doc.find(id).map(|e| e.name.clone()).unwrap_or_default()));
+        }
+    }
+    pavement::sync_alignments(doc);
+    problems
 }
 
 /// What the CHECK command can do with the selected element.
@@ -105,6 +178,10 @@ pub enum Check {
     None,
     /// A side drain: the check needs a design flow and a basis.
     DrainFlow,
+    /// A barrier run: the check needs the speed limit.
+    RestraintSpeed,
+    /// A pavement: it is checked by running a design method (PAVEDESIGN).
+    PavementDesign,
     /// The calculation, line by line, or why it could not be made.
     Lines(Result<Vec<String>, String>),
 }
@@ -113,6 +190,15 @@ pub fn check(doc: &Document, id: ElementId) -> Check {
     let Some(e) = doc.find(id) else { return Check::None };
     if e.category == drainage::DRAIN_CATEGORY {
         return Check::DrainFlow;
+    }
+    if e.category == lighting::CATEGORY {
+        return Check::Lines(road_glue::check_lighting(doc, id));
+    }
+    if e.category == restraint::CATEGORY {
+        return Check::RestraintSpeed;
+    }
+    if e.category == pavement::PAVEMENT_CATEGORY {
+        return Check::PavementDesign;
     }
     if e.category == gantry::GANTRY_CATEGORY {
         let run = || -> Result<Vec<String>, String> {
@@ -133,21 +219,24 @@ pub fn check_drain(doc: &Document, id: ElementId, dmrb: bool, flow_m3_s: f64) ->
     Ok(def.check_capacity(basis, flow_m3_s, None).map_err(|e| e.to_string())?.calculation())
 }
 
-/// Quantity CSVs of everything this glue owns: (file suffix, contents).
-pub fn quantities(doc: &Document) -> Vec<(&'static str, String)> {
-    let mut out = Vec::new();
+/// Quantity CSVs of everything this glue owns: (file suffix, contents), and the elements that
+/// could not be measured with the reason.
+pub fn quantities(doc: &Document) -> (Vec<(String, String)>, Vec<String>) {
+    let mut out: Vec<(String, String)> = Vec::new();
     let q = drainage::measure_document(doc);
     if !q.drains.is_empty() {
-        out.push(("drains.csv", drainage::drains_to_csv(&q.drains)));
+        out.push(("drains.csv".into(), drainage::drains_to_csv(&q.drains)));
     }
     if !q.culverts.is_empty() {
-        out.push(("culverts.csv", drainage::culverts_to_csv(&q.culverts)));
+        out.push(("culverts.csv".into(), drainage::culverts_to_csv(&q.culverts)));
     }
     let (rows, _) = gantry::GantryQuantities::measure_all(doc.elements());
     if !rows.is_empty() {
-        out.push(("gantries.csv", gantry::gantries_to_csv(&rows)));
+        out.push(("gantries.csv".into(), gantry::gantries_to_csv(&rows)));
     }
-    out
+    let (more, problems) = road_glue::quantities(doc);
+    out.extend(more);
+    (out, problems)
 }
 
 // ─── signs on gantries ──────────────────────────────────────────────────────────────────

@@ -41,6 +41,19 @@ pub enum Action {
     /// Add the road element with this index in `modules_glue::KINDS`.
     AddRoadElement(u8),
     CheckElement,
+    /// Street lighting: an installation along an alignment, or a single column.
+    AddLighting,
+    AddLightColumn,
+    /// A safety barrier run along an alignment.
+    AddBarrier,
+    AddPavement,
+    /// Run a pavement design method (MoWT, UK DMRB or AASHTO 1993).
+    PavementDesign,
+    /// Import ground surfaces from LandXML.
+    ImportSurface,
+    AddCorridor,
+    /// Cross-sections of the selected corridor.
+    ShowSections,
     HangSign,
     UnhangSign,
     DesignSupports,
@@ -104,7 +117,15 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "CULVERT", aliases: &[], help: "Add a pipe culvert across an alignment at a station, with placeholder dimensions to edit", action: Action::AddRoadElement(1) },
     CommandInfo { name: "GANTRY", aliases: &["PORTAL"], help: "Add a portal sign gantry at a station, with placeholder dimensions to edit", action: Action::AddRoadElement(2) },
     CommandInfo { name: "CANTILEVER", aliases: &[], help: "Add a cantilever sign gantry at a station, with placeholder dimensions to edit", action: Action::AddRoadElement(3) },
-    CommandInfo { name: "CHECK", aliases: &["VERIFY"], help: "Run the requirement or capacity check of the selected gantry or drain", action: Action::CheckElement },
+    CommandInfo { name: "CHECK", aliases: &["VERIFY"], help: "Run the check of the selected gantry, drain, street lighting, barrier run or pavement (the pavement check is a design method)", action: Action::CheckElement },
+    CommandInfo { name: "LIGHTING", aliases: &["LIGHTS", "STREETLIGHTING"], help: "Lay a street lighting installation along an alignment (spacing, arrangement and the column are entered)", action: Action::AddLighting },
+    CommandInfo { name: "LIGHTCOLUMN", aliases: &["COLUMN"], help: "Place one lighting column at a station and offset on an alignment", action: Action::AddLightColumn },
+    CommandInfo { name: "BARRIER", aliases: &["RESTRAINT"], help: "Add a safety barrier run along an alignment (containment, working width and impact severity are entered)", action: Action::AddBarrier },
+    CommandInfo { name: "PAVEMENT", aliases: &["PAVE"], help: "Add a pavement along an alignment: width, cross-fall and a list of layers", action: Action::AddPavement },
+    CommandInfo { name: "PAVEDESIGN", aliases: &["PAVEMENTDESIGN"], help: "Design a pavement structure by the MoWT manual, UK DMRB or AASHTO 1993, and make a pavement from the layers", action: Action::PavementDesign },
+    CommandInfo { name: "SURFACE", aliases: &["TIN", "TERRAIN"], help: "Import ground surfaces (TIN) from a LandXML file", action: Action::ImportSurface },
+    CommandInfo { name: "CORRIDOR", aliases: &[], help: "Build a corridor on an alignment and a surface: a typical section, cut and fill, earthworks", action: Action::AddCorridor },
+    CommandInfo { name: "SECTIONS", aliases: &["XSECTIONS"], help: "Show the cross-sections of the selected corridor, station by station", action: Action::ShowSections },
     CommandInfo { name: "HANG", aliases: &["GANTRYSIGN"], help: "Hang the selected sign on a gantry", action: Action::HangSign },
     CommandInfo { name: "UNHANG", aliases: &[], help: "Take the selected sign off its gantry", action: Action::UnhangSign },
     CommandInfo { name: "SUPPORTS", aliases: &["POSTS"], help: "Add posts and foundations to the selected sign", action: Action::AddSupports },
