@@ -46,6 +46,9 @@ pub struct Options {
     pub focus: Option<String>,
     /// Write quantities and fabrication sheets for the starting model into this folder, then exit.
     pub export_sheets: Option<PathBuf>,
+    /// Run this command once at start-up, on the element named by `--focus` when there is one
+    /// (to look at a dialog or window without a pointer).
+    pub run: Option<String>,
 }
 
 fn parse_args() -> Options {
@@ -63,6 +66,7 @@ fn parse_args() -> Options {
             "--export-ifc" => o.export_ifc = args.next().map(PathBuf::from),
             "--landxml" => o.landxml = args.next().map(PathBuf::from),
             "--focus" => o.focus = args.next(),
+            "--run" => o.run = args.next(),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),
             other if !other.starts_with("--") => o.open = Some(PathBuf::from(other)),
             _ => {}

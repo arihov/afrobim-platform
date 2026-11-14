@@ -296,6 +296,7 @@ impl AfroBimApp {
             app.doc.clear_selection(); // an unattended export covers the whole model
             let _ = std::fs::create_dir_all(&dir);
             app.export_quantities(dir.join("sign-quantities.csv"));
+            app.write_module_quantities(&dir.join("sign-quantities.csv"));
             eprintln!("AfroBIM: {}", app.status);
             app.export_sheets(dir);
             eprintln!("AfroBIM: {}", app.status);
@@ -2196,6 +2197,19 @@ impl eframe::App for AfroBimApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.title()));
         self.shortcuts(ctx);
+        // `--run COMMAND`: runs a command once at start-up (on the element named by `--focus`, when
+        // given), to look at a dialog or window without a pointer.
+        if let Some(command) = self.options.run.take() {
+            if let Some(mark) = self.options.focus.clone() {
+                if let Some(id) = self.doc.elements().iter().find(|e| e.name == mark).map(|e| e.id) {
+                    self.doc.select(&[id], SelectMode::Replace);
+                }
+            }
+            match commands::resolve(&command) {
+                Some(info) => self.run(ctx, info.action),
+                None => self.status = format!("--run: {command} is not a command."),
+            }
+        }
 
         self.menu_bar(ctx);
         self.toolbar(ctx);
