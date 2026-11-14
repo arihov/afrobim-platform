@@ -220,6 +220,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-schedule"
+version = "0.1.0"
+dependencies = [
+ "afrobim-draw",
+ "afrobim-kernel",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-signs"
 version = "0.1.0"
 dependencies = [
