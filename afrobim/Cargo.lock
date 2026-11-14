@@ -87,6 +87,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-gantry"
+version = "0.1.0"
+dependencies = [
+ "afrobim-alignment",
+ "afrobim-draw",
+ "afrobim-kernel",
+ "afrobim-supports",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-ifc"
 version = "0.1.0"
 dependencies = [
