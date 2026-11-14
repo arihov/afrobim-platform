@@ -7,6 +7,7 @@
 //! | [`DesignMethod`] | Module | Basis |
 //! |---|---|---|
 //! | `MowtRdmVol3` | [`mowt`] | Uganda MoWT *Road Design Manual Volume 3: Pavement Design, Part I: Flexible Pavements* (January 2010) |
+//! | `Aashto1993` | [`aashto93`] | *AASHTO Guide for Design of Pavement Structures* (1993), flexible pavements, as reproduced in FHWA NHI-05-037 Appendix C and in lecture notes of the University of Anbar |
 //! | `DmrbCd226` | [`dmrb`] | UK DMRB CD 224 *Traffic assessment* (Revision 0, March 2020) and CD 226 *Design for new pavement construction* (Version 0.1.0, November 2021) |
 //!
 //! Every method returns its own typed result and implements [`DesignResult`], which gives the
@@ -17,6 +18,7 @@
 //!
 //! The result of any of them is a calculation for an engineer to check, not a certified design.
 
+pub mod aashto93;
 pub mod dmrb;
 pub mod mowt;
 mod mowt_catalogue;
@@ -33,12 +35,15 @@ pub enum DesignMethod {
     /// UK Design Manual for Roads and Bridges: design traffic to CD 224 and the flexible
     /// pavement requirements of CD 226 that are stated as equations or tables.
     DmrbCd226,
+    /// AASHTO Guide for Design of Pavement Structures (1993), flexible pavements: the design
+    /// equation solved for the structural number and the layered check of an entered structure.
+    Aashto1993,
 }
 
 impl DesignMethod {
     /// Every method available, in the order they are offered.
     pub fn all() -> &'static [DesignMethod] {
-        &[DesignMethod::MowtRdmVol3, DesignMethod::DmrbCd226]
+        &[DesignMethod::MowtRdmVol3, DesignMethod::DmrbCd226, DesignMethod::Aashto1993]
     }
 
     /// Short name for a menu.
@@ -46,6 +51,7 @@ impl DesignMethod {
         match self {
             DesignMethod::MowtRdmVol3 => "Uganda MoWT Road Design Manual Vol. 3",
             DesignMethod::DmrbCd226 => "UK DMRB CD 224 / CD 226",
+            DesignMethod::Aashto1993 => "AASHTO 1993 (flexible)",
         }
     }
 
@@ -57,6 +63,9 @@ impl DesignMethod {
             }
             DesignMethod::DmrbCd226 => {
                 "UK Design Manual for Roads and Bridges, CD 224 Traffic assessment, Revision 0, March 2020, and CD 226 Design for new pavement construction, Version 0.1.0, November 2021 (both since superseded)"
+            }
+            DesignMethod::Aashto1993 => {
+                "AASHTO Guide for Design of Pavement Structures, 1993, flexible pavement design equation, as reproduced in FHWA NHI-05-037 (Geotechnical Aspects of Pavements, 2006) Appendix C and in Fadhil and Ahmed, Flexible Pavement AASHTO 1993, lecture notes, University of Anbar"
             }
         }
     }
@@ -89,6 +98,7 @@ pub trait DesignResult {
 pub enum DesignInput {
     Mowt(mowt::MowtInput),
     Dmrb(dmrb::DmrbInput),
+    Aashto93(aashto93::Aashto93Input),
 }
 
 impl DesignInput {
@@ -96,6 +106,7 @@ impl DesignInput {
         match self {
             DesignInput::Mowt(_) => DesignMethod::MowtRdmVol3,
             DesignInput::Dmrb(_) => DesignMethod::DmrbCd226,
+            DesignInput::Aashto93(_) => DesignMethod::Aashto1993,
         }
     }
 }
@@ -105,6 +116,7 @@ pub fn design(input: &DesignInput) -> Result<Box<dyn DesignResult>, DesignError>
     match input {
         DesignInput::Mowt(i) => Ok(Box::new(mowt::design(i)?)),
         DesignInput::Dmrb(i) => Ok(Box::new(dmrb::design(i)?)),
+        DesignInput::Aashto93(i) => Ok(Box::new(aashto93::design(i)?)),
     }
 }
 
