@@ -25,8 +25,14 @@
 //!   above the project datum; the hydraulics work in metres and m³/s.
 //! * A side drain's solids are in a frame whose origin is the drain's centreline at its start
 //!   station, **not rotated** (local +X east, +Y north), with z = 0 at the top edges of the
-//!   drain. Its site placement is that point with rotation 0. The alignment has no vertical
-//!   geometry yet, so the solids are level: the entered gradient is used for hydraulics only.
+//!   drain when the alignment has no vertical profile. Its site placement is that point with
+//!   rotation 0 and z = 0. Where the alignment has a profile, the top edges of the solid lie at
+//!   the profile level at each station (the level at the alignment, held at its end levels beyond
+//!   its ends; the cross-fall of the road and the ground are not followed), so the solid rises
+//!   and falls with the road. The entered gradient is used for hydraulics only.
+//! * Where the alignment has a profile a culvert's site placement is at the datum level of its
+//!   inlet invert (the levels are entered in metres above datum), so it agrees with a road at
+//!   profile level; with no profile the road is taken at level zero, as before.
 //! * A culvert's solids are in a frame whose origin is the inlet end of the barrel group's
 //!   centre line at inlet invert level, +X along the plan direction of flow, +Y to the left of
 //!   the flow, +Z up. Its site placement carries that point and direction.
@@ -92,6 +98,14 @@ pub enum DrainageError {
     Route(String),
     #[error("{0}")]
     InvalidInput(String),
+}
+
+/// The level of the alignment's vertical profile at a station, m above datum. Beyond the ends of
+/// the profile the end levels are held. `None` when the alignment has no profile.
+pub(crate) fn profile_level_m(alignment: &afrobim_alignment::Alignment, station_m: f64) -> Option<f64> {
+    let profile = alignment.profile.as_ref()?;
+    let (lo, hi) = profile.range()?;
+    profile.elevation_at(station_m.clamp(lo, hi)).ok()
 }
 
 pub(crate) fn positive(v: f64) -> bool {

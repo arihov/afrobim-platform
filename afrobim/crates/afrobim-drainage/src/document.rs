@@ -310,4 +310,52 @@ mod tests {
         close(q2.total_excavation_m3(), q.total_excavation_m3(), 1e-9);
         assert_eq!(q2.culverts, q.culverts);
     }
+
+    /// Test values: a profile climbing from 50 m at station 0 to 60 m at station 1000 (arbitrary).
+    fn graded_doc() -> (Document, Alignment) {
+        use afrobim_alignment::{Profile, Pvi};
+        let mut a = AlignmentBuilder::new("MC10", 0.0, 1000.0, 2000.0, 0.0).line(100.0).arc(200.0, 100.0, Turn::Left).build().unwrap();
+        a.profile = Some(Profile::new("FG", vec![Pvi::point(0.0, 50.0), Pvi::point(1000.0, 60.0)]).unwrap());
+        let mut doc = Document::default();
+        add_alignment(&mut doc, &a);
+        (doc, a)
+    }
+
+    #[test]
+    fn a_drain_on_a_graded_alignment_follows_the_profile_and_one_without_stays_level() {
+        let (mut doc, a) = graded_doc();
+        let id = add_side_drain(&mut doc, "SD-01", &drain()).unwrap();
+        let g = SideDrainModule::default().generate(doc.find(id).unwrap()).unwrap();
+        let zs: Vec<f64> = g.solids.iter().flat_map(|m| m.vertices.iter().map(|v| v[2])).collect();
+        // The top edges are at the profile level at the start (100 m: 50 + 10 * 100 / 1000) and
+        // at the end (200 m: 52 m), not at zero.
+        let top = |at: f64| a.profile.as_ref().unwrap().elevation_at(at).unwrap() * 1000.0;
+        close(top(100.0), 51_000.0, 1e-6);
+        let max = zs.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        close(max, top(200.0), 1e-6);
+        let min_top_ring = g.solids[0].vertices.iter().take(8).map(|v| v[2]).fold(f64::NEG_INFINITY, f64::max);
+        close(min_top_ring, top(100.0), 1e-6);
+        assert!(zs.iter().any(|z| *z > 40_000.0), "the drain is at the level of the road, not at zero");
+        // The route survives a save and open with its levels.
+        let again = Document::from_json(&doc.to_json()).unwrap();
+        let def = SideDrainDefinition::from_value(&again.find(id).unwrap().data).unwrap();
+        assert!(def.route.unwrap().points.iter().all(|p| p.level_m.is_some()));
+        // No profile: level at zero, as before.
+        let (mut flat, _) = doc_with_alignment();
+        let id = add_side_drain(&mut flat, "SD-01", &drain()).unwrap();
+        let g = SideDrainModule::default().generate(flat.find(id).unwrap()).unwrap();
+        let max = g.solids[0].vertices.iter().map(|v| v[2]).fold(f64::NEG_INFINITY, f64::max);
+        close(max, 0.0, 1e-9);
+    }
+
+    #[test]
+    fn a_culvert_on_a_graded_alignment_sits_at_its_datum_level() {
+        let (mut doc, _) = graded_doc();
+        let id = add_pipe_culvert(&mut doc, "C-01", &culvert()).unwrap();
+        close(doc.find(id).unwrap().site.as_ref().unwrap().z, 10_240.0, 1e-6);
+        // With no profile and a road level entered the invert is below a road at level zero.
+        let (mut flat, _) = doc_with_alignment();
+        let id = add_pipe_culvert(&mut flat, "C-01", &culvert()).unwrap();
+        close(flat.find(id).unwrap().site.as_ref().unwrap().z, (10.24 - 12.5) * 1000.0, 1e-6);
+    }
 }

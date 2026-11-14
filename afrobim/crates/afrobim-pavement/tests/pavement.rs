@@ -347,3 +347,25 @@ fn the_module_the_document_helpers_and_the_round_trip() {
     assert_eq!(pavements(&doc)[0].2.alignment, longer);
     assert!(sync_alignments(&mut doc).is_empty());
 }
+
+#[test]
+fn on_a_graded_alignment_the_slabs_follow_the_profile_and_the_cross_fall_as_before() {
+    use afrobim_alignment::{Profile, Pvi};
+    // Test values: a profile climbing from 50 m at station 1000 to 60 m at station 1100.
+    let mut a = straight(100.0);
+    a.profile = Some(Profile::new("FG", vec![Pvi::point(1000.0, 50.0), Pvi::point(1100.0, 60.0)]).unwrap());
+    let graded = solids(&road(a)).unwrap();
+    let flat = solids(&road(straight(100.0))).unwrap();
+    let top = |s: &PavementSolids| s.solids[3].vertices.clone(); // Carriageway: Surfacing
+    let (g, f) = (top(&graded), top(&flat));
+    assert_eq!(g.len(), f.len());
+    // The start section is lifted by 50 m and the end section by 60 m; x and y are unchanged and
+    // the cross-fall (the difference between centre and edge) is as modelled.
+    let per_section = g.len() / 2;
+    for (i, (gv, fv)) in g.iter().zip(&f).enumerate() {
+        let lift = if i < per_section { 50_000.0 } else { 60_000.0 };
+        assert!(close(gv[0], fv[0], 1e-9) && close(gv[1], fv[1], 1e-9));
+        assert!(close(gv[2] - fv[2], lift, 1e-6), "vertex {i}: {} vs {}", gv[2], fv[2]);
+    }
+    assert!(g.iter().all(|v| v[2] > 40_000.0), "the pavement is at the level of the road, not at zero");
+}

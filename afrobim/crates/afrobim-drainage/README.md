@@ -200,12 +200,16 @@ and lists what it could not measure.
 - **Drain**: the sheet drawing is the cross-section looking up-station. The 3D solid is a closed
   trough swept along the route (the lining; for an unlined drain a 50 mm display skin that is in
   no quantity). Frame: origin at the drain centreline at its start station, not rotated, z = 0 at
-  the top edges. **The solid is level**: the alignment has no vertical geometry yet, so the entered
+  the top edges when the alignment has no profile. **Where the alignment has a vertical profile**
+  the top edges lie at the profile level at each station of the route (held at the end levels
+  beyond the profile; the road's cross-fall and the ground are not followed), so the solid rises
+  and falls with the road. With no profile the solid is level at z = 0 as before. The entered
   gradient is used for hydraulics only.
 - **Culvert**: the sheet drawing is a section along one barrel. The 3D solids are hollow pipes
   falling from inlet to outlet. Frame: origin at the inlet end of the group's centre line at inlet
-  invert level, +X along the flow in plan. With a road level entered, the site placement's `z`
-  puts the inlet invert below a road at level zero; without one it is zero.
+  invert level, +X along the flow in plan. With no profile and a road level entered, the site
+  placement's `z` puts the inlet invert below a road at level zero; without a road level it is
+  zero. With a profile the site placement's `z` is the inlet invert's own datum level.
 
 ## Calls the app needs
 

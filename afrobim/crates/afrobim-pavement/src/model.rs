@@ -204,8 +204,9 @@ impl Strip {
 ///
 /// The definition carries its own copy of the alignment so that the module can draw and measure
 /// it from the element alone; [`crate::sync_alignments`] refreshes the copy from the document.
-/// Only the horizontal geometry is used. There is no vertical profile and superelevation is not
-/// read: the cross-fall is the entered value over the whole length.
+/// The horizontal geometry sets the plan. The vertical profile, where the alignment has one, sets
+/// the level of the carriageway centre in the 3D solids only (quantities do not use it).
+/// Superelevation is not read: the cross-fall is the entered value over the whole length.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PavementDefinition {
     pub alignment: Alignment,

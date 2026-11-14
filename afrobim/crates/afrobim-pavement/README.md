@@ -48,8 +48,9 @@ material codes; it names generic classes (Part I Table 5.1 and the chart keys), 
 named `Material` variants. `Material::Other` is free text. A thickness of zero is a surface
 treatment measured by area only (the catalogue's "SD").
 
-Only the horizontal geometry of `afrobim-alignment` is used. There is no vertical profile and
-superelevation is not read.
+The horizontal geometry of `afrobim-alignment` sets the plan and the quantities. The vertical
+profile, where the alignment has one, sets the level of the carriageway centre in the 3D slabs
+only. Superelevation is not read.
 
 `PavementDefinition::notes` validates the definition (Error notes stop drawing and measuring)
 and adds reminders that quote conditions Part I says its structures assume:
@@ -74,8 +75,9 @@ colours are a drawing convention only.
 
 **Slabs** (`solids`): one closed `Mesh3` per layer of each strip, in millimetres, unrotated
 (+X east, +Y north), the plan bounding box on the origin and the origin's plan coordinates
-returned with them. **z = 0 is the carriageway surface at the carriageway centre at every
-station.** Curves are followed by chords within 5 mm of the outer edge.
+returned with them. **z is the level of the carriageway surface at the carriageway centre**: the
+alignment's profile level at that station, in millimetres (held at the end levels beyond the
+profile), and zero at every station when the alignment has no profile. Curves are followed by chords within 5 mm of the outer edge.
 
 ## How each quantity is computed
 
@@ -315,7 +317,7 @@ let mut def = PavementDefinition::new(alignment.clone(), 7.0, 2.5, layers.unwrap
 def.left_shoulder = Some(Shoulder { width_m: 1.5, crossfall_percent: 4.0, layers: ShoulderLayers::SameAsCarriageway });
 let id = add_pavement(&mut doc, "PV-001", &def)?;   // sets width, height and the site placement
 
-// 3D site view: Generated.solids, placed at element.site (x, y in mm, z = 0, no rotation).
+// 3D site view: Generated.solids, placed at element.site (x, y in mm, z = 0, no rotation; the slabs' own z carries the profile level).
 // Sheet: Generated.drawing at element.origin. Notes and derived values as for any element.
 
 // After an alignment is edited:  afrobim_pavement::sync_alignments(&mut doc);
@@ -332,5 +334,5 @@ let (schedule, summary) = (layers_to_csv(&q.rows), summary_to_csv(&q));
 - Surfacing design (Part I section 6), materials selection (Appendix A), drainage layer design
   (Appendix B).
 - Costs, rates, densities, masses.
-- Superelevation, vertical profile, widening on curves, tapers, side slopes, layers of
-  different widths.
+- Superelevation, widening on curves, tapers, side slopes, layers of different widths. The
+  vertical profile lifts the 3D slabs only: quantities are measured on the section and the plan.

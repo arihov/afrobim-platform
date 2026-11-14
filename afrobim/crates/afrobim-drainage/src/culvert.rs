@@ -332,7 +332,9 @@ impl PipeCulvertDefinition {
         Ok(SitePlacement {
             x: (cx - half_m * flow.cos()) * 1000.0,
             y: (cy - half_m * flow.sin()) * 1000.0,
-            z: self.road_level_m.map_or(0.0, |road| (self.invert_level_inlet_m - road) * 1000.0),
+            // With a vertical profile the road is at its profile level, so the invert is at its own
+            // datum level. Without one the road is level zero and the invert sits below it.
+            z: if alignment.profile.is_some() { self.invert_level_inlet_m * 1000.0 } else { self.road_level_m.map_or(0.0, |road| (self.invert_level_inlet_m - road) * 1000.0) },
             rotation_deg: flow.to_degrees().rem_euclid(360.0),
             alignment: Some(alignment.name.clone()),
             station_m: Some(self.station_m),

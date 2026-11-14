@@ -85,8 +85,8 @@ impl Module for PavementModule {
 ///
 /// The element goes on [`PAVEMENT_LAYER`] at the next free place on the sheet, sized to its
 /// cross-section drawing. Its site placement is the origin of its solids (see
-/// [`crate::PavementSolids`]): x, y in millimetres, z = 0, no rotation, with the alignment's
-/// name and the start station recorded. Fails when the definition has Error notes.
+/// [`crate::PavementSolids`]): x, y in millimetres, z = 0, no rotation (the slabs carry the
+/// profile level themselves), with the alignment's name and the start station recorded. Fails when the definition has Error notes.
 pub fn add_pavement(doc: &mut Document, name: &str, def: &PavementDefinition) -> Result<ElementId, PavementError> {
     def.check()?;
     let section = cross_section(def, &SectionOptions::default());

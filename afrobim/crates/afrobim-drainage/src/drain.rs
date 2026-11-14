@@ -36,6 +36,11 @@ pub struct RoutePoint {
     pub y_m: f64,
     /// Direction of the alignment there, radians counter-clockwise from +X.
     pub heading_rad: f64,
+    /// Level of the alignment's vertical profile at this station, m above datum, held at the
+    /// profile's end levels beyond its ends. `None` when the alignment has no profile (the solid
+    /// is then at level zero, as it always was) and in routes stored before levels were kept.
+    #[serde(default)]
+    pub level_m: Option<f64>,
 }
 
 /// Where a drain runs, worked out from its alignment and kept with the definition so that the
@@ -110,7 +115,7 @@ impl DrainRoute {
                 return route(format!("station {s} is not on alignment '{}'", alignment.name));
             };
             let (x_m, y_m) = at.offset(offset_m);
-            points.push(RoutePoint { station_m: s, x_m, y_m, heading_rad: at.heading_rad });
+            points.push(RoutePoint { station_m: s, x_m, y_m, heading_rad: at.heading_rad, level_m: crate::profile_level_m(alignment, s) });
         }
         if points.len() < 2 {
             return route("the route has no length".to_string());
@@ -378,7 +383,10 @@ impl SideDrainDefinition {
             // Right of the heading is (sin h, −cos h).
             let (rx, ry) = (p.heading_rad.sin(), -p.heading_rad.cos());
             let (cx, cy) = ((p.x_m - origin.x_m) * 1000.0, (p.y_m - origin.y_m) * 1000.0);
-            vertices.extend(shell.iter().map(|&(u, z)| [cx + u * rx, cy + u * ry, z]));
+            // The top edges lie at the profile level of the alignment at this station; with no
+            // profile that is zero.
+            let lift = p.level_m.unwrap_or(0.0) * 1000.0;
+            vertices.extend(shell.iter().map(|&(u, z)| [cx + u * rx, cy + u * ry, z + lift]));
         }
         let rings = route.points.len() as u32;
         let mut triangles: Vec<[u32; 3]> = Vec::new();

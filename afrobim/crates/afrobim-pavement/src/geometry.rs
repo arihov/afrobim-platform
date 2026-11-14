@@ -287,9 +287,11 @@ pub fn cross_section(def: &PavementDefinition, options: &SectionOptions) -> Cros
 ///   northing = origin_y_m + y / 1000        (metres)
 /// ```
 ///
-/// **z = 0 is the carriageway surface at the carriageway centre**, at every station: there is
-/// no vertical profile. The surface falls from there at the entered cross-fall and each layer
-/// lies under it at its entered thickness, measured vertically.
+/// **z is the level of the carriageway surface at the carriageway centre**: where the alignment
+/// has a vertical profile, its level at that station in millimetres (held at the end levels
+/// beyond the profile's ends); with no profile, zero at every station. The surface falls from
+/// there at the entered cross-fall (superelevation is not read) and each layer lies under it at
+/// its entered thickness, measured vertically.
 ///
 /// Curves and spirals are followed by chords that stay within 5 mm of the outer edge, so a
 /// slab's mesh volume is slightly below the true volume on a curve. Quantities never come from
@@ -333,6 +335,14 @@ fn section_stations(def: &PavementDefinition, widest_offset_m: f64) -> Vec<f64> 
     out
 }
 
+/// The level of the alignment's vertical profile at a station, m above datum, held at the end
+/// levels beyond the profile's ends. `None` when the alignment has no profile.
+fn profile_level_m(alignment: &Alignment, station_m: f64) -> Option<f64> {
+    let profile = alignment.profile.as_ref()?;
+    let (lo, hi) = profile.range()?;
+    profile.elevation_at(station_m.clamp(lo, hi)).ok()
+}
+
 /// Builds the slabs. `None` when a station is off the alignment; call only on a definition
 /// without Error notes.
 pub fn solids(def: &PavementDefinition) -> Option<PavementSolids> {
@@ -340,6 +350,9 @@ pub fn solids(def: &PavementDefinition) -> Option<PavementSolids> {
     let widest = strips[0].left_offset_m().abs().max(strips[strips.len() - 1].right_offset_m().abs());
     let stations = section_stations(def, widest);
     let frames: Vec<_> = stations.iter().map(|s| def.alignment.point_at(*s)).collect::<Option<_>>()?;
+    // The level of the carriageway centre at each section, m: the alignment's profile where it has
+    // one (held at its end levels beyond its ends), else zero.
+    let levels: Vec<f64> = stations.iter().map(|s| profile_level_m(&def.alignment, *s).unwrap_or(0.0)).collect();
 
     let (mut min_x, mut min_y) = (f64::INFINITY, f64::INFINITY);
     for f in &frames {
@@ -362,12 +375,13 @@ pub fn solids(def: &PavementDefinition) -> Option<PavementSolids> {
             }
             // Per section: the top points left to right, then the bottom points.
             let mut vertices = Vec::with_capacity(frames.len() * 2 * m);
-            for f in &frames {
+            for (f, level) in frames.iter().zip(&levels) {
                 for d in [top, bottom] {
                     for &(o, z) in &strip.profile {
                         let (x, y) = f.offset(o);
                         // Subtract in metres before scaling, so large map coordinates lose nothing.
-                        vertices.push([(x - min_x) * 1000.0, (y - min_y) * 1000.0, z * 1000.0 - d]);
+                        // The cross-fall (z) is relative to the centre; the profile level lifts it.
+                        vertices.push([(x - min_x) * 1000.0, (y - min_y) * 1000.0, (level + z) * 1000.0 - d]);
                     }
                 }
             }
