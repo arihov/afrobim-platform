@@ -2076,6 +2076,46 @@ mod tests {
     }
 
     #[test]
+    fn every_schedule_and_chart_feed_composes_from_the_demo_model() {
+        // One sheet of each kind of table and chart the forms offer. The demo has a programme and an
+        // estimate, so those feeds are full; it has no clash results (CLASH has not been run) and no
+        // sign engine in this test, and those two feeds say so instead.
+        let doc = demo_doc();
+        let registry = crate::sheets_glue::test_support::registry();
+        let mut set = SheetSet::new("all feeds");
+        let page = Page::default();
+        let mut f = SourceForm::new(FormKind::Schedule, page);
+        for (i, kind) in TABLE_KINDS.iter().enumerate() {
+            f.table_kind = i;
+            f.title = kind.2.to_string();
+            if kind.0 == FEED_QUANTITIES {
+                f.category = String::new();
+            }
+            set.sources.push(f.build(&doc, None).unwrap());
+        }
+        let mut d = SourceForm::new(FormKind::Detail, page);
+        for i in 1..DETAIL_KINDS.len() {
+            d.detail_kind = i;
+            d.title = DETAIL_KINDS[i].2.to_string();
+            set.sources.push(d.build(&doc, None).unwrap());
+        }
+        let model = afrobim_sheets::Model { doc: &doc, registry: &registry };
+        let live = crate::sheets_glue::Live::from_doc(&doc, &registry, None);
+        let notes = crate::sheets_glue::feed_set(&mut set, &model, &live);
+        assert_eq!(notes.len(), 2, "{notes:?}");
+        assert!(notes.iter().any(|n| n.contains("There are no clash results")) && notes.iter().any(|n| n.contains("traffic signs module is not loaded")), "{notes:?}");
+        let composed = afrobim_sheets::compose_set_with(&model, &set, &afrobim_sheets::project_info(&doc));
+        assert!(composed.sheets.len() >= 8, "{}", composed.sheets.len());
+        let all: Vec<String> = composed.sheets.iter().flat_map(|s| s.texts().map(|t| t.text.clone())).collect();
+        // The priced bill is the demo estimate's (item 1.1, earthworks, cut), the check summary lists
+        // the elements, the quantities come from the modules, and the charts carry their dates.
+        assert!(all.iter().any(|t| t.contains("Earthworks, cut")), "bill missing");
+        assert!(all.iter().any(|t| t == "Input needed" || t == "Passes"), "check summary missing");
+        assert!(all.iter().any(|t| t.contains("2026-03-02")), "gantt or s-curve dates missing");
+        assert!(all.iter().any(|t| t == "100%") && all.iter().any(|t| t.contains("2026-")), "s-curve labels missing");
+    }
+
+    #[test]
     fn a_layout_edited_in_the_table_composes_into_the_sheet() {
         // A layout with one row of two cells and no revision table, 90 mm wide, composes and prints its cells.
         let doc = demo_doc();
