@@ -804,6 +804,7 @@ impl AfroBimApp {
                     modules_glue::Check::Lines(Err(e)) => self.status = format!("Not checked: {e}"),
                     modules_glue::Check::DrainFlow => self.drain_check_dialog = Some((id, 0.1, false)),
                     modules_glue::Check::RestraintSpeed => self.road.open_speed(id),
+                    modules_glue::Check::LightingInputs => self.road.open_lighting_check(id),
                     modules_glue::Check::PavementDesign => self.road.open_design(),
                     modules_glue::Check::None => self.status = "Select a gantry, side drain, street lighting, barrier run or pavement to check. Sign supports are checked with DESIGN.".into(),
                 },
@@ -1801,12 +1802,8 @@ impl AfroBimApp {
                         }
                     });
                     ui.end_row();
-                    ui.label("Start station (m)");
-                    ui.add(egui::DragValue::new(&mut req.start_station_m).speed(1.0));
-                    ui.end_row();
-                    ui.label("End station (m)");
-                    ui.add(egui::DragValue::new(&mut req.end_station_m).speed(1.0));
-                    ui.end_row();
+                    crate::station_input::station_row(ui, &self.doc, alignment, "marking-start", "Start station", &mut req.start_station_m);
+                    crate::station_input::station_row(ui, &self.doc, alignment, "marking-end", "End station", &mut req.end_station_m);
                     ui.label("Offset from the alignment (m)");
                     ui.horizontal(|ui| {
                         ui.add(egui::DragValue::new(&mut req.distance_m).speed(0.05).range(0.0..=50.0));
@@ -1822,11 +1819,12 @@ impl AfroBimApp {
                 ui.label(
                     RichText::new(
                         "Patterns and widths are from the Traffic Signs Manual Chapter 5 (2018). Its tables are in mph: how a km/h limit maps to them is the engineer's decision. \
-                         Stations are internal stations. The line is shown in the 3D site view and measured under Export quantities.",
+                         The line is shown in the 3D site view and measured under Export quantities.",
                     )
                     .small()
                     .weak(),
                 );
+                ui.label(RichText::new(crate::station_input::note(&self.doc, alignment)).small().weak());
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     if ui.add_enabled(alignment.is_some(), egui::Button::new("Lay the line")).clicked() {
@@ -1877,13 +1875,9 @@ impl AfroBimApp {
                         }
                     });
                     ui.end_row();
-                    ui.label(if info.span { "Start station (m)" } else { "Station (m)" });
-                    ui.add(egui::DragValue::new(&mut start).speed(1.0));
-                    ui.end_row();
+                    crate::station_input::station_row(ui, &self.doc, alignment, "road-start", if info.span { "Start station" } else { "Station" }, &mut start);
                     if info.span {
-                        ui.label("End station (m)");
-                        ui.add(egui::DragValue::new(&mut end).speed(1.0));
-                        ui.end_row();
+                        crate::station_input::station_row(ui, &self.doc, alignment, "road-end", "End station", &mut end);
                     }
                     if info.offset {
                         ui.label("Offset from the alignment (m)");
@@ -1897,10 +1891,11 @@ impl AfroBimApp {
                 });
                 ui.add_space(4.0);
                 ui.label(
-                    RichText::new("It is added with placeholder dimensions that are not design values: select it and set every dimension in Properties, then run CHECK. Stations are internal stations.")
+                    RichText::new("It is added with placeholder dimensions that are not design values: select it and set every dimension in Properties, then run CHECK.")
                         .small()
                         .weak(),
                 );
+                ui.label(RichText::new(crate::station_input::note(&self.doc, alignment)).small().weak());
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     if ui.add_enabled(alignment.is_some(), egui::Button::new("Add")).clicked() {

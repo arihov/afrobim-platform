@@ -182,6 +182,8 @@ pub enum Check {
     RestraintSpeed,
     /// A pavement: it is checked by running a design method (PAVEDESIGN).
     PavementDesign,
+    /// Street lighting: the checks take the engineer's entries (appraisal, photometry, class selection).
+    LightingInputs,
     /// The calculation, line by line, or why it could not be made.
     Lines(Result<Vec<String>, String>),
 }
@@ -192,7 +194,7 @@ pub fn check(doc: &Document, id: ElementId) -> Check {
         return Check::DrainFlow;
     }
     if e.category == lighting::CATEGORY {
-        return Check::Lines(road_glue::check_lighting(doc, id));
+        return Check::LightingInputs;
     }
     if e.category == restraint::CATEGORY {
         return Check::RestraintSpeed;
@@ -491,7 +493,10 @@ mod tests {
         let find = |doc: &Document, prefix: &str| doc.elements().iter().find(|e| e.name.starts_with(prefix)).unwrap().id;
 
         // Lighting: the report carries the warning that BS 5489-1:2003 is superseded.
-        let Check::Lines(Ok(lines)) = check(&doc, find(&doc, "LZ")) else { panic!("lighting has a check") };
+        // The check opens its input dialog; with every field empty it reports what it needs.
+        let lz = find(&doc, "LZ");
+        assert!(matches!(check(&doc, lz), Check::LightingInputs));
+        let lines = road_glue::check_lighting_with(&doc, lz, &Default::default()).unwrap();
         assert!(lines.iter().any(|l| l.starts_with("WARNING") && l.contains("superseded")), "{lines:#?}");
         // Restraint: it needs the speed limit, and says so when there is none.
         let run = find(&doc, "VRS");

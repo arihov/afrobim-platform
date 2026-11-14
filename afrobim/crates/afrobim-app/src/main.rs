@@ -5,6 +5,7 @@ mod app;
 mod canvas;
 mod commands;
 mod icons;
+mod lighting_inputs;
 mod markings_glue;
 mod modules_glue;
 mod render;
@@ -12,6 +13,7 @@ mod ribbon;
 mod road_dialogs;
 mod road_glue;
 mod signs_glue;
+mod station_input;
 mod supports_glue;
 mod view3d;
 
