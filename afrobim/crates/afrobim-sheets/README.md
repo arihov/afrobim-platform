@@ -36,7 +36,7 @@ as defaults in the code, and none is taken from a standard or from any organisat
 | Project information stored in the document | `ProjectInfo`, `set_project_info`, `project_info` (category `project_info`) |
 | North arrow, scale bar | `north_arrow`, `scale_bar` |
 | Plan view, plan series with match lines | `PlanView`, `PlanSeries`, `plan_windows` |
-| Profile view | `ProfileView` |
+| Profile view and its vertical geometry notes | `ProfileView`, `ProfileAnnotations`, `vertical_notes` |
 | Cross-sections in a grid | `SectionsView`, `SectionSeries` |
 | Tables, wrapping, CSV, series over several sheets | `Table`, `TableSeries`, `*_table` helpers |
 | Detail of any `Drawing` | `DetailView` |
@@ -110,6 +110,10 @@ Tables from other sources: `sign_schedule_table(csv)`, `priced_bill_table(csv)`,
 `module_quantities(&model, title, Some("marking"), &["plan_origin_x_m"])` for the values modules
 report. Numeric columns are right aligned; `Table::with_widths` fixes column widths.
 
+`Table::feed` and `DetailView::feed` are free names for the application: it fills such a table or
+inline drawing from live data just before composing. `SheetSpec::number_prefix` gives the sheets of
+one source their own numbering prefix, counted from the set's start number.
+
 A user-defined title block is a `TitleBlockLayout` value assigned to `SheetSpec::title_block`
 (it serialises). Register the modules `SheetsModule` and `ProjectInfoModule` so the elements show
 in the app.
@@ -143,9 +147,15 @@ in the app.
   alignment at the middle of the overlap and so are skewed on a curve. Station labels are not
   de-conflicted; element marks are placed at the middle of the visible part of the element and
   skipped when they would overlap a mark already placed.
-- Profile: a design line sampled every millimetre of paper, PVI stations included. No vertical
-  curve annotation, no grade labels, no existing ground without a named surface. The data band
-  shows station, design level and (with a surface) ground level only.
+- Profile: a design line sampled every millimetre of paper, PVI stations included. The vertical
+  geometry is annotated (`annotate.rs`, `ProfileView::annotations`): per PVI in range a block
+  above the plot (station, level and, on a curve, length L, grade change A, K = L / |A|, start and
+  end stations) staggered into rows with a leader down to the PVI, a grade in percent along the
+  straight part of each tangent, and ticks at the curve ends. K is a computed number only: no
+  limit, no pass or fail. For a circular curve L is the horizontal length. A grade label that
+  does not fit along its tangent at the scale is left off with a warning. PVI blocks use PVIs
+  inside the station range only. No existing ground without a named surface. The data band shows
+  station, design level and (with a surface) ground level only.
 - Cross-sections: station, cut and fill areas, daylight and ground labels; finished point
   labels are off by default because they crowd. Sections come from `corridor_of`, which rebuilds
   the corridor (and decodes its surface) each time a sections sheet is composed.
@@ -154,8 +164,9 @@ in the app.
   sign design sheet); set `PlanView::only_visible_layers` to follow the document.
 - Revision table text is shortened with `...` to its cell; it does not wrap.
 - Not done: viewport-in-viewport, images (the logo is a placeholder rectangle), dimensions,
-  hatches, revision clouds, grid references on the frame, A-series only (no B or ANSI sizes),
-  the app dialogs for project information and sheet sets.
+  hatches, revision clouds, grid references on the frame, A-series only (no B or ANSI sizes).
+  The app has the dialogs for project information, sheet sets, the title block and a preview
+  (see the AfroBIM user manual).
 
 ## Tests
 

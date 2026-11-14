@@ -24,6 +24,10 @@ pub struct Table {
     pub col_widths_mm: Vec<f64>,
     /// Alignment per column; missing entries are left aligned.
     pub align: Vec<Align>,
+    /// The name of a live data feed that fills the headers and rows each time the set is
+    /// composed (the application sets and reads it; this crate leaves it alone).
+    #[serde(default)]
+    pub feed: Option<String>,
 }
 
 /// Cell padding left and right, mm.
@@ -136,6 +140,7 @@ pub fn quantity_table(title: &str, rows: &[QuantityRow]) -> Table {
         rows: rows.iter().map(|r| vec![r.item.clone(), r.unit.clone(), format!("{:.*}", r.decimals, r.quantity)]).collect(),
         col_widths_mm: vec![0.0, 18.0, 28.0],
         align: vec![Align::Left, Align::Left, Align::Right],
+        feed: None,
     }
 }
 
@@ -169,6 +174,7 @@ pub fn derived_values_table(title: &str, rows: &[(String, String, String)]) -> T
         rows: rows.iter().map(|(a, b, c)| vec![a.clone(), b.clone(), c.clone()]).collect(),
         col_widths_mm: vec![0.0, 0.0, 0.0],
         align: vec![Align::Left, Align::Left, Align::Right],
+        feed: None,
     }
 }
 

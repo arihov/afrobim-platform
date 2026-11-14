@@ -18,6 +18,7 @@
 //! from a drafting standard or from an organisation's title block.
 
 mod afm;
+pub mod annotate;
 pub mod detail;
 pub mod draw;
 pub mod dxf_out;
@@ -37,6 +38,7 @@ pub mod text;
 pub mod titleblock;
 pub mod view;
 
+pub use annotate::{block_lines, layout_blocks, leader_pieces, percent_text, vertical_notes, NoteBlock, CurveNote, ProfileAnnotations, PviNote, TangentNote, VerticalNotes};
 pub use detail::{compose_detail, DetailLabel, DetailSource, DetailView};
 pub use draw::draw_drawing;
 pub use dxf_out::{aci_for_rgb, dxf_layer_name, write_dxf, write_dxf_set};

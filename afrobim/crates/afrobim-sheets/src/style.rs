@@ -62,6 +62,7 @@ impl Default for PenTable {
         put(layers::PROFILE_DESIGN, 0.5, BLACK);
         put(layers::PROFILE_GROUND, 0.25, [0, 100, 40]);
         put(layers::PROFILE_BAND, 0.18, BLACK);
+        put(layers::PROFILE_NOTES, 0.18, BLACK);
         put(layers::SECTION, 0.18, BLACK);
         put(layers::DETAIL, 0.18, BLACK);
         PenTable { pens, default: Pen::new(0.13, BLACK) }

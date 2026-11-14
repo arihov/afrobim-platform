@@ -26,6 +26,7 @@ pub mod layers {
     pub const PROFILE_DESIGN: &str = "PROFILE-DESIGN";
     pub const PROFILE_GROUND: &str = "PROFILE-GROUND";
     pub const PROFILE_BAND: &str = "PROFILE-BAND";
+    pub const PROFILE_NOTES: &str = "PROFILE-ANNOTATION";
     pub const SECTION: &str = "SECTION-LINES";
     pub const SECTION_TEXT: &str = "SECTION-TEXT";
     pub const DETAIL: &str = "DETAIL";
