@@ -1,6 +1,6 @@
 # AfroBIM user manual
 
-This manual describes the AfroBIM desktop application and the crates it uses, as they stand in the `afrobim/` workspace (workspace version 0.1.0), updated for the Coordination, 4D and 5D tabs, the station convention of the road dialogs and the street lighting check inputs. Every feature, value and clause here comes from the source files. Where two sources disagree, the code wins, and the disagreement is listed in "Notes for the maintainer" at the end.
+This manual describes the AfroBIM desktop application and the crates it uses, as they stand in the `afrobim/` workspace (workspace version 0.1.0), updated for the Coordination, 4D and 5D tabs, the station convention of the road dialogs, the street lighting check inputs and the drawing sheets. Every feature, value and clause here comes from the source files. Where two sources disagree, the code wins, and the disagreement is listed in "Notes for the maintainer" at the end.
 
 ## Contents
 
@@ -8,7 +8,7 @@ This manual describes the AfroBIM desktop application and the crates it uses, as
 2. Installing and running from source
 3. The screen
 4. Working with commands
-5. Chapters by area: traffic signs, supports, alignments, road markings, drainage, gantries, exports, Python and MCP, the other road modules, stations and the lighting check inputs, Coordination, 4D, 5D, the model-wide check and Construction
+5. Chapters by area: traffic signs, supports, alignments, road markings, drainage, gantries, exports, Python and MCP, the other road modules, stations and the lighting check inputs, Coordination, 4D, 5D, the model-wide check, Construction and the drawing sheets
 6. Built but not yet in the app
 7. Command reference
 8. Planned, not built yet
@@ -72,6 +72,10 @@ These options come from `main.rs`. Any option that is not listed is ignored. A f
 | `--date YYYY-MM-DD` | Shows the 3D view at this date of the programme (the 4D date). |
 | `--subtab N` | The sub-tab (from 0) the Bill and Estimate windows open on. With `--demo` and `--run CERTIFICATE`, 1 also fills the certificate from 50 percent complete (a demo value). |
 | `--zoom-clash N` | Zooms to the Nth clash on record (from 0) in the 3D view. |
+| `--export-set PATH` | Composes a drawing sheet set and writes it, then exits: a path ending `.pdf` gets one multi-page PDF, `.dxf` one DXF with every sheet side by side, anything else is a folder that gets `sheets.pdf` and one DXF per sheet. |
+| `--sheet-set NAME` | The sheet set that `--export-set` writes, by name; the first one when not given. |
+| `--sheet N` | The sheet the preview shows first (from 0), with `--run SHEETPREVIEW`. |
+| `--sheet-form N` | Opens the sheet set manager with the add form of template N (0 plan, 1 profile, 2 sections, 3 schedule, 4 detail, 5 notes), to look at it without a pointer. |
 | `--screenshot FILE.png` | Renders a few frames, saves the window to this file and exits. This is how the interface is checked on a machine without a desktop. |
 
 ## 3. The screen
@@ -109,8 +113,8 @@ Only the built buttons are listed here. Buttons for tools that are not built yet
 - **Coordination**: Tests (Clash tests); Run (Run tests, Results); Display (Clash markers); Report (Export clashes).
 - **4D**: Programme (Activities, Calendar, Schedule); Chart (Gantt chart); Baseline (Set baseline, Variance); Progress (Progress); Links (Link elements, Link report); Date (4D date); MS Project (Import, Export, Reports).
 - **5D**: Bill (Bill and rules); Rates (Rate library, Currency); Estimate (Estimate); Time (Cash flow); Payment (Interim certificate); Export (Cost reports).
-- **Output**: Export (DXF, IFC 4.3, Quantities, Fabrication sheets); Document (Save, Save as, Quit).
-- **Manage**: Design standard (UK TSM, Uganda TSM); Appearance (Theme, Canvas colour).
+- **Output**: Export (DXF, IFC 4.3, Quantities, Fabrication sheets); Sheets (Sheet sets, Preview, Title block, Sheets PDF, Sheets DXF); Document (Save, Save as, Quit).
+- **Manage**: Design standard (UK TSM, Uganda TSM); Analysis (Check the model); Project (Project information); Appearance (Theme, Canvas colour).
 - **View**: Zoom (Extents, Window, In, Out); Views (2D / 3D); Display (Real, Outlined, Element marks); Drafting aids; Appearance (Theme, Canvas colour).
 - **Help**: Help (Command list, About AfroBIM).
 
@@ -156,6 +160,10 @@ From left to right, the status bar shows:
 - the Real and Outlined display choice;
 - the latest status message;
 - on the right: the module status message (for example, why the sign tools are unavailable), the scale as "1 px = x mm", and the selection (No selection, the name and size of one element, or the number of elements selected).
+
+### Windows
+
+Every window the commands open (the checks, the programme, the estimate, the dialogs and the sheet windows) opens just inside the central area, below the menu bar and the ribbon, and is kept inside it: its title bar cannot be dragged under the menu or the ribbon, and a window made for a large screen shrinks to fit (and scrolls) rather than hang off the top.
 
 ### 2D model space (centre)
 
@@ -741,6 +749,37 @@ Not done: activity-level progress, resource-based progress, front-loaded planned
 
 **The demo.** `--demo` adds a few made-up site records (a corridor, a side drain and a culvert), made-up actual costs, a stored data date and an arbitrary EAC choice, and two stored check inputs. Every number is commented in `demo_glue.rs` as an arbitrary demo value.
 
+### 5.16 Drawing sheets: project information, sheet sets, title blocks and preview
+
+The documentation stage composes drawing sheets from the live model and writes them as PDF and DXF. The engine is the `afrobim-sheets` crate; this chapter is the app side. Nothing here is a drafting standard. Every scale, length, overlap, interval, margin, line weight and text height is yours to enter. The only values filled in are the crate's neutral defaults for paper (A3 landscape, 10 mm margins, one frame), pens and text heights; the manager shows them as editable defaults, and none comes from a standard or from an organisation's title block.
+
+**Project information** (`PROJECTINFO`, Manage tab, Project panel). The project, client, contract number, drawn, checked and approved names, the issue date as it is to be printed, a logo caption, a revision table (rev, date, description, by, checked) and other fields (a caption and its text). Every field starts empty. Apply stores it in the document as one element (it survives save and open). Every title block of every set reads it; a sheet can override the revision, date and the three names for itself.
+
+**Sheet set manager** (`SHEETSET`, Output tab, Sheets panel). A sheet set is one element of the document. Make one with a name and New set, or pick one from the list. The numbering (prefix, digits, start, step, suffix) is a default you can edit. Under Defaults you edit the paper, frame and margins that new sheets start with, the five text heights, the pens (line weight and colour per layer) and whether model geometry prints in its own colours. Add a sheet from a template with Add, fill in the form and press Add to the set; Edit reopens the form for a sheet; Up moves a sheet earlier; Delete removes it. The templates:
+
+- **Plan series.** The alignment, the first and last station (empty means the alignment's ends), the length of alignment on each sheet, the overlap, the scale 1:n, the rotation (along the chord, north up or a number of degrees), and the station tick and label intervals. One sheet is made for each window; match lines name the neighbour's sheet number.
+- **Profile.** The alignment, the station range, the horizontal scale 1:n and the vertical scale 1:m (the exaggeration is n divided by m), an optional datum level (empty: a grid line under the lowest level), the grid intervals along the profile and of level, an optional data band interval, an optional ground surface, and which vertical geometry notes to show (below).
+- **Cross-sections.** A corridor; all its sections in a range, the sections at least an interval apart, or a list of stations (a station with no section is dropped, and none at all is refused); the scale, the vertical exaggeration, the columns and the number of sections to a sheet.
+- **Schedule.** The sign schedule; the quantities each module reports (one module or every module); the priced bill of quantities; the activity table of the programme; the clash results; the model-wide check summary. The table continues over as many sheets as it needs, with its header repeated.
+- **Detail.** A selected sign face (at a scale you enter, or fitted), the Gantt chart, the programme S-curve, or the cost S-curve of the cash flow.
+- **Notes.** A heading and the notes, one a line, numbered or not.
+
+Each sheet has its own paper size, orientation, margins, frame, title and numbering prefix. A prefix on a sheet replaces the set's for the sheets made from it and counts from the set's start number.
+
+The tables and charts of the schedule and detail sheets are not copied into the document: the sheet stores which data it shows, and the rows and drawings are read from the document every time the set is composed. Where a source has nothing to give (no programme, no estimate, no clash results, no signs, the traffic signs module not loaded) the sheet says so in one line and the preview lists it under the warnings. The priced bill needs an estimate in the document (open `ESTIMATE` once) and the clash table needs `CLASH` to have been run.
+
+**Title block editor** (`TITLEBLOCK`). The layout is data: a placement (a column down the right of the frame, or a block at the lower right) and a width; a stack of blocks, each rows of cells (a field, fixed text or nothing, with a caption, a width in millimetres where 0 shares the rest of the row, and bold), a revision table (rows, heights, columns), a logo box or a spacer. The Fields shown list adds or removes a field's cells (project, client, contract number, drawing title, drawing number, revision, date, scale, drawn, checked, approved, sheet n of m, and each other field of the project information). Apply to every sheet of the set puts the layout on all of them. Save as JSON and Load from JSON keep a layout as a file, so an organisation's own layout can be kept and reused. The neutral default layout reproduces no organisation's title block, and none is shipped.
+
+**Preview** (`SHEETPREVIEW`). Composes the selected set from the live model and opens the preview: Previous, Next and a list of the sheets, Fit, Zoom in and Zoom out, the wheel to zoom about the pointer and a drag to pan. The sheet is drawn from the composed sheet's drawing and its labels. Under it the composer's warnings are listed (for example "the profile is 1500 mm long at 1:1000 but the plot is 190 mm wide: the end is cut off", content cut off at the scale, a grade label that does not fit along its tangent) with the data notes, and the date and time composed are shown (UTC: the machine's time zone is not consulted). Compose again reads the model afresh. The preview paints text in the screen font, which is a little wider or narrower than the Helvetica of the PDF.
+
+**Export.** `SHEETPDF` writes the whole set as one PDF, a page per sheet (vector, real text). `SHEETDXF` asks for a folder and writes one R12 DXF per sheet named by sheet number, each at 1 drawing unit to a millimetre of paper; the manager also has Export DXF, one file, which lays the sheets side by side. `--export-set PATH` composes and writes without a window (a `.pdf` path, a `.dxf` path, or a folder that gets `sheets.pdf` and one DXF per sheet).
+
+**Profile annotation.** A profile sheet annotates the vertical geometry from the alignment's profile: a block above the plot for each PVI in the range with its station and level (`PVI 1+200.000   EL 104.000`) and, on a vertical curve, its length L, the grade change A (grade out less grade in, in percent), the K value (L divided by the absolute value of A, metres per percent) and the start and end stations (`PVC`, `PVT`); the grade of each tangent in percent along its straight part, turned to follow the line; and a small tick at each curve end. Blocks are staggered into rows so they never overlap, with a leader down to the PVI that does not run through another block. Stations are the displayed stations. K is a computed number: **no limit, no minimum and no pass or fail is applied**, and the crate holds none. For a circular curve L is the horizontal length from start to end; for an asymmetric parabola it is the sum of the two lengths. The notes are on by default and can be switched off, in part or whole, on the profile form.
+
+**The demo.** `--demo` adds the project information, every field marked DEMO, and a sheet set called "DEMO sheets": a plan series (1:2000, 300 m a sheet, 30 m overlap), one profile (H 1:6000, V 1:300, with the demo ground) and the activity table. Every number is an arbitrary demo value, commented in `sheets_glue.rs`.
+
+**Limits.** Stations on the forms are internal stations (the sheets print displayed stations). Times are UTC. A4 to A0 only. The R12 DXF has no line weights, hatching or layouts. Plan match lines are straight across the alignment and so are skewed on a curve. The data band of a profile is not de-conflicted where a station equation brings two stations close, and a view is clipped at its edge. The sheets crate's limits (images, dimensions, revision clouds, viewport-in-viewport) apply. Not done in the app: editing views one by one inside a sheet (a sheet is the form's single view), more than one view on a sheet, drag and drop layout, and a plot style editor beyond the pens table.
+
 ## 6. Built but not yet in the app
 
 Every engine crate in the workspace is now wired into the desktop app, including street lighting, road restraint, pavement and corridors (section 5.9), clash detection (5.11), the programme (5.12) and the cost estimate (5.13). What the app still does not do is listed with each chapter. The one built feature outside the app is the schedule CSV and XML import of the C# CLI: the MCP server reads schedule CSVs and the app does not import them.
@@ -843,6 +882,12 @@ Every command below is in the command table in `commands.rs`. Type the name or a
 | `SUPPORTS` | `POSTS` | none | Add posts and foundations to the selected sign |
 | `DESIGN` | `SIZE` | none | Size the selected sign's posts and foundations for wind (UK method) |
 | `NOSUPPORTS` | none | none | Remove the selected sign's posts and foundations |
+| `SHEETSET` | `DRAWINGSHEETS`, `SHEETMANAGER` | none | Open the sheet set manager: make sheet sets and add plan, profile, section, schedule, detail and notes sheets |
+| `SHEETPREVIEW` | `PREVIEWSHEETS` | none | Compose the sheet set from the live model and page through the sheets, with the composer's warnings |
+| `TITLEBLOCK` | `TBLOCK` | none | Edit the title block layout of the sheet set: fields shown, rows and cells, load or save it as JSON |
+| `PROJECTINFO` | `PROJECT` | none | Edit the project information that title blocks print: project, client, contract number, revisions and other fields |
+| `SHEETPDF` | `PLOTSHEETS` | none | Export the whole sheet set as one PDF, a page per sheet |
+| `SHEETDXF` | `SHEETSDXF` | none | Export the sheet set as DXF, one file per sheet in a folder |
 | `COPYCLIP` | none | `Ctrl+C` | Copy the selection to the clipboard |
 | `PASTECLIP` | `PASTE` | `Ctrl+V` | Paste the clipboard into the model space |
 | `ZOOMIN` | `ZI` | none | Zoom in about the centre of the view |
@@ -866,7 +911,6 @@ These tools appear on the ribbon as disabled buttons. They are not built. They a
 | Annotate, Annotation | Dimension | Dimension between two points. |
 | Annotate, Annotation | Leader | A note with an arrow to a point. |
 | Annotate, Annotation | Measure | Read the distance between two points. |
-| Manage, Project | Project information | Project name, client, contract and revision for title blocks. |
 | Manage, Project | Layer manager | Create, rename and colour layers. Layers can be shown and locked in the Layers panel today. |
 | Manage, Project | Units | Display units and precision. |
 
@@ -917,4 +961,6 @@ Each row gives a document, the edition the code uses, what it governs and any wa
 - **Missing crate READMEs.** `afrobim-signs`, `afrobim-dxf`, `afrobim-fabrication`, `afrobim-kernel`, `afrobim-draw` and `afrobim-app` have no README. The sign and export limits here come from the workspace README's status table only.
 - **Station conventions.** Every road dialog now takes the station shown on the drawings, with the region picker of Place by station, and converts it to the internal station (`station_input.rs`). The pavement design dialog's "make a pavement" step and the cross-section window have no station field of their own.
 - **Shortcut labels.** Some menu items show key labels that `shortcut()` in `ribbon.rs` does not hold: Erase shows "Del" in the menu and "Delete" in `shortcut()`, and zoom extents shows "Z" in the menu. The command table follows `shortcut()`, as briefed.
+- **Command names for sheets.** `SHEETS` and its alias `FABRICATION` stay with the fabrication sheets (a sheet per sign). The drawing sheets use `SHEETSET`, `SHEETPREVIEW`, `TITLEBLOCK`, `PROJECTINFO`, `SHEETPDF` and `SHEETDXF`.
+- **Windows.** Every window is made by `win::new` (`win.rs`), which keeps it inside the central area recorded by the canvas each frame; new windows should be made the same way.
 - **Drain solid.** The drainage README says the drain's 3D solid is level "because the alignment has no vertical geometry yet". The alignment crate now reads vertical profiles and superelevation. The manual reports the drain as level, as that README states. The code should be checked against the current alignment data.

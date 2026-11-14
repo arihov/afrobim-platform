@@ -132,7 +132,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
         ALIGNMENT,
         Panel { title: "Markings", items: &[Big(Icon::Markings, "Road markings", "MARKINGS")] },
         Panel { title: "Drainage", items: &[Big(Icon::Drainage, "Side drain", "DRAIN"), Big(Icon::Drainage, "Pipe culvert", "CULVERT"), Big(Icon::Rational, "Rational flow", "RATIONAL"), Big(Icon::Design, "Check", "CHECK")] },
-        Panel { title: "Lighting", items: &[Big(Icon::Lighting, "Street lighting", "LIGHTING"), Small(Icon::Lighting, "Light column", "LIGHTCOLUMN")] },
+        Panel { title: "Lighting", items: &[Big(Icon::Lighting, "Street lighting", "LIGHTING"), Big(Icon::Lighting, "Light column", "LIGHTCOLUMN")] },
         Panel { title: "Restraint", items: &[Big(Icon::Barrier, "Road restraint", "BARRIER")] },
         Panel { title: "Pavement", items: &[Big(Icon::Pavement, "Pavement", "PAVEMENT"), Big(Icon::Design, "Pavement design", "PAVEDESIGN")] },
         Panel { title: "Earthworks", items: &[Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Corridor, "Corridor", "CORRIDOR"), Big(Icon::Section, "Sections", "SECTIONS")] },
@@ -168,14 +168,20 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Display", items: &[Big(Icon::SiteColour, "Progress colour", "SITEVIEW"), Big(Icon::DateSlider, "4D date", "FOURD")] },
         Panel { title: "Payment", items: &[Big(Icon::Certificate, "Interim certificate", "CERTIFICATE")] },
     ];
-    const OUTPUT: &[Panel] = &[EXPORT, Panel { title: "Document", items: &[Big(Icon::Save, "Save", "SAVE"), Big(Icon::SaveAs, "Save as", "SAVEAS"), Big(Icon::Quit, "Quit", "QUIT")] }];
+    const OUTPUT: &[Panel] = &[
+        EXPORT,
+        Panel {
+            title: "Sheets",
+            items: &[Big(Icon::SheetSet, "Sheet sets", "SHEETSET"), Big(Icon::Real, "Preview", "SHEETPREVIEW"), Big(Icon::TitleBlock, "Title block", "TITLEBLOCK"), Big(Icon::Pdf, "Sheets PDF", "SHEETPDF"), Big(Icon::Dxf, "Sheets DXF", "SHEETDXF")],
+        },
+        Panel { title: "Document", items: &[Big(Icon::Save, "Save", "SAVE"), Big(Icon::SaveAs, "Save as", "SAVEAS"), Big(Icon::Quit, "Quit", "QUIT")] }];
     const MANAGE: &[Panel] = &[
         STANDARD,
         Panel { title: "Analysis", items: &[Big(Icon::CheckAll, "Check the model", "CHECKALL")] },
         Panel {
             title: "Project",
             items: &[
-                Planned(Icon::Project, "Project information", "Project name, client, contract and revision for title blocks"),
+                Big(Icon::Project, "Project information", "PROJECTINFO"),
                 Planned(Icon::Layers, "Layer manager", "Create, rename and colour layers (layers can be shown and locked in the Layers panel today)"),
                 Planned(Icon::Units, "Units", "Display units and precision"),
             ],
@@ -441,7 +447,7 @@ mod tests {
                 }
             }
         }
-        for command in ["LIBRARY", "QUANTITIES", "SHEETS"] {
+        for command in ["LIBRARY", "QUANTITIES", "SHEETS", "SHEETSET", "SHEETPDF", "SHEETDXF", "SHEETPREVIEW", "TITLEBLOCK", "PROJECTINFO"] {
             assert!(commands::resolve(command).is_some());
         }
     }

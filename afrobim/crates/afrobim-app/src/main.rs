@@ -24,10 +24,13 @@ mod road_dialogs;
 mod road_glue;
 mod schedule_glue;
 mod schedule_ui;
+mod sheets_glue;
+mod sheets_ui;
 mod signs_glue;
 mod station_input;
 mod supports_glue;
 mod view3d;
+mod win;
 
 use std::path::PathBuf;
 
@@ -69,6 +72,17 @@ pub struct Options {
     pub subtab: Option<u8>,
     /// After the demo clash run, zoom to the clash with this index (from 0) in the 3D view.
     pub zoom_clash: Option<usize>,
+    /// Compose a drawing sheet set and write it to this path, then exit: a `.pdf` path gets the PDF,
+    /// a `.dxf` path one DXF with every sheet, anything else is a folder that gets `sheets.pdf` and
+    /// one DXF per sheet.
+    pub export_set: Option<PathBuf>,
+    /// The sheet set to export or preview, by name; the first one when not given.
+    pub sheet_set: Option<String>,
+    /// The sheet to show first in the preview (from 0).
+    pub sheet: Option<usize>,
+    /// Open the sheet-set manager with the add form of this template (0 plan, 1 profile, 2 sections,
+    /// 3 schedule, 4 detail, 5 notes), to look at it without a pointer.
+    pub sheet_form: Option<usize>,
 }
 
 fn parse_args() -> Options {
@@ -90,6 +104,10 @@ fn parse_args() -> Options {
             "--date" => o.date = args.next(),
             "--zoom-clash" => o.zoom_clash = args.next().and_then(|v| v.parse().ok()),
             "--subtab" => o.subtab = args.next().and_then(|v| v.parse().ok()),
+            "--export-set" => o.export_set = args.next().map(PathBuf::from),
+            "--sheet-set" => o.sheet_set = args.next(),
+            "--sheet-form" => o.sheet_form = args.next().and_then(|v| v.parse().ok()),
+            "--sheet" => o.sheet = args.next().and_then(|v| v.parse().ok()),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),
             other if !other.starts_with("--") => o.open = Some(PathBuf::from(other)),
             _ => {}
