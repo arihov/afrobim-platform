@@ -6,6 +6,7 @@
 //! outlines go on `SIGN-TEXT` and unresolved artwork on `SYMBOL`. Output is byte-identical to the
 //! C# writer for the same primitives (see `tests/golden.rs`).
 
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use afrobim_draw::{Colour, Drawing, Primitive, Pt2};
@@ -53,6 +54,43 @@ pub fn write(drawing: &Drawing, scale: f64) -> String {
 #[derive(Default)]
 pub struct DxfDocument {
     entities: String,
+    /// Layers named by the free-form entity calls (`add_text`, `add_polyline`...), with their
+    /// colour. Empty unless those are used, in which case the file is exactly as before.
+    extra_layers: BTreeMap<String, u8>,
+}
+
+/// Horizontal justification of a [`DxfText`] about its point.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextAlign {
+    #[default]
+    Left,
+    Centre,
+    Right,
+}
+
+/// One line of text as a DXF TEXT entity.
+///
+/// `at` is the baseline point the alignment refers to and `height` the capital height, both in
+/// drawing units (millimetres for the files this crate writes). R12 has TEXT but no MTEXT, so
+/// several lines are several entities: call `add_text` once per line. Characters above 127 are
+/// written as `\U+XXXX` escapes, which CAD readers decode, so the file stays plain ASCII.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DxfText {
+    pub text: String,
+    pub at: Pt2,
+    pub height: f64,
+    pub rotation_deg: f64,
+    pub align: TextAlign,
+    pub layer: String,
+    /// AutoCAD Colour Index.
+    pub aci: u8,
+}
+
+impl DxfText {
+    /// Left-aligned, upright text on `layer` in colour 7.
+    pub fn new(text: impl Into<String>, at: Pt2, height: f64, layer: impl Into<String>) -> Self {
+        DxfText { text: text.into(), at, height, rotation_deg: 0.0, align: TextAlign::Left, layer: layer.into(), aci: 7 }
+    }
 }
 
 impl DxfDocument {
@@ -144,6 +182,74 @@ impl DxfDocument {
         }
     }
 
+    /// Adds a TEXT entity. The layer is created in the layer table if it is not one of the
+    /// built-in ones. Empty text and a non-positive height are skipped.
+    pub fn add_text(&mut self, t: &DxfText) {
+        if t.text.trim().is_empty() || t.height <= 0.0 || t.height.is_nan() {
+            return;
+        }
+        self.note_layer(&t.layer, t.aci);
+        let w = &mut self.entities;
+        pair(w, 0, "TEXT");
+        pair(w, 8, &t.layer);
+        pair(w, 62, &t.aci.to_string());
+        point(w, 10, t.at);
+        num(w, 40, t.height);
+        pair(w, 1, &dxf_text(&t.text));
+        if t.rotation_deg != 0.0 {
+            num(w, 50, t.rotation_deg);
+        }
+        pair(w, 7, "STANDARD");
+        if t.align != TextAlign::Left {
+            pair(w, 72, if t.align == TextAlign::Centre { "1" } else { "2" });
+            // With a justification the second alignment point is the one that counts.
+            point(w, 11, t.at);
+        }
+    }
+
+    /// Adds an open or closed POLYLINE of constant `width` (0 for a hairline) on `layer`.
+    /// R12 has no lineweight on entities, so a plotted pen width is carried as polyline width.
+    pub fn add_polyline(&mut self, layer: &str, aci: u8, points: &[Pt2], closed: bool, width: f64) {
+        if points.len() < 2 {
+            return;
+        }
+        self.note_layer(layer, aci);
+        let w = &mut self.entities;
+        pair(w, 0, "POLYLINE");
+        pair(w, 8, layer);
+        pair(w, 62, &aci.to_string());
+        pair(w, 66, "1");
+        num(w, 10, 0.0);
+        num(w, 20, 0.0);
+        num(w, 30, 0.0);
+        pair(w, 70, if closed { "1" } else { "0" });
+        if width > 0.0 {
+            num(w, 40, width); // default starting width
+            num(w, 41, width); // default ending width
+        }
+        end_polyline(w, layer, points.iter().copied());
+    }
+
+    /// Adds a LINE (hairline) on `layer`.
+    pub fn add_line(&mut self, layer: &str, aci: u8, from: Pt2, to: Pt2) {
+        self.note_layer(layer, aci);
+        let w = &mut self.entities;
+        pair(w, 0, "LINE");
+        pair(w, 8, layer);
+        pair(w, 62, &aci.to_string());
+        point(w, 10, from);
+        point(w, 11, to);
+    }
+
+    fn note_layer(&mut self, name: &str, aci: u8) {
+        const BUILT_IN: [&str; 12] = [
+            "0", "SIGN", "SIGN-WHITE", "SIGN-BLACK", "SIGN-GREEN", "SIGN-BLUE", "SIGN-BROWN", "SIGN-YELLOW", "SIGN-RED", "SIGN-GREY", "SIGN-TEXT", "SYMBOL",
+        ];
+        if !BUILT_IN.contains(&name) {
+            self.extra_layers.entry(name.to_string()).or_insert(aci);
+        }
+    }
+
     /// The complete DXF text.
     pub fn finish(self) -> String {
         let mut w = String::with_capacity(self.entities.len() + 2048);
@@ -176,10 +282,13 @@ impl DxfDocument {
         pair(&mut w, 2, "TABLES");
         pair(&mut w, 0, "TABLE");
         pair(&mut w, 2, "LAYER");
-        pair(&mut w, 70, &(layers.len() + 1).to_string()); // + layer 0
+        pair(&mut w, 70, &(layers.len() + 1 + self.extra_layers.len()).to_string()); // + layer 0
         layer(&mut w, "0", 7);
         for (name, colour) in layers {
             layer(&mut w, name, colour);
+        }
+        for (name, colour) in &self.extra_layers {
+            layer(&mut w, name, *colour);
         }
         pair(&mut w, 0, "ENDTAB");
 
@@ -265,6 +374,26 @@ fn fmt_num(v: f64) -> String {
     if !frac.is_empty() {
         out.push('.');
         out.push_str(frac);
+    }
+    out
+}
+
+/// Text for a group 1 value: ASCII as is, anything else as `\U+XXXX` (UTF-16 units above the
+/// basic plane as two escapes), control characters dropped.
+fn dxf_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '\n' | '\r' | '\t' => out.push(' '),
+            c if (c as u32) < 32 => {}
+            c if c.is_ascii() => out.push(c),
+            c => {
+                let mut units = [0u16; 2];
+                for u in c.encode_utf16(&mut units) {
+                    let _ = write!(out, "\\U+{u:04X}");
+                }
+            }
+        }
     }
     out
 }
@@ -360,5 +489,29 @@ mod tests {
         assert!(text.contains("VERTEX\n8\nSIGN-GREEN\n10\n1050\n20\n-475\n30\n0\n"));
         assert!(text.starts_with("0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n"));
         assert!(text.ends_with("0\nENDSEC\n0\nEOF\n"));
+    }
+
+    #[test]
+    fn text_and_free_polylines_add_layers_and_leave_plain_output_untouched() {
+        let plain = DxfDocument::new().finish();
+        let mut doc = DxfDocument::new();
+        doc.add_text(&DxfText { align: TextAlign::Centre, rotation_deg: 90.0, aci: 1, ..DxfText::new("STA 1+000 \u{b0}", Pt2::new(10.0, 20.0), 2.5, "SHEET-TEXT") });
+        doc.add_polyline("SHEET-FRAME", 7, &[Pt2::new(0.0, 0.0), Pt2::new(5.0, 0.0)], false, 0.5);
+        let text = doc.finish();
+        assert!(text.contains("0\nTEXT\n8\nSHEET-TEXT\n62\n1\n10\n10\n20\n20\n30\n0\n40\n2.5\n1\nSTA 1+000 \\U+00B0\n50\n90\n7\nSTANDARD\n72\n1\n11\n10\n21\n20\n31\n0\n"));
+        assert!(text.contains("0\nLAYER\n2\nSHEET-TEXT\n70\n0\n62\n1\n6\nCONTINUOUS\n"));
+        assert!(text.contains("70\n0\n40\n0.5\n41\n0.5\n0\nVERTEX\n8\nSHEET-FRAME"));
+        assert!(text.contains("2\nLAYER\n70\n14\n")); // 11 built in + layer 0 + two new
+        // No text, no new layers: the file is what it was.
+        assert!(plain.contains("2\nLAYER\n70\n12\n"));
+        assert!(!plain.contains("TEXT\n8\n"));
+    }
+
+    #[test]
+    fn empty_text_and_zero_height_are_skipped() {
+        let mut doc = DxfDocument::new();
+        doc.add_text(&DxfText::new("  ", Pt2::new(0.0, 0.0), 2.5, "T"));
+        doc.add_text(&DxfText::new("x", Pt2::new(0.0, 0.0), 0.0, "T"));
+        assert_eq!(doc.finish(), DxfDocument::new().finish());
     }
 }
