@@ -5,13 +5,15 @@
 //! **Modelling** ([`SideDrainDefinition`], [`PipeCulvertDefinition`], their kernel modules and
 //! the take-off in [`DrainQuantities`] and [`CulvertQuantities`]). Every dimension, level and
 //! gradient is entered by the engineer. The crate draws them and measures them by plain
-//! geometry. The culvert module raises notes against the few layout limits the governing manual
-//! states in words (minimum diameter, skew, gradient); each note cites its section.
+//! geometry. The culvert module raises notes against the few layout limits the chosen design
+//! basis states in words (minimum diameter, skew, gradient); each note cites its clause.
 //!
-//! **Design** ([`design`]). Peak flow by the Rational method, open-channel flow by Manning's
-//! equation and culvert outlet-control headwater, to the Uganda Ministry of Works and Transport
-//! *Road Design Manual Volume 2: Drainage Design* (January 2010). Its own documentation states
-//! what it covers, what stays an input and what is not done.
+//! **Design** ([`design`]). Open-channel flow by Manning's equation under either of two bases
+//! the engineer chooses between ([`design::DesignBasis`]): the Uganda Ministry of Works and
+//! Transport *Road Design Manual Volume 2: Drainage Design* (January 2010), which also gives
+//! peak flow by the Rational method and culvert outlet-control headwater ([`design::mowt`]),
+//! and the UK *Design Manual for Roads and Bridges* ([`design::dmrb`]). Each module's
+//! documentation states what it covers, what stays an input and what is not done.
 //!
 //! # Frames and conventions
 //!
