@@ -51,6 +51,10 @@
 use serde::{Deserialize, Serialize};
 use std::f64::consts::{PI, TAU};
 
+use crate::profile::Profile;
+use crate::stationing::{DisplayedStation, StationCandidate, StationEquationError, StationEquations};
+use crate::superelevation::Superelevation;
+
 /// Direction of a curve looking up-station.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Turn {
@@ -488,16 +492,32 @@ pub struct Joint {
     pub heading_change_rad: f64,
 }
 
-/// A horizontal alignment: a chain of elements with a station at its start.
+/// An alignment: a chain of horizontal elements with a station at its start, and optionally a
+/// vertical profile, stored superelevation and station equations.
 ///
-/// Stations run continuously from `start_station_m` by distance along the elements; station
-/// equations are not modelled.
+/// **Internal stations** run continuously from `start_station_m` by distance along the elements.
+/// Every method that takes a station takes an internal one unless it says otherwise; the profile
+/// and the superelevation are stored against internal stations too. `station_equations` only
+/// changes how a station is *named* ([`Alignment::displayed_station`],
+/// [`Alignment::internal_station`], [`Alignment::station_label`]).
+///
+/// The three optional parts are left out of the JSON when absent, and default to absent when
+/// reading, so alignments saved before they existed load unchanged.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Alignment {
     pub name: String,
     #[serde(default)]
     pub start_station_m: f64,
     pub elements: Vec<AlignmentElement>,
+    /// Vertical profile (centreline levels), against internal stations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<Profile>,
+    /// Stored cross-fall, against internal stations. Data only: see [`Superelevation`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub superelevation: Option<Superelevation>,
+    /// Station equations; empty when displayed stations are the internal ones.
+    #[serde(default, skip_serializing_if = "StationEquations::is_empty")]
+    pub station_equations: StationEquations,
 }
 
 /// Wraps an angle to (−π, π].
@@ -523,7 +543,7 @@ impl Alignment {
                 return Err(AlignmentError::BadElement { index, message: format!("has a negative length ({} m)", e.length) });
             }
         }
-        Ok(Alignment { name: name.to_string(), start_station_m, elements })
+        Ok(Alignment { name: name.to_string(), start_station_m, elements, profile: None, superelevation: None, station_equations: StationEquations::default() })
     }
 
     /// An alignment through a list of PIs. The first and last are its ends; each one between
@@ -593,7 +613,7 @@ impl Alignment {
             let out = dir(i);
             (from_x, from_y, used) = (p.x + c.tangent_out * out.cos(), p.y + c.tangent_out * out.sin(), c.tangent_out);
         }
-        Ok(Alignment { name: name.to_string(), start_station_m, elements })
+        Ok(Alignment { name: name.to_string(), start_station_m, elements, profile: None, superelevation: None, station_equations: StationEquations::default() })
     }
 
     /// Total length along the alignment, m.
@@ -650,6 +670,45 @@ impl Alignment {
         let e = &self.elements[i];
         let (x, y) = e.point_at(s);
         Some(StationPoint { x, y, heading_rad: e.heading_at(s).rem_euclid(TAU) })
+    }
+
+    /// Curvature (1/m, positive turning left) at a station; `None` off the alignment. On a joint
+    /// it is that of the element starting there.
+    pub fn curvature_at(&self, station_m: f64) -> Option<f64> {
+        let (i, s) = self.locate(station_m)?;
+        Some(self.elements[i].curvature_at(s))
+    }
+
+    /// The displayed station of an internal station and the region it is in, through the station
+    /// equations; `None` off the alignment. Without equations it is the internal station, region 0.
+    /// A station exactly on an equation gets the ahead station.
+    pub fn displayed_station(&self, internal_m: f64) -> Option<DisplayedStation> {
+        self.locate(internal_m)?;
+        Some(self.station_equations.to_displayed(internal_m))
+    }
+
+    /// The internal station of a displayed station.
+    ///
+    /// With `region: Some(r)` the station is looked for in region `r` only (0 before the first
+    /// equation). With `None` it must occur exactly once on the alignment: a station in an overlap
+    /// is refused with [`StationEquationError::Ambiguous`], which lists the candidates, and one in
+    /// a gap or beyond the ends with [`StationEquationError::NotOnAlignment`].
+    pub fn internal_station(&self, displayed_m: f64, region: Option<usize>) -> Result<f64, StationEquationError> {
+        let (start, end) = (self.start_station_m, self.end_station_m());
+        match region {
+            Some(r) => self.station_equations.to_internal_in_region(displayed_m, r, start, end),
+            None => self.station_equations.to_internal(displayed_m, start, end),
+        }
+    }
+
+    /// Every place on the alignment that a displayed station names, in order along it.
+    pub fn internal_station_candidates(&self, displayed_m: f64) -> Vec<StationCandidate> {
+        self.station_equations.candidates(displayed_m, self.start_station_m, self.end_station_m())
+    }
+
+    /// The label of an internal station: its displayed station as `1+250.000`.
+    pub fn station_label(&self, internal_m: f64, decimals: usize) -> String {
+        self.station_equations.label(internal_m, decimals)
     }
 
     /// The plan position at a station and offset (positive to the right looking up-station).

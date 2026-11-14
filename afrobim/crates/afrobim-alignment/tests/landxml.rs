@@ -27,6 +27,12 @@ fn reads_lines_curves_and_spirals_with_northing_first_and_a_station_start() {
 
     let a = &import.alignments[0];
     assert_eq!(a.name, "MC01");
+    // Its profile is one grade from 1180.000 at station 1000 to 1183.400 at 1680: 3.4 m in 680 m, 0.5 %.
+    let profile = a.profile.as_ref().unwrap();
+    assert_eq!(profile.name, "FG");
+    assert_close(profile.elevation_at(1340.0).unwrap(), 1181.7, 1e-9, "level at mid-length");
+    assert_close(profile.grade_at(1340.0).unwrap(), 0.005, 1e-12, "grade");
+    assert!(a.superelevation.is_none() && a.station_equations.is_empty());
     assert_eq!(a.start_station_m, 1000.0);
     use ElementKind::{Arc, Line, Spiral};
     let kinds: Vec<ElementKind> = a.elements.iter().map(|e| e.kind()).collect();
@@ -113,7 +119,12 @@ fn converts_units_and_says_what_it_left_out() {
     let end = a.point_at(a.end_station_m()).unwrap();
     assert_close(end.x, 425.093_634, 1e-5, "end easting");
     assert_close(end.y, 1_335.994_234, 1e-5, "end northing");
-    assert!(note("station equations").starts_with("Alignment 'Feet'"));
+    // Its station equation is read (it used to be ignored with a note): at internal 1300 ft the
+    // displayed station becomes 2000 ft.
+    assert_eq!(a.station_equations.equations.len(), 1);
+    assert_close(a.station_equations.equations[0].internal_m, 1300.0 * ft, 1e-9, "staInternal");
+    assert_close(a.station_equations.equations[0].ahead_m, 2000.0 * ft, 1e-9, "staAhead");
+    assert_close(a.displayed_station(1400.0 * ft).unwrap().station_m, 2100.0 * ft, 1e-9, "displayed station");
 
     // Points by pntRef; and a stated length that disagrees with them.
     let b = &import.alignments[1];
@@ -131,7 +142,7 @@ fn converts_units_and_says_what_it_left_out() {
     assert_eq!(note("'Irregular'"), "Alignment 'Irregular' was not imported: element 1 is a IrregularLine, which is not supported");
     assert_eq!(note("'Chained'"), "Alignment 'Chained' was not imported: element 1 is a Chain, which is not supported");
     assert!(note("'Dangling'").contains("refers to point 'P9', which is not in the file"));
-    assert_eq!(import.notes.len(), 8, "{:#?}", import.notes);
+    assert_eq!(import.notes.len(), 7, "{:#?}", import.notes);
 }
 
 #[test]

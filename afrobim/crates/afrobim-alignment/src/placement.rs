@@ -4,7 +4,9 @@
 //! reference (`SignCore.Cli/SignPlacement.cs`: `SignPlacement.Resolve`, `Rotation`,
 //! `NormalizeRad` and `LocationReport.Write`) and are held to it by `tests/golden.rs`: same
 //! points, same warning text, same CSV bytes. [`place`] is new: it joins those rules to the
-//! alignment geometry of this crate.
+//! alignment geometry of this crate, and [`place_with`] adds the choices that the profile,
+//! superelevation and station equations bring: whether the location's station is an internal or a
+//! displayed one, and whether the level is adjusted for cross-fall.
 //!
 //! Conventions (unchanged from the reference):
 //!
@@ -26,6 +28,8 @@ use afrobim_kernel::SitePlacement;
 use serde::{Deserialize, Serialize};
 
 use crate::geometry::Alignment;
+use crate::profile::ProfileError;
+use crate::stationing::StationEquationError;
 
 /// Which side of the road a sign stands on, looking in the direction of increasing station.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -110,6 +114,14 @@ pub enum PlacementError {
     NoStation,
     #[error("station {station} is off alignment '{alignment}', which runs from {start} to {end}")]
     StationOffAlignment { alignment: String, station: String, start: String, end: String },
+    #[error("alignment '{alignment}': {source}")]
+    Station { alignment: String, source: StationEquationError },
+    #[error("alignment '{alignment}': no level for the sign: {source}")]
+    Profile { alignment: String, source: ProfileError },
+    #[error("alignment '{alignment}' has no profile, so there is no level to adjust for cross-fall")]
+    NoProfile { alignment: String },
+    #[error("alignment '{alignment}' has no stored cross-fall for the {side} side at station {station}")]
+    CrossFallUnknown { alignment: String, station: String, side: &'static str },
 }
 
 /// Turns a schedule location into inserts along an alignment whose direction at the station is
@@ -167,25 +179,33 @@ pub fn normalize_rad(a: f64) -> f64 {
     r
 }
 
-/// One sign on site, ready to store: plan position in millimetres, rotation in degrees
+/// One sign on site, ready to store: position in millimetres, rotation in degrees
 /// counter-clockwise from +X, and the station and offset (m) it was taken from.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlacedPosition {
     pub side: SignSide,
     pub x_mm: f64,
     pub y_mm: f64,
+    /// Level in millimetres: the profile's centreline level at the station, plus the cross-fall
+    /// adjustment when one was asked for and applied. 0 when the alignment has no profile.
+    pub z_mm: f64,
     pub rotation_deg: f64,
+    /// The **internal** station, whatever kind of station the location gave.
     pub station_m: f64,
     pub offset_m: f64,
+    /// The cross-fall (percent, positive rising away from the centreline) that `z_mm` was
+    /// adjusted by; `None` when no adjustment was made.
+    pub cross_fall_pct: Option<f64>,
 }
 
 impl PlacedPosition {
-    /// The kernel placement for this position, at ground level (z = 0), tied to the named alignment.
+    /// The kernel placement for this position, tied to the named alignment. `z` is `z_mm` (0
+    /// without a profile) and `station_m` is the internal station.
     pub fn site_placement(&self, alignment_name: &str) -> SitePlacement {
         SitePlacement {
             x: self.x_mm,
             y: self.y_mm,
-            z: 0.0,
+            z: self.z_mm,
             rotation_deg: self.rotation_deg,
             alignment: Some(alignment_name.to_string()),
             station_m: Some(self.station_m),
@@ -216,26 +236,107 @@ pub struct Placement {
     pub warning: Option<String>,
 }
 
+/// What kind of station a [`SignLocation`] carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StationReference {
+    /// The alignment's continuous station (start station + distance along it).
+    #[default]
+    Internal,
+    /// The station as displayed, to be taken through the alignment's station equations.
+    /// `region` says which region it is in (0 before the first equation); with `None` the
+    /// station must occur exactly once on the alignment, and one in an overlap is an error that
+    /// lists the candidates. On an alignment without equations this is the internal station.
+    Displayed { region: Option<usize> },
+}
+
+/// Whether the level of a placed sign is adjusted for the stored cross-fall.
+///
+/// The adjustment is `|offset| × cross-fall / 100`, added to the centreline level: it treats the
+/// ground as one plane from the centreline to the sign at the cross-fall of that side.
+/// **That is an approximation and holds only within the carriageway.** Beyond the carriageway
+/// edge (shoulder, verge, side slope, where signs usually stand) the ground does not follow the
+/// carriageway cross-fall and the result is not a ground level. It is off unless asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CrossFallAdjust {
+    /// The centreline level is used as it is.
+    #[default]
+    Off,
+    /// Adjust where the alignment has a cross-fall for that side at that station; elsewhere the
+    /// centreline level is kept and [`PlacedPosition::cross_fall_pct`] is `None`.
+    WhereKnown,
+    /// Adjust, and fail where there is no profile or no stored cross-fall for that side there.
+    Required,
+}
+
+/// The choices of [`place_with`]. The default is what [`place`] does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PlaceOptions {
+    pub station: StationReference,
+    pub cross_fall: CrossFallAdjust,
+}
+
 /// Places a schedule location on an alignment: the point at its station, moved square to the
 /// alignment by the resolved offset, with the rotation of [`resolve`] for the alignment's
 /// direction there. The location's `alignment` name is not compared with the alignment's.
+///
+/// The station is an **internal** station. When the alignment has a profile the level is the
+/// profile's (centreline) level at the station, and a station outside the profile is an error;
+/// without a profile the level is 0. No cross-fall adjustment is made. See [`place_with`] for
+/// displayed stations and the cross-fall option.
 pub fn place(alignment: &Alignment, location: &SignLocation, drive: TrafficSide) -> Result<Placement, PlacementError> {
-    let station = location.station.ok_or(PlacementError::NoStation)?;
+    place_with(alignment, location, drive, &PlaceOptions::default())
+}
+
+/// [`place`] with choices: `options.station` says whether the location's station is internal or
+/// displayed (see [`StationReference`]), and `options.cross_fall` whether the level is adjusted
+/// across the offset by the stored cross-fall (see [`CrossFallAdjust`] for why that is only an
+/// approximation).
+pub fn place_with(alignment: &Alignment, location: &SignLocation, drive: TrafficSide, options: &PlaceOptions) -> Result<Placement, PlacementError> {
+    let name = || alignment.name.clone();
+    let given = location.station.ok_or(PlacementError::NoStation)?;
+    let station = match options.station {
+        StationReference::Internal => given,
+        StationReference::Displayed { region } => {
+            alignment.internal_station(given, region).map_err(|source| PlacementError::Station { alignment: name(), source })?
+        }
+    };
     let at = alignment.point_at(station).ok_or_else(|| PlacementError::StationOffAlignment {
-        alignment: alignment.name.clone(),
+        alignment: name(),
         station: crate::format_station(station, 3),
         start: crate::format_station(alignment.start_station_m, 3),
         end: crate::format_station(alignment.end_station_m(), 3),
     })?;
     let plan = resolve(location, at.heading_rad, drive)?;
-    let positions = plan
-        .points
-        .iter()
-        .map(|p| {
-            let (x, y) = at.offset(p.offset);
-            PlacedPosition { side: p.side, x_mm: x * 1000.0, y_mm: y * 1000.0, rotation_deg: p.rotation_deg(), station_m: station, offset_m: p.offset }
-        })
-        .collect();
+    let centreline_m = match &alignment.profile {
+        Some(profile) => Some(profile.elevation_at(station).map_err(|source| PlacementError::Profile { alignment: name(), source })?),
+        None => None,
+    };
+    if centreline_m.is_none() && options.cross_fall == CrossFallAdjust::Required {
+        return Err(PlacementError::NoProfile { alignment: name() });
+    }
+    let fall = match (options.cross_fall, centreline_m, &alignment.superelevation) {
+        (CrossFallAdjust::Off, _, _) | (_, None, _) | (_, _, None) => Default::default(),
+        (_, Some(_), Some(s)) => s.cross_fall_at(station),
+    };
+    let mut positions = Vec::with_capacity(plan.points.len());
+    for p in &plan.points {
+        let (x, y) = at.offset(p.offset);
+        let cross_fall_pct = if p.side == SignSide::Left { fall.left_pct } else { fall.right_pct };
+        if cross_fall_pct.is_none() && options.cross_fall == CrossFallAdjust::Required {
+            return Err(PlacementError::CrossFallUnknown { alignment: name(), station: alignment.station_label(station, 3), side: p.side.token() });
+        }
+        let z_m = centreline_m.unwrap_or(0.0) + cross_fall_pct.map_or(0.0, |pct| p.offset.abs() * pct / 100.0);
+        positions.push(PlacedPosition {
+            side: p.side,
+            x_mm: x * 1000.0,
+            y_mm: y * 1000.0,
+            z_mm: z_m * 1000.0,
+            rotation_deg: p.rotation_deg(),
+            station_m: station,
+            offset_m: p.offset,
+            cross_fall_pct,
+        });
+    }
     Ok(Placement { positions, warning: plan.warning })
 }
 

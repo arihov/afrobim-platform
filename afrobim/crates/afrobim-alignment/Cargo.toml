@@ -1,6 +1,6 @@
 [package]
 name = "afrobim-alignment"
-description = "Horizontal road alignments: geometry, stationing, station/offset placement, LandXML import"
+description = "Road alignments: horizontal geometry, vertical profile, stored superelevation, station equations, station/offset placement, LandXML import"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
