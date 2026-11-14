@@ -138,24 +138,56 @@ pub fn element_states(p: &Programme, s: &Schedule, doc: &Document, date: Date) -
         if e.category == crate::SCHEDULE_CATEGORY {
             continue;
         }
-        // (activity start, link, state, present)
-        let mut hits: Vec<(Date, LinkState, bool, bool)> = Vec::new();
-        for l in p.links.iter().filter(|l| selects(&l.selector, e)) {
-            if let Some((raw, start)) = raw_state(p, s, &l.activity, date) {
-                let (phase, present) = phase_of(l.action, &raw);
-                let started = !matches!(raw, Raw::Before);
-                hits.push((start, LinkState { activity: l.activity.clone(), action: l.action, phase }, present, started));
-            }
+        match element_state_at(p, s, e, date) {
+            Some(st) => states.push(st),
+            None => unlinked.push(e.id),
         }
-        if hits.is_empty() {
-            unlinked.push(e.id);
-            continue;
-        }
-        hits.sort_by_key(|h| h.0);
-        let chosen = hits.iter().rev().find(|h| h.3).unwrap_or(&hits[0]);
-        states.push(ElementState { element: e.id, phase: chosen.1.phase, present: chosen.2, links: hits.iter().map(|h| h.1.clone()).collect() });
     }
     ElementStates { date, states, unlinked }
+}
+
+/// The state of one element at the end of `date`, or `None` when no link reaches it (or the
+/// links name activities the schedule does not have). [`element_states`] runs this per element,
+/// and so does the 4D playback ([`crate::element_timelines`]).
+pub fn element_state_at(p: &Programme, s: &Schedule, e: &Element, date: Date) -> Option<ElementState> {
+    // (activity start, link state, present, started)
+    let mut hits: Vec<(Date, LinkState, bool, bool)> = Vec::new();
+    for l in p.links.iter().filter(|l| selects(&l.selector, e)) {
+        if let Some((raw, start)) = raw_state(p, s, &l.activity, date) {
+            let (phase, present) = phase_of(l.action, &raw);
+            let started = !matches!(raw, Raw::Before);
+            hits.push((start, LinkState { activity: l.activity.clone(), action: l.action, phase }, present, started));
+        }
+    }
+    if hits.is_empty() {
+        return None;
+    }
+    hits.sort_by_key(|h| h.0);
+    let chosen = hits.iter().rev().find(|h| h.3).unwrap_or(&hits[0]);
+    Some(ElementState { element: e.id, phase: chosen.1.phase, present: chosen.2, links: hits.iter().map(|h| h.1.clone()).collect() })
+}
+
+/// The dates at which an element's state could change: for each linked activity, its early start,
+/// its early finish and every working day between. The state can only differ from the day before
+/// on one of these.
+pub(crate) fn candidate_dates(p: &Programme, s: &Schedule, e: &Element) -> Vec<Date> {
+    let mut out = Vec::new();
+    for l in p.links.iter().filter(|l| selects(&l.selector, e)) {
+        let Some(row) = s.row(&l.activity) else { continue };
+        out.push(row.early_start);
+        out.push(row.early_finish);
+        if let Some(cal) = p.calendar_named(&row.calendar) {
+            out.extend(cal.working_days_inclusive(row.early_start, row.early_finish));
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// The elements (not the schedule element) that at least one link selects, by id.
+pub(crate) fn selects_element(p: &Programme, activity: &str, e: &Element) -> bool {
+    p.links.iter().any(|l| l.activity == activity && selects(&l.selector, e))
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]

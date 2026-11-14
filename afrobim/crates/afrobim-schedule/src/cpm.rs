@@ -54,8 +54,37 @@ pub struct Row {
     pub late_finish: Date,
     pub total_float: i64,
     pub free_float: i64,
-    /// Total float of zero or less, and not complete.
+    /// Critical by the basis in [`ScheduleOptions`]: total float of zero or less (the default), or
+    /// on the longest path; never for complete work.
     pub critical: bool,
+    /// On the longest path whatever the basis (see [`ScheduleOptions`] for the definition).
+    #[serde(default)]
+    pub on_longest_path: bool,
+}
+
+/// What makes an activity critical.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum CriticalBasis {
+    /// Total float of zero or less (the default, and what the crate always did).
+    #[default]
+    TotalFloat,
+    /// On the longest path: the chain of driving relationships that ends at the project finish.
+    ///
+    /// Definition used here: start from every unfinished activity whose early finish is the
+    /// project finish. An unfinished predecessor joins the path when its relationship is
+    /// *driving*, that is when the date that relationship alone requires of the successor equals
+    /// the successor's scheduled (remaining) start. Repeat from each activity that joined. A
+    /// constraint, the data date or the programme start that holds an activity later than its logic
+    /// ends the chain there. Relationships of work already started that are spent (SS) never
+    /// drive. This is the definition of this crate; it has not been compared with what P6 or MS
+    /// Project mark as the longest path.
+    LongestPath,
+}
+
+/// Options for [`schedule_with`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ScheduleOptions {
+    pub critical: CriticalBasis,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -115,7 +144,12 @@ pub fn validate(p: &Programme) -> Vec<Issue> {
             }
         }
         validate_progress(p, a, &mut out);
+        let msos: Vec<Date> = a.constraints().filter_map(|c| if let Constraint::MustStartOn(d) = c { Some(d) } else { None }).collect();
+        if msos.windows(2).any(|w| w[0] != w[1]) {
+            out.push(issue(Severity::Warning, "conflicting_constraints", format!("activity '{}' has several must-start-on dates; the first is used", a.id), Some(&a.id)));
+        }
     }
+    validate_wbs(p, &mut out);
     let mut edges: Vec<(usize, usize)> = Vec::new();
     let mut seen = HashSet::new();
     for (k, d) in p.dependencies.iter().enumerate() {
@@ -174,6 +208,44 @@ pub fn validate(p: &Programme) -> Vec<Issue> {
         Severity::Info => 2,
     });
     out
+}
+
+/// Summary task ids are unique, every parent exists, and the summary tree has no loop.
+fn validate_wbs(p: &Programme, out: &mut Vec<Issue>) {
+    let mut seen: HashSet<&str> = HashSet::new();
+    for s in &p.summaries {
+        if !seen.insert(s.id.as_str()) {
+            out.push(issue(Severity::Error, "duplicate_summary", format!("summary task id '{}' is used more than once", s.id), None));
+        }
+    }
+    for s in &p.summaries {
+        if let Some(par) = &s.parent {
+            if !seen.contains(par.as_str()) {
+                out.push(issue(Severity::Error, "unknown_parent", format!("summary task '{}' has parent '{par}', which is not a summary task", s.id), None));
+            }
+        }
+    }
+    for a in &p.activities {
+        if let Some(par) = &a.parent {
+            if !seen.contains(par.as_str()) {
+                out.push(issue(Severity::Error, "unknown_parent", format!("activity '{}' has parent '{par}', which is not a summary task", a.id), Some(&a.id)));
+            }
+        }
+    }
+    // A loop: walking up from any summary never ends within as many steps as there are summaries.
+    let parent_of: HashMap<&str, &str> = p.summaries.iter().filter_map(|s| s.parent.as_deref().map(|q| (s.id.as_str(), q))).collect();
+    for s in &p.summaries {
+        let mut cur = s.id.as_str();
+        let mut steps = 0;
+        while let Some(&up) = parent_of.get(cur) {
+            cur = up;
+            steps += 1;
+            if steps > p.summaries.len() {
+                out.push(issue(Severity::Error, "wbs_cycle", format!("summary task '{}' is its own ancestor", s.id), None));
+                break;
+            }
+        }
+    }
 }
 
 fn validate_progress(p: &Programme, a: &crate::model::Activity, out: &mut Vec<Issue>) {
@@ -326,6 +398,11 @@ impl Net<'_> {
 /// Fails with [`ScheduleError::Invalid`] when [`validate`] finds an error. See the README for
 /// every formula.
 pub fn schedule(p: &Programme) -> Result<Schedule, ScheduleError> {
+    schedule_with(p, &ScheduleOptions::default())
+}
+
+/// [`schedule`] with options: which definition of critical to mark.
+pub fn schedule_with(p: &Programme, options: &ScheduleOptions) -> Result<Schedule, ScheduleError> {
     let mut issues = validate(p);
     if issues.iter().any(|i| i.severity == Severity::Error) {
         issues.retain(|i| i.severity == Severity::Error);
@@ -359,6 +436,8 @@ pub fn schedule(p: &Programme) -> Result<Schedule, ScheduleError> {
     // Forward pass.
     let mut es = vec![p.start; n];
     let mut ef = vec![p.start; n];
+    // The start the remaining work was scheduled at (the actual start is kept in `es`).
+    let mut rs = vec![p.start; n];
     let base_floor = match p.data_date {
         Some(dd) => dd.add_days(1).max(p.start),
         None => p.start,
@@ -382,29 +461,33 @@ pub fn schedule(p: &Programme) -> Result<Schedule, ScheduleError> {
             start = start.max(net.implied(i, e.kind, e.lag, ps, pf));
         }
         if !started {
-            match a.constraint {
-                Some(Constraint::StartNoEarlierThan(d)) => start = start.max(cal.first_on_or_after(d)),
-                Some(Constraint::MustStartOn(d)) => {
-                    let m = cal.first_on_or_after(d);
-                    if m < start {
-                        issues.push(issue(
-                            Severity::Warning,
-                            "mso_overrides_logic",
-                            format!("activity '{}' must start on {m} but its logic needs {start}: the constraint overrides the logic", a.id),
-                            Some(&a.id),
-                        ));
-                    }
-                    start = m;
+            // Every start-no-earlier-than date counts; then the first must-start-on, if any, overrides.
+            for c in a.constraints() {
+                if let Constraint::StartNoEarlierThan(d) = c {
+                    start = start.max(cal.first_on_or_after(d));
                 }
-                _ => {}
+            }
+            if let Some(Constraint::MustStartOn(d)) = a.constraints().find(|c| matches!(c, Constraint::MustStartOn(_))) {
+                let m = cal.first_on_or_after(d);
+                if m < start {
+                    issues.push(issue(
+                        Severity::Warning,
+                        "mso_overrides_logic",
+                        format!("activity '{}' must start on {m} but its logic needs {start}: the constraint overrides the logic", a.id),
+                        Some(&a.id),
+                    ));
+                }
+                start = m;
             }
         }
+        rs[i] = start;
         let d = net.dur[i];
         ef[i] = if d > 0 { cal.shift(start, d - 1) } else { start };
         es[i] = if started { a.progress.actual_start.expect("validated") } else { start };
     }
     let project_finish = (0..n).map(|i| ef[i]).max().expect("n > 0");
     let finish_limit = p.required_finish.unwrap_or(project_finish);
+    let on_lp = longest_path(&net, &es, &ef, &rs, project_finish);
 
     // Backward pass. Complete activities hold their dates and constrain nothing.
     let mut ls = es.clone();
@@ -455,10 +538,12 @@ pub fn schedule(p: &Programme) -> Result<Schedule, ScheduleError> {
             }
         }
         if !started {
-            match a.constraint {
-                Some(Constraint::FinishNoLaterThan(c)) => f_bound(cal.last_on_or_before(c), &mut put),
-                Some(Constraint::MustStartOn(c)) => put(cal.first_on_or_after(c)),
-                _ => {}
+            for c in a.constraints() {
+                match c {
+                    Constraint::FinishNoLaterThan(c) => f_bound(cal.last_on_or_before(c), &mut put),
+                    Constraint::MustStartOn(c) => put(cal.first_on_or_after(c)),
+                    Constraint::StartNoEarlierThan(_) => {}
+                }
             }
         }
         let late_start = cap.expect("an activity is terminal or has a live successor");
@@ -511,7 +596,11 @@ pub fn schedule(p: &Programme) -> Result<Schedule, ScheduleError> {
             late_finish: lf[i],
             total_float: tf,
             free_float: ff,
-            critical: !complete && tf <= 0,
+            critical: !complete && match options.critical {
+                CriticalBasis::TotalFloat => tf <= 0,
+                CriticalBasis::LongestPath => on_lp[i],
+            },
+            on_longest_path: on_lp[i],
         });
     }
     if !negative.is_empty() {
@@ -523,6 +612,34 @@ pub fn schedule(p: &Programme) -> Result<Schedule, ScheduleError> {
         ));
     }
     Ok(Schedule { rows, project_start: p.start, project_finish, finish_limit, data_date: p.data_date, issues })
+}
+
+/// Marks the longest path (definition at [`CriticalBasis::LongestPath`]).
+fn longest_path(net: &Net, es: &[Date], ef: &[Date], rs: &[Date], project_finish: Date) -> Vec<bool> {
+    let n = es.len();
+    let mut on = vec![false; n];
+    let mut stack: Vec<usize> = Vec::new();
+    for i in 0..n {
+        if net.status[i] != Status::Complete && ef[i] == project_finish {
+            on[i] = true;
+            stack.push(i);
+        }
+    }
+    while let Some(i) = stack.pop() {
+        let started = net.status[i] == Status::InProgress;
+        for e in &net.preds[i] {
+            let p = e.other;
+            if on[p] || net.status[p] == Status::Complete || (started && e.kind == LinkType::SS) {
+                continue;
+            }
+            let (ps, pf) = (net.s_eff(p, es[p]), net.f_eff(p, es[p], ef[p]));
+            if net.implied(i, e.kind, e.lag, ps, pf) == rs[i] {
+                on[p] = true;
+                stack.push(p);
+            }
+        }
+    }
+    on
 }
 
 /// Kahn's algorithm; ties keep the programme order so results are deterministic.

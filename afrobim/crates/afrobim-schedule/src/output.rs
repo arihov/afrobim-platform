@@ -90,6 +90,35 @@ fn line(a: Pt2, b: Pt2, w: f64, c: Colour) -> Primitive {
 }
 
 pub fn gantt_drawing(p: &Programme, s: &Schedule, o: &GanttOptions) -> GanttDrawing {
+    gantt_impl(p, s, o, None)
+}
+
+/// The Gantt chart with the work breakdown structure: summary tasks and activities in outline
+/// order ([`crate::outline`]), each summary drawn as a black bar from its first start to its last
+/// finish with the rolled-up percent complete as a lighter strip, and its name indented by level.
+/// `GanttDrawing::rows` holds the activity id of an activity row and `wbs:<summary id>` of a
+/// summary row. Dependency lines are drawn between activities only.
+pub fn gantt_drawing_wbs(p: &Programme, s: &Schedule, o: &GanttOptions, rollup: &crate::Rollup) -> GanttDrawing {
+    gantt_impl(p, s, o, Some(rollup))
+}
+
+/// A row of the chart: an activity row of the schedule, or a summary row of the roll-up.
+enum GRow<'a> {
+    Act(&'a Row, usize),
+    Sum(&'a crate::SummaryRow),
+}
+
+fn gantt_impl(p: &Programme, s: &Schedule, o: &GanttOptions, rollup: Option<&crate::Rollup>) -> GanttDrawing {
+    let entries: Vec<GRow> = match rollup {
+        None => s.rows.iter().map(|r| GRow::Act(r, 1)).collect(),
+        Some(ru) => crate::outline(p)
+            .into_iter()
+            .filter_map(|it| match it.kind {
+                crate::OutlineKind::Summary(k) => ru.row(&p.summaries[k].id).map(GRow::Sum),
+                crate::OutlineKind::Activity(i) => s.row(&p.activities[i].id).map(|r| GRow::Act(r, it.level)),
+            })
+            .collect(),
+    };
     let baseline = if o.baseline { p.baseline.as_ref() } else { None };
     let mut first = s.rows.iter().map(|r| r.early_start).min().unwrap_or(s.project_start).min(s.project_start);
     let mut last = s.project_finish;
@@ -108,7 +137,7 @@ pub fn gantt_drawing(p: &Programme, s: &Schedule, o: &GanttOptions) -> GanttDraw
         first = first.add_days(-1);
     }
     let days = last.days_since(first) + 2;
-    let n = s.rows.len();
+    let n = entries.len();
     let width = o.label_width + days as f64 * o.day_width;
     let height = o.header_height + n as f64 * o.row_height;
     let x = |d: Date| o.label_width + d.days_since(first) as f64 * o.day_width;
@@ -136,8 +165,35 @@ pub fn gantt_drawing(p: &Programme, s: &Schedule, o: &GanttOptions) -> GanttDraw
     // Bars and milestones.
     let mut anchors: HashMap<&str, (f64, f64, f64, bool)> = HashMap::new(); // start x, finish x, y, critical
     let half = o.bar_height / 2.0;
-    for (k, r) in s.rows.iter().enumerate() {
+    for (k, entry) in entries.iter().enumerate() {
         let y = row_y(k);
+        let r = match entry {
+            GRow::Act(r, _) => *r,
+            GRow::Sum(sm) => {
+                let indent = (sm.level.saturating_sub(1)) as f64 * 2.0;
+                if let (Some(a), Some(b)) = (sm.start, sm.finish) {
+                    let (xs, xf) = (x(a), x(b.add_days(1)));
+                    prims.push(rect(xs, y - half * 0.5, xf, y + half * 0.5, Colour::Black));
+                    let w = (xf - xs) * (sm.percent_complete / 100.0).clamp(0.0, 1.0);
+                    if w > 0.0 {
+                        prims.push(rect(xs, y - half * 0.5, xs + w, y - half * 0.5 + o.bar_height / 6.0, Colour::Grey));
+                    }
+                    // End brackets.
+                    for ex in [xs, xf] {
+                        let dir = if ex == xs { 1.0 } else { -1.0 };
+                        prims.push(Primitive::Fill { outline: vec![Pt2::new(ex, y - half * 0.5), Pt2::new(ex + dir * half, y - half * 0.5), Pt2::new(ex, y - half * 1.2)], colour: Colour::Black });
+                    }
+                }
+                let wbs_w = o.label_width * 0.25;
+                labels.push(GanttLabel { at: Pt2::new(2.0 + indent, y), text: sm.wbs.clone(), kind: GanttLabelKind::Wbs });
+                labels.push(GanttLabel { at: Pt2::new(wbs_w + indent, y), text: sm.name.clone(), kind: GanttLabelKind::Name });
+                continue;
+            }
+        };
+        let indent = match entry {
+            GRow::Act(_, level) => (level.saturating_sub(1)) as f64 * 2.0,
+            GRow::Sum(_) => 0.0,
+        };
         let colour = if r.critical {
             Colour::Red
         } else if r.status == Status::Complete {
@@ -170,8 +226,8 @@ pub fn gantt_drawing(p: &Programme, s: &Schedule, o: &GanttOptions) -> GanttDraw
         }
         anchors.insert(r.id.as_str(), (xs, xf, y, r.critical));
         let wbs_w = o.label_width * 0.25;
-        labels.push(GanttLabel { at: Pt2::new(2.0, y), text: r.wbs.clone(), kind: GanttLabelKind::Wbs });
-        labels.push(GanttLabel { at: Pt2::new(wbs_w, y), text: r.name.clone(), kind: GanttLabelKind::Name });
+        labels.push(GanttLabel { at: Pt2::new(2.0 + indent, y), text: r.wbs.clone(), kind: GanttLabelKind::Wbs });
+        labels.push(GanttLabel { at: Pt2::new(wbs_w + indent, y), text: r.name.clone(), kind: GanttLabelKind::Name });
     }
 
     // Dependency lines: out of the predecessor's start or finish, into the successor's start or
@@ -218,7 +274,13 @@ pub fn gantt_drawing(p: &Programme, s: &Schedule, o: &GanttOptions) -> GanttDraw
         label_width: o.label_width,
         row_height: o.row_height,
         header_height: o.header_height,
-        rows: s.rows.iter().map(|r| r.id.clone()).collect(),
+        rows: entries
+            .iter()
+            .map(|e| match e {
+                GRow::Act(r, _) => r.id.clone(),
+                GRow::Sum(sm) => format!("wbs:{}", sm.id),
+            })
+            .collect(),
     }
 }
 
@@ -258,7 +320,7 @@ pub fn activity_table_csv(p: &Programme, s: &Schedule) -> String {
             r.duration.to_string(),
             r.remaining_duration.to_string(),
             format!("{}", r.percent_complete),
-            constraint_text(a.and_then(|a| a.constraint)),
+            a.map(|a| a.constraints().map(|c| constraint_text(Some(c))).collect::<Vec<_>>().join("; ")).unwrap_or_default(),
             r.early_start.to_string(),
             r.early_finish.to_string(),
             r.late_start.to_string(),
