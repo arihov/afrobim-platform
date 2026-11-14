@@ -8,12 +8,14 @@ This manual describes the AfroBIM desktop application and the crates it uses, as
 2. Installing and running from source
 3. The screen
 4. Working with commands
-5. Chapters by area: traffic signs, supports, alignments, road markings, drainage, gantries, exports, Python and MCP, the other road modules, stations and the lighting check inputs, Coordination, 4D, 5D, the model-wide check, Construction, the drawing sheets, alignment design and options, and the second round of 4D tools
+5. Chapters by area: traffic signs, supports, alignments, road markings, drainage, gantries, exports, Python and MCP, the other road modules, stations and the lighting check inputs, Coordination, 4D, 5D, the model-wide check, Construction, the drawing sheets, alignment design and options, the second round of 4D tools, issues and BCF, IFC reference models, sign visibility, lighting photometry and the calculation report pack
 6. Built but not yet in the app
 7. Command reference
 8. Planned, not built yet
 9. Standards and editions
-10. Notes for the maintainer
+10. A first hour with AfroBIM
+11. What has not been verified
+12. Notes for the maintainer
 
 ## 1. What AfroBIM is
 
@@ -86,6 +88,11 @@ These options come from `main.rs`. Any option that is not listed is ignored. A f
 | `--frames-dir FOLDER` | Writes the 4D playback as PNG frames of the 3D view into this folder, then exits. Needs a scheduled programme (use `--demo`). |
 | `--frames-step DAYS` | The days between frames (7 when not given). |
 | `--frames-from DATE`, `--frames-to DATE` | The first and last frame date (the programme's start and finish when not given). |
+| `--ifcref FILE[,dx,dy,dz,rot]` | Imports this IFC file as a reference model at start-up, with the offset (mm) and rotation (degrees) given, without opening a file dialog. |
+| `--photometry FILE` | Opens the Photometry window with this IES or LDT file loaded. With `--photometry-run`, also fills arbitrary demo settings (maintenance factor 0.8, 60 m contribution distance, cells of 3 m by 1 m, orientation accepted) and runs, for a screenshot. |
+| `--vis-view drawings` or `overlay` | After a visibility run (`--run VISIBILITYRUN`), shows only the drawings window, or only the 3D view framed on the sign with the limiting sight line. |
+| `--capture-viewpoint` | Takes a viewpoint of the first issue from the 3D view at start-up, with its snapshot. |
+| `--export-pack FILE` | Composes the calculation report pack and writes the PDF, plain-text and CSV variants (the same name with the three extensions), then exits. |
 | `--screenshot FILE.png` | Renders a few frames, saves the window to this file and exits. This is how the interface is checked on a machine without a desktop. |
 
 ## 3. The screen
@@ -128,6 +135,30 @@ Only the built buttons are listed here. Buttons for tools that are not built yet
 - **Manage**: Design standard (UK TSM, Uganda TSM); Analysis (Check the model); Project (Project information); Appearance (Theme, Canvas colour).
 - **View**: Zoom (Extents, Window, In, Out); Views (2D / 3D); Display (Real, Outlined, Element marks); Drafting aids; Appearance (Theme, Canvas colour).
 - **Help**: Help (Command list, About AfroBIM).
+
+### The ribbon tabs
+
+The ribbon has 17 tabs. Every button runs a command of section 7; a disabled button is a planned tool (section 8).
+
+| Tab | Panels and what they hold |
+|---|---|
+| Home | File, Signs (stack-type direction sign, standard signs), Modify, Supports, Alignment (place by station), Navigate, Drafting aids |
+| Edit | History (undo, redo), Clipboard, Selection |
+| Insert | Signs, Import (LandXML alignments, an AfroBIM document), Reference (survey surface, IFC reference model, reference models list) |
+| Annotate | Element marks; text, dimension, leader and measure are planned |
+| Modify | Move, copy, erase, arrange; supports; place by station; drafting aids |
+| Signs | One button per sign template of the active standard, standard signs, sign visibility and its run, the design standard (UK or Uganda), quantities and fabrication sheets |
+| Roads | Alignment import, markings, drainage (side drain, culvert, rational flow, check), lighting (street lighting, light column, photometry), restraint, pavement and its design, earthworks (surface, corridor, sections) |
+| Design | Alignment design (new, edit in plan, PI table, curve labels), profile editor, checks (alignment design checks, check the model, sign visibility), options, LandXML out |
+| Structures | Supports, gantries (portal, cantilever, hang a sign, take it off, check) |
+| Coordination | Clash tests, run and results, markers, CSV, issues and BCF export and import, IFC reference models |
+| 4D | Programme, WBS, calendar, schedule, critical basis, Gantt, time-location, baseline, variance, progress, links, 4D date and playback, MS Project and Primavera P6 exchange |
+| 5D | Bill, rates, currency, estimate, cash flow, interim certificate, cost reports |
+| Construction | Site records, roll-up, look-ahead, earned value, progress colour, 4D date, interim certificate |
+| Output | Export (DXF, IFC, quantities, fabrication sheets), drawing sheets (sets, preview, title block, PDF, DXF), the calculation report pack, document |
+| Manage | Design standard, check the model, project information, theme and canvas colour; layer manager and units are planned |
+| View | Zoom, 2D and 3D, display (real, outlined, marks), drafting aids, appearance |
+| Help | Command list, about |
 
 ### Tool Sets panel (left)
 
@@ -659,7 +690,7 @@ The document tools are stateless. Each call loads the file, works on it and save
 
 These four modules were built as crates first and are now in the app, on the Roads tab. Each is added with a dialog in which every design value starts at zero, which means "not entered": nothing is defaulted, and the crate refuses a definition it cannot use and says why. Their limits are those listed in the workspace README.
 
-- **Street lighting** (`LIGHTING`, `LIGHTCOLUMN`). An installation along an alignment (arrangement, spacing, carriageway width, set-back, the column and luminaire as entered) or a single column at a station and offset. Drawn as a schematic column, bracket and luminaire block at the entered mounting height and outreach, at the profile level. The column and luminaire schedule, summary and connected load are written by Export quantities. `CHECK` opens an input dialog (section 5.10) and then reports the requirements that can be applied exactly from DMRB TD 501 with TA 501, CD 109 and CD 377, line by line. The BS 5489-1:2003 values used are from a superseded edition and the report says so. The lighting class is a label you enter. There is no photometry of any kind, no column or foundation design and no electrical design.
+- **Street lighting** (`LIGHTING`, `LIGHTCOLUMN`). An installation along an alignment (arrangement, spacing, carriageway width, set-back, the column and luminaire as entered) or a single column at a station and offset. Drawn as a schematic column, bracket and luminaire block at the entered mounting height and outreach, at the profile level. The column and luminaire schedule, summary and connected load are written by Export quantities. `CHECK` opens an input dialog (section 5.10) and then reports the requirements that can be applied exactly from DMRB TD 501 with TA 501, CD 109 and CD 377, line by line. The BS 5489-1:2003 values used are from a superseded edition and the report says so. The lighting class is a label you enter. Photometry from an IES or LDT file is in section 5.22 (what it is and is not is stated there); there is no column or foundation design and no electrical design.
 - **Road restraint** (`BARRIER`). A safety barrier run along an alignment at an offset, with the containment level, working width class and impact severity level, post spacing and beam height entered as product data, and end treatments. Plan, schematic solids and quantities. `CHECK` asks for the speed limit and then runs the requirement checks of CD 377 and CD 127. It does not perform or replace the Road Restraint Risk Assessment Process; lengths and any higher containment level from that assessment are inputs. Not for certification.
 - **Pavement** (`PAVEMENT`, `PAVEDESIGN`). A layer stack along an alignment: carriageway width, cross-fall, layers and optional shoulders; cross-section, 3D slabs at the profile level and layer quantities by plain geometry, with no rates, densities or bulking factors. `PAVEDESIGN` runs one of three methods you choose (they are not interchangeable): the Uganda MoWT Road Design Manual Volume 3 Part I, UK DMRB CD 224 and CD 226 (from superseded revisions, no complete structure), or AASHTO 1993 flexible. Where a method arrives at layers, a pavement can be made from them. The output is a calculation for an engineer to check, not a certified design.
 - **Ground surfaces and corridors** (`SURFACE`, `CORRIDOR`, `SECTIONS`). A ground surface is read from a LandXML 1.2 TIN (hand-built test files only, not tested against a file exported by Civil 3D). A corridor carries a typical section (lane, optional shoulder, formation depth, side slopes, all entered, the same both sides) along an alignment with a vertical profile, cut and filled against the surface. It can be limited to a stretch of the alignment. Cross-sections are shown station by station in a window; the corridor surfaces appear in the 3D site view; an earthworks CSV by average end area is written by Export quantities. Every width, slope, depth and interval is yours, and no bulking or shrinkage factor is applied. Compare a real job against the package you trust before using the volumes for payment.
@@ -673,9 +704,11 @@ These four modules were built as crates first and are now in the app, on the Roa
 - Under the field the dialog shows the converted result, for example `1+550.000, internal station 1650.000 m`.
 - Each dialog carries a note saying which station is meant.
 
-**Lighting check inputs.** `CHECK` on a street lighting element opens a dialog. It collects what you have established elsewhere: whether the need for lighting was appraised (TA 501), design speed, stopping sight distance, unlit lengths to adjacent lit sections, the required set-back and its source, whether the columns are passively safe, speed limit and flow, the maintenance factor and its source, luminaire sealing, pollution category and cleaning interval, the lamp flux maintenance factor, the type of road and its traffic, the maintained photometric results of your own calculation (L_av, U_o, U_l, wet U_o, TI, EIR, E_av, U_o(E), E_h,min, E_v,min, E_sc,min, with where they come from, and whether facial recognition is necessary and whether the speed is low), and the class selection parameters of CEN/TR 13201-1 for an M, C or P class (a suggestion only). **Every field starts empty.** A field left empty is "not entered": the checks that need it say INPUT NEEDED and nothing is assumed. A value that is not a number is refused by name. AfroBIM computes no photometry. The entries are quoted in the report and are not stored in the document.
+**Lighting check inputs.** `CHECK` on a street lighting element opens a dialog. It collects what you have established elsewhere: whether the need for lighting was appraised (TA 501), design speed, stopping sight distance, unlit lengths to adjacent lit sections, the required set-back and its source, whether the columns are passively safe, speed limit and flow, the maintenance factor and its source, luminaire sealing, pollution category and cleaning interval, the lamp flux maintenance factor, the type of road and its traffic, the maintained photometric results of your own calculation (L_av, U_o, U_l, wet U_o, TI, EIR, E_av, U_o(E), E_h,min, E_v,min, E_sc,min, with where they come from, and whether facial recognition is necessary and whether the speed is low), and the class selection parameters of CEN/TR 13201-1 for an M, C or P class (a suggestion only). **Every field starts empty.** A field left empty is "not entered": the checks that need it say INPUT NEEDED and nothing is assumed. A value that is not a number is refused by name. Photometric values are either entered from your own lighting package or filled in by the Photometry window (section 5.22), which labels them as computed by AfroBIM. What AfroBIM does and does not compute is in section 5.22: it is not an EN 13201-3 calculation, it has not been validated against DIALux, Relux or AGi32, luminance needs an r-table you supply, and TI, U_l and wet U_o are not computed. The entries are kept on the lighting element and quoted in the report.
 
 ### 5.11 Coordination: clash detection
+
+*Added since: clash tests can select IFC reference models (5.20), issues can be raised from clashes and exchanged as BCF (5.19), and the clash summary is a section of the report pack (5.23).*
 
 The Coordination tab uses the `afrobim-coordination` crate. A clash test checks one selection of elements against another.
 
@@ -730,6 +763,8 @@ Not done: price adjustment and escalation, valuation of variations, dayworks she
 
 ### 5.14 The model-wide check and the rational method
 
+*Added since: every placed sign has a "Sign visibility" row (5.21) and a lighting installation's results may come from the Photometry window (5.22). `REPORTPACK` (5.23) writes the whole report as a PDF.*
+
 `CHECKALL` (Manage tab, Analysis panel; or the Manage menu) runs every check the engines have on every element it applies to and opens one report window.
 
 - **Status.** Each row is one check of one element: *Passes* (the engine's own lines passed on the stored inputs), *Fails*, *Differs* (the model differs from what the stored inputs call for, or from a reference that does not govern), *Input needed* (the reason names the dialog to open) or *Not checked* (the reason says why). The toggles at the top filter by status; the category list filters by category. The most urgent rows come first.
@@ -761,6 +796,8 @@ Not done: activity-level progress, resource-based progress, front-loaded planned
 **The demo.** `--demo` adds a few made-up site records (a corridor, a side drain and a culvert), made-up actual costs, a stored data date and an arbitrary EAC choice, and two stored check inputs. Every number is commented in `demo_glue.rs` as an arbitrary demo value.
 
 ### 5.16 Drawing sheets: project information, sheet sets, title blocks and preview
+
+*Added since: the plan, profile and section forms take the stations shown on the drawings, with the region picker where the alignment has station equations, and convert them to internal stations (any text below that says internal stations are typed is out of date). Detail sheets can carry the sign visibility plan and profile and the lighting contours (5.21, 5.22), and the time-location chart's axis is labelled in displayed stations (app-side labelling).*
 
 The documentation stage composes drawing sheets from the live model and writes them as PDF and DXF. The engine is the `afrobim-sheets` crate; this chapter is the app side. Nothing here is a drafting standard. Every scale, length, overlap, interval, margin, line weight and text height is yours to enter. The only values filled in are the crate's neutral defaults for paper (A3 landscape, 10 mm margins, one frame), pens and text heights; the manager shows them as editable defaults, and none comes from a standard or from an organisation's title block.
 
@@ -830,15 +867,51 @@ A designed alignment is two elements: the ordinary `alignment` element that ever
 - The time-location chart plots one alignment per call and uses internal stations. The chart's text is drawn by the app (the draw crate has no text).
 - Playback draws the 3D view as the 4D date does: elements ghosted, amber, normal or hidden. There is no per-element animation inside an activity beyond that.
 
+### 5.19 Issues and BCF (Coordination tab)
+
+`ISSUES` opens the Issues window. An issue has a title, description, type, status, priority, assignee, due date, labels, comments, related elements, a location and viewpoints. Issues are kept in the coordination element with the clash tests, so they are saved, opened and undone with the document. You can write a free-standing issue, raise one from a clash (raising twice from one clash gives one issue), or group the live clashes and raise one issue per group or for a chosen group. **The grouping distance is yours to enter in millimetres; none is offered.** Grouping can also be by shared element.
+
+A viewpoint is taken with "Capture the 3D view": it stores the current 3D camera, the current selection and a PNG snapshot of the 3D view (the windows are hidden for the frame in which the snapshot is taken). "Go to viewpoint" restores the camera and the selection. The camera field of view of the 3D view is 35 degrees; BCF 2.1 allows 45 to 60, so the BCF file carries a clamped value and the exact one in the AfroBIM extension file. Only the camera and the selection are restored: visibility settings are not captured.
+
+`BCFOUT` and `BCFIN` write and read BCF 2.1 (`.bcf` or `.bcfzip`). Each dialog states what is true of the files: **they have been checked against the BCF 2.1 schemas and read back by AfroBIM but have not been opened in any other BCF tool, and BCF 3.0 is not supported (a 3.0 file is refused).** The IFC file name written into the topics is the name of the last IFC export of the session, if there was one; with none, the topics name no IFC file. Import merges by GUID (the same GUID replaces) and the report lists what the model cannot hold as "not imported" and every warning.
+
+### 5.20 IFC reference models (Insert and Coordination tabs)
+
+`IFCREF` imports one or more IFC files (IFC2X3, IFC4, IFC4X3) as read-only reference models; `REFMODELS` opens the list. The document stores each file's **path and a hash of its bytes (FNV-1a 64 with the length: it detects a changed file, it is not a security hash), not the file**. When a document is opened the files are read again, on a worker thread so the window stays responsive. A file that is missing is reported and the stored path and hash are kept; a file whose hash differs is shown as it is now, with a warning and a button to accept it. The whole file is read into memory and files of 4 GiB or more are refused.
+
+The 3D site view shows each model in a neutral grey with its own visibility tick and transparency slider. A model in a different coordinate frame needs the offset (mm) and rotation (degrees, about the file's own origin, applied before the offset) that you enter in the list. The import report shows the schema, the length unit and its conversion to millimetres, whether the file has an `IfcMapConversion` and that it was or was not applied (a tick before import applies it), the counts of products read, partly read and not read, **the "geometry not read" counts by type**, placements not resolved and the products by type. Openings are not subtracted. Above 60,000 triangles in view the products are drawn as their boxes, because the 3D view is a software projection.
+
+Click a product in the 3D view or pick it from the list to read its name, type, GlobalId, container, geometry status and property sets in a read-only panel. In the clash test form, reference models appear as categories `reference:<model name>` (one model) and, under layers, by IFC entity type (for example `IFCWALL`), so a test can select a model, a type, or both. Reference products take part in clash tests even when the model is hidden.
+
+### 5.21 Sign visibility (Signs tab)
+
+`VISIBILITY` opens the inputs of the selected sign (tick "store on every placed sign" for all). `VISIBILITYRUN` runs the stored inputs of the selected sign, or of every placed sign, and opens the results. The analysis is the `afrobim-visibility` engine: a driver's eye is swept back along the approach and sight lines are traced to the sign face; the result is the continuous clear visibility distance, what obstructs the view and where, the obliquity, and check lines against the UK Traffic Signs Manual chapters and the Uganda Traffic Signs Manual held, each with its citation. Each line is OK, FAILS, DIFFERS, INPUT NEEDED or INFORMATION. **It is an analysis aid and states no compliance.**
+
+Every input starts empty except one value the engine marks as a default to confirm: the driver's eye height (1.05 m, which two held sources state for other criteria, not for sign visibility). It is shown as "to confirm" with its citations and **nothing is stored or run until you tick to accept it**; the acceptance is stored with the inputs (`check.visibility.accepted`) and `CHECKALL` reports a record without it as input needed. The side the traffic keeps to has no default. The speed is entered with its unit, as in the restraint check; **the UK speed band is chosen by you from the table's own rows and is never derived from the speed.** The sweep settings (length, step, sample spacing, tolerance, grid) are shown with the engine's own starting values and labelled as analysis settings, not standard values.
+
+The results window lists each sign (station, overall result, clear distance, limiting obstruction) and, for the selected sign, every check line with its citation. "Plan and profile drawings" shows the plan envelope and the sight-line profile; both are offered to the drawing sheets as detail feeds (SHEETSET, Detail sheet, "Sign visibility, plan envelope" or "sight-line profile", naming the sign). "Limiting sight line in 3D" draws, for the selected sign, the last position that sees the face (green) and the first that does not, with the line to the obstruction (red). The inputs are stored on the sign under `check.visibility`; `CHECKALL` gets one row per placed sign; the road-wide CSV export writes one row per sign and one per check line. Limits: the road surface is the centreline level of the profile (no cross-fall), obstruction is geometric only, and the engine's README lists what the manuals do not give (for example the UK directional-sign distance and stopping sight distance). In `--demo` one sign carries arbitrary inputs, marked "DEMO inputs" in the results and the check row.
+
+### 5.22 Lighting photometry (Roads tab)
+
+`PHOTOMETRY` opens the window for a lighting installation. **What it is and is not.** It calculates horizontal illuminance (and, optionally, vertical and semi-cylindrical illuminance and the edge illuminance ratio) on grids you define, from an IES (LM-63 type C) or EULUMDAT file, with the formulas documented in `afrobim-lighting`. Luminance is calculated only if you supply an r-table file (none ships) and an observer. **It is not an EN 13201-3 calculation (that standard's grid and observer rules are not held). It has not been validated against DIALux, Relux or AGi32. Threshold increment TI, longitudinal uniformity U_l and wet overall uniformity U_o are not computed**; they stay as you enter them in the class check.
+
+Order of work: choose the file; read **the file's own checks and the polar diagram before any calculation** (flux by integration against the stated flux, with the difference and no tolerance; downward and upward fractions; peak intensity; the share of flux on the half-space facing each C-plane; the file's warnings); then confirm the orientation. The C-plane that faces the carriageway is not stated by either format: the window proposes the engine's per-format assumption (IES: C0; EULUMDAT: C270; C counter-clockwise), marks it "to confirm" and refuses to run until you tick that you checked it against the diagram. The maintenance factor, contribution distance, calculation areas and their grids are entered by you (no defaults); an area can be started from the installation's carriageway, with the number of points left to you. Optional: vertical illuminance at a height, edge strips, an r-table file and one observer.
+
+The results window shows, per area, the average, minimum, maximum, uniformity (min over average and min over max), vertical and edge results and luminance when calculated, with the engine's warnings. It draws the iso-illuminance contours (levels you may enter) and the grid of values, exports the grid as CSV, and can show the contours in the 3D site view. The contours are offered to the drawing sheets as a detail feed ("Lighting, iso-illuminance contours", naming the installation). "Use these results in the class check" fills the lighting check inputs with the computed results and the label "Computed by AfroBIM (afrobim-lighting) from ..."; values the run does not compute keep what you entered. The settings and a hash of the file are stored on the installation. The window opens in `--demo` with no file, because none ships, and says so.
+
+### 5.23 The calculation report pack (Output tab)
+
+`REPORTPACK` composes one A4 portrait PDF with a plain-text and a CSV variant. The cover carries the project information and the statement that **the pack is a record of calculations for checking by an engineer and is not a certification**. Then a contents list, the design basis (the documents and editions the engines rest on, as in section 9, and every superseded-edition, secondary-source or method warning the engines wrote, with the elements that carried it), and a section for supports, drainage, pavement, restraint, lighting (class check and photometry), gantries, alignment checks, sign visibility, sign and marking layout rules, clash summary, quantities summary, estimate summary and programme summary. For each check: the element mark, the inputs stored with the element, the calculation lines exactly as the engine wrote them, the messages the model raised and the status. A section with no data is listed in the contents as "not included: no data" and has no pages. Every page carries the project name, the date it was composed and "page n of m". The PDF is written with the sheets crate's PDF writer; the CSV has one row per check (section, mark, category, check, status, reason, inputs, calculation, messages).
+
 ## 6. Built but not yet in the app
 
-Every engine crate in the workspace is now wired into the desktop app, including street lighting, road restraint, pavement and corridors (section 5.9), clash detection (5.11), the programme (5.12) and the cost estimate (5.13). What the app still does not do is listed with each chapter. The one built feature outside the app is the schedule CSV and XML import of the C# CLI: the MCP server reads schedule CSVs and the app does not import them.
+Every engine crate in the workspace is now wired into the desktop app (including coordination issues and BCF, IFC import, visibility and photometry), including street lighting, road restraint, pavement and corridors (section 5.9), clash detection (5.11), the programme (5.12) and the cost estimate (5.13). What the app still does not do is listed with each chapter. The one built feature outside the app is the schedule CSV and XML import of the C# CLI: the MCP server reads schedule CSVs and the app does not import them.
 
 The roadmap (`docs/plan/2026-11-14-afrobim-bim-workflow-roadmap.md`) lists what comes next. Roadmap notes from this round: converting an imported alignment into an editable design needs a PI fitting step the engines do not have; superelevation design, lateral sight distance and decision sight distance are not in the design checks; the XER files and the longest-path definition are untested against P6; the plan and profile mouse editing has been driven only through headless states and the engines' edit calls, not yet by a person.
 
 ## 7. Command reference
 
-Every command below is in the command table in `commands.rs`. Type the name or an alias on the command line. The shortcut column comes from the `shortcut()` function in `ribbon.rs`.
+Every command below is in the command table in `commands.rs` (129 commands, regenerated from it). Type the name or an alias on the command line. The shortcut column comes from the `shortcut()` function in `ribbon.rs`.
 
 | Command | Aliases | Shortcut | What it does (help text from `commands.rs`) |
 |---|---|---|---|
@@ -884,7 +957,7 @@ Every command below is in the command table in `commands.rs`. Type the name or a
 | `CULVERT` | none | none | Add a pipe culvert across an alignment at a station, with placeholder dimensions to edit |
 | `GANTRY` | `PORTAL` | none | Add a portal sign gantry at a station, with placeholder dimensions to edit |
 | `CANTILEVER` | none | none | Add a cantilever sign gantry at a station, with placeholder dimensions to edit |
-| `CHECK` | `VERIFY` | none | Run the check of the selected gantry, drain, street lighting, barrier run or pavement (street lighting opens its input dialog; the pavement check is a design method) |
+| `CHECK` | `VERIFY` | none | Run the check of the selected gantry, side drain, culvert, street lighting, barrier run or pavement, with the inputs you enter (kept on the element for CHECKALL) |
 | `LIGHTING` | `LIGHTS`, `STREETLIGHTING` | none | Lay a street lighting installation along an alignment (spacing, arrangement and the column are entered) |
 | `LIGHTCOLUMN` | `COLUMN` | none | Place one lighting column at a station and offset on an alignment |
 | `BARRIER` | `RESTRAINT` | none | Add a safety barrier run along an alignment (containment, working width and impact severity are entered) |
@@ -893,11 +966,21 @@ Every command below is in the command table in `commands.rs`. Type the name or a
 | `SURFACE` | `TIN`, `TERRAIN` | none | Import ground surfaces (TIN) from a LandXML file |
 | `CORRIDOR` | none | none | Build a corridor on an alignment and a surface: a typical section, cut and fill, earthworks |
 | `SECTIONS` | `XSECTIONS` | none | Show the cross-sections of the selected corridor, station by station |
+| `HANG` | `GANTRYSIGN` | none | Hang the selected sign on a gantry |
+| `UNHANG` | none | none | Take the selected sign off its gantry |
+| `SUPPORTS` | `POSTS` | none | Add posts and foundations to the selected sign |
+| `DESIGN` | `SIZE` | none | Size the selected sign's posts and foundations for wind (UK method) |
+| `NOSUPPORTS` | none | none | Remove the selected sign's posts and foundations |
 | `CLASHTESTS` | `CLASHSETUP` | none | Add, edit and delete clash tests: what is checked against what, hard or clearance, with your own tolerance |
 | `CLASH` | `CLASHRUN`, `CLASHDETECT` | none | Run every clash test on the model and open the results |
 | `CLASHES` | `CLASHRESULTS` | none | Open the clash results: filter, review, comment, assign, zoom to a clash |
 | `CLASHMARKERS` | none | none | Show or hide the clash markers in the 3D view |
 | `CLASHCSV` | none | none | Export the clash results as CSV |
+| `ISSUES` | `ISSUELIST`, `TOPICS` | none | Open the issues: raise them from clashes or by hand, comment, assign, keep viewpoints from the 3D camera with a snapshot |
+| `BCFOUT` | `EXPORTBCF` | none | Export the issues as BCF 2.1 (not tested in other BCF tools; BCF 3.0 is not supported) |
+| `BCFIN` | `IMPORTBCF` | none | Import issues from a BCF 2.1 file and show what could not be carried |
+| `IFCREF` | `REFERENCEMODEL`, `IMPORTIFC` | none | Import IFC files as read-only reference models, stored by path and hash, shown in the 3D site view and usable in clash tests |
+| `REFMODELS` | `REFERENCES`, `REFLIST` | none | List the reference models: visibility, transparency, alignment offset and rotation, import report, and the properties of a picked product |
 | `PROGRAMME` | `ACTIVITIES`, `PROG` | none | Edit the construction programme: activities, durations, constraints and dependencies |
 | `CALENDAR` | `WORKDAYS` | none | Edit the programme calendar: working weekdays and the days off you enter |
 | `SCHEDULE` | `CPM` | none | Run the critical path method and show dates, float, the critical path and any problems |
@@ -932,20 +1015,19 @@ Every command below is in the command table in `commands.rs`. Type the name or a
 | `CASHFLOW` | `SCURVE` | none | Phase the estimate in time (dates from the programme if you like): monthly table and S-curve |
 | `CERTIFICATE` | `IPC`, `INTERIM` | none | Work out an interim payment certificate from your own payment terms |
 | `COSTCSV` | `COSTREPORTS` | none | Export every cost report as CSV into a folder |
-| `CHECKALL` | `CHECKMODEL`, `CALCPACK` | none | Run every check on every element and open one report |
-| `RATIONAL` | `RUNOFF` | none | Peak flow by the rational method from the catchment, runoff coefficients and intensity you enter |
-| `SITEREC` | `SITERECORD` | none | Record percent complete or a measured quantity at a date |
+| `CHECKALL` | `CHECKMODEL`, `CALCPACK` | none | Run every check on every element and open one report: a status per element, the calculation lines, filters, CSV and a calculation pack |
+| `RATIONAL` | `RUNOFF` | none | Peak flow by the rational method from the catchment areas, runoff coefficients and intensity you enter; keep it on the selected drain or culvert |
+| `VISIBILITY` | `SIGHTLINE`, `SIGNVISIBILITY` | none | Sign visibility along the alignment: enter the inputs for the selected sign or all signs, run, and see the check lines with citations, the plan envelope and the sight-line profile |
+| `VISIBILITYRUN` | `VISRUN`, `RUNVISIBILITY` | none | Run the stored visibility inputs of the selected sign, or of every placed sign when none is selected, and open the results |
+| `PHOTOMETRY` | `IES`, `LDT`, `LUMINAIREFILE` | none | Load an IES or LDT file for the selected lighting installation, check it and see its polar diagram, then calculate illuminance on grids you define |
+| `REPORTPACK` | `CALCREPORT`, `REPORTS` | none | Compose the calculation report pack (one A4 PDF, plain text and CSV): cover, contents, design basis, every check and the summaries |
+| `SITEREC` | `SITERECORD` | none | Record percent complete or a measured quantity at a date for the selected elements, or by category, layer or mark pattern |
 | `SITELOG` | `SITERECORDS` | none | List the site records, filtered by element and date |
-| `ROLLUP` | `PROGRESSUPDATE` | none | Roll the records up to the activities and apply the update to the programme |
-| `EVM` | `EARNEDVALUE` | none | Earned value at a data date |
-| `LOOKAHEAD` | `DELAYS`, `DELAYLIST` | none | Look-ahead and delay lists |
-| `SITEVIEW` | `PROGRESSCOLOUR` | none | Colour the 3D view by recorded progress |
-| `EVMCSV` | `CONSTRUCTIONCSV` | none | Export every earned value table as CSV |
-| `HANG` | `GANTRYSIGN` | none | Hang the selected sign on a gantry |
-| `UNHANG` | none | none | Take the selected sign off its gantry |
-| `SUPPORTS` | `POSTS` | none | Add posts and foundations to the selected sign |
-| `DESIGN` | `SIZE` | none | Size the selected sign's posts and foundations for wind (UK method) |
-| `NOSUPPORTS` | none | none | Remove the selected sign's posts and foundations |
+| `ROLLUP` | `PROGRESSUPDATE` | none | Roll the element records up to the activities, see the inferred actual dates, then apply the update to the programme and reschedule |
+| `EVM` | `EARNEDVALUE` | none | Earned value at a data date: budget, actual costs, the EAC formula you choose, the figures, the tables and the S-curve |
+| `LOOKAHEAD` | `DELAYS`, `DELAYLIST` | none | Activities due to start or finish in the next days you enter, and the delay list |
+| `SITEVIEW` | `PROGRESSCOLOUR` | none | Colour the 3D view by recorded percent complete at the 4D date, or back to the programme state |
+| `EVMCSV` | `CONSTRUCTIONCSV` | none | Export every earned value table as CSV into a folder |
 | `SHEETSET` | `DRAWINGSHEETS`, `SHEETMANAGER` | none | Open the sheet set manager: make sheet sets and add plan, profile, section, schedule, detail and notes sheets |
 | `SHEETPREVIEW` | `PREVIEWSHEETS` | none | Compose the sheet set from the live model and page through the sheets, with the composer's warnings |
 | `TITLEBLOCK` | `TBLOCK` | none | Edit the title block layout of the sheet set: fields shown, rows and cells, load or save it as JSON |
@@ -965,7 +1047,7 @@ Every command below is in the command table in `commands.rs`. Type the name or a
 
 ## 8. Planned, not built yet
 
-These tools appear on the ribbon as disabled buttons. They are not built. They are listed here only. The text in the second column is from `ribbon.rs`.
+These tools appear on the ribbon as disabled buttons. They are not built. The text in the last column is from `ribbon.rs`.
 
 | Ribbon tab and panel | Tool | What it will do |
 |---|---|---|
@@ -975,12 +1057,13 @@ These tools appear on the ribbon as disabled buttons. They are not built. They a
 | Annotate, Annotation | Dimension | Dimension between two points. |
 | Annotate, Annotation | Leader | A note with an arrow to a point. |
 | Annotate, Annotation | Measure | Read the distance between two points. |
-| Manage, Project | Layer manager | Create, rename and colour layers. Layers can be shown and locked in the Layers panel today. |
+| Design, Exchange | Make an imported alignment editable | Not available: the alignment engine holds an imported alignment as elements (lines, arcs, spirals), not as PIs with radii, and there is no conversion that gives back a faithful PI design. |
+| Manage, Project | Layer manager | Create, rename and colour layers (layers can be shown and locked in the Layers panel today). |
 | Manage, Project | Units | Display units and precision. |
 
 ## 9. Standards and editions
 
-Each row gives a document, the edition the code uses, what it governs and any warning that the sources give about its currency. Rows marked "not in app" are for the crates in section 6.
+Each row gives a document, the edition the code uses, what it governs and any warning that the sources give about its currency. Every engine is now in the app. A row's warning is repeated in the calculation report pack (section 5.23).
 
 | Area | Document and edition | Governs | Warnings and status |
 |---|---|---|---|
@@ -999,23 +1082,54 @@ Each row gives a document, the edition the code uses, what it governs and any wa
 | Gantry headroom | DMRB CD 127 v1.0.1, published 29 July 2021 | Headroom and sag compensation | Currency judged from the absence of a superseded mark. Confirm it. |
 | Gantry requirements | DMRB CD 365 Revision 1, March 2020 | Listed gantry requirements | **Watermarked SUPERSEDED.** The current version was not obtained. Confirm every clause. |
 | Restraint, CD 377 (gantry README) | DMRB CD 377 Revision 4, January 2021 | Not used for any value | **Watermarked SUPERSEDED.** |
-| Restraint, requirements (not in app) | DMRB CD 377 v5.0.1, 27 February 2026 (with CD 127 v1.0.1) | Containment, set-back, lengths, terminals | The version read. The RRRAP is outside the tool. |
-| Restraint, performance (not in app) | BS EN 1317-2:2010 | Impact tests, containment levels, severity, working width, intrusion | The owner should confirm it is current. |
-| Restraint, terminals (not in app) | DD ENV 1317-4:2002 | Terminal classes P1 to P4 | A Draft for Development, not a British Standard. **CD 377 5.0.1 still cites it, and it should be replaced** when a superseding document is available. |
-| Restraint, cross-check (not in app) | TII DN-REQ-03034, November 2015 with Amendment 1; MoWT Volume 1, January 2010, Section 12.3 | Reference only | Not used for any calculation. |
-| Lighting, requirements (not in app) | DMRB TD 501 v0.1.0, September 2025 | Governs lighting class, maintenance, unlit gaps, design outputs | Replaces Revision 0 (March 2020), which is **watermarked SUPERSEDED**. |
-| Lighting, appraisal (not in app) | DMRB TA 501 Revision 0, March 2020 | Need for lighting | The ILP says it was updated in 2025. The search returned Revision 0. |
-| Lighting, speed (not in app) | DMRB CD 109 v1.1.0, 30 October 2026 | Stopping sight distance, Table 2.10 | Not interpolated. |
-| Lighting, clearances (not in app) | BS 5489-1:2003, with Corrigendum No. 1 | Column clearances, class tables, maintenance factors | **Superseded.** Replaced in 2013 and again in 2020. Confirm every value taken from it. |
-| Lighting, secondary (not in app) | TII DN-LHT-03038, February 2012 | Reference only | Irish. It is the NRA addendum to TD 34/07 (2007), which TD 501 replaced. |
-| Pavement, MoWT (not in app) | MoWT *Road Design Manual* Volume 3, Part I, January 2010 | Flexible pavement structures and traffic | Adopts the SATCC *Draft Code of Practice* (1998, reprinted 2001). |
-| Pavement, traffic (not in app) | DMRB CD 224 Revision 0, March 2020 | Design traffic | **Superseded** by Version 0.1.0 (2025). The current revision was not obtained. |
-| Pavement, thickness (not in app) | DMRB CD 226 Version 0.1.0, 29 November 2021 | Asphalt over an HBGM base | **Superseded** by Version 0.2.0 (2025). The current revision was not obtained. |
-| Pavement, AASHTO (not in app) | AASHTO *Guide* (1993), as reproduced in FHWA NHI-05-037 (2006) and in lecture notes | Flexible pavement design equation | The 1993 Guide itself was not read. |
+| Restraint, requirements | DMRB CD 377 v5.0.1, 27 February 2026 (with CD 127 v1.0.1) | Containment, set-back, lengths, terminals | The version read. The RRRAP is outside the tool. |
+| Restraint, performance | BS EN 1317-2:2010 | Impact tests, containment levels, severity, working width, intrusion | The owner should confirm it is current. |
+| Restraint, terminals | DD ENV 1317-4:2002 | Terminal classes P1 to P4 | A Draft for Development, not a British Standard. **CD 377 5.0.1 still cites it, and it should be replaced** when a superseding document is available. |
+| Restraint, cross-check | TII DN-REQ-03034, November 2015 with Amendment 1; MoWT Volume 1, January 2010, Section 12.3 | Reference only | Not used for any calculation. |
+| Lighting, requirements | DMRB TD 501 v0.1.0, September 2025 | Governs lighting class, maintenance, unlit gaps, design outputs | Replaces Revision 0 (March 2020), which is **watermarked SUPERSEDED**. |
+| Lighting, appraisal | DMRB TA 501 Revision 0, March 2020 | Need for lighting | The ILP says it was updated in 2025. The search returned Revision 0. |
+| Lighting, speed | DMRB CD 109 v1.1.0, 30 October 2026 | Stopping sight distance, Table 2.10 | Not interpolated. |
+| Lighting, clearances | BS 5489-1:2003, with Corrigendum No. 1 | Column clearances, class tables, maintenance factors | **Superseded.** Replaced in 2013 and again in 2020. Confirm every value taken from it. |
+| Lighting, secondary | TII DN-LHT-03038, February 2012 | Reference only | Irish. It is the NRA addendum to TD 34/07 (2007), which TD 501 replaced. |
+| Pavement, MoWT | MoWT *Road Design Manual* Volume 3, Part I, January 2010 | Flexible pavement structures and traffic | Adopts the SATCC *Draft Code of Practice* (1998, reprinted 2001). |
+| Pavement, traffic | DMRB CD 224 Revision 0, March 2020 | Design traffic | **Superseded** by Version 0.1.0 (2025). The current revision was not obtained. |
+| Pavement, thickness | DMRB CD 226 Version 0.1.0, 29 November 2021 | Asphalt over an HBGM base | **Superseded** by Version 0.2.0 (2025). The current revision was not obtained. |
+| Pavement, AASHTO | AASHTO *Guide* (1993), as reproduced in FHWA NHI-05-037 (2006) and in lecture notes | Flexible pavement design equation | The 1993 Guide itself was not read. |
+| Lighting, class values | Stockmar, *Handbook about Interpretation of EN 13201* (LiTG, INTERREG CE 452, October 2017), interpreting EN 13201-2:2015, EN 13201-5:2015 and CEN/TR 13201-1:2014 | Class table values for M, C and P classes | **Secondary source.** BS EN 13201-2 itself, and -3 and -5, have not been supplied. |
+| Lighting, MoWT | MoWT *Road Design Manual* Volume 1, January 2010, Section 12.8 | Reference only | Secondary reference. |
+| Lighting photometry | IES LM-63 and EULUMDAT formats as described in the sources cited in `afrobim-lighting`; EN 13032-1 (public preview) | Reading luminaire files, the C-gamma system | Not an EN 13201-3 calculation; not validated against DIALux, Relux or AGi32. No standard text of either file format is held. |
+| Sign visibility, UK | UK Traffic Signs Manual Chapter 1 (1982 edition), Chapter 2 x-height extract (edition not stated), Chapter 3 (2008), Chapter 4 (fourth edition 2013), Chapter 7 (2013) | Visibility, siting, mounting, set-back and legibility lines | Editions differ by chapter and are stated per value. TSRGD 2016 and Chapters 5 and 8 were not searched for visibility. Stopping sight distance (TD 9) is not held. |
+| Sign visibility, Uganda | Uganda Traffic Signs Manual Volume 1 (July 2004) and Volume 2 | Visibility distance, spacing, siting, mounting, clearance | Figure D.2 dimensions were not used. The 1.05 m eye height is stated for other criteria. |
+| BCF | BCF 2.1 (buildingSMART BCF-XML tag v2.1) | Issue exchange | Schema-validated and read back; not opened in any other BCF tool. 3.0 is refused. |
+| IFC import | IFC2X3, IFC4, IFC4X3 attribute tables from IfcOpenShell 0.9.0 | Reference models | Compared with IfcOpenShell on test files; not opened in a commercial BIM tool. |
 | Exports, IFC | IFC 4.3 (schema IFC4X3_ADD2) | Model export | Checked with IfcOpenShell 0.9.0. The buildingSMART Validation Service has not been run. |
-| Corridor (not in app) | None | Geometry and measurement only | Every design value is entered by the engineer. |
+| Corridor | None | Geometry and measurement only | Every design value is entered by the engineer. |
 
-## 10. Notes for the maintainer
+## 10. A first hour with AfroBIM
+
+1. **Start and look.** Run `afrobim --demo --landxml crates/afrobim-alignment/tests/landxml/corridor.xml --3d` to see a populated model (the demo values are arbitrary and labelled), or `afrobim` for an empty document. Type `?` for the command list.
+2. **Alignment.** Design one with `ALIGNDESIGN` (pick PIs on the plan or type coordinates, then enter the radii; none is offered) and `PROFILEDESIGN`, or import one with `LANDXML` (and a ground surface with `SURFACE`). Check a designed alignment against a limits table you load with `ALIGNCHECK`.
+3. **Signs.** Insert signs from the Signs tab or `LIBRARY`, choose the design standard (`UK` or `UGANDA`), then place each on the alignment with `STATION`, entering the station as shown on the drawings.
+4. **Supports.** `SUPPORTS` adds posts and foundations; `DESIGN` sizes them for wind with the ground and wind values you enter.
+5. **Road modules.** Add drains, culverts, gantries, markings, lighting, a barrier run, a pavement and a corridor from the Roads and Structures tabs. Enter each element's check inputs with `CHECK`.
+6. **Checks.** `CHECKALL` runs every check and lists what still needs input. Run `VISIBILITY` for each sign and `PHOTOMETRY` for lighting if you have a luminaire file.
+7. **Clash.** Add a test with `CLASHTESTS` (your own tolerance for a clearance test), run `CLASH`, raise issues from clashes with `ISSUES` and exchange them with `BCFOUT`.
+8. **Programme and estimate.** Build the programme in `PROGRAMME`, link elements with `LINK4D`, run `SCHEDULE`; build the bill and rates in `BILL` and `RATES` and read `ESTIMATE`.
+9. **Sheets.** Fill `PROJECTINFO`, make a sheet set in `SHEETSET`, look at `SHEETPREVIEW`, then export with `SHEETPDF`.
+10. **Exchange and records.** `IFCOUT` writes the IFC; `REPORTPACK` writes the calculation report pack; `SAVE` stores the document (reference models are stored by path and hash).
+
+## 11. What has not been verified
+
+Stated plainly, so nothing here is read as more than it is:
+
+- **No file written by AfroBIM has been opened in Civil 3D, in a commercial BIM viewer, in a BCF tool, in MS Project or in Primavera P6.** IFC was checked with IfcOpenShell; BCF against the 2.1 schemas; the exchange files by reading them back.
+- **Photometry has not been validated against DIALux, Relux or AGi32** (none is available here). It was checked by analytic tests, by the light output ratios stated in real files, and by an independent numpy and luxpy comparison that reads the same documents.
+- **Mouse-driven editing has been exercised only through its code paths** (the functions the pointer events call), not by a person using the pointer; windows were looked at as screenshots made without a pointer.
+- **The continuous integration on Windows and macOS has not run since commit 8a2e4e0**, because the hosted runners did not start. Only Linux builds and tests have been run, in debug builds.
+- The 3D view's viewpoint snapshots, the reference-model drawing and the visibility overlay were looked at in headless screenshots only.
+- Several standards are held only as superseded or secondary documents (section 9); the report pack repeats those warnings.
+
+## 12. Notes for the maintainer
 
 - **Markings in 3D.** Marking placements have z = 0, but the marking solids themselves are generated at the alignment's profile level (`afrobim-markings` `plan_at_level`), so the lines follow the road profile in the 3D view.
 - **Ribbon status.** The ribbon now has the Coordination, 4D and 5D tabs, and the Clash check item that was planned on the Structures tab has been removed because clash detection exists. This manual follows the ribbon.
@@ -1030,3 +1144,6 @@ Each row gives a document, the edition the code uses, what it governs and any wa
 - **Drain solid.** The drainage README says the drain's 3D solid is level "because the alignment has no vertical geometry yet". The alignment crate now reads vertical profiles and superelevation. The manual reports the drain as level, as that README states. The code should be checked against the current alignment data.
 - **Design windows.** The plan editor (`design_ui.rs`), the profile editor (`design_profile.rs`) and the check and options windows (`design_windows.rs`) are made by `win::new`. The glue (`design_glue.rs`) holds every edit, the resynchronisation and the tests. The plan editor draws in site metres on its own `ViewTransform`; the design elements are on hidden layers.
 - **4D second round.** `schedule_ext.rs` holds the WBS, critical basis, XER, time-location, playback and frame-export code; the choices of method are properties of the programme element (`schedule_glue::KEY_CRITICAL`, `KEY_ROLLUP`, `KEY_TL_ALIGNMENT`).
+- **New in this round.** `issues_ui.rs` (issues, BCF, viewpoint snapshots), `reference_models.rs` (IFC reference models), `visibility_ui.rs`, `photometry_ui.rs`, `report_pack.rs`. The record of reference models is an element of category `reference` and is left out of the IFC export. The detail feeds `vis_plan:<mark>`, `vis_profile:<mark>` and `light_contours:<mark>` are filled in `sheets_glue::Live`. `sheets_glue::check_report` is the model-wide check used by the sheets and the report pack.
+- **Time-location axis.** The schedule engine labels the station scale in internal stations; `schedule_ext::relabel_stations` rewrites those labels as displayed stations where the alignment has station equations (app-side labelling).
+- **Engine edits.** None in this round: every wiring needed only the engines' public APIs.
