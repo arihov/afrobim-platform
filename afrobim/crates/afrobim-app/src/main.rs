@@ -14,6 +14,10 @@ mod coordination_ui;
 mod cost_glue;
 mod cost_ui;
 mod demo_glue;
+mod design_glue;
+mod design_profile;
+mod design_ui;
+mod design_windows;
 mod icons;
 mod lighting_inputs;
 mod markings_glue;
@@ -22,6 +26,7 @@ mod render;
 mod ribbon;
 mod road_dialogs;
 mod road_glue;
+mod schedule_ext;
 mod schedule_glue;
 mod schedule_ui;
 mod sheets_glue;
@@ -72,6 +77,21 @@ pub struct Options {
     pub subtab: Option<u8>,
     /// After the demo clash run, zoom to the clash with this index (from 0) in the 3D view.
     pub zoom_clash: Option<usize>,
+    /// A limits table (CSV or JSON) that ALIGNCHECK loads when it opens, and the row of it to check against.
+    pub limits: Option<PathBuf>,
+    /// Start ALIGNDESIGN with this name and start station (`Name,1000`), and the PIs given by `--pis` (`x,y;x,y;...`); `--pis-finish` makes the alignment.
+    pub new_alignment: Option<String>,
+    pub pis: Option<String>,
+    pub pis_finish: bool,
+    pub limits_row: Option<String>,
+    /// Write the 4D playback as PNG frames into this folder, one every `frames_step` days, then exit.
+    /// Import this XER file, or export the programme to this XER file, at start-up (to see the reports without a file dialog).
+    pub xer_in: Option<PathBuf>,
+    pub xer_out: Option<PathBuf>,
+    pub frames_dir: Option<PathBuf>,
+    pub frames_step: Option<i64>,
+    pub frames_from: Option<String>,
+    pub frames_to: Option<String>,
     /// Compose a drawing sheet set and write it to this path, then exit: a `.pdf` path gets the PDF,
     /// a `.dxf` path one DXF with every sheet, anything else is a folder that gets `sheets.pdf` and
     /// one DXF per sheet.
@@ -107,6 +127,17 @@ fn parse_args() -> Options {
             "--export-set" => o.export_set = args.next().map(PathBuf::from),
             "--sheet-set" => o.sheet_set = args.next(),
             "--sheet-form" => o.sheet_form = args.next().and_then(|v| v.parse().ok()),
+            "--limits" => o.limits = args.next().map(PathBuf::from),
+            "--new-alignment" => o.new_alignment = args.next(),
+            "--pis" => o.pis = args.next(),
+            "--pis-finish" => o.pis_finish = true,
+            "--limits-row" => o.limits_row = args.next(),
+            "--xer-in" => o.xer_in = args.next().map(PathBuf::from),
+            "--xer-out" => o.xer_out = args.next().map(PathBuf::from),
+            "--frames-dir" => o.frames_dir = args.next().map(PathBuf::from),
+            "--frames-step" => o.frames_step = args.next().and_then(|v| v.parse().ok()),
+            "--frames-from" => o.frames_from = args.next(),
+            "--frames-to" => o.frames_to = args.next(),
             "--sheet" => o.sheet = args.next().and_then(|v| v.parse().ok()),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),
             other if !other.starts_with("--") => o.open = Some(PathBuf::from(other)),

@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use afrobim_draw::{Colour, Primitive};
 use afrobim_kernel::{ElementId, SelectMode};
 use afrobim_schedule::{
-    activity_table_csv, element_states, export_mspdi, gantt_drawing, import_mspdi, link_report, s_curve, s_curve_csv, schedule, variance_csv, Activity, ActivityLink, Constraint, Date, Dependency,
-    ElementRule, ElementSelector, ElementStates, GanttDrawing, GanttLabelKind, GanttOptions, LinkAction, LinkType, MilestoneKind, Phase, Programme, SCurveBasis, Schedule, ScheduleError, Weekday,
+    activity_table_csv, element_states, export_mspdi, import_mspdi, link_report, outline, s_curve, s_curve_csv, schedule_with, variance_csv, OutlineKind, ScheduleOptions, Activity, ActivityLink, Constraint, Date, Dependency,
+    ElementRule, ElementSelector, ElementStates, GanttDrawing, GanttLabelKind, LinkAction, LinkType, MilestoneKind, Phase, Programme, SCurveBasis, Schedule, ScheduleError, Weekday,
 };
 use egui::{pos2, Align2, Color32, FontId, RichText, Sense, Shape, Stroke, Ui};
 
@@ -74,7 +74,9 @@ pub struct SchedUi {
     holiday: String,
     calendar_pick: usize,
     new_calendar: String,
-    cons: HashMap<String, (u8, String)>,
+    cons: HashMap<String, Vec<(u8, String)>>,
+    /// The second round of 4D tools: WBS, critical basis, time-location chart, playback (`schedule_ext`).
+    pub ext: crate::schedule_ext::SchedExt,
     prog_text: HashMap<(String, u8), String>,
     start_text: String,
     data_date_text: String,
@@ -116,6 +118,7 @@ impl Default for SchedUi {
             calendar_pick: 0,
             new_calendar: String::new(),
             cons: HashMap::new(),
+            ext: Default::default(),
             prog_text: HashMap::new(),
             start_text: String::new(),
             data_date_text: String::new(),
@@ -152,6 +155,12 @@ impl SchedUi {
         if current != self.loaded {
             match glue::load(doc) {
                 Some((id, p)) => {
+                    if !self.ext.settings_loaded {
+                        self.ext.settings_loaded = true;
+                        self.ext.critical = glue::critical_basis_of(doc);
+                        self.ext.rollup = glue::rollup_basis_of(doc);
+                        self.ext.tl_alignment = glue::setting(doc, glue::KEY_TL_ALIGNMENT);
+                    }
                     self.id = Some(id);
                     self.start_text = p.start.to_string();
                     self.data_date_text = p.data_date.map(|d| d.to_string()).unwrap_or_default();
@@ -175,15 +184,29 @@ impl SchedUi {
     /// Runs the critical path method and redraws the Gantt chart.
     pub fn recompute(&mut self, doc: &afrobim_kernel::Document) {
         self.gantt = None;
-        self.result = self.prog.as_ref().map(|p| schedule(p).map_err(messages));
-        if let (Some(p), Some(Ok(s))) = (&self.prog, &self.result) {
-            self.gantt = Some(gantt_drawing(p, s, &GanttOptions::default()));
+        self.ext.rev += 1;
+        let options = ScheduleOptions { critical: self.ext.critical };
+        self.result = self.prog.as_ref().map(|p| schedule_with(p, &options).map_err(messages));
+        self.rebuild_gantt();
+        if let (Some(_), Some(Ok(s))) = (&self.prog, &self.result) {
             if self.date.is_none() {
                 self.date = Some(s.project_start);
             }
         }
         self.states_for = None;
         self.refresh_states(doc);
+    }
+
+    /// Draws the Gantt chart again: with summary rows and the roll-up when the programme has them,
+    /// without the activities under a collapsed summary task.
+    pub fn rebuild_gantt(&mut self) {
+        self.gantt = None;
+        self.ext.rollup_error = None;
+        if let (Some(p), Some(Ok(s))) = (&self.prog, &self.result) {
+            let (g, err) = crate::schedule_ext::build_gantt(p, s, self.ext.rollup, &self.ext.collapsed);
+            self.ext.rollup_error = err;
+            self.gantt = Some(g);
+        }
     }
 
     pub fn refresh_states(&mut self, doc: &afrobim_kernel::Document) {
@@ -489,6 +512,7 @@ impl AfroBimApp {
         if self.sched.date_open {
             self.date_window(ctx);
         }
+        changed |= self.schedule_ext_windows(ctx);
         if let Some(lines) = self.sched.import_report.clone() {
             let mut open = true;
             crate::win::new(ctx, "MS Project import report").open(&mut open).default_width(560.0).show(ctx, |ui| {
@@ -580,21 +604,45 @@ impl AfroBimApp {
             ui.label(RichText::new("Activities").strong());
             let ids: Vec<String> = p.activities.iter().map(|a| a.id.clone()).collect();
             let many_calendars = p.calendars.len() > 1;
+            let has_summaries = !p.summaries.is_empty();
             let calendar_names: Vec<String> = p.calendars.iter().map(|c| c.name.clone()).collect();
+            let summary_ids: Vec<(String, String)> = p.summaries.iter().map(|x| (x.id.clone(), format!("{} {}", x.wbs, x.name))).collect();
+            // Programme order, or the outline (summary tasks with what is under them) when there are summary tasks.
+            let order: Vec<(OutlineKind, usize)> = if has_summaries { outline(p).into_iter().map(|o| (o.kind, o.level)).collect() } else { (0..p.activities.len()).map(|i| (OutlineKind::Activity(i), 1)).collect() };
             let mut delete: Option<usize> = None;
-            egui::ScrollArea::vertical().id_salt("acts").max_height(230.0).auto_shrink([false, true]).show(ui, |ui| {
-                egui::Grid::new("activities").num_columns(if many_calendars { 8 } else { 7 }).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
-                    let mut heads = vec!["Id", "WBS", "Name", "Days", "Milestone", "Constraint"];
-                    if many_calendars {
-                        heads.push("Calendar");
-                    }
-                    heads.push("");
+            egui::ScrollArea::both().id_salt("acts").max_height(280.0).auto_shrink([false, true]).show(ui, |ui| {
+                let mut heads = vec!["Id", "WBS", "Name", "Days", "Milestone", "Constraints"];
+                if has_summaries {
+                    heads.push("Under");
+                }
+                if many_calendars {
+                    heads.push("Calendar");
+                }
+                heads.push("");
+                egui::Grid::new("activities").num_columns(heads.len()).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
+                    let columns = heads.len();
                     for h in heads {
                         ui.label(RichText::new(h).strong());
                     }
                     ui.end_row();
-                    for (i, a) in p.activities.iter_mut().enumerate() {
-                        ui.label(&a.id);
+                    for (kind, level) in order {
+                        let i = match kind {
+                            OutlineKind::Summary(k) => {
+                                let sm = &p.summaries[k];
+                                let indent = "    ".repeat(level.saturating_sub(1));
+                                ui.label("");
+                                ui.label(RichText::new(format!("{indent}{}", sm.wbs)).strong());
+                                ui.label(RichText::new(&sm.name).strong());
+                                for _ in 3..columns {
+                                    ui.label("");
+                                }
+                                ui.end_row();
+                                continue;
+                            }
+                            OutlineKind::Activity(i) => i,
+                        };
+                        let a = &mut p.activities[i];
+                        ui.label(format!("{}{}", "    ".repeat(level.saturating_sub(1)), a.id));
                         changed |= ui.add_sized([60.0, 20.0], egui::TextEdit::singleline(&mut a.wbs)).changed();
                         changed |= ui.add_sized([220.0, 20.0], egui::TextEdit::singleline(&mut a.name)).changed();
                         changed |= ui.add(egui::DragValue::new(&mut a.duration).speed(0.2).range(0..=5000)).changed();
@@ -606,40 +654,75 @@ impl AfroBimApp {
                         } else {
                             ui.label("");
                         }
-                        let (mut kind, mut text) = s.cons.remove(&a.id).unwrap_or_else(|| match a.constraint {
-                            None => (0, String::new()),
-                            Some(Constraint::StartNoEarlierThan(d)) => (1, d.to_string()),
-                            Some(Constraint::FinishNoLaterThan(d)) => (2, d.to_string()),
-                            Some(Constraint::MustStartOn(d)) => (3, d.to_string()),
+                        // Several constraints: the engine has three kinds (start no earlier than, finish no later than, must start on).
+                        let mut list = s.cons.remove(&a.id).unwrap_or_else(|| {
+                            a.constraints()
+                                .map(|c| match c {
+                                    Constraint::StartNoEarlierThan(d) => (1, d.to_string()),
+                                    Constraint::FinishNoLaterThan(d) => (2, d.to_string()),
+                                    Constraint::MustStartOn(d) => (3, d.to_string()),
+                                })
+                                .collect()
                         });
-                        ui.horizontal(|ui| {
-                            let before = (kind, text.clone());
-                            egui::ComboBox::from_id_salt(("cons", i)).width(150.0).selected_text(["none", "start no earlier than", "finish no later than", "must start on"][kind as usize]).show_ui(ui, |ui| {
-                                for (k, l) in ["none", "start no earlier than", "finish no later than", "must start on"].iter().enumerate() {
-                                    ui.selectable_value(&mut kind, k as u8, *l);
+                        let before = list.clone();
+                        ui.vertical(|ui| {
+                            ui.set_min_width(300.0);
+                            let mut remove: Option<usize> = None;
+                            for (k, (kind, text)) in list.iter_mut().enumerate() {
+                                ui.horizontal(|ui| {
+                                    egui::ComboBox::from_id_salt(("cons", i, k)).width(150.0).selected_text(["choose the kind", "start no earlier than", "finish no later than", "must start on"][*kind as usize]).show_ui(ui, |ui| {
+                                        for (n, l) in ["start no earlier than", "finish no later than", "must start on"].iter().enumerate() {
+                                            ui.selectable_value(kind, n as u8 + 1, *l);
+                                        }
+                                    });
+                                    ui.add_sized([86.0, 20.0], egui::TextEdit::singleline(text).hint_text("YYYY-MM-DD"));
+                                    if *kind != 0 && date_of(text).is_none() {
+                                        ui.label(RichText::new("date needed").small().color(WARN));
+                                    }
+                                    if ui.small_button("x").on_hover_text("Remove this constraint").clicked() {
+                                        remove = Some(k);
+                                    }
+                                });
+                            }
+                            if let Some(k) = remove {
+                                list.remove(k);
+                            }
+                            if ui.add(egui::Button::new(RichText::new("Add a constraint").small()).wrap_mode(egui::TextWrapMode::Extend)).clicked() {
+                                list.push((0, String::new()));
+                            }
+                        });
+                        if list != before {
+                            // Only complete entries reach the programme; the first is the primary constraint.
+                            let valid: Vec<Constraint> = list
+                                .iter()
+                                .filter_map(|(kind, text)| {
+                                    let d = date_of(text)?;
+                                    match kind {
+                                        1 => Some(Constraint::StartNoEarlierThan(d)),
+                                        2 => Some(Constraint::FinishNoLaterThan(d)),
+                                        3 => Some(Constraint::MustStartOn(d)),
+                                        _ => None,
+                                    }
+                                })
+                                .collect();
+                            let new_primary = valid.first().copied();
+                            let new_extra: Vec<Constraint> = valid.iter().skip(1).copied().collect();
+                            if a.constraint != new_primary || a.extra_constraints != new_extra {
+                                a.constraint = new_primary;
+                                a.extra_constraints = new_extra;
+                                changed = true;
+                            }
+                        }
+                        s.cons.insert(a.id.clone(), list);
+                        if has_summaries {
+                            let shown = a.parent.clone().unwrap_or_else(|| "none".to_string());
+                            egui::ComboBox::from_id_salt(("aparent", i)).width(150.0).selected_text(shown).show_ui(ui, |ui| {
+                                changed |= ui.selectable_value(&mut a.parent, None, "none").changed();
+                                for (id, label) in &summary_ids {
+                                    changed |= ui.selectable_value(&mut a.parent, Some(id.clone()), label).changed();
                                 }
                             });
-                            if kind != 0 {
-                                ui.add_sized([86.0, 20.0], egui::TextEdit::singleline(&mut text).hint_text("YYYY-MM-DD"));
-                            }
-                            if (kind, text.clone()) != before {
-                                let new = match (kind, date_of(&text)) {
-                                    (0, _) => Some(None),
-                                    (1, Some(d)) => Some(Some(Constraint::StartNoEarlierThan(d))),
-                                    (2, Some(d)) => Some(Some(Constraint::FinishNoLaterThan(d))),
-                                    (3, Some(d)) => Some(Some(Constraint::MustStartOn(d))),
-                                    _ => None,
-                                };
-                                if let Some(c) = new {
-                                    a.constraint = c;
-                                    changed = true;
-                                }
-                            }
-                            if kind != 0 && date_of(&text).is_none() {
-                                ui.label(RichText::new("date needed").small().color(WARN));
-                            }
-                        });
-                        s.cons.insert(a.id.clone(), (kind, text));
+                        }
                         if many_calendars {
                             let shown = a.calendar.clone().unwrap_or_else(|| "programme calendar".to_string());
                             egui::ComboBox::from_id_salt(("acal", i)).width(120.0).selected_text(shown).show_ui(ui, |ui| {
@@ -878,6 +961,7 @@ impl AfroBimApp {
     fn schedule_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let mut rerun = false;
+        let mut open_critical = false;
         let s = &self.sched;
         crate::win::new(ctx, "Schedule").open(&mut open).default_width(1000.0).default_height(480.0).show(ctx, |ui| {
             match &s.result {
@@ -899,8 +983,12 @@ impl AfroBimApp {
                         if ui.button("Schedule again").clicked() {
                             rerun = true;
                         }
+                        ui.label(format!("   Critical by {}", if s.ext.critical == afrobim_schedule::CriticalBasis::TotalFloat { "total float" } else { "the longest path" }));
+                        if ui.small_button("Change").on_hover_text("CRITICAL: choose the basis").clicked() {
+                            open_critical = true;
+                        }
                     });
-                    ui.label(RichText::new("Dates are whole days. Float is in working days of each activity's calendar. Critical means float of zero or less and not complete.").small().weak());
+                    ui.label(RichText::new(format!("Dates are whole days. Float is in working days of each activity's calendar. Critical: {}", if s.ext.critical == afrobim_schedule::CriticalBasis::TotalFloat { "total float of zero or less and not complete." } else { "on the longest path (the chain of driving relationships that ends at the project finish)." })).small().weak());
                     egui::ScrollArea::both().id_salt("sched-rows").max_height(280.0).auto_shrink([false, false]).show(ui, |ui| {
                         egui::Grid::new("sched-grid").num_columns(12).striped(true).spacing([10.0, 3.0]).show(ui, |ui| {
                             for h in ["Id", "Name", "Days", "Early start", "Early finish", "Late start", "Late finish", "Total float", "Free float", "Critical", "Status", "Done"] {
@@ -943,6 +1031,9 @@ impl AfroBimApp {
             }
         });
         self.sched.schedule_open = open;
+        if open_critical {
+            self.sched.ext.critical_open = true;
+        }
         if rerun {
             self.run_schedule();
         }
@@ -952,6 +1043,7 @@ impl AfroBimApp {
 
     fn gantt_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
+        let mut rebuild = false;
         let s = &mut self.sched;
         crate::win::new(ctx, "Gantt chart").open(&mut open).default_width(1100.0).default_height(520.0).show(ctx, |ui| {
             match (&s.result, &s.gantt) {
@@ -961,6 +1053,28 @@ impl AfroBimApp {
                         ui.add(egui::Slider::new(&mut s.gantt_scale, 1.0..=8.0).show_value(false));
                         ui.label(RichText::new("Critical activities red, others blue, finished grey; black strip is progress; thin grey bar is the baseline; green line the data date.").small().weak());
                     });
+                    if let Some(p) = &s.prog {
+                        if !p.summaries.is_empty() {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(RichText::new(format!("Summary rows roll up on {}.", if s.ext.rollup == afrobim_schedule::RollupBasis::Duration { "duration" } else { "weight" })).small());
+                                ui.label(RichText::new("Fold:").small());
+                                for sm in &p.summaries {
+                                    let folded = s.ext.collapsed.contains(&sm.id);
+                                    if ui.selectable_label(folded, format!("{} {}", sm.wbs, sm.name)).on_hover_text("Fold or unfold: hides the rows under this summary task").clicked() {
+                                        if folded {
+                                            s.ext.collapsed.remove(&sm.id);
+                                        } else {
+                                            s.ext.collapsed.insert(sm.id.clone());
+                                        }
+                                        rebuild = true;
+                                    }
+                                }
+                            });
+                            if let Some(e) = &s.ext.rollup_error {
+                                ui.label(RichText::new(format!("The roll-up could not be made on this basis ({e}); activities are drawn without summary rows.")).small().color(WARN));
+                            }
+                        }
+                    }
                     egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| paint_gantt(ui, g, s.gantt_scale));
                 }
                 (Some(Err(m)), _) => {
@@ -972,6 +1086,9 @@ impl AfroBimApp {
             };
         });
         self.sched.gantt_open = open;
+        if rebuild {
+            self.sched.rebuild_gantt();
+        }
     }
 
     // ─── baseline and variance ───────────────────────────────────────────────────────────
@@ -1326,6 +1443,7 @@ impl AfroBimApp {
 
     fn date_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
+        let mut toggle_play = false;
         let mut new_date: Option<Date> = None;
         let span = self.sched.span();
         let mut counts = [0usize; 4];
@@ -1378,18 +1496,34 @@ impl AfroBimApp {
             if ui.add_sized([ui.available_width() - 90.0, 20.0], slider).changed() {
                 new_date = Some(lo.add_days(offset));
             }
+            ui.horizontal(|ui| {
+                let label = if s.ext.play.playing { "Pause" } else { "Play" };
+                if ui.button(label).clicked() {
+                    toggle_play = true;
+                }
+                ui.label("speed");
+                for v in [1.0, 2.0, 5.0, 10.0, 30.0] {
+                    ui.selectable_value(&mut s.ext.play.speed, v, format!("{v} days/s"));
+                }
+            });
+            ui.label(RichText::new("Playback moves the date forward in the 3D view; drag the bar to scrub. Speed is how many days of the programme pass each second of viewing.").small().weak());
             ui.add_space(4.0);
             ui.label(RichText::new(format!(
                 "State at the end of the day: {} not started, {} in progress, {} complete, {} removed. Elements no link reaches stay as drawn.",
                 counts[0], counts[1], counts[2], counts[3]
             ))
             .small());
-            ui.label(RichText::new("Not started: ghosted or hidden. In progress: amber. Complete: normal. Demolished or temporary work that is over: removed. This is a static state at the chosen date; playback is a later work package.").small().weak());
+            ui.label(RichText::new("Not started: ghosted or hidden. In progress: amber. Complete: normal. Demolished or temporary work that is over: removed.").small().weak());
             let _ = doc;
         });
         self.sched.date_open = open;
+        if toggle_play {
+            self.play_toggle(ctx);
+        }
         if let Some(d) = new_date {
-            self.sched.set_date(&self.doc, d);
+            // Scrubbing reads the playback's timelines: no element is evaluated again.
+            self.sched.ext.play.playing = false;
+            self.play_to(d);
             self.status = format!("4D date {} ({}).", d, glue::weekday_label(d.weekday()));
         }
     }

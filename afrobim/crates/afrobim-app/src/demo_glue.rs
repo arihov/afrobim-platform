@@ -9,7 +9,7 @@
 use afrobim_cost::{Addition, AdditionBase, AdditionKind, Bill, Decimal, Item, MappingRule, Phasing, PhasingTarget, Rate};
 use afrobim_coordination::{ClashTest, Coordination, Selection};
 use afrobim_kernel::Document;
-use afrobim_schedule::{Activity, Date, ElementRule, ElementSelector, LinkAction, LinkType, Weekday};
+use afrobim_schedule::{Activity, Date, ElementRule, ElementSelector, LinkAction, LinkType, LocationRange, WorkDirection, Weekday};
 
 use crate::{cost_glue, schedule_glue};
 
@@ -58,6 +58,43 @@ fn add_programme(doc: &mut Document) -> Result<(), String> {
         p.add_activity(Activity::new(id, wbs, name, duration));
         for c in categories {
             p.link_elements(id, rule(c), LinkAction::Construct);
+        }
+    }
+    // Demo work breakdown: every id, code and grouping is made up. Two summary tasks, the second with
+    // a sub-summary; the completion milestone stays at the top level.
+    schedule_glue::add_summary(&mut p, "S1", "1", "Earthworks and drainage", None)?;
+    schedule_glue::add_summary(&mut p, "S2", "2", "Pavement and furniture", None)?;
+    schedule_glue::add_summary(&mut p, "S2A", "2.2", "Road furniture", Some("S2"))?;
+    for (activity, code) in [("A20", "1.1"), ("A30", "1.2"), ("A40", "2.1"), ("A50", "2.2.1"), ("A60", "2.2.2"), ("A70", "2.3"), ("A80", "3")] {
+        if let Some(a) = p.activity_mut(activity) {
+            a.wbs = code.to_string();
+        }
+    }
+    for (activity, summary) in [("A20", "S1"), ("A30", "S1"), ("A40", "S2"), ("A70", "S2"), ("A50", "S2A"), ("A60", "S2A")] {
+        if let Some(a) = p.activity_mut(activity) {
+            a.parent = Some(summary.to_string());
+        }
+    }
+    // Demo constraints on the pavement layers: two of the engine's three kinds, with arbitrary dates.
+    if let Some(a) = p.activity_mut("A40") {
+        a.constraint = Some(afrobim_schedule::Constraint::StartNoEarlierThan(date(2026, 4, 1)));
+        a.extra_constraints = vec![afrobim_schedule::Constraint::FinishNoLaterThan(date(2026, 6, 30))];
+    }
+    // Demo location ranges on the first imported alignment (MC10), as internal stations in metres,
+    // with an arbitrary direction and dwell each. They are demo values only.
+    let ranges: [(&str, f64, f64, WorkDirection, Option<u32>); 6] = [
+        ("A20", 1000.0, 1700.0, WorkDirection::Increasing, Some(4)),
+        ("A30", 1050.0, 1500.0, WorkDirection::Increasing, Some(3)),
+        ("A40", 1000.0, 1700.0, WorkDirection::Increasing, Some(3)),
+        ("A50", 1100.0, 1600.0, WorkDirection::Decreasing, Some(2)),
+        ("A60", 1200.0, 1600.0, WorkDirection::Fixed, None),
+        ("A70", 1000.0, 1700.0, WorkDirection::Increasing, Some(1)),
+    ];
+    for (activity, from, to, direction, dwell) in ranges {
+        if let Some(a) = p.activity_mut(activity) {
+            let mut r = LocationRange::new("MC10", from, to, direction);
+            r.dwell_days = dwell;
+            a.location = Some(r);
         }
     }
     // Arbitrary demo logic and lags.

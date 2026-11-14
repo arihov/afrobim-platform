@@ -46,6 +46,8 @@ pub struct AfroBimApp {
     pub(crate) construction: ConstructionUi,
     /// The model-wide check, the drain and culvert input dialogs and the rational method.
     pub(crate) checks: CheckUi,
+    /// The alignment design tools: the plan editor, the PI table, the profile editor, checks and options.
+    pub(crate) design: crate::design_ui::DesignUi,
     signs_ready: bool,
     module_status: String,
     standard: String,
@@ -126,6 +128,7 @@ impl AfroBimApp {
         modules.register(Box::new(afrobim_cost::EstimateModule));
         modules.register(Box::new(afrobim_progress::ProgressModule));
         crate::sheets_glue::register(&mut modules);
+        afrobim_design::register(&mut modules);
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
             Ok(l) => {
@@ -146,6 +149,7 @@ impl AfroBimApp {
             cost: CostUi::default(),
             construction: ConstructionUi::default(),
             checks: CheckUi::default(),
+            design: Default::default(),
             signs_ready,
             module_status,
             standard,
@@ -310,6 +314,10 @@ impl AfroBimApp {
             for problem in crate::demo_glue::add_records(&mut app.doc) {
                 app.status = problem;
             }
+            // Demo only: a small designed alignment with two options (see `design_glue::demo`).
+            for problem in crate::design_glue::demo(&mut app.doc) {
+                app.status = problem;
+            }
             // Demo only: the DEMO project information and a demo sheet set (see `sheets_glue::demo`).
             for problem in crate::sheets_glue::demo(&mut app.doc) {
                 app.status = problem;
@@ -365,6 +373,33 @@ impl AfroBimApp {
             }
             app.quit = true;
         }
+        if let Some(path) = app.options.xer_in.clone() {
+            app.import_xer_path(&path);
+        }
+        if let Some(path) = app.options.xer_out.clone() {
+            app.sched.sync(&app.doc);
+            if let Some(p) = app.sched.prog.clone() {
+                app.export_xer_path(&p, &path);
+            }
+        }
+        if let Some(spec) = app.options.new_alignment.clone() {
+            let (name, start) = spec.split_once(',').map(|(n, s)| (n.trim().to_string(), s.trim().parse::<f64>().unwrap_or(0.0))).unwrap_or((spec.clone(), 0.0));
+            let points: Vec<(f64, f64)> = app
+                .options
+                .pis
+                .clone()
+                .unwrap_or_default()
+                .split(';')
+                .filter_map(|p| p.split_once(',').and_then(|(x, y)| Some((x.trim().parse::<f64>().ok()?, y.trim().parse::<f64>().ok()?))))
+                .collect();
+            app.design.create = Some(crate::design_ui::Create { name, start_m: start, points });
+            app.design.plan_on = true;
+            app.design.invalidate();
+            if app.options.pis_finish {
+                app.design_finish_create();
+            }
+        }
+        app.frames_setup();
         if let Some(path) = app.options.export_ifc.clone() {
             app.export_ifc(path);
             eprintln!("AfroBIM: {}", app.status);
@@ -421,6 +456,10 @@ impl AfroBimApp {
 
     // ─── undo ────────────────────────────────────────────────────────────────
 
+    pub(crate) fn request_quit(&mut self) {
+        self.quit = true;
+    }
+
     fn schedule_commit(&mut self, ctx: &egui::Context) {
         self.commit_due = Some(ctx.input(|i| i.time) + 0.3);
         ctx.request_repaint_after(std::time::Duration::from_millis(350));
@@ -437,6 +476,7 @@ impl AfroBimApp {
         match self.history.undo().cloned() {
             Some(state) => {
                 self.doc.restore(state);
+                self.design.invalidate();
                 self.log("Undo");
             }
             None => self.status = "Nothing to undo.".into(),
@@ -448,13 +488,14 @@ impl AfroBimApp {
         match self.history.redo().cloned() {
             Some(state) => {
                 self.doc.restore(state);
+                self.design.invalidate();
                 self.log("Redo");
             }
             None => self.status = "Nothing to redo.".into(),
         }
     }
 
-    fn log(&mut self, line: impl Into<String>) {
+    pub(crate) fn log(&mut self, line: impl Into<String>) {
         self.cmd_log.push(line.into());
         if self.cmd_log.len() > 200 {
             self.cmd_log.remove(0);
@@ -477,6 +518,7 @@ impl AfroBimApp {
         self.cost = CostUi::default();
         self.construction = ConstructionUi::default();
         self.checks = CheckUi::default();
+        self.design = Default::default();
         self.sheets = crate::sheets_ui::SheetsUi::default();
         self.corridor_cache.clear();
     }
@@ -777,6 +819,9 @@ impl AfroBimApp {
             }
             Action::Toggle3d => {
                 self.view_3d = !self.view_3d;
+                if self.view_3d {
+                    self.design.plan_on = false;
+                }
                 self.ctl.escape(&mut self.doc);
                 if self.view_3d {
                     self.fit_3d();
@@ -1033,6 +1078,32 @@ impl AfroBimApp {
             Action::SiteView => self.toggle_site_colour(),
             Action::EvmCsv => self.export_evm_csvs(),
             Action::SheetSets | Action::SheetPreview | Action::TitleBlock | Action::ProjectInfo | Action::SheetPdf | Action::SheetDxf => self.sheets_action(action),
+            Action::AlignDesign => self.design_start_new(),
+            Action::AlignEdit => self.design_edit_plan(),
+            Action::PiTable => self.design_open_table(),
+            Action::AlignLabels => {
+                self.design.labels_on = !self.design.labels_on;
+                self.status = format!("Curve data labels {}.", if self.design.labels_on { "shown" } else { "hidden" });
+            }
+            Action::ProfileDesign => self.design_open_profile(),
+            Action::AlignCheck => self.design_open_check(),
+            Action::LandXmlOut => self.design_landxml_out(),
+            Action::Options => self.design_open_options(),
+            Action::XerIn => self.import_xer_file(),
+            Action::XerOut => self.export_xer_file(),
+            Action::Wbs => {
+                self.sched.sync(&self.doc);
+                self.sched.ext.wbs_open = true;
+            }
+            Action::CriticalBasis => {
+                self.sched.sync(&self.doc);
+                self.sched.ext.critical_open = true;
+            }
+            Action::TimeLocation => {
+                self.sched.sync(&self.doc);
+                self.sched.ext.tl_open = true;
+            }
+            Action::Play4d => self.play_toggle(ctx),
             Action::Help => self.show_help = true,
             Action::About => self.show_about = true,
             Action::Quit => self.quit = true,
@@ -1042,6 +1113,7 @@ impl AfroBimApp {
     pub(crate) fn import_landxml(&mut self, ctx: &egui::Context, path: PathBuf) {
         match alignment_glue::import_landxml(&mut self.doc, &path) {
             Ok((added, notes)) => {
+                self.design.invalidate();
                 markings_glue::sync(&mut self.doc);
                 for problem in modules_glue::sync_all(&mut self.doc) {
                     self.log(format!("Not brought up to date: {problem}"));
@@ -1117,6 +1189,11 @@ impl AfroBimApp {
 
     fn submit_command_line(&mut self, ctx: &egui::Context) {
         let text = std::mem::take(&mut self.cmd_input);
+        if self.design.wants_text() {
+            self.log(format!("{} {}", self.design.prompt().unwrap_or_default(), text));
+            self.design_take_text(&text);
+            return;
+        }
         if self.ctl.is_busy() {
             self.log(format!("{} {}", self.ctl.prompt(), text));
             self.ctl.submit_text(&mut self.doc, &mut self.view, &text);
@@ -1214,6 +1291,7 @@ impl AfroBimApp {
             if !in_field || self.ctl.is_busy() {
                 self.cmd_input.clear();
                 self.ctl.escape(&mut self.doc);
+                self.design_escape();
             }
         }
     }
@@ -1374,7 +1452,9 @@ impl AfroBimApp {
     fn toolbar(&mut self, ctx: &egui::Context) {
         let (grid, snap, ortho, marks, three_d, real) = (self.grid_on, self.ctl.snap_on, self.ctl.ortho_on, self.show_labels, self.view_3d, self.rep == Representation::Real);
         let (clash_markers, fourd) = (self.coord.markers, self.sched.fourd_on);
+        let playing = self.sched.ext.play.playing;
         let site_colour = self.construction.colour_by_record;
+        let align_labels = self.design.labels_on;
         let standard = self.standard.clone();
         let is_on = move |a: Action| match a {
             Action::ToggleGrid => grid,
@@ -1386,7 +1466,9 @@ impl AfroBimApp {
             Action::RepOutlined => !real,
             Action::ClashMarkers => clash_markers,
             Action::FourD => fourd,
+            Action::Play4d => playing,
             Action::SiteView => site_colour,
+            Action::AlignLabels => align_labels,
             Action::Standard(i) => signs_glue::STANDARDS.get(i as usize).is_some_and(|s| s.0 == standard),
             _ => false,
         };
@@ -1666,7 +1748,12 @@ impl AfroBimApp {
             let tail = self.cmd_log.iter().rev().take(3).rev().cloned().collect::<Vec<_>>().join("\n");
             ui.label(RichText::new(tail).monospace().small().weak());
             ui.horizontal(|ui| {
-                let prompt = if self.ctl.prompt().is_empty() { "Command:" } else { self.ctl.prompt() };
+                let design_prompt = self.design.prompt();
+                let prompt = match (&design_prompt, self.ctl.prompt().is_empty()) {
+                    (Some(p), _) => p.as_str(),
+                    (None, true) => "Command:",
+                    (None, false) => self.ctl.prompt(),
+                };
                 ui.label(RichText::new(prompt).monospace().strong().color(Color32::from_rgb(0x4D, 0xC0, 0x7A)));
                 let id = egui::Id::new(CMD_ID);
                 let response = ui.add(
@@ -1694,6 +1781,10 @@ impl AfroBimApp {
             crate::win::set_work_rect(ctx, ui.max_rect());
             if self.view_3d {
                 self.canvas_3d(ui);
+                return;
+            }
+            if self.design.plan_on {
+                self.canvas_plan(ui);
                 return;
             }
             let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
@@ -1803,6 +1894,7 @@ impl AfroBimApp {
         self.construction_windows(ctx);
         self.check_windows(ctx);
         self.sheets_windows(ctx);
+        self.design_windows(ctx);
         let mut help = self.show_help;
         crate::win::new(ctx, "Commands").open(&mut help).default_width(520.0).show(ctx, |ui| {
             egui::Grid::new("cmds").num_columns(3).striped(true).spacing([14.0, 4.0]).show(ui, |ui| {
@@ -2433,6 +2525,7 @@ impl eframe::App for AfroBimApp {
             }
         }
 
+        self.sched_tick(ctx);
         self.menu_bar(ctx);
         self.toolbar(ctx);
         self.status_bar(ctx);

@@ -601,12 +601,15 @@ impl AfroBimApp {
         }
         if self.sched.fourd_on {
             if let Some(d) = self.sched.date {
-                let text = if self.by_record() { format!("Recorded progress at {d}") } else { format!("4D date {d}") };
-                painter.text(rect.left_top() + egui::vec2(12.0, 10.0), Align2::LEFT_TOP, text, FontId::proportional(15.0), Color32::from_rgb(0xF2, 0xA9, 0x1D));
+                let amber = Color32::from_rgb(0xF2, 0xA9, 0x1D);
+                let small = if self.by_record() { "Recorded progress at" } else { "4D date" };
+                painter.text(rect.left_top() + egui::vec2(14.0, 10.0), Align2::LEFT_TOP, small, FontId::proportional(13.0), amber);
+                painter.text(rect.left_top() + egui::vec2(12.0, 24.0), Align2::LEFT_TOP, format!("{d}"), FontId::proportional(40.0), amber);
+                painter.text(rect.left_top() + egui::vec2(14.0, 70.0), Align2::LEFT_TOP, crate::schedule_glue::weekday_label(d.weekday()), FontId::proportional(14.0), amber);
             }
             if self.by_record() {
                 // The legend: no record, then 0 % to 100 % in ten steps.
-                let origin = rect.left_top() + egui::vec2(12.0, 36.0);
+                let origin = rect.left_top() + egui::vec2(12.0, 98.0);
                 let swatch = |i: usize, p: Option<f64>| {
                     let [r, g, b] = crate::construction_ui::percent_colour(p);
                     let at = origin + egui::vec2(i as f32 * 22.0, 0.0);

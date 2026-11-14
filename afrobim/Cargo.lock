@@ -44,6 +44,7 @@ dependencies = [
  "afrobim-coordination",
  "afrobim-corridor",
  "afrobim-cost",
+ "afrobim-design",
  "afrobim-drainage",
  "afrobim-draw",
  "afrobim-dxf",

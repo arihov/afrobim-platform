@@ -20,6 +20,7 @@ pub enum Tab {
     Modify,
     Signs,
     Roads,
+    Design,
     Structures,
     Coordination,
     FourD,
@@ -31,7 +32,7 @@ pub enum Tab {
     Help,
 }
 
-pub const TABS: [(Tab, &str); 16] = [
+pub const TABS: [(Tab, &str); 17] = [
     (Tab::Home, "Home"),
     (Tab::Edit, "Edit"),
     (Tab::Insert, "Insert"),
@@ -39,6 +40,7 @@ pub const TABS: [(Tab, &str); 16] = [
     (Tab::Modify, "Modify"),
     (Tab::Signs, "Signs"),
     (Tab::Roads, "Roads"),
+    (Tab::Design, "Design"),
     (Tab::Structures, "Structures"),
     (Tab::Coordination, "Coordination"),
     (Tab::FourD, "4D"),
@@ -137,6 +139,20 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Pavement", items: &[Big(Icon::Pavement, "Pavement", "PAVEMENT"), Big(Icon::Design, "Pavement design", "PAVEDESIGN")] },
         Panel { title: "Earthworks", items: &[Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Corridor, "Corridor", "CORRIDOR"), Big(Icon::Section, "Sections", "SECTIONS")] },
     ];
+    const DESIGN: &[Panel] = &[
+        Panel { title: "Alignment", items: &[Big(Icon::AlignDesign, "New alignment", "ALIGNDESIGN"), Big(Icon::AlignEdit, "Edit in plan", "ALIGNEDIT"), Big(Icon::PiTable, "PI table", "PITABLE"), Big(Icon::Labels, "Curve labels", "ALIGNLABELS")] },
+        Panel { title: "Profile", items: &[Big(Icon::ProfileDesign, "Profile editor", "PROFILEDESIGN")] },
+        Panel { title: "Checks", items: &[Big(Icon::AlignCheck, "Design checks", "ALIGNCHECK"), Big(Icon::CheckAll, "Check the model", "CHECKALL")] },
+        Panel { title: "Options", items: &[Big(Icon::Options, "Options", "OPTIONS")] },
+        Panel {
+            title: "Exchange",
+            items: &[
+                Big(Icon::LandXmlOut, "LandXML out", "LANDXMLOUT"),
+                Big(Icon::Alignment, "Import LandXML", "LANDXML"),
+                Planned(Icon::Alignment, "Make an imported alignment editable", "Not available: the alignment engine holds an imported alignment as elements (lines, arcs, spirals), not as PIs with radii, and there is no conversion that gives back a faithful PI design"),
+            ],
+        },
+    ];
     const STRUCTURES: &[Panel] = &[SUPPORTS, Panel { title: "Gantries", items: &[Big(Icon::Barrier, "Portal gantry", "GANTRY"), Big(Icon::Barrier, "Cantilever gantry", "CANTILEVER"), Big(Icon::Station, "Hang sign", "HANG"), Small(Icon::NoSupports, "Take sign off", "UNHANG"), Small(Icon::Design, "Check", "CHECK")] }];
     const COORDINATION: &[Panel] = &[
         Panel { title: "Tests", items: &[Big(Icon::ClashTests, "Clash tests", "CLASHTESTS")] },
@@ -145,13 +161,14 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Report", items: &[Big(Icon::Csv, "Export clashes", "CLASHCSV")] },
     ];
     const FOURD: &[Panel] = &[
-        Panel { title: "Programme", items: &[Big(Icon::Activities, "Activities", "PROGRAMME"), Big(Icon::Calendar, "Calendar", "CALENDAR"), Big(Icon::Schedule, "Schedule", "SCHEDULE")] },
-        Panel { title: "Chart", items: &[Big(Icon::Gantt, "Gantt chart", "GANTT")] },
+        Panel { title: "Programme", items: &[Big(Icon::Activities, "Activities", "PROGRAMME"), Big(Icon::Wbs, "WBS", "WBS"), Big(Icon::Calendar, "Calendar", "CALENDAR"), Big(Icon::Schedule, "Schedule", "SCHEDULE"), Big(Icon::CriticalPath, "Critical basis", "CRITICAL")] },
+        Panel { title: "Chart", items: &[Big(Icon::Gantt, "Gantt chart", "GANTT"), Big(Icon::TimeLocation, "Time-location", "TIMELOCATION")] },
         Panel { title: "Baseline", items: &[Big(Icon::Baseline, "Set baseline", "BASELINE"), Big(Icon::Variance, "Variance", "VARIANCE")] },
         Panel { title: "Progress", items: &[Big(Icon::Progress, "Progress", "PROGRESS")] },
         Panel { title: "Links", items: &[Big(Icon::Link, "Link elements", "LINK4D"), Big(Icon::LinkReport, "Link report", "LINKREPORT")] },
-        Panel { title: "Date", items: &[Big(Icon::DateSlider, "4D date", "FOURD")] },
+        Panel { title: "Date", items: &[Big(Icon::DateSlider, "4D date", "FOURD"), Big(Icon::Play, "Play", "PLAY4D")] },
         Panel { title: "MS Project", items: &[Big(Icon::MspIn, "Import", "MSPIN"), Big(Icon::MspOut, "Export", "MSPOUT"), Big(Icon::Csv, "Reports", "PROGCSV")] },
+        Panel { title: "Primavera P6", items: &[Big(Icon::XerIn, "Import XER", "XERIN"), Big(Icon::XerOut, "Export XER", "XEROUT")] },
     ];
     const FIVED: &[Panel] = &[
         Panel { title: "Bill", items: &[Big(Icon::Bill, "Bill and rules", "BILL")] },
@@ -204,6 +221,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Tab::Modify => MODIFY_TAB,
         Tab::Signs => &[], // built from the active standard's templates, see `show`
         Tab::Roads => ROADS,
+        Tab::Design => DESIGN,
         Tab::Structures => STRUCTURES,
         Tab::Coordination => COORDINATION,
         Tab::FourD => FOURD,
