@@ -41,14 +41,11 @@ name = "afrobim-app"
 version = "0.1.0"
 dependencies = [
  "afrobim-alignment",
- "afrobim-drainage",
  "afrobim-draw",
  "afrobim-dxf",
  "afrobim-fabrication",
- "afrobim-gantry",
  "afrobim-ifc",
  "afrobim-kernel",
- "afrobim-markings",
  "afrobim-signs",
  "afrobim-supports",
  "eframe",
@@ -58,18 +55,6 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "afrobim-drainage"
-version = "0.1.0"
-dependencies = [
- "afrobim-alignment",
- "afrobim-draw",
- "afrobim-kernel",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -102,26 +87,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "afrobim-gantry"
-version = "0.1.0"
-dependencies = [
- "afrobim-alignment",
- "afrobim-draw",
- "afrobim-kernel",
- "afrobim-supports",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "afrobim-ifc"
 version = "0.1.0"
 dependencies = [
- "afrobim-alignment",
  "afrobim-draw",
  "afrobim-kernel",
- "afrobim-supports",
  "lyon_tessellation",
  "serde_json",
 ]
@@ -137,7 +107,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "afrobim-markings"
+name = "afrobim-lighting"
 version = "0.1.0"
 dependencies = [
  "afrobim-alignment",
