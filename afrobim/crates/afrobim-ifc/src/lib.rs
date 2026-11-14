@@ -5,6 +5,12 @@
 //! element as an `IfcSign` (or an `IfcBuildingElementProxy` for a category this crate does not
 //! know) with a tessellated body, colours, property sets and quantities.
 //!
+//! [`export_ifc_model`] takes the same input and writes the whole model: posts as `IfcMember`
+//! and foundations as `IfcFooting` with swept solids, each sign and its supports as one
+//! `IfcElementAssembly`, every element at its `SitePlacement` inside an `IfcRoad`, and alignments
+//! as `IfcAlignment`. For a document with none of those it writes the same bytes as
+//! [`export_ifc`], which stays as it was: signs on the upright sheet.
+//!
 //! The crate only writes; it has no importer. See the crate README for the entity mapping, the
 //! placement convention and how to validate a file.
 //!
@@ -21,6 +27,7 @@
 
 mod guid;
 mod mesh;
+mod model;
 mod step;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -29,6 +36,7 @@ use afrobim_draw::{Colour, Primitive};
 use afrobim_kernel::{Document, Element, ElementId, Generated};
 
 pub use guid::global_id;
+pub use model::{export_ifc_model, write_ifc_model, ALIGNMENT_CATEGORY, ALIGNMENT_CHORD_M, FOUNDATION_CATEGORY, POST_CATEGORY, PROP_DESIGN_BASIS};
 pub use mesh::{tessellate_artwork, Artwork, ArtworkMesh, ARC_BAND_WIDTH_MM};
 pub use step::{step_real, step_string};
 
@@ -83,6 +91,8 @@ impl Default for IfcOptions {
 pub struct IfcElementInput<'a> {
     pub element: &'a Element,
     /// `None` exports the plate without artwork and without the `AfroBIM_Derived` property set.
+    /// [`export_ifc_model`] also reads `Generated::solids` from here: the colours of a support's
+    /// solids, and the solids themselves when the support's definition cannot be read.
     pub generated: Option<&'a Generated>,
 }
 
@@ -112,7 +122,7 @@ pub fn write_ifc(document: &Document, elements: &[IfcElementInput], options: &If
 /// The output depends only on the arguments: with a fixed `options.timestamp` the same input
 /// gives byte-identical text.
 pub fn export_ifc(document: &Document, elements: &[IfcElementInput], options: &IfcOptions) -> IfcExport {
-    let mut w = Writer::new(options);
+    let mut w = Writer::new(options, Plan::default());
     let mut notes = Vec::new();
     let mut seen = BTreeSet::new();
     let mut products = Vec::new();
@@ -124,8 +134,7 @@ pub fn export_ifc(document: &Document, elements: &[IfcElementInput], options: &I
         products.push(w.element(document, input, &mut notes));
     }
     if !products.is_empty() {
-        let args = format!("{},$,$,$,{},#{}", step_string(&w.guid("rel-contained")), refs(&products), w.site);
-        w.data.add("IFCRELCONTAINEDINSPATIALSTRUCTURE", &args);
+        w.contain(&products);
     }
     IfcExport { text: w.finish(), notes }
 }
@@ -138,6 +147,8 @@ enum Value {
     Integer(i64),
     Real(f64),
     Boolean(bool),
+    /// `IfcLengthMeasure`, in the file's length unit (mm).
+    Length(f64),
 }
 
 impl Value {
@@ -149,6 +160,7 @@ impl Value {
             Value::Integer(i) => format!("IFCINTEGER({i})"),
             Value::Real(r) => format!("IFCREAL({})", step_real(*r)),
             Value::Boolean(b) => format!("IFCBOOLEAN({})", if *b { ".T." } else { ".F." }),
+            Value::Length(l) => format!("IFCLENGTHMEASURE({})", step_real(*l)),
         }
     }
 }
@@ -168,12 +180,28 @@ fn scalar(value: Option<&serde_json::Value>) -> Option<String> {
     }
 }
 
+/// What the file needs beyond the plain sign export. The default adds nothing, which keeps
+/// [`export_ifc`] writing exactly what it always wrote.
+#[derive(Debug, Clone, Copy, Default)]
+struct Plan {
+    /// An `IfcRoad` under the site, which then contains the elements.
+    road: bool,
+    /// A cubic metre in the unit assignment, for volume quantities.
+    volume_unit: bool,
+}
+
 struct Writer<'a> {
     options: &'a IfcOptions,
     data: Instances,
+    project: u32,
+    context: u32,
     body_context: u32,
-    site: u32,
-    site_placement: u32,
+    /// The +Z `IfcDirection`, shared.
+    up: u32,
+    /// The spatial element that contains the elements (the site, or the road when there is one)
+    /// and its placement.
+    container: u32,
+    container_placement: u32,
     /// `IfcSurfaceStyle` per style name, created on first use.
     styles: BTreeMap<String, u32>,
     thickness: f64,
@@ -182,14 +210,17 @@ struct Writer<'a> {
 
 impl<'a> Writer<'a> {
     /// Starts the file: units, contexts, project, site.
-    fn new(options: &'a IfcOptions) -> Self {
+    fn new(options: &'a IfcOptions, plan: Plan) -> Self {
         let positive = |v: f64, fallback: f64| if v.is_finite() && v > 0.0 { v } else { fallback };
         let mut w = Writer {
             options,
             data: Instances::default(),
+            project: 0,
+            context: 0,
             body_context: 0,
-            site: 0,
-            site_placement: 0,
+            up: 0,
+            container: 0,
+            container_placement: 0,
             styles: BTreeMap::new(),
             thickness: positive(options.plate_thickness_mm, 3.0),
             offset: positive(options.artwork_offset_mm, 0.1),
@@ -203,8 +234,12 @@ impl<'a> Writer<'a> {
         let body = d.add("IFCGEOMETRICREPRESENTATIONSUBCONTEXT", &format!("'Body','Model',*,*,*,*,#{context},$,.MODEL_VIEW.,$"));
         let length = d.add("IFCSIUNIT", "*,.LENGTHUNIT.,.MILLI.,.METRE.");
         let area = d.add("IFCSIUNIT", "*,.AREAUNIT.,$,.SQUARE_METRE.");
-        let angle = d.add("IFCSIUNIT", "*,.PLANEANGLEUNIT.,$,.RADIAN.");
-        let units = d.add("IFCUNITASSIGNMENT", &refs(&[length, area, angle]));
+        let mut unit_ids = vec![length, area];
+        if plan.volume_unit {
+            unit_ids.push(d.add("IFCSIUNIT", "*,.VOLUMEUNIT.,$,.CUBIC_METRE."));
+        }
+        unit_ids.push(d.add("IFCSIUNIT", "*,.PLANEANGLEUNIT.,$,.RADIAN."));
+        let units = d.add("IFCUNITASSIGNMENT", &refs(&unit_ids));
         let project_guid = step_string(&global_id(&format!("{}/project", options.project_name)));
         let project = d.add("IFCPROJECT", &format!("{project_guid},$,{},$,$,$,$,(#{context}),#{units}", step_string(&clip(&options.project_name))));
         let site_placement = d.add("IFCLOCALPLACEMENT", &format!("$,#{world}"));
@@ -212,9 +247,23 @@ impl<'a> Writer<'a> {
         let site = d.add("IFCSITE", &format!("{site_guid},$,'Site',$,$,#{site_placement},$,$,.ELEMENT.,$,$,$,$,$"));
         let rel_guid = step_string(&global_id(&format!("{}/rel-aggregates", options.project_name)));
         d.add("IFCRELAGGREGATES", &format!("{rel_guid},$,$,$,#{project},(#{site})"));
+        w.container = site;
+        w.container_placement = site_placement;
+        if plan.road {
+            // IfcRoad is the IfcFacility for a road; the spatial composition table of IFC 4.3
+            // puts it under the site.
+            let road_placement = d.add("IFCLOCALPLACEMENT", &format!("#{site_placement},#{world}"));
+            let road_guid = step_string(&global_id(&format!("{}/road", options.project_name)));
+            let road = d.add("IFCROAD", &format!("{road_guid},$,'Road',$,$,#{road_placement},$,$,.ELEMENT.,$"));
+            let rel_guid = step_string(&global_id(&format!("{}/rel-site-road", options.project_name)));
+            d.add("IFCRELAGGREGATES", &format!("{rel_guid},$,$,$,#{site},(#{road})"));
+            w.container = road;
+            w.container_placement = road_placement;
+        }
+        w.project = project;
+        w.context = context;
         w.body_context = body;
-        w.site = site;
-        w.site_placement = site_placement;
+        w.up = z;
         w
     }
 
@@ -222,16 +271,27 @@ impl<'a> Writer<'a> {
         global_id(&format!("{}/{role}", self.options.project_name))
     }
 
+    /// One `IfcRelContainedInSpatialStructure` from the container to `products`.
+    fn contain(&mut self, products: &[u32]) {
+        let args = format!("{},$,$,$,{},#{}", step_string(&self.guid("rel-contained")), refs(products), self.container);
+        self.data.add("IFCRELCONTAINEDINSPATIALSTRUCTURE", &args);
+    }
+
     /// The shared surface style of a colour.
     fn style(&mut self, name: &str, rgb: [u8; 3]) -> u32 {
-        if let Some(id) = self.styles.get(name) {
+        self.style_keyed(name, name, rgb)
+    }
+
+    /// A shared surface style called `name`, one per `key`.
+    fn style_keyed(&mut self, key: &str, name: &str, rgb: [u8; 3]) -> u32 {
+        if let Some(id) = self.styles.get(key) {
             return *id;
         }
         let channels: Vec<f64> = rgb.iter().map(|c| f64::from(*c) / 255.0).collect();
         let colour = self.data.add("IFCCOLOURRGB", &format!("$,{},{},{}", step_real(channels[0]), step_real(channels[1]), step_real(channels[2])));
         let shading = self.data.add("IFCSURFACESTYLESHADING", &format!("#{colour},$"));
         let style = self.data.add("IFCSURFACESTYLE", &format!("{},.BOTH.,(#{shading})", step_string(name)));
-        self.styles.insert(name.to_string(), style);
+        self.styles.insert(key.to_string(), style);
         style
     }
 
@@ -279,6 +339,11 @@ impl<'a> Writer<'a> {
 
     /// A property set and its relationship to `product`. Nothing is written for an empty set.
     fn property_set(&mut self, product: u32, element: ElementId, name: &str, properties: &[(String, Value)]) {
+        self.property_set_of(product, &format!("element/{}", element.0), name, properties);
+    }
+
+    /// The same for any object; `owner` scopes the GlobalIds of the set and its relationship.
+    fn property_set_of(&mut self, product: u32, owner: &str, name: &str, properties: &[(String, Value)]) {
         let ids: Vec<u32> = properties
             .iter()
             .filter(|(key, _)| !key.is_empty())
@@ -287,9 +352,9 @@ impl<'a> Writer<'a> {
         if ids.is_empty() {
             return;
         }
-        let guid = step_string(&self.guid(&format!("element/{}/pset/{name}", element.0)));
+        let guid = step_string(&self.guid(&format!("{owner}/pset/{name}")));
         let set = self.data.add("IFCPROPERTYSET", &format!("{guid},$,{},$,{}", step_string(name), refs(&ids)));
-        self.define(product, element, name, set);
+        self.define_of(product, owner, name, set);
     }
 
     /// An element quantity set and its relationship to `product`.
@@ -305,22 +370,33 @@ impl<'a> Writer<'a> {
     }
 
     fn define(&mut self, product: u32, element: ElementId, name: &str, definition: u32) {
-        let guid = step_string(&self.guid(&format!("element/{}/rel/{name}", element.0)));
+        self.define_of(product, &format!("element/{}", element.0), name, definition);
+    }
+
+    fn define_of(&mut self, product: u32, owner: &str, name: &str, definition: u32) {
+        let guid = step_string(&self.guid(&format!("{owner}/rel/{name}")));
         self.data.add("IFCRELDEFINESBYPROPERTIES", &format!("{guid},$,$,$,(#{product}),#{definition}"));
     }
 
-    /// One element: placement, shape, the product itself, property sets and quantities.
+    /// One element stood upright on the sheet: placement, then [`Writer::product`].
     fn element(&mut self, document: &Document, input: &IfcElementInput, notes: &mut Vec<String>) -> u32 {
+        let e = input.element;
+        // The sheet is stood upright: sheet X is world X, sheet Y is world Z.
+        let location = self.data.add("IFCCARTESIANPOINT", &reals(&[e.origin.x, 0.0, e.origin.y]));
+        let axes = self.data.add("IFCAXIS2PLACEMENT3D", &format!("#{location},$,$"));
+        let placement = self.data.add("IFCLOCALPLACEMENT", &format!("#{},#{axes}", self.container_placement));
+        self.product(document, input, placement, notes)
+    }
+
+    /// A sign (or a proxy for a category without a mapping) at `placement`: shape, the product
+    /// itself, property sets and quantities.
+    fn product(&mut self, document: &Document, input: &IfcElementInput, placement: u32, notes: &mut Vec<String>) -> u32 {
         let e = input.element;
         let is_sign = e.category == SIGN_CATEGORY;
         let kind = scalar(e.data.get("kind"));
         let catalog_key = scalar(e.data.get("catalog_key"));
         let speed = e.data.get("speed_kph").filter(|v| v.is_number() || v.is_string());
 
-        // The sheet is stood upright: sheet X is world X, sheet Y is world Z.
-        let location = self.data.add("IFCCARTESIANPOINT", &reals(&[e.origin.x, 0.0, e.origin.y]));
-        let axes = self.data.add("IFCAXIS2PLACEMENT3D", &format!("#{location},$,$"));
-        let placement = self.data.add("IFCLOCALPLACEMENT", &format!("#{},#{axes}", self.site_placement));
         let shape = self.shape(input, notes);
 
         let mut description = Vec::new();

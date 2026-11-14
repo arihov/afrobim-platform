@@ -3,6 +3,9 @@
 
 #![allow(dead_code)]
 
+pub mod site;
+pub mod step;
+
 use std::collections::BTreeMap;
 
 use afrobim_draw::{Colour, Drawing, Extents, Primitive, Pt2};
@@ -50,6 +53,19 @@ pub fn options() -> IfcOptions {
         plate_thickness_mm: THICKNESS,
         artwork_offset_mm: OFFSET,
     }
+}
+
+/// A Python interpreter that can import ifcopenshell, if there is one.
+pub fn python_with_ifcopenshell() -> Result<&'static str, String> {
+    let mut problems = Vec::new();
+    for python in ["python3", "python"] {
+        match std::process::Command::new(python).args(["-c", "import ifcopenshell, ifcopenshell.validate"]).output() {
+            Ok(out) if out.status.success() => return Ok(python),
+            Ok(out) => problems.push(format!("{python}: {}", String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or("cannot import ifcopenshell"))),
+            Err(error) => problems.push(format!("{python}: {error}")),
+        }
+    }
+    Err(problems.join("; "))
 }
 
 pub fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Pt2> {

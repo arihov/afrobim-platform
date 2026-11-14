@@ -90,8 +90,10 @@ dependencies = [
 name = "afrobim-ifc"
 version = "0.1.0"
 dependencies = [
+ "afrobim-alignment",
  "afrobim-draw",
  "afrobim-kernel",
+ "afrobim-supports",
  "lyon_tessellation",
  "serde_json",
 ]

@@ -8,6 +8,8 @@ publish.workspace = true
 
 [dependencies]
 afrobim-draw = { path = "../afrobim-draw" }
+afrobim-alignment = { path = "../afrobim-alignment" }
 afrobim-kernel = { path = "../afrobim-kernel" }
+afrobim-supports = { path = "../afrobim-supports" }
 lyon_tessellation = "1"
 serde_json.workspace = true
