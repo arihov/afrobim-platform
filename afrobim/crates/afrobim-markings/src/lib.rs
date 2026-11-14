@@ -40,7 +40,7 @@ pub use catalogue::{
 };
 pub use definition::{MarkingDefinition, Resolved};
 pub use layout::{lay_out, Layout, LayoutError, Mark, PatternAnchor, StrandLayout, StrandSpec, CHORD_SAG_M, STATION_TOLERANCE_M};
-pub use module::{add_marking, marking_of, plan, set_marking, sync_markings, MarkingModule, MarkingPlan, CATEGORY, DISPLAY_THICKNESS_MM, LAYER};
+pub use module::{add_marking, marking_of, plan, plan_at_level, set_marking, sync_markings, MarkingModule, MarkingPlan, CATEGORY, DISPLAY_THICKNESS_MM, LAYER};
 pub use quantities::{
     markings_to_csv, summary_to_csv, MarkingGroup, MarkingQuantities, MarkingTakeoff, SkippedMarking, MARKINGS_CSV_HEADER, SUMMARY_CSV_HEADER,
 };

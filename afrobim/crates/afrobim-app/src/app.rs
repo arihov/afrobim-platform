@@ -12,7 +12,7 @@ use egui::{Color32, Key, KeyboardShortcut, Modifiers, PointerButton, RichText, S
 use crate::commands::{self, Action, COMMANDS};
 use crate::icons::{self, Icon};
 use crate::render::{ElementMesh, Representation};
-use crate::{alignment_glue, signs_glue, supports_glue, Options};
+use crate::{alignment_glue, markings_glue, signs_glue, supports_glue, Options};
 
 /// A module's output for one element, kept until the element's definition changes.
 pub(crate) struct Cached {
@@ -51,6 +51,8 @@ pub struct AfroBimApp {
     supports_dialog: Option<(ElementId, String, u32, f64)>,
     /// The "Design supports" dialog: sign, mounting height as typed, entered wind pressure, request.
     design_dialog: Option<(ElementId, String, f64, supports_glue::DesignRequest)>,
+    /// The "Road marking" dialog: alignment and request.
+    marking_dialog: Option<(Option<ElementId>, markings_glue::MarkingRequest)>,
     /// The last support calculation: sign mark and its lines.
     design_report: Option<(String, Vec<String>)>,
     /// The "Place on alignment" dialog: sign, alignment, station (m), offset (m), right side.
@@ -87,6 +89,7 @@ impl AfroBimApp {
         let mut modules = ModuleRegistry::default();
         supports_glue::register(&mut modules);
         alignment_glue::register(&mut modules);
+        markings_glue::register(&mut modules);
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
             Ok(l) => {
@@ -122,6 +125,7 @@ impl AfroBimApp {
             library_filter: String::new(),
             supports_dialog: None,
             design_dialog: None,
+            marking_dialog: None,
             design_report: None,
             station_dialog: None,
             new_prop_key: String::new(),
@@ -201,6 +205,20 @@ impl AfroBimApp {
             match alignment_glue::import_landxml(&mut app.doc, &path) {
                 Ok((added, _)) => app.status = format!("Imported {added} alignment(s) from {}.", path.display()),
                 Err(e) => app.status = format!("Could not import {}: {e}", path.display()),
+            }
+            // Demo only: a centre line and two edge lines on the first alignment.
+            if app.options.demo {
+                if let Some((alignment_id, a)) = alignment_glue::alignments(&app.doc).into_iter().next().and_then(|(id, _)| Some((id, alignment_glue::alignment_of(&app.doc, id)?))) {
+                    let types = markings_glue::line_types();
+                    for (id, distance, right) in [("1008.1", 0.0, false), ("1012.1", 3.65, false), ("1012.1", 3.65, true)] {
+                        if let Some(line) = types.iter().position(|t| t.id == id) {
+                            let request = markings_glue::MarkingRequest { line, start_station_m: a.start_station_m, end_station_m: a.end_station_m(), distance_m: distance, right, speed_mph: 60, width_mm: Some(150), material: String::new() };
+                            if let Err(e) = markings_glue::add(&mut app.doc, alignment_id, &request) {
+                                app.status = e;
+                            }
+                        }
+                    }
+                }
             }
             // Demo only: stand the supported signs along the first alignment, alternating sides.
             if app.options.demo {
@@ -535,7 +553,14 @@ impl AfroBimApp {
                     if path.extension().is_none() {
                         path.set_extension("csv");
                     }
-                    self.export_quantities(path);
+                    self.export_quantities(path.clone());
+                    if let Some((schedule, summary, rows)) = markings_glue::quantities(&self.doc) {
+                        let written = std::fs::write(path.with_extension("markings.csv"), schedule).and_then(|()| std::fs::write(path.with_extension("markings.summary.csv"), summary));
+                        match written {
+                            Ok(()) => self.status.push_str(&format!(" {rows} road marking(s) measured to {}.", path.with_extension("markings.csv").display())),
+                            Err(e) => self.status.push_str(&format!(" Road marking quantities not written: {e}.")),
+                        }
+                    }
                 }
             }
             Action::ExportSheets => {
@@ -632,6 +657,14 @@ impl AfroBimApp {
                 }
                 None => self.status = "Select one sign first, then design its supports.".into(),
             },
+            Action::AddMarking => match alignment_glue::alignments(&self.doc).first().map(|a| a.0) {
+                Some(first) => {
+                    let (start, end) = alignment_glue::alignment_of(&self.doc, first).map(|a| (a.start_station_m, a.end_station_m())).unwrap_or((0.0, 0.0));
+                    let request = markings_glue::MarkingRequest { line: 0, start_station_m: start, end_station_m: end, distance_m: 0.0, right: false, speed_mph: 30, width_mm: None, material: String::new() };
+                    self.marking_dialog = Some((Some(first), request));
+                }
+                None => self.status = "There is no alignment yet. Import one with File → Import LandXML.".into(),
+            },
             Action::RemoveSupports => match self.selected_sign() {
                 Some(id) => {
                     let n = supports_glue::remove(&mut self.doc, id);
@@ -655,6 +688,7 @@ impl AfroBimApp {
     pub(crate) fn import_landxml(&mut self, ctx: &egui::Context, path: PathBuf) {
         match alignment_glue::import_landxml(&mut self.doc, &path) {
             Ok((added, notes)) => {
+                markings_glue::sync(&mut self.doc);
                 self.status = format!("Imported {added} alignment(s) from {}.", path.display());
                 for note in notes.iter().take(6) {
                     self.log(format!("LandXML: {note}"));
@@ -1529,6 +1563,109 @@ impl AfroBimApp {
                 }
             } else if keep {
                 self.design_dialog = Some((sign, height, entered, req));
+            }
+        }
+
+        if let Some((mut alignment, mut req)) = self.marking_dialog.take() {
+            let choices = alignment_glue::alignments(&self.doc);
+            let types = markings_glue::line_types();
+            let (mut keep, mut lay) = (true, false);
+            egui::Window::new("Road marking").collapsible(false).resizable(false).show(ctx, |ui| {
+                let spec = &types[req.line.min(types.len() - 1)];
+                egui::Grid::new("marking").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                    ui.label("Alignment");
+                    let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
+                    egui::ComboBox::from_id_salt("marking-alignment").selected_text(current).show_ui(ui, |ui| {
+                        for (id, name) in &choices {
+                            ui.selectable_value(&mut alignment, Some(*id), name);
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Line type");
+                    egui::ComboBox::from_id_salt("marking-type").width(330.0).selected_text(format!("{} (diagram {})", spec.name, spec.diagram)).show_ui(ui, |ui| {
+                        for (i, t) in types.iter().enumerate() {
+                            if ui.selectable_value(&mut req.line, i, format!("{} (diagram {}, {})", t.name, t.diagram, t.speed.label())).clicked() {
+                                req.width_mm = None;
+                            }
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Pattern");
+                    ui.label(format!("{}; {}", spec.pattern.label(), spec.citation));
+                    ui.end_row();
+                    ui.label("Speed limit (mph)");
+                    ui.horizontal(|ui| {
+                        ui.add(egui::DragValue::new(&mut req.speed_mph).range(5..=70));
+                        ui.label(RichText::new(afrobim_markings::speed_label(req.speed_mph)).small().weak());
+                    });
+                    ui.end_row();
+                    ui.label("Width (mm)");
+                    ui.horizontal(|ui| {
+                        ui.selectable_value(&mut req.width_mm, None, "From the table");
+                        for w in spec.widths_mm {
+                            ui.selectable_value(&mut req.width_mm, Some(*w), w.to_string());
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Start station (m)");
+                    ui.add(egui::DragValue::new(&mut req.start_station_m).speed(1.0));
+                    ui.end_row();
+                    ui.label("End station (m)");
+                    ui.add(egui::DragValue::new(&mut req.end_station_m).speed(1.0));
+                    ui.end_row();
+                    ui.label("Offset from the alignment (m)");
+                    ui.horizontal(|ui| {
+                        ui.add(egui::DragValue::new(&mut req.distance_m).speed(0.05).range(0.0..=50.0));
+                        ui.selectable_value(&mut req.right, false, "Left");
+                        ui.selectable_value(&mut req.right, true, "Right");
+                    });
+                    ui.end_row();
+                    ui.label("Material");
+                    ui.add(egui::TextEdit::singleline(&mut req.material).hint_text("not stated").desired_width(190.0));
+                    ui.end_row();
+                });
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new(
+                        "Patterns and widths are from the Traffic Signs Manual Chapter 5 (2018). Its tables are in mph: how a km/h limit maps to them is the engineer's decision. \
+                         Stations are internal stations. The line is shown in the 3D site view and measured under Export quantities.",
+                    )
+                    .small()
+                    .weak(),
+                );
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(alignment.is_some(), egui::Button::new("Lay the line")).clicked() {
+                        lay = true;
+                    }
+                    if ui.button("Close").clicked() {
+                        keep = false;
+                    }
+                });
+            });
+            if lay {
+                if let Some(a) = alignment {
+                    match markings_glue::add(&mut self.doc, a, &req) {
+                        Ok(mark) => {
+                            self.sync_generated();
+                            let notes = self.doc.elements().iter().find(|e| e.name == mark).and_then(|e| self.cache.get(&e.id)).and_then(|c| c.generated.as_ref().ok()).map(|g| g.notes.clone()).unwrap_or_default();
+                            self.status = format!("Laid {mark}.");
+                            for n in notes.iter().take(4) {
+                                self.log(format!("{mark}: {}", n.message));
+                            }
+                            if !notes.is_empty() {
+                                self.status.push_str(&format!(" {} note(s) in the command history.", notes.len()));
+                            }
+                            self.fitted_3d = false;
+                            self.schedule_commit(ctx);
+                        }
+                        Err(e) => self.status = format!("Not laid: {e}"),
+                    }
+                }
+                // Stay open: several lines are usually laid in a row.
+                self.marking_dialog = Some((alignment, req));
+            } else if keep {
+                self.marking_dialog = Some((alignment, req));
             }
         }
 

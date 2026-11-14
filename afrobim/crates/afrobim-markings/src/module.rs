@@ -55,10 +55,12 @@ fn draw_colour(colour: MarkingColour) -> Colour {
 
 /// Adds the closed prism over a strip to a mesh. `left` and `right` are the strip's edges in
 /// the direction of travel, point for point.
-fn add_prism(mesh: &mut Mesh3, left: &[Pt2], right: &[Pt2], z0: f64, z1: f64) {
+fn add_prism(mesh: &mut Mesh3, left: &[Pt2], right: &[Pt2], levels: &[f64], thickness: f64) {
     let base = mesh.vertices.len() as u32;
-    for (l, r) in left.iter().zip(right) {
+    for (i, (l, r)) in left.iter().zip(right).enumerate() {
         // Per section: 0 left bottom, 1 right bottom, 2 left top, 3 right top.
+        let z0 = levels.get(i).copied().unwrap_or(0.0);
+        let z1 = z0 + thickness;
         mesh.vertices.extend([[l.x, l.y, z0], [r.x, r.y, z0], [l.x, l.y, z1], [r.x, r.y, z1]]);
     }
     let n = left.len().min(right.len()) as u32;
@@ -90,6 +92,13 @@ fn add_prism(mesh: &mut Mesh3, left: &[Pt2], right: &[Pt2], z0: f64, z1: f64) {
 
 /// Draws a layout in plan and builds its solids. `None` when the layout has no marks.
 pub fn plan(layout: &Layout, colour: MarkingColour, name: &str) -> Option<MarkingPlan> {
+    plan_at_level(layout, colour, name, &|_| 0.0)
+}
+
+/// As [`plan`], with the solids raised to `level_mm(station)`: the road level at a station, mm.
+/// The level of a point inside a mark is taken by spreading the mark's stations evenly over its
+/// plan points, which is for display only; no quantity uses the solids.
+pub fn plan_at_level(layout: &Layout, colour: MarkingColour, name: &str, level_mm: &dyn Fn(f64) -> f64) -> Option<MarkingPlan> {
     let ((min_x, min_y), (max_x, max_y)) = layout.bounds()?;
     // Subtract in metres before scaling, so large map coordinates lose nothing.
     let mm = |p: &(f64, f64)| Pt2::new((p.0 - min_x) * 1000.0, (p.1 - min_y) * 1000.0);
@@ -102,7 +111,9 @@ pub fn plan(layout: &Layout, colour: MarkingColour, name: &str) -> Option<Markin
         for mark in &strand.marks {
             let left: Vec<Pt2> = mark.left.iter().map(mm).collect();
             let right: Vec<Pt2> = mark.right.iter().map(mm).collect();
-            add_prism(&mut mesh, &left, &right, 0.0, DISPLAY_THICKNESS_MM);
+            let last = (left.len().max(2) - 1) as f64;
+            let levels: Vec<f64> = (0..left.len()).map(|i| level_mm(mark.start_station_m + (mark.end_station_m - mark.start_station_m) * i as f64 / last)).collect();
+            add_prism(&mut mesh, &left, &right, &levels, DISPLAY_THICKNESS_MM);
             let mut from = 0;
             while from + 1 < left.len() {
                 let to = (from + SECTIONS_PER_FILL).min(left.len() - 1);
@@ -146,7 +157,11 @@ impl Module for MarkingModule {
         let Some((resolved, layout)) = laid else {
             return Ok(Generated { notes, ..Generated::default() });
         };
-        let Some(plan) = plan(&layout, def.colour, resolved.spec.name) else {
+        // Where the alignment has a profile the solids lie at its level (clamped to the
+        // profile's ends), so that they sit with the rest of the site model.
+        let profile = def.geometry.as_ref().and_then(|a| a.profile.as_ref());
+        let level = |station: f64| profile.and_then(|p| p.range().and_then(|(lo, hi)| p.elevation_at(station.clamp(lo, hi)).ok())).unwrap_or(0.0) * 1000.0;
+        let Some(plan) = plan_at_level(&layout, def.colour, resolved.spec.name, &level) else {
             return Ok(Generated { notes, ..Generated::default() });
         };
         Ok(Generated { drawing: plan.drawing, notes, derived: derived(&def, &resolved, &layout, plan.origin_x_m, plan.origin_y_m), solids: plan.solids })

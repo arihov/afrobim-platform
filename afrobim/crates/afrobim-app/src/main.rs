@@ -5,6 +5,7 @@ mod app;
 mod canvas;
 mod commands;
 mod icons;
+mod markings_glue;
 mod render;
 mod ribbon;
 mod signs_glue;

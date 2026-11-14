@@ -122,10 +122,11 @@ fn panels(tab: Tab) -> &'static [Panel] {
     const MODIFY_TAB: &[Panel] = &[MODIFY, SUPPORTS, Panel { title: "Alignment", items: &[Big(Icon::Station, "Place by station", "STATION")] }, DRAFTING];
     const ROADS: &[Panel] = &[
         ALIGNMENT,
+        Panel { title: "Markings", items: &[Big(Icon::Markings, "Road markings", "MARKINGS")] },
         Panel {
             title: "Road modules",
             items: &[
-                Planned(Icon::Markings, "Road markings", "Lines, arrows and symbols to the Traffic Signs Manual"),
+
                 Planned(Icon::Barrier, "Road restraint", "Safety barriers and guardrails along an alignment"),
                 Planned(Icon::Lighting, "Street lighting", "Columns and luminaires by station"),
                 Planned(Icon::Pavement, "Pavement", "Pavement layers and quantities"),

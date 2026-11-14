@@ -46,6 +46,7 @@ dependencies = [
  "afrobim-fabrication",
  "afrobim-ifc",
  "afrobim-kernel",
+ "afrobim-markings",
  "afrobim-signs",
  "afrobim-supports",
  "eframe",

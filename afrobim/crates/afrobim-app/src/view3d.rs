@@ -132,11 +132,17 @@ impl Frame {
     }
 }
 
+/// Categories whose solids are modelled directly in site coordinates (X east, Y north, Z up from
+/// their site placement) and are shown only in the 3D site view, never on the design sheet.
+pub(crate) fn is_site_solid(category: &str) -> bool {
+    category == crate::markings_glue::CATEGORY
+}
+
 impl AfroBimApp {
     /// Site mode: at least one sign has been placed on site, so the 3D view shows the site (signs
     /// at their stations, alignments on the ground) instead of the design sheet stood upright.
     pub(crate) fn site_mode(&self) -> bool {
-        self.doc.elements().iter().any(|e| e.category == crate::signs_glue::CATEGORY && e.site.is_some())
+        self.doc.elements().iter().any(|e| (e.category == crate::signs_glue::CATEGORY || is_site_solid(&e.category)) && e.site.is_some())
     }
 
     /// The post a support hangs from (itself for a post) and the sign above it.
@@ -161,6 +167,11 @@ impl AfroBimApp {
     /// the current mode.
     fn frame_of(&self, e: &afrobim_kernel::Element, site_mode: bool) -> Option<Frame> {
         let support = crate::supports_glue::is_support(&e.category);
+        if is_site_solid(&e.category) {
+            // Laid out in site coordinates already: shown in the site view only, unrotated.
+            let s = e.site.as_ref().filter(|_| site_mode)?;
+            return Some(Frame { origin: [s.x, s.y, s.z], cos: 1.0, sin: 0.0 });
+        }
         if site_mode {
             let s = e.site.as_ref()?;
             let (sin, cos) = s.rotation_deg.to_radians().sin_cos();
@@ -192,14 +203,19 @@ impl AfroBimApp {
         let cam = &self.camera;
         let light = norm([-0.35, -0.75, 0.55]);
         let selected = self.doc.is_selected(e.id);
+        let both_sides = is_site_solid(&e.category);
         for mesh in &generated.solids {
             for t in &mesh.triangles {
                 let p: Vec<V3> = t.iter().map(|i| mesh.vertices[*i as usize]).map(|v| frame.at(v[0], v[1], v[2])).collect();
                 let normal = norm(cross(sub(p[1], p[0]), sub(p[2], p[0])));
-                // Skip faces turned away from the camera: the solids are closed.
-                if dot(normal, sub(cam.eye(), p[0])) <= 0.0 {
+                // Skip faces turned away from the camera: the solids are closed. Site solids are
+                // thin strips and sheets whose winding is not relied on, so both sides are drawn
+                // and lit as if facing the viewer.
+                let facing = dot(normal, sub(cam.eye(), p[0]));
+                if facing <= 0.0 && !both_sides {
                     continue;
                 }
+                let normal = if facing < 0.0 { [-normal[0], -normal[1], -normal[2]] } else { normal };
                 let projected: Option<Vec<(Pos2, f64)>> = p.iter().map(|q| cam.project(*q, rect)).collect();
                 let Some(projected) = projected else { continue };
                 let depth = projected.iter().map(|(_, d)| *d).sum::<f64>() / 3.0;
@@ -237,7 +253,9 @@ impl AfroBimApp {
                 continue;
             }
             let Some(frame) = self.frame_of(e, site_mode) else { continue };
-            if crate::supports_glue::is_support(&e.category) {
+            if is_site_solid(&e.category) {
+                points.extend([frame.at(0.0, 0.0, 0.0), frame.at(e.width, e.height, 0.0)]);
+            } else if crate::supports_glue::is_support(&e.category) {
                 points.push(frame.at(0.0, 0.0, 0.0));
             } else {
                 points.extend([frame.at(0.0, 0.0, 0.0), frame.at(e.width, 0.0, e.height)]);
@@ -402,11 +420,12 @@ impl AfroBimApp {
                 }
                 continue;
             }
-            if !self.doc.layer_visible(&e.layer) {
+            // Site-only elements are on layers hidden from the design sheet, like alignments.
+            if !self.doc.layer_visible(&e.layer) && !is_site_solid(&e.category) {
                 continue;
             }
             let Some(frame) = self.frame_of(e, site_mode) else { continue };
-            if crate::supports_glue::is_support(&e.category) {
+            if crate::supports_glue::is_support(&e.category) || is_site_solid(&e.category) {
                 self.support_triangles(e, frame, rect, &mut items);
                 continue;
             }

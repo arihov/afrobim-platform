@@ -18,6 +18,7 @@ afrobim-dxf = { path = "../afrobim-dxf" }
 afrobim-ifc = { path = "../afrobim-ifc" }
 afrobim-fabrication = { path = "../afrobim-fabrication" }
 afrobim-supports = { path = "../afrobim-supports" }
+afrobim-markings = { path = "../afrobim-markings" }
 afrobim-alignment = { path = "../afrobim-alignment" }
 serde.workspace = true
 serde_json.workspace = true
