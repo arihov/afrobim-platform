@@ -152,7 +152,7 @@ pub fn site_fixture() -> SiteFixture {
         Some(SitePlacement { x: 1000.0, y: 2000.0, z: 300.0, rotation_deg: 45.0, alignment: Some("MC01".into()), station_m: Some(1100.0), offset_m: Some(-3.0) });
 
     // H. A category without a mapping, not placed.
-    d.add("marking", "MK-107", Pt::new(12000.0, 500.0), 400.0, 200.0, "0", json!({ "kind": "Arrow" }));
+    d.add("bollard", "MK-107", Pt::new(12000.0, 500.0), 400.0, 200.0, "0", json!({ "kind": "Arrow" }));
 
     // A post that no sign hosts, placed on site.
     let loose = PostDefinition {
@@ -170,7 +170,7 @@ pub fn site_fixture() -> SiteFixture {
     for element in d.elements() {
         let g = match element.category.as_str() {
             "sign" => Some(face(element.width, element.height, Colour::Green)),
-            "marking" => Some(face(element.width, element.height, Colour::Yellow)),
+            "bollard" => Some(face(element.width, element.height, Colour::Yellow)),
             "post" => Some(PostModule::default().generate(element).unwrap()),
             "foundation" if element.id == bespoke => Some(Generated {
                 solids: vec![Mesh3::cuboid("Foundation", [0.0, 0.0, -700.0], [500.0, 500.0, 0.0], [0xB4, 0xB4, 0xAC])],

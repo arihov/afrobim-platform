@@ -51,17 +51,31 @@ fn fnv(text: &str) -> u64 {
 
 #[test]
 fn a_document_without_supports_or_site_gives_what_export_ifc_gives() {
+    // The sheet export knows no category but signs, so its fixture holds one element of category
+    // "marking" as a proxy. The model export has a mapping for road markings (and the other road
+    // modules), so it writes that element as a road marking; the two files are the same only for
+    // categories neither maps. The fixture is compared with that element renamed.
     let f = fixture();
     let old = export_ifc(&f.document, &f.inputs(), &options());
-    let new = export_ifc_model(&f.document, &f.inputs(), &options());
-    assert_eq!(old.text, new.text);
-    assert_eq!(old.notes, new.notes);
-    // And both are what the exporter wrote before it knew about supports: the DATA section of
-    // the fixture as exported by the previous version (176 instances).
+    // And the sheet export is what the exporter wrote before it knew about supports: the DATA
+    // section of the fixture as exported by the previous version (176 instances).
     let data = old.text.split("DATA;\n").nth(1).unwrap().split("ENDSEC;").next().unwrap();
     assert_eq!(data.lines().count(), 176);
     assert_eq!(fnv(data), 0x192e_91c2_5503_a822, "the plain sign export changed");
     assert!(!old.text.contains("IFCROAD") && !old.text.contains("VOLUMEUNIT"));
+    let model = export_ifc_model(&f.document, &f.inputs(), &options());
+    // The marking of the fixture holds no marking definition and no pavement carries it: a proxy,
+    // written as a road marking, not as the unknown category the sheet export saw.
+    assert!(!model.text.contains("IFCSURFACEFEATURE") && model.text.contains("AfroBIM_RoadMarking"));
+    assert_ne!(old.text, model.text);
+
+    let mut f = fixture();
+    let proxy = f.document.elements().iter().find(|e| e.name == "MK-004").unwrap().id;
+    f.document.find_mut(proxy).unwrap().category = "bollard".to_string();
+    let old = export_ifc(&f.document, &f.inputs(), &options());
+    let new = export_ifc_model(&f.document, &f.inputs(), &options());
+    assert_eq!(old.text, new.text);
+    assert_eq!(old.notes, new.notes);
 }
 
 #[test]
@@ -464,7 +478,7 @@ fn the_notes_say_what_was_approximated_or_left_out() {
     assert!(has("REG-102-F1: the socket is not cut out of the solid"));
     assert!(has("LOOSE-P1: no sign among the exported elements hosts this post"));
     assert!(has("LOOSE-P1: its dimensions are placeholders"));
-    assert!(has("MK-107: category 'marking' has no IFC mapping"));
+    assert!(has("MK-107: category 'bollard' has no IFC mapping"));
     assert!(has("3 element(s) have no site placement and stand at their sheet position"));
     assert!(!has("MC01: alignment not exported"));
 }

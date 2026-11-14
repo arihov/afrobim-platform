@@ -11,5 +11,12 @@ afrobim-draw = { path = "../afrobim-draw" }
 afrobim-alignment = { path = "../afrobim-alignment" }
 afrobim-kernel = { path = "../afrobim-kernel" }
 afrobim-supports = { path = "../afrobim-supports" }
+afrobim-markings = { path = "../afrobim-markings" }
+afrobim-drainage = { path = "../afrobim-drainage" }
+afrobim-gantry = { path = "../afrobim-gantry" }
+afrobim-lighting = { path = "../afrobim-lighting" }
+afrobim-restraint = { path = "../afrobim-restraint" }
+afrobim-pavement = { path = "../afrobim-pavement" }
+afrobim-corridor = { path = "../afrobim-corridor" }
 lyon_tessellation = "1"
 serde_json.workspace = true
