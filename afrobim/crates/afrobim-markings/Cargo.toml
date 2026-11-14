@@ -1,0 +1,15 @@
+[package]
+name = "afrobim-markings"
+description = "Road markings as model elements: UK Traffic Signs Manual Chapter 5 longitudinal lines, laid out along an alignment, with quantities"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-alignment = { path = "../afrobim-alignment" }
+afrobim-draw = { path = "../afrobim-draw" }
+afrobim-kernel = { path = "../afrobim-kernel" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
