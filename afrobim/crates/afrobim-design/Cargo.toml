@@ -1,0 +1,21 @@
+[package]
+name = "afrobim-design"
+description = "Concept design of road alignments: PI and PVI based horizontal and vertical design with editing operations, design checks against user-supplied limits, LandXML export, and comparison of alignment options"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-alignment = { path = "../afrobim-alignment" }
+afrobim-corridor = { path = "../afrobim-corridor" }
+afrobim-cost = { path = "../afrobim-cost" }
+afrobim-draw = { path = "../afrobim-draw" }
+afrobim-kernel = { path = "../afrobim-kernel" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+afrobim-drainage = { path = "../afrobim-drainage" }
