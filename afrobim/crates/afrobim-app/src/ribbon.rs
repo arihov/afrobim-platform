@@ -142,7 +142,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
     const DESIGN: &[Panel] = &[
         Panel { title: "Alignment", items: &[Big(Icon::AlignDesign, "New alignment", "ALIGNDESIGN"), Big(Icon::AlignEdit, "Edit in plan", "ALIGNEDIT"), Big(Icon::PiTable, "PI table", "PITABLE"), Big(Icon::Labels, "Curve labels", "ALIGNLABELS")] },
         Panel { title: "Profile", items: &[Big(Icon::ProfileDesign, "Profile editor", "PROFILEDESIGN")] },
-        Panel { title: "Checks", items: &[Big(Icon::AlignCheck, "Design checks", "ALIGNCHECK"), Big(Icon::CheckAll, "Check the model", "CHECKALL"), Big(Icon::Visibility, "Sign visibility", "VISIBILITY")] },
+        Panel { title: "Checks", items: &[Big(Icon::AlignCheck, "Design checks", "ALIGNCHECK"), Big(Icon::CheckAll, "Check the model", "CHECKALL"), Big(Icon::Visibility, "Sign visibility", "VISIBILITY"), Big(Icon::Visibility, "Run visibility", "VISIBILITYRUN")] },
         Panel { title: "Options", items: &[Big(Icon::Options, "Options", "OPTIONS")] },
         Panel {
             title: "Exchange",
@@ -441,7 +441,7 @@ pub fn show(ui: &mut Ui, tab: &mut Tab, standard: &str, signs_ready: bool, is_on
                     }
                     panel(ui, "Catalogue", &mut pick, is_on, |ui, pick, on| items(ui, &[Big(Icon::Library, "Standard signs", "LIBRARY")], pick, on));
                 });
-                panel(ui, "Visibility", &mut pick, is_on, |ui, pick, on| items(ui, &[Big(Icon::Visibility, "Sign visibility", "VISIBILITY")], pick, on));
+                panel(ui, "Visibility", &mut pick, is_on, |ui, pick, on| items(ui, &[Big(Icon::Visibility, "Sign visibility", "VISIBILITY"), Big(Icon::Visibility, "Run visibility", "VISIBILITYRUN")], pick, on));
                 panel(ui, STANDARD.title, &mut pick, is_on, |ui, pick, on| items(ui, STANDARD.items, pick, on));
                 panel(ui, "Fabrication", &mut pick, is_on, |ui, pick, on| items(ui, &[Big(Icon::Quantities, "Quantities", "QUANTITIES"), Big(Icon::Sheets, "Fabrication sheets", "SHEETS")], pick, on));
             } else {

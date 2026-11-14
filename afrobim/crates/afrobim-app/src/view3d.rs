@@ -612,6 +612,9 @@ impl AfroBimApp {
             painter.extend(shapes);
         }
 
+        // The limiting sight line and its obstruction for the selected sign (VISIBILITY).
+        self.vis.paint_overlay(painter, cam, rect);
+
         // Clash markers: a ring and a cross at each live clash.
         if self.coord.markers {
             let red = Color32::from_rgb(0xFF, 0x4D, 0x4D);

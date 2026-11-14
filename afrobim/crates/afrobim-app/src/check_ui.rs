@@ -119,10 +119,12 @@ impl AfroBimApp {
     /// What the report needs from the app: each element's module messages and category names.
     fn with_sources<T>(&mut self, f: impl FnOnce(&Document, &Sources) -> T) -> T {
         self.sync_generated();
+        let vis = crate::visibility_ui::any_stored(&self.doc).then(|| self.vis_source());
         let notes_of = |id: ElementId| -> Option<Result<Vec<Note>, String>> { self.cache.get(&id).map(|c| c.generated.as_ref().map(|g| g.notes.clone()).map_err(|e| e.clone())) };
         let labels = self.module_labels();
         let label_of = |category: &str| labels.get(category).cloned().unwrap_or_else(|| category.to_string());
-        f(&self.doc, &Sources { notes_of: &notes_of, label_of: &label_of })
+        // The obstruction scene is only built when some sign has visibility inputs stored (above).
+        f(&self.doc, &Sources { notes_of: &notes_of, label_of: &label_of, vis: vis.as_ref() })
     }
 
     /// CHECKALL: runs every check on every element and opens the report.

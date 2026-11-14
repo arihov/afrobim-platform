@@ -183,7 +183,12 @@ impl Live {
         let labels: std::collections::HashMap<String, String> = registry.categories().map(|(c, n)| (c.to_string(), n.to_string())).collect();
         let notes_of = |id: ElementId| notes.get(&id).cloned();
         let label_of = |c: &str| labels.get(c).cloned().unwrap_or_else(|| c.to_string());
-        let report = check_all::run_all(doc, &Sources { notes_of: &notes_of, label_of: &label_of });
+        let vis_src = crate::visibility_ui::any_stored(doc).then(|| {
+            let solids = |e: &Element| registry.generate(e).map(|g| g.solids).unwrap_or_default();
+            let x: std::collections::HashMap<ElementId, f64> = doc.elements().iter().filter_map(|e| registry.generate(e).ok().and_then(|g| afrobim_visibility::derived_x_height(&g.derived)).map(|v| (e.id, v))).collect();
+            crate::visibility_ui::source_for(doc, &solids, x)
+        });
+        let report = check_all::run_all(doc, &Sources { notes_of: &notes_of, label_of: &label_of, vis: vis_src.as_ref() });
         if report.rows.is_empty() {
             live.missing.push((FEED_CHECKS, "No element in the document has a check.".into()));
         } else {

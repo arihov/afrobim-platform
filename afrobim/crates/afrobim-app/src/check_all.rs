@@ -187,6 +187,9 @@ fn note_lines(notes: &[Note]) -> Vec<String> {
 pub struct Sources<'a> {
     pub notes_of: &'a dyn Fn(ElementId) -> Option<Result<Vec<Note>, String>>,
     pub label_of: &'a dyn Fn(&str) -> String,
+    /// The obstruction scene and legend sizes for the sign visibility check; `None` when the
+    /// caller did not build them (the visibility row then says it was not checked).
+    pub vis: Option<&'a crate::visibility_ui::VisSource>,
 }
 
 struct Maker<'a> {
@@ -324,6 +327,7 @@ fn rules(e: &Element, check: &str, m: &mut Maker) {
 
 fn sign(doc: &Document, e: &Element, m: &mut Maker) {
     rules(e, "Sign layout rules (the rule pack's checks of the sign engine)", m);
+    visibility(doc, e, m);
     let supports = afrobim_supports::supports_of(doc, e.id);
     if supports.is_empty() || crate::modules_glue::on_gantry(doc, e.id) {
         return;
@@ -357,6 +361,44 @@ fn sign(doc: &Document, e: &Element, m: &mut Maker) {
             m.push(e, check, status, reason, lines);
         }
     }
+}
+
+/// Sign visibility along the alignment (`VISIBILITY`): the engine's check lines on the inputs stored
+/// with the sign. A sign that is not placed on an alignment has nothing to sweep and no row.
+fn visibility(doc: &Document, e: &Element, m: &mut Maker) {
+    use crate::visibility_ui as vis;
+    use afrobim_visibility::Status as V;
+    if e.site.is_none() {
+        return;
+    }
+    let check = "Sign visibility along the alignment (VISIBILITY, an analysis aid)";
+    if afrobim_visibility::load(doc, e.id).is_none() {
+        return m.push(e, check, Status::InputNeeded, "no visibility inputs are stored for this sign: select it and run VISIBILITY, and enter the driver's lateral position, the traffic side and the rest", Vec::new());
+    }
+    if !vis::eye_height_accepted(doc, e.id) {
+        return m.push(e, check, Status::InputNeeded, "the stored inputs use the engine's default driver's eye height, which has not been confirmed for this sign: open VISIBILITY for it and tick to accept the value or enter your own", Vec::new());
+    }
+    let Some(src) = m.src.vis else {
+        return m.push(e, check, Status::NotChecked, "the obstruction scene was not built for this report, so the visibility was not analysed", Vec::new());
+    };
+    let a = vis::analyse(doc, src, e.id);
+    if let Some(why) = &a.skipped {
+        return m.push(e, check, Status::NotChecked, format!("not analysed: {why}"), Vec::new());
+    }
+    let mut lines: Vec<String> = a.lines.iter().map(|l| l.text()).collect();
+    if let Some(d) = doc.find(e.id).and_then(|x| x.properties.get(crate::demo_glue::KEY_DEMO_VISIBILITY)) {
+        lines.insert(0, format!("DEMO inputs: {d}"));
+    }
+    let (ok, fail, need, differ) = (a.count(V::Ok), a.count(V::Fails), a.count(V::InputNeeded), a.count(V::Differs));
+    let status = match a.overall() {
+        V::Fails => Status::Fails,
+        V::Differs => Status::Differs,
+        V::InputNeeded => Status::InputNeeded,
+        V::Ok => Status::Passes,
+        V::Information => Status::NotChecked,
+    };
+    let clear = a.clear_full().map(|(d, lower)| format!("; continuous clear visibility of the whole face {}{d:.1} m", if lower { "at least " } else { "" })).unwrap_or_default();
+    m.push(e, check, status, format!("{ok} OK, {fail} fail, {differ} differ, {need} need input{clear}. The check compares and cites; the engineer decides"), lines);
 }
 
 /// The circular hollow section of the first post among the supports, (outside diameter, wall), mm.
@@ -648,7 +690,7 @@ mod tests {
         supports_glue::register(&mut modules);
         let notes = |id: ElementId| doc.find(id).map(|e| modules.generate(e).map(|g| g.notes));
         let label = |c: &str| c.to_string();
-        run_all(doc, &Sources { notes_of: &notes, label_of: &label })
+        run_all(doc, &Sources { notes_of: &notes, label_of: &label, vis: None })
     }
 
     fn real_drain(doc: &mut Document, a: ElementId, mark: &str) -> ElementId {

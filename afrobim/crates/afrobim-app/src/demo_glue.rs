@@ -268,3 +268,26 @@ pub fn add_issue(co: &mut Coordination) -> Option<String> {
     issue.add_location_viewpoint([-1.0, -1.0, 0.6], 6000.0, afrobim_coordination::Projection::Perspective { fov_deg: crate::view3d::FOV_DEG });
     Some(guid)
 }
+
+/// The property that marks stored visibility inputs as the demo's arbitrary ones.
+pub const KEY_DEMO_VISIBILITY: &str = "check.visibility.demo";
+
+/// Visibility inputs for the first placed sign. **Every value is arbitrary and for the demo only**:
+/// a 1.75 m lane centre, traffic on the left, 80 km/h, the 41 to 50 mph row, and the engine's
+/// default eye height accepted on the engineer's behalf. The record is marked as demo and the
+/// results window and the check row say so.
+pub fn add_visibility(doc: &mut Document) -> Option<String> {
+    use crate::visibility_ui::{store_form, VisForm};
+    let id = doc.elements().iter().find(|e| e.category == afrobim_visibility::SIGN_CATEGORY && e.site.is_some()).map(|e| e.id)?;
+    let mut f = VisForm::new(Some(id));
+    f.eye_mode = 2;
+    f.eye_text = "1.75".into();
+    f.traffic = 1;
+    f.speed = "80".into();
+    f.band = Some(afrobim_visibility::SpeedBandMph::From41To50);
+    f.eye_height_accepted = true;
+    store_form(doc, &f).ok()?;
+    let e = doc.find_mut(id)?;
+    e.properties.insert(KEY_DEMO_VISIBILITY.to_string(), "arbitrary inputs for the demo (1.75 m lane centre, traffic on the left, 80 km/h, 41 to 50 mph band, default eye height accepted): not a design input".to_string());
+    Some(e.name.clone())
+}

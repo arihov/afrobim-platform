@@ -109,6 +109,8 @@ pub enum Action {
     Rational,
     /// Sign visibility: inputs, results and drawings for the selected sign or all signs.
     Visibility,
+    /// Run the stored visibility inputs and open the results.
+    VisibilityRun,
     /// Photometry from an IES or LDT file for a lighting installation.
     Photometry,
     /// The calculation report pack (PDF, text and CSV).
@@ -253,6 +255,7 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "CHECKALL", aliases: &["CHECKMODEL", "CALCPACK"], help: "Run every check on every element and open one report: a status per element, the calculation lines, filters, CSV and a calculation pack", action: Action::CheckAll },
     CommandInfo { name: "RATIONAL", aliases: &["RUNOFF"], help: "Peak flow by the rational method from the catchment areas, runoff coefficients and intensity you enter; keep it on the selected drain or culvert", action: Action::Rational },
     CommandInfo { name: "VISIBILITY", aliases: &["SIGHTLINE", "SIGNVISIBILITY"], help: "Sign visibility along the alignment: enter the inputs for the selected sign or all signs, run, and see the check lines with citations, the plan envelope and the sight-line profile", action: Action::Visibility },
+    CommandInfo { name: "VISIBILITYRUN", aliases: &["VISRUN", "RUNVISIBILITY"], help: "Run the stored visibility inputs of the selected sign, or of every placed sign when none is selected, and open the results", action: Action::VisibilityRun },
     CommandInfo { name: "PHOTOMETRY", aliases: &["IES", "LDT", "LUMINAIREFILE"], help: "Load an IES or LDT file for the selected lighting installation, check it and see its polar diagram, then calculate illuminance on grids you define", action: Action::Photometry },
     CommandInfo { name: "REPORTPACK", aliases: &["CALCREPORT", "REPORTS"], help: "Compose the calculation report pack (one A4 PDF, plain text and CSV): cover, contents, design basis, every check and the summaries", action: Action::ReportPack },
     CommandInfo { name: "SITEREC", aliases: &["SITERECORD"], help: "Record percent complete or a measured quantity at a date for the selected elements, or by category, layer or mark pattern", action: Action::SiteRecord },

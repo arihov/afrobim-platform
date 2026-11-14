@@ -51,6 +51,7 @@ pub struct AfroBimApp {
     /// Issues, BCF, reference models, sign visibility, photometry and the report pack.
     pub(crate) issues: crate::issues_ui::IssuesUi,
     pub(crate) refs: crate::reference_models::RefUi,
+    pub(crate) vis: crate::visibility_ui::VisUi,
     /// The name of the last IFC file exported, which BCF topics name as their model.
     pub(crate) last_ifc_name: Option<String>,
     signs_ready: bool,
@@ -158,6 +159,7 @@ impl AfroBimApp {
             design: Default::default(),
             issues: Default::default(),
             refs: Default::default(),
+            vis: Default::default(),
             last_ifc_name: None,
             signs_ready,
             module_status,
@@ -327,6 +329,8 @@ impl AfroBimApp {
             for problem in crate::design_glue::demo(&mut app.doc) {
                 app.status = problem;
             }
+            // Demo only: arbitrary visibility inputs on one placed sign, marked as demo.
+            crate::demo_glue::add_visibility(&mut app.doc);
             // Demo only: the DEMO project information and a demo sheet set (see `sheets_glue::demo`).
             for problem in crate::sheets_glue::demo(&mut app.doc) {
                 app.status = problem;
@@ -1035,7 +1039,12 @@ impl AfroBimApp {
                 self.issues.bcf_out_open = true;
             }
             Action::BcfIn => self.issues.bcf_in_open = true,
-            Action::Visibility | Action::Photometry | Action::ReportPack => self.status = "not wired yet".into(),
+            Action::Visibility => self.vis_open_inputs(false),
+            Action::VisibilityRun => {
+                let sign = self.doc.primary().filter(|id| self.doc.find(*id).is_some_and(|e| e.category == afrobim_visibility::SIGN_CATEGORY));
+                self.vis_run(sign.map(|id| vec![id]));
+            }
+            Action::Photometry | Action::ReportPack => self.status = "not wired yet".into(),
             Action::IfcRef => self.ifcref_pick(),
             Action::RefModels => self.refs.list_open = true,
             Action::Programme => {
@@ -1947,6 +1956,7 @@ impl AfroBimApp {
         self.reference_tick(ctx);
         self.reference_windows(ctx);
         self.issues_windows(ctx);
+        self.visibility_windows(ctx);
         self.coordination_windows(ctx);
         self.schedule_windows(ctx);
         self.cost_windows(ctx);

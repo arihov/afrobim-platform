@@ -37,6 +37,7 @@ mod signs_glue;
 mod station_input;
 mod supports_glue;
 mod view3d;
+mod visibility_ui;
 mod win;
 
 use std::path::PathBuf;
@@ -114,6 +115,9 @@ pub struct Options {
     pub export_pack: Option<PathBuf>,
     /// Take a viewpoint (camera and snapshot) of the first issue from the 3D view at start-up.
     pub capture_viewpoint: bool,
+    /// After a visibility run: `drawings` shows only the drawings window, `overlay` only the 3D
+    /// view framed on the sign with the limiting sight line (to look at each without a pointer).
+    pub vis_view: Option<String>,
 }
 
 fn parse_args() -> Options {
@@ -149,6 +153,7 @@ fn parse_args() -> Options {
             "--frames-step" => o.frames_step = args.next().and_then(|v| v.parse().ok()),
             "--frames-from" => o.frames_from = args.next(),
             "--frames-to" => o.frames_to = args.next(),
+            "--vis-view" => o.vis_view = args.next(),
             "--capture-viewpoint" => o.capture_viewpoint = true,
             "--ifcref" => o.ifcref = args.next(),
             "--photometry" => o.photometry = args.next().map(PathBuf::from),
