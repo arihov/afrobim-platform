@@ -177,6 +177,9 @@ impl AfroBimApp {
                 if app.options.design {
                     let mut req = supports_glue::DesignRequest::starting(2000.0, posts);
                     req.edge_inset_mm = 300.0;
+                    // The two-post sign shows a spread foundation, the others planted ones.
+                    req.spread = posts == 2;
+                    req.spread_breadth_mm = 2600.0;
                     let mark = app.doc.find(id).map(|e| e.name.clone()).unwrap_or_default();
                     match supports_glue::design(&mut app.doc, id, &req) {
                         Ok(lines) if app.design_report.is_none() => app.design_report = Some((mark, lines)),
@@ -1434,28 +1437,55 @@ impl AfroBimApp {
                         });
                     });
                     ui.end_row();
-                    ui.label("Foundation method");
+                    ui.label("Foundation");
                     ui.vertical(|ui| {
-                        ui.radio_value(&mut req.cd354, false, "PD 6547 (concrete surround resists)");
-                        ui.radio_value(&mut req.cd354, true, "CD 354 rev 1 (post alone resists)");
+                        ui.radio_value(&mut req.spread, false, "Planted, one per post");
+                        ui.radio_value(&mut req.spread, true, "Spread, one under the sign");
                     });
                     ui.end_row();
-                    ui.label("Foundation diameter (mm)");
-                    ui.add(egui::DragValue::new(&mut req.foundation_diameter_mm).speed(10.0).range(100.0..=2000.0));
-                    ui.end_row();
-                    ui.label("Ground factor G (kN/m² per m)");
-                    ui.add(egui::DragValue::new(&mut req.ground_factor).speed(5.0).range(1.0..=2000.0));
-                    ui.end_row();
-                    ui.label("Minimum planting depth (mm)");
-                    ui.add(egui::DragValue::new(&mut req.min_planting_depth_mm).speed(10.0).range(100.0..=3000.0));
-                    ui.end_row();
+                    if req.spread {
+                        use afrobim_supports::design::AssumedGround;
+                        ui.label("Assumed ground (Table 5.2)");
+                        ui.horizontal(|ui| {
+                            ui.radio_value(&mut req.spread_ground, AssumedGround::Poor, "Poor");
+                            ui.radio_value(&mut req.spread_ground, AssumedGround::Average, "Average");
+                            ui.radio_value(&mut req.spread_ground, AssumedGround::Good, "Good");
+                        });
+                        ui.end_row();
+                        ui.label("Breadth along the sign (mm)");
+                        ui.add(egui::DragValue::new(&mut req.spread_breadth_mm).speed(10.0).range(300.0..=10000.0));
+                        ui.end_row();
+                        ui.label("Thickness (mm)");
+                        ui.add(egui::DragValue::new(&mut req.spread_thickness_mm).speed(10.0).range(200.0..=3000.0));
+                        ui.end_row();
+                        ui.label("Top below ground (mm)");
+                        ui.add(egui::DragValue::new(&mut req.spread_cover_mm).speed(5.0).range(0.0..=1000.0));
+                        ui.end_row();
+                    } else {
+                        ui.label("Method");
+                        ui.vertical(|ui| {
+                            ui.radio_value(&mut req.cd354, false, "PD 6547 (concrete surround resists)");
+                            ui.radio_value(&mut req.cd354, true, "CD 354 rev 1 (post alone resists)");
+                        });
+                        ui.end_row();
+                        ui.label("Foundation diameter (mm)");
+                        ui.add(egui::DragValue::new(&mut req.foundation_diameter_mm).speed(10.0).range(100.0..=2000.0));
+                        ui.end_row();
+                        ui.label("Ground factor G (kN/m² per m)");
+                        ui.add(egui::DragValue::new(&mut req.ground_factor).speed(5.0).range(1.0..=2000.0));
+                        ui.end_row();
+                        ui.label("Minimum planting depth (mm)");
+                        ui.add(egui::DragValue::new(&mut req.min_planting_depth_mm).speed(10.0).range(100.0..=3000.0));
+                        ui.end_row();
+                    }
                 });
                 ui.add_space(6.0);
                 ui.label(
                     RichText::new(
-                        "Steel S355 CHS posts and planted foundations on level ground, to the IHE Sign Structures Guide 2021 (BS EN 12899-1). \
-                         G = 230 is the guide's value for poor ground; the minimum planting depth is from BS EN 40-2 Table 7, which AfroBIM does not hold. \
-                         Confirm both. The result is a calculation for an engineer to check.",
+                        "Steel S355 CHS posts on level ground, to the IHE Sign Structures Guide 2021 (BS EN 12899-1). \
+                         Planted: G = 230 is the guide's value for poor ground, and the minimum planting depth is from BS EN 40-2 Table 7, which AfroBIM does not hold. \
+                         Spread: the length is sized for the breadth and thickness given; the ground is assumed and must be proved by testing; concrete and reinforcement are not designed. \
+                         The result is a calculation for an engineer to check.",
                     )
                     .small()
                     .weak(),

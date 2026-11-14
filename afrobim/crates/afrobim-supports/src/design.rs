@@ -13,7 +13,9 @@
 //! * post bending and shear at the top of the foundation, the 0.5 kN point load, and the
 //!   temporary deflection against class TDB4, 25 mm/m (Guide C 1.4);
 //! * planted foundation to PD 6547 or CD 354 revision 1: `Mg = G·D·P³/10` against 1.25 times
-//!   the destabilising moment about a fulcrum at `P/√2` below ground (Guide 5.19, 5.20, C 1.5).
+//!   the destabilising moment about a fulcrum at `P/√2` below ground (Guide 5.19, 5.20, C 1.5);
+//! * spread foundation to BS EN 1997-1 Design Approach 1 with the assumed design bearing
+//!   resistances of the Guide's Tables 5.2 and 5.3 (Guide 5.1 to 5.18, C 2.5).
 //!
 //! The basic wind pressure `wb` is an input. For Uganda [`mowt_velocity_pressure`] gives the
 //! velocity pressures of the Ministry of Works and Transport *Road Design Manual Volume 4:
@@ -26,8 +28,10 @@
 //!   (PD 6547 Table 2 / CD 354 Table 12.12; only the "poor" value quoted in the Guide's example
 //!   is offered, as [`GROUND_FACTOR_POOR_KN_M2_PER_M`]) and the minimum planting depth of
 //!   BS EN 40-2 Table 7.
-//! * Spread (block) foundations, signs on slopes, wind funnelling and orography, wind on the
-//!   posts themselves, passively safe supports, eccentric signs, fixings and the sign plate.
+//! * Signs on slopes, wind funnelling and orography, wind on the posts themselves, passively
+//!   safe supports, eccentric signs, fixings and the sign plate.
+//! * For spread foundations, anything but the geotechnical checks: the concrete, its
+//!   reinforcement and the fixing of the posts are not designed.
 //! * Member capacities come from first principles (BS EN 1993-1-1 section classification and
 //!   plastic or elastic resistance of the nominal tube), so they sit slightly below the
 //!   tabulated design data the Guide quotes.
@@ -558,49 +562,279 @@ pub fn size_planted(sign: &SignGeometry, wind: &WindForces, post_diameter_mm: f6
     Ok(None)
 }
 
+/// Assumed ground for a spread foundation: the rows of the Guide's Table 5.2, with the design
+/// soil strengths of Table 5.3 (B3). Using them carries the field inspection and testing
+/// requirements of Table 5.3 and Figure 5.3 (dynamic cone penetrometer tests in each corner of
+/// the formation, no peat above founding level, water table at or below founding level).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssumedGround {
+    Poor,
+    Average,
+    Good,
+}
+
+impl AssumedGround {
+    /// (design bearing resistance DA1C2, DA1C1, kPa; design shear strength cu;d DA1C2, DA1C1, kPa).
+    fn values(self) -> (f64, f64, f64, f64) {
+        match self {
+            AssumedGround::Poor => (100.0, 135.0, 18.0, 25.0),
+            AssumedGround::Average => (150.0, 205.0, 29.0, 41.0),
+            AssumedGround::Good => (200.0, 275.0, 40.0, 56.0),
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            AssumedGround::Poor => "poor",
+            AssumedGround::Average => "average",
+            AssumedGround::Good => "good",
+        }
+    }
+}
+
+/// Unit weight of reinforced concrete the Guide's Example 2 uses, kN/m³.
+pub const CONCRETE_UNIT_WEIGHT_KN_M3: f64 = 24.0;
+/// Unit weight of backfill above the foundation the Guide's Example 2 uses, kN/m³.
+pub const BACKFILL_UNIT_WEIGHT_KN_M3: f64 = 20.0;
+/// Table 5.3 limits: eccentricity e ≤ L/3, bearing width L′ ≥ 0.5 m, cohesive horizontal load
+/// ratio ≤ 0.36, granular Hd/Wd ≤ 0.15, founding depth ≥ 0.5 m, sign top no more than 4 m.
+const SPREAD_MIN_BEARING_WIDTH_M: f64 = 0.5;
+const SPREAD_COHESIVE_LIMIT: f64 = 0.36;
+const SPREAD_GRANULAR_LIMIT: f64 = 0.15;
+const SPREAD_MIN_FOUNDING_DEPTH_M: f64 = 0.5;
+const SPREAD_MAX_SIGN_HEIGHT_M: f64 = 4.0;
+
+/// One combination of the spread foundation check (Guide C 2.5.5, 2.5.6).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpreadCase {
+    pub name: &'static str,
+    pub gamma_q: f64,
+    pub gamma_g: f64,
+    /// Design vertical load Wd, kN.
+    pub vertical_kn: f64,
+    /// Design destabilising moment Ed, kNm.
+    pub moment_knm: f64,
+    /// e = Ed / Wd, m.
+    pub eccentricity_m: f64,
+    /// L′ = L − 2e, m.
+    pub bearing_width_m: f64,
+    /// Vd = Wd / (L′ · w), kPa.
+    pub bearing_kpa: f64,
+    /// Assumed design bearing resistance, kPa.
+    pub resistance_kpa: f64,
+    /// Hd = Frep · γQ, kN.
+    pub horizontal_kn: f64,
+    /// Hd / (L′ · w · cu;d).
+    pub cohesive_ratio: f64,
+    /// Hd / Wd, checked in Combination 2 only (Table 5.3 note 3).
+    pub granular_ratio: Option<f64>,
+    pub eccentricity_ok: bool,
+}
+
+impl SpreadCase {
+    pub fn passes(&self) -> bool {
+        self.eccentricity_ok
+            && self.bearing_width_m >= SPREAD_MIN_BEARING_WIDTH_M
+            && self.bearing_kpa <= self.resistance_kpa
+            && self.cohesive_ratio <= SPREAD_COHESIVE_LIMIT
+            && self.granular_ratio.is_none_or(|r| r <= SPREAD_GRANULAR_LIMIT)
+    }
+}
+
+/// The check of one spread foundation carrying the whole sign (Guide section 5 and C 2.5),
+/// using assumed design bearing resistances. Geotechnical checks only: the concrete and its
+/// reinforcement (C 2.6) and the fixing of the posts are not designed.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpreadCheck {
+    pub ground: AssumedGround,
+    /// w, parallel to the sign face, mm.
+    pub breadth_mm: f64,
+    /// L, perpendicular to the sign face, mm.
+    pub length_mm: f64,
+    /// T, mm.
+    pub thickness_mm: f64,
+    /// Characteristic weight with and without the backfill above, kN.
+    pub weight_with_backfill_kn: f64,
+    pub weight_without_backfill_kn: f64,
+    /// Ek = Frep · (z + hb + T), kNm.
+    pub characteristic_moment_knm: f64,
+    /// DA1C1 with the weight stabilising, DA1C1 with it destabilising, DA1C2.
+    pub cases: [SpreadCase; 3],
+    /// Table 5.3 A1: top of the sign no more than 4 m above ground.
+    pub meets_height: bool,
+    /// Table 5.3 A2: founding depth at least 0.5 m.
+    pub meets_founding_depth: bool,
+}
+
+impl SpreadCheck {
+    pub fn passes(&self) -> bool {
+        self.meets_height && self.meets_founding_depth && self.cases.iter().all(SpreadCase::passes)
+    }
+}
+
+/// Checks a spread foundation `breadth` (parallel to the face) by `length` by `thickness`, with
+/// its top `hb` below ground, on level ground with the water table at or below founding level.
+pub fn check_spread(sign: &SignGeometry, wind: &WindForces, breadth_mm: f64, length_mm: f64, thickness_mm: f64, ground: AssumedGround) -> Result<SpreadCheck, SupportError> {
+    sign.check()?;
+    for (name, v) in [("foundation breadth", breadth_mm), ("foundation length", length_mm), ("foundation thickness", thickness_mm)] {
+        if !(v.is_finite() && v > 0.0) {
+            return Err(SupportError::InvalidOption(format!("the {name} must be greater than zero (it is {v})")));
+        }
+    }
+    let (w, l, t, hb) = (breadth_mm / 1000.0, length_mm / 1000.0, thickness_mm / 1000.0, sign.buried_above_foundation_mm / 1000.0);
+    let without = w * l * t * CONCRETE_UNIT_WEIGHT_KN_M3;
+    let with = without + w * l * hb * BACKFILL_UNIT_WEIGHT_KN_M3;
+    let frep = wind.sls_kn;
+    let ek = frep * (sign.centroid_height_m() + hb + t);
+    let (r2, r1, cu2, cu1) = ground.values();
+    // Partial factors of the Guide's Table 5.1 (UK National Annexes to BS EN 1990 and 1997).
+    let case = |name, gamma_q: f64, gamma_g: f64, wk: f64, resistance: f64, cu: f64, granular: bool| {
+        let (wd, ed, hd) = (wk * gamma_g, ek * gamma_q, frep * gamma_q);
+        let e = ed / wd;
+        let l_eff = l - 2.0 * e;
+        let area = l_eff * w;
+        SpreadCase {
+            name,
+            gamma_q,
+            gamma_g,
+            vertical_kn: wd,
+            moment_knm: ed,
+            eccentricity_m: e,
+            bearing_width_m: l_eff,
+            bearing_kpa: if l_eff > 0.0 { wd / area } else { f64::INFINITY },
+            resistance_kpa: resistance,
+            horizontal_kn: hd,
+            cohesive_ratio: if l_eff > 0.0 { hd / (area * cu) } else { f64::INFINITY },
+            granular_ratio: granular.then_some(hd / wd),
+            eccentricity_ok: e <= l / 3.0,
+        }
+    };
+    Ok(SpreadCheck {
+        ground,
+        breadth_mm,
+        length_mm,
+        thickness_mm,
+        weight_with_backfill_kn: with,
+        weight_without_backfill_kn: without,
+        characteristic_moment_knm: ek,
+        cases: [
+            case("DA1C1, weight stabilising", 1.5, 1.0, without, r1, cu1, false),
+            case("DA1C1, weight destabilising", 1.5, 1.35, with, r1, cu1, false),
+            case("DA1C2", 1.3, 1.0, with, r2, cu2, true),
+        ],
+        meets_height: sign.total_height_m() <= SPREAD_MAX_SIGN_HEIGHT_M + 1e-9,
+        meets_founding_depth: hb + t >= SPREAD_MIN_FOUNDING_DEPTH_M - 1e-9,
+    })
+}
+
+/// Longest spread foundation [`size_spread`] will try, mm.
+pub const MAX_SPREAD_LENGTH_MM: f64 = 6000.0;
+
+/// The shortest length L, in steps of 50 mm, that passes [`check_spread`] for the given breadth
+/// and thickness (the Guide, 5.13: least depth and breadth, then lengthen for stability). None
+/// when nothing up to [`MAX_SPREAD_LENGTH_MM`] passes, or the sign is outside Table 5.3.
+pub fn size_spread(sign: &SignGeometry, wind: &WindForces, breadth_mm: f64, thickness_mm: f64, ground: AssumedGround) -> Result<Option<SpreadCheck>, SupportError> {
+    let mut length = 500.0;
+    while length <= MAX_SPREAD_LENGTH_MM {
+        let check = check_spread(sign, wind, breadth_mm, length, thickness_mm, ground)?;
+        if !(check.meets_height && check.meets_founding_depth) {
+            return Ok(None);
+        }
+        if check.passes() {
+            return Ok(Some(check));
+        }
+        length += 50.0;
+    }
+    Ok(None)
+}
+
+/// The foundation a design asks for.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FoundationRequest {
+    /// One planted foundation under each post.
+    Planted(PlantedGround),
+    /// One spread foundation under the whole sign, of the given breadth and thickness.
+    Spread { breadth_mm: f64, thickness_mm: f64, ground: AssumedGround },
+}
+
+/// The foundation a design arrives at.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FoundationCheck {
+    Planted(PlantedCheck),
+    Spread(SpreadCheck),
+}
+
+impl FoundationCheck {
+    pub fn passes(&self) -> bool {
+        match self {
+            FoundationCheck::Planted(c) => c.passes(),
+            FoundationCheck::Spread(c) => c.passes(),
+        }
+    }
+}
+
 /// A complete support design for one sign.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SupportDesign {
     pub sign: SignGeometry,
     pub wind: WindForces,
     pub post: PostCheck,
-    pub foundation: PlantedCheck,
+    pub foundation: FoundationCheck,
     /// Things the engineer must confirm or that fall outside the method.
     pub warnings: Vec<String>,
 }
 
-/// Sizes the posts from `sizes` and the planted foundation for the sign.
+/// Sizes the posts from `sizes` and the foundation for the sign.
 pub fn design_supports(
     sign: &SignGeometry,
     basic_pressure_kn_m2: f64,
     sizes: &[(f64, f64)],
     yield_n_mm2: f64,
-    ground: &PlantedGround,
+    foundation: &FoundationRequest,
     factors: &DesignFactors,
 ) -> Result<SupportDesign, SupportError> {
     let wind = wind_forces(sign, basic_pressure_kn_m2, factors)?;
     let post = select_post(sign, &wind, sizes, yield_n_mm2, factors)?
         .ok_or_else(|| SupportError::InvalidOption(format!("no section in the list carries this sign on {} post(s): add posts or offer larger sections", sign.post_count)))?;
-    let foundation = size_planted(sign, &wind, post.section.outside_diameter_mm, ground, factors)?.ok_or_else(|| {
-        SupportError::InvalidOption(format!(
-            "no planted foundation up to {} m deep is stable in this ground: use a larger diameter or more posts, or design a spread foundation",
-            MAX_PLANTING_DEPTH_MM / 1000.0
-        ))
-    })?;
-    let mut warnings = vec![
-        format!(
-            "Confirm the minimum planting depth of {} mm against BS EN 40-2 Table 7 for a height of {:.2} m; that table is not held in AfroBIM.",
-            ground.min_planting_depth_mm,
-            sign.total_height_m()
-        ),
-        format!("Confirm the ground factor G = {} kN/m² per m against the ground on site.", ground.ground_factor_kn_m2_per_m),
-        "Level ground is assumed, with no wind funnelling or significant topography (Guide sections 5.21 and 6).".to_string(),
-        "Member capacities are calculated from the nominal tube, not taken from a manufacturer's or published table.".to_string(),
-    ];
+    let mut warnings = Vec::new();
+    let foundation = match foundation {
+        FoundationRequest::Planted(ground) => {
+            let check = size_planted(sign, &wind, post.section.outside_diameter_mm, ground, factors)?.ok_or_else(|| {
+                SupportError::InvalidOption(format!(
+                    "no planted foundation up to {} m deep is stable in this ground: use a larger diameter or more posts, or design a spread foundation",
+                    MAX_PLANTING_DEPTH_MM / 1000.0
+                ))
+            })?;
+            warnings.push(format!(
+                "Confirm the minimum planting depth of {} mm against BS EN 40-2 Table 7 for a height of {:.2} m; that table is not held in AfroBIM.",
+                ground.min_planting_depth_mm,
+                sign.total_height_m()
+            ));
+            warnings.push(format!("Confirm the ground factor G = {} kN/m² per m against the ground on site.", ground.ground_factor_kn_m2_per_m));
+            FoundationCheck::Planted(check)
+        }
+        FoundationRequest::Spread { breadth_mm, thickness_mm, ground } => {
+            let check = size_spread(sign, &wind, *breadth_mm, *thickness_mm, *ground)?.ok_or_else(|| {
+                SupportError::InvalidOption(format!(
+                    "no spread foundation of this breadth and thickness up to {} m long meets the Guide's Table 5.3 (sign top no more than 4 m, founding depth at least 0.5 m, eccentricity, bearing and horizontal load): change the breadth or thickness, or take specialist advice",
+                    MAX_SPREAD_LENGTH_MM / 1000.0
+                ))
+            })?;
+            warnings.push(format!(
+                "The {} ground bearing resistance is assumed (Guide Table 5.2). Confirm it on site by the inspection and DCP testing of Table 5.3 and Figure 5.3, with the water table at or below founding level.",
+                ground.label()
+            ));
+            warnings.push("Geotechnical checks only: the concrete, its reinforcement (Guide C 2.6) and the fixing of the posts into the foundation are not designed.".to_string());
+            warnings.push("The weight of the posts and the sign is neglected, as in the Guide's Example 2.".to_string());
+            FoundationCheck::Spread(check)
+        }
+    };
+    warnings.push("Level ground is assumed, with no wind funnelling or significant topography (Guide sections 5.21 and 6).".to_string());
+    warnings.push("Member capacities are calculated from the nominal tube, not taken from a manufacturer's or published table.".to_string());
     if sign.total_height_m() > 7.0 {
         warnings.push("The sign is more than 7 m high: the Guide (3.21) calls for the rigorous wind method and structural certification.".to_string());
     }
-    if sign.post_count == 1 && sign.face_area_m2.is_none() {
+    if sign.post_count == 1 {
         warnings.push("Wind torsion from a sign fixed eccentrically on its post is not checked.".to_string());
     }
     Ok(SupportDesign { sign: sign.clone(), wind, post, foundation, warnings })
@@ -609,14 +843,10 @@ pub fn design_supports(
 impl SupportDesign {
     /// The calculation set out line by line with its references, for the engineer to check.
     pub fn calculation(&self, wind_source: &str) -> Vec<String> {
-        let (s, w, p, f) = (&self.sign, &self.wind, &self.post, &self.foundation);
+        let (s, w, p) = (&self.sign, &self.wind, &self.post);
         let n = s.post_count;
         let hb = s.buried_above_foundation_mm / 1000.0;
         let ok = |pass: bool| if pass { "OK" } else { "FAILS" };
-        let method = match f.method {
-            PlantedMethod::Pd6547 { .. } => "PD 6547 (D = diameter of the concrete surround)",
-            PlantedMethod::Cd354 => "CD 354 rev 1 (D = diameter of the post)",
-        };
         let mut out = vec![
             "Design basis: IHE Sign Structures Guide 2021, BS EN 12899-1:2007 and its UK National Annex.".to_string(),
             format!("Sign: l = {:.3} m, b = {:.3} m, hm = {:.3} m, H = {:.3} m, z = {:.3} m, hb = {:.3} m, n = {}.", s.width_mm / 1000.0, s.height_mm / 1000.0, s.mounting_height_mm / 1000.0, s.total_height_m(), s.centroid_height_m(), hb, n),
@@ -629,10 +859,30 @@ impl SupportDesign {
             format!("Vd = Fw,d (ULS) / n = {:.2} kN; Vc,Rd / γm = {:.1} kN; utilisation {:.2}: {}.", p.wind_shear_kn, p.shear_capacity_kn, p.shear_utilisation, ok(p.shear_utilisation <= 1.0)),
             format!("Point load: M = {:.2} kNm, T = {:.3} kNm; M/Mu + T/Tu = {:.2}: {}.", p.point_load_moment_knm, p.point_load_torsion_knm, p.point_load_utilisation, ok(p.point_load_utilisation <= 1.0)),
             format!("Temporary deflection at the top of the sign = {:.1} mm = {:.2} mm/m against {} mm/m (class TDB4): {}.", p.deflection_mm, p.deflection_mm_per_m, p.deflection_limit_mm_per_m, ok(p.deflection_mm_per_m <= p.deflection_limit_mm_per_m)),
-            format!("Planted foundation to {method}: D = {:.3} m, P = {:.2} m, G = {} kN/m² per m.", f.effective_diameter_mm / 1000.0, f.planting_depth_mm / 1000.0, f.ground_factor_kn_m2_per_m),
-            format!("Mg = G · D · P³ / 10 = {:.2} kNm; MDS = Fw,d (SLS) · (z + hb + P/√2) / n = {:.2} kNm; 1.25 · MDS = {:.2} kNm: {}.", f.ground_resistance_knm, f.destabilising_knm, f.factored_destabilising_knm, ok(f.utilisation <= 1.0)),
-            format!("Planting depth against the minimum: {}; against twice the diameter: {}.", ok(f.meets_min_depth), ok(f.meets_depth_to_diameter)),
         ];
+        match &self.foundation {
+            FoundationCheck::Planted(f) => {
+                let method = match f.method {
+                    PlantedMethod::Pd6547 { .. } => "PD 6547 (D = diameter of the concrete surround)",
+                    PlantedMethod::Cd354 => "CD 354 rev 1 (D = diameter of the post)",
+                };
+                out.push(format!("Planted foundation to {method}: D = {:.3} m, P = {:.2} m, G = {} kN/m² per m.", f.effective_diameter_mm / 1000.0, f.planting_depth_mm / 1000.0, f.ground_factor_kn_m2_per_m));
+                out.push(format!("Mg = G · D · P³ / 10 = {:.2} kNm; MDS = Fw,d (SLS) · (z + hb + P/√2) / n = {:.2} kNm; 1.25 · MDS = {:.2} kNm: {}.", f.ground_resistance_knm, f.destabilising_knm, f.factored_destabilising_knm, ok(f.utilisation <= 1.0)));
+                out.push(format!("Planting depth against the minimum: {}; against twice the diameter: {}.", ok(f.meets_min_depth), ok(f.meets_depth_to_diameter)));
+            }
+            FoundationCheck::Spread(f) => {
+                out.push(format!("Spread foundation, one under the whole sign (Guide section 5): w = {:.2} m, L = {:.2} m, T = {:.2} m, {} ground assumed.", f.breadth_mm / 1000.0, f.length_mm / 1000.0, f.thickness_mm / 1000.0, f.ground.label()));
+                out.push(format!("Wk = {:.1} kN with backfill, {:.1} kN without; Ek = Frep · (z + hb + T) = {:.2} × {:.3} = {:.2} kNm.", f.weight_with_backfill_kn, f.weight_without_backfill_kn, w.sls_kn, s.centroid_height_m() + hb + f.thickness_mm / 1000.0, f.characteristic_moment_knm));
+                for c in &f.cases {
+                    let granular = c.granular_ratio.map(|r| format!("; Hd/Wd = {r:.2} ≤ 0.15")).unwrap_or_default();
+                    out.push(format!(
+                        "{} (γQ = {}, γG = {}): Ed = {:.2} kNm, Wd = {:.1} kN, e = {:.2} m ≤ L/3 = {:.2} m, L' = {:.2} m; Vd = {:.1} kPa ≤ {} kPa; Hd/(L'·w·cu;d) = {:.2} ≤ 0.36{granular}: {}.",
+                        c.name, c.gamma_q, c.gamma_g, c.moment_knm, c.vertical_kn, c.eccentricity_m, f.length_mm / 3000.0, c.bearing_width_m, c.bearing_kpa, c.resistance_kpa, c.cohesive_ratio, ok(c.passes())
+                    ));
+                }
+                out.push(format!("Table 5.3: sign top no more than 4 m: {}; founding depth at least 0.5 m: {}.", ok(f.meets_height), ok(f.meets_founding_depth)));
+            }
+        }
         out.extend(self.warnings.iter().map(|w| format!("Check: {w}")));
         out
     }
@@ -785,6 +1035,7 @@ mod tests {
     fn design_picks_the_lightest_section_that_passes() {
         let f = DesignFactors::default();
         let g = PlantedGround { method: PlantedMethod::Pd6547 { foundation_diameter_mm: 400.0 }, ground_factor_kn_m2_per_m: 230.0, min_planting_depth_mm: 800.0 };
+        let g = FoundationRequest::Planted(g);
         let d = design_supports(&example_1(), 1.0, &COMMON_CHS_MM, S355_YIELD_N_MM2, &g, &f).unwrap();
         // The Guide notes that a smaller section than 88.9 × 4.0 might also be suitable.
         assert_eq!((d.post.section.outside_diameter_mm, d.post.section.wall_mm), (76.1, 3.2));
@@ -799,6 +1050,69 @@ mod tests {
                 assert!(!check_post(&big.sign, &big.wind, s, &f).unwrap().passes(), "{} is lighter and passes", s.label());
             }
         }
+    }
+
+    #[test]
+    fn example_2_spread_foundation() {
+        // C 2.5: Frep = 13.0 kN, w = 3.40 m, L = 2.10 m, T = 1.50 m, poor ground.
+        let sign = example_2();
+        let mut w = wind_forces(&sign, 1.2, &DesignFactors::default()).unwrap();
+        w.sls_kn = 13.0;
+        let c = check_spread(&sign, &w, 3400.0, 2100.0, 1500.0, AssumedGround::Poor).unwrap();
+        close(c.weight_with_backfill_kn, 268.0, 0.5); // 2.5.3
+        close(c.weight_without_backfill_kn, 257.0, 0.1);
+        close(c.characteristic_moment_knm, 56.23, 0.01);
+        // DA1C1, weight stabilising. The Guide prints Ed = 83.34 kNm for 56.23 × 1.50, which is
+        // 84.34; its e = 0.33 m, L′ = 1.44 m, 52.4 kPa and 0.16 agree with the correct product.
+        let a = &c.cases[0];
+        close(a.moment_knm, 84.34, 0.01);
+        close(a.eccentricity_m, 0.33, 0.005);
+        close(a.bearing_width_m, 1.44, 0.01);
+        close(a.bearing_kpa, 52.4, 0.2);
+        close(a.cohesive_ratio, 0.16, 0.005);
+        assert_eq!(a.granular_ratio, None);
+        // DA1C1, weight destabilising. The Guide's example applies γG = 1.3 (and prints three
+        // different values of Wd); its own Table 5.1 gives γG,sup = 1.35, which is used here:
+        // Wd = 267.75 × 1.35 = 361.5 kN, e = 84.34 / 361.5 = 0.233 m, Vd = 361.5 / (1.633 × 3.4).
+        let b = &c.cases[1];
+        close(b.vertical_kn, 361.46, 0.01);
+        close(b.eccentricity_m, 0.2333, 0.0005);
+        close(b.bearing_kpa, 65.1, 0.1);
+        // DA1C2: 2.5.6.
+        let d = &c.cases[2];
+        close(d.moment_knm, 73.09, 0.01);
+        close(d.eccentricity_m, 0.27, 0.005);
+        close(d.bearing_width_m, 1.55, 0.01);
+        close(d.bearing_kpa, 50.7, 0.1);
+        close(d.cohesive_ratio, 0.18, 0.005);
+        close(d.granular_ratio.unwrap(), 0.06, 0.005);
+        assert!(c.passes());
+        // "A smaller foundation ... might also be suitable": the sizing finds a shorter one,
+        // and the next step down from it fails.
+        let sized = size_spread(&sign, &w, 3400.0, 1500.0, AssumedGround::Poor).unwrap().unwrap();
+        assert!(sized.length_mm < 2100.0 && sized.passes());
+        assert!(!check_spread(&sign, &w, 3400.0, sized.length_mm - 50.0, 1500.0, AssumedGround::Poor).unwrap().passes());
+    }
+
+    #[test]
+    fn spread_foundations_outside_table_5_3_are_refused() {
+        let f = DesignFactors::default();
+        let mut tall = example_2();
+        tall.mounting_height_mm = 2000.0; // top at 4.5 m
+        let w = wind_forces(&tall, 1.2, &f).unwrap();
+        assert!(!check_spread(&tall, &w, 3400.0, 2100.0, 1500.0, AssumedGround::Poor).unwrap().meets_height);
+        assert_eq!(size_spread(&tall, &w, 3400.0, 1500.0, AssumedGround::Poor).unwrap(), None);
+        let request = FoundationRequest::Spread { breadth_mm: 3400.0, thickness_mm: 1500.0, ground: AssumedGround::Poor };
+        assert!(design_supports(&tall, 1.2, &COMMON_CHS_MM, S355_YIELD_N_MM2, &request, &f).is_err());
+        // A thin foundation at ground level is shallower than 0.5 m.
+        let mut shallow = example_2();
+        shallow.buried_above_foundation_mm = 0.0;
+        let w = wind_forces(&shallow, 1.2, &f).unwrap();
+        assert!(!check_spread(&shallow, &w, 3400.0, 2100.0, 400.0, AssumedGround::Good).unwrap().meets_founding_depth);
+        // Within the table, the design goes through and the calculation shows no failure.
+        let d = design_supports(&example_2(), 1.2, &COMMON_CHS_MM, S355_YIELD_N_MM2, &request, &f).unwrap();
+        assert!(d.foundation.passes());
+        assert!(d.calculation("test").iter().all(|line| !line.contains("FAILS")));
     }
 
     #[test]

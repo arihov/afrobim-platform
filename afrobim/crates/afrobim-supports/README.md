@@ -20,12 +20,14 @@ material, finish and concrete are free text it never interprets.
 | Post checks | Bending and shear at the top of the foundation; 0.5 kN point load with torsion on a single post; temporary deflection at the top of the sign against 25 mm/m (TDB4) under the 1-year wind |
 | Member capacity | First principles: BS EN 1993-1-1 classification, plastic (class 1, 2) or elastic (class 3) resistance of the nominal tube. Class 4 is refused |
 | Planted foundation | `Mg = G·D·P³/10 ≥ 1.25 · MDS`, fulcrum at `P/√2`; PD 6547 (D = concrete surround) or CD 354 rev 1 (D = post); `P ≥ 2D` |
+| Spread foundation | One block under the sign. BS EN 1997-1 Design Approach 1 (DA1C1 with the weight stabilising and destabilising, DA1C2) with the guide's assumed bearing resistances: eccentricity `e ≤ L/3`, `L′ ≥ 0.5 m`, bearing, `Hd/(L′·w·cu;d) ≤ 0.36`, `Hd/Wd ≤ 0.15`; sign top no more than 4 m, founding depth at least 0.5 m. The length is sized for a given breadth and thickness |
 | Wind for Uganda | MoWT *Road Design Manual Vol. 4: Bridge Design* (January 2010), Section 5.3, Table 2 velocity pressures, by height to top and terrain |
 
 Verified against the guide's Appendix C: Example 1 (wind force, post, planted foundation by both
-methods) and Example 2 (wind force and post). One printed figure in the guide does not follow
-from its own expression (Example 2, 2.4.6: 28.17 mm printed, 28.37 mm evaluated); the test
-records this.
+methods) and Example 2 (wind force, post and spread foundation). Where the guide's printed
+figures do not follow from its own expressions the tests record it: 2.4.6 prints 28.17 mm where
+the expression gives 28.37 mm; 2.5.5 prints 56.23 × 1.50 = 83.34 (it is 84.34) and applies
+γG = 1.3 where the guide's Table 5.1 gives 1.35, which is what this module uses.
 
 Limits, stated plainly:
 
@@ -34,7 +36,10 @@ Limits, stated plainly:
 - **Interpretation:** using the MoWT bridge-manual velocity pressure as the sign's basic wind
   pressure `wb` is a reading of two documents that do not refer to each other. The manual's
   Figure 2 wind map is blank in the published PDF, so no regional variation is available.
-- **Not covered:** spread foundations, slopes, wind funnelling and orography, wind on the posts,
+- **Spread foundations are geotechnical checks only.** The concrete, its reinforcement and the
+  fixing of the posts into the block are not designed, and the assumed ground must be proved
+  on site by the guide's inspection and DCP testing.
+- **Not covered:** slopes, wind funnelling and orography, wind on the posts,
   passively safe supports, eccentric signs, fixings, the sign plate, sections other than CHS.
 - **Section list:** `COMMON_CHS_MM` is a convenience list of common nominal sizes, not a
   statement of what any supplier stocks.

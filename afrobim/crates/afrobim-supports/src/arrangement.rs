@@ -25,12 +25,16 @@ pub struct SupportArrangement {
     /// puts the axis in the plane of the face.
     #[serde(default)]
     pub setback_mm: f64,
+    /// True for one foundation under all the posts, centred on the sign; false for one under
+    /// each post.
+    #[serde(default)]
+    pub shared_foundation: bool,
 }
 
 impl SupportArrangement {
     /// Posts up to the top of the sign, axes in the plane of the face.
     pub fn new(mounting_height_mm: f64, post_count: u32, edge_inset_mm: f64) -> Self {
-        SupportArrangement { mounting_height_mm, post_count, edge_inset_mm, top_offset_mm: 0.0, setback_mm: 0.0 }
+        SupportArrangement { mounting_height_mm, post_count, edge_inset_mm, top_offset_mm: 0.0, setback_mm: 0.0, shared_foundation: false }
     }
 
     /// Checks that the arrangement can be built on a sign of the given size.

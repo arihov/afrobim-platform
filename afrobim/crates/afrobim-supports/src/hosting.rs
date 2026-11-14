@@ -124,7 +124,10 @@ pub fn add_supports(
         post_ids.push(id);
     }
     let mut foundation_ids = Vec::new();
-    for (i, &u) in positions.iter().enumerate() {
+    // One foundation under each post, or a single one on the sign's centre line hosted by the
+    // first post. A foundation records its own position along the sign.
+    let foundation_positions: Vec<f64> = if arrangement.shared_foundation { vec![sign.width / 2.0] } else { positions.clone() };
+    for (i, &u) in foundation_positions.iter().enumerate() {
         let name = doc.unique_name(&format!("{}-F{}", sign.name, i + 1));
         let origin = Pt::new(cursor, ground_y - foundation.formation_depth_mm());
         cursor += found_l + gap;
@@ -134,6 +137,7 @@ pub fn add_supports(
         e.site = sign.site.as_ref().map(|s| offset_site(s, u - found_l / 2.0, arrangement.setback_mm - found_w / 2.0));
         e.properties.insert(PROP_SIGN.into(), sign.name.clone());
         e.properties.insert(PROP_INDEX.into(), (i + 1).to_string());
+        e.properties.insert(PROP_POSITION_ALONG_SIGN_MM.into(), u.to_string());
         foundation_ids.push(id);
     }
     post_ids.extend(foundation_ids);
@@ -202,6 +206,7 @@ pub fn sync_support_sites(doc: &mut Document, sign_id: ElementId) -> Result<usiz
         for f in doc.elements().iter().filter(|e| e.category == FOUNDATION_CATEGORY && e.host == Some(post.id)) {
             if let Ok(fd) = FoundationDefinition::from_value(&f.data) {
                 let (l, w) = fd.shape.plan_mm();
+                let u = number(f, PROP_POSITION_ALONG_SIGN_MM).unwrap_or(u);
                 updates.push((f.id, sign_site.as_ref().map(|s| offset_site(s, u - l / 2.0, v - w / 2.0))));
             }
         }

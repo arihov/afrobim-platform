@@ -51,10 +51,18 @@ pub struct DesignRequest {
     pub edge_inset_mm: f64,
     pub wind: WindChoice,
     pub ground_factor: f64,
+    /// True for one spread foundation under the whole sign; false for a planted one per post.
+    pub spread: bool,
     /// True designs to CD 354 (post diameter only); false to PD 6547 (concrete surround).
     pub cd354: bool,
     pub foundation_diameter_mm: f64,
     pub min_planting_depth_mm: f64,
+    /// Spread foundation: assumed ground, breadth parallel to the face, thickness, and the
+    /// depth of its top below ground.
+    pub spread_ground: design::AssumedGround,
+    pub spread_breadth_mm: f64,
+    pub spread_thickness_mm: f64,
+    pub spread_cover_mm: f64,
 }
 
 impl DesignRequest {
@@ -71,6 +79,11 @@ impl DesignRequest {
             cd354: false,
             foundation_diameter_mm: 400.0,
             min_planting_depth_mm: 800.0,
+            spread: false,
+            spread_ground: design::AssumedGround::Poor,
+            spread_breadth_mm: 1000.0,
+            spread_thickness_mm: 750.0,
+            spread_cover_mm: 75.0,
         }
     }
 }
@@ -88,7 +101,7 @@ pub fn present(doc: &Document, sign: ElementId) -> Option<(f64, u32)> {
 /// the calculation, line by line. The face is taken as its full bounding rectangle.
 pub fn design(doc: &mut Document, sign: ElementId, req: &DesignRequest) -> Result<Vec<String>, String> {
     let e = doc.find(sign).ok_or("the sign is not in the document")?;
-    let geometry = design::SignGeometry {
+    let mut geometry = design::SignGeometry {
         width_mm: e.width,
         height_mm: e.height,
         mounting_height_mm: req.mounting_height_mm,
@@ -107,36 +120,52 @@ pub fn design(doc: &mut Document, sign: ElementId, req: &DesignRequest) -> Resul
         WindChoice::MowtBuiltUp => table(design::MowtTerrain::BuiltUp, "built-up area")?,
         WindChoice::Entered(wb) => (wb, "entered by the engineer".to_string()),
     };
-    let ground = design::PlantedGround {
-        method: if req.cd354 { design::PlantedMethod::Cd354 } else { design::PlantedMethod::Pd6547 { foundation_diameter_mm: req.foundation_diameter_mm } },
-        ground_factor_kn_m2_per_m: req.ground_factor,
-        min_planting_depth_mm: req.min_planting_depth_mm,
+    geometry.buried_above_foundation_mm = if req.spread { req.spread_cover_mm } else { 0.0 };
+    let request = if req.spread {
+        design::FoundationRequest::Spread { breadth_mm: req.spread_breadth_mm, thickness_mm: req.spread_thickness_mm, ground: req.spread_ground }
+    } else {
+        design::FoundationRequest::Planted(design::PlantedGround {
+            method: if req.cd354 { design::PlantedMethod::Cd354 } else { design::PlantedMethod::Pd6547 { foundation_diameter_mm: req.foundation_diameter_mm } },
+            ground_factor_kn_m2_per_m: req.ground_factor,
+            min_planting_depth_mm: req.min_planting_depth_mm,
+        })
     };
-    let result = design::design_supports(&geometry, wb, &design::COMMON_CHS_MM, design::S355_YIELD_N_MM2, &ground, &design::DesignFactors::default()).map_err(|e| e.to_string())?;
+    let result = design::design_supports(&geometry, wb, &design::COMMON_CHS_MM, design::S355_YIELD_N_MM2, &request, &design::DesignFactors::default()).map_err(|e| e.to_string())?;
 
     let section = result.post.section;
-    let depth = result.foundation.planting_depth_mm;
+    let mut arrangement = SupportArrangement::new(req.mounting_height_mm, req.posts, req.edge_inset_mm);
+    arrangement.setback_mm = section.outside_diameter_mm / 2.0;
+    // Planted: the post goes to the bottom of a concrete surround, modelled in both methods
+    // (CD 354 only leaves it out of Mg). Spread: the post is shown stopping at the top of the
+    // block; how it is fixed into the block is not designed.
+    let (embedment, shape, top, ground_text) = match &result.foundation {
+        design::FoundationCheck::Planted(f) => (
+            f.planting_depth_mm,
+            afrobim_supports::FoundationShape::Cylinder { diameter_mm: req.foundation_diameter_mm.max(section.outside_diameter_mm), depth_mm: f.planting_depth_mm },
+            0.0,
+            format!("G = {} kN/m² per m", req.ground_factor),
+        ),
+        design::FoundationCheck::Spread(f) => {
+            arrangement.shared_foundation = true;
+            (
+                req.spread_cover_mm,
+                afrobim_supports::FoundationShape::Block { length_mm: f.breadth_mm, width_mm: f.length_mm, depth_mm: f.thickness_mm },
+                req.spread_cover_mm,
+                format!("{} ground assumed (Table 5.2)", f.ground.label()),
+            )
+        }
+    };
     let post = PostDefinition {
         section: afrobim_supports::Section::Chs { outside_diameter_mm: section.outside_diameter_mm, wall_mm: section.wall_mm },
         length_mm: 0.0, // set from the arrangement when the supports are added
-        embedment_mm: depth,
+        embedment_mm: embedment,
         material: "S355".into(),
         finish: String::new(),
         placeholder: false,
     };
-    // The concrete surround is modelled in both methods; CD 354 only leaves it out of Mg.
-    let foundation = FoundationDefinition {
-        shape: afrobim_supports::FoundationShape::Cylinder { diameter_mm: req.foundation_diameter_mm.max(section.outside_diameter_mm), depth_mm: depth },
-        top_below_ground_mm: 0.0,
-        concrete: String::new(),
-        blinding_mm: None,
-        socket: None,
-        placeholder: false,
-    };
-    let mut arrangement = SupportArrangement::new(req.mounting_height_mm, req.posts, req.edge_inset_mm);
-    arrangement.setback_mm = section.outside_diameter_mm / 2.0;
+    let foundation = FoundationDefinition { shape, top_below_ground_mm: top, concrete: String::new(), blinding_mm: None, socket: None, placeholder: false };
     let ids = afrobim_supports::replace_supports(doc, sign, &arrangement, &post, &foundation).map_err(|e| e.to_string())?;
-    let basis = format!("IHE Sign Structures Guide 2021; wb = {wb} kN/m² ({source}); G = {} kN/m² per m", req.ground_factor);
+    let basis = format!("IHE Sign Structures Guide 2021; wb = {wb} kN/m² ({source}); {ground_text}");
     for id in ids {
         if let Some(e) = doc.find_mut(id) {
             e.properties.insert("design_basis".into(), basis.clone());
@@ -264,6 +293,15 @@ mod tests {
             assert!(e.data.get("placeholder").is_none());
             assert!(e.properties["design_basis"].contains("entered by the engineer"));
         }
+        // A spread foundation: one block under the whole sign.
+        req.spread = true;
+        let lines = design(&mut doc, sign, &req).unwrap();
+        assert!(lines.iter().any(|l| l.starts_with("Spread foundation")) && !lines.iter().any(|l| l.contains("FAILS")), "{lines:#?}");
+        let ids = afrobim_supports::supports_of(&doc, sign);
+        let blocks: Vec<_> = ids.iter().filter_map(|id| doc.find(*id)).filter(|e| e.category == FOUNDATION_CATEGORY).collect();
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].data["shape"]["type"], "Block");
+        req.spread = false;
         // MoWT open terrain, 5 m row.
         req.wind = WindChoice::MowtOpen;
         let lines = design(&mut doc, sign, &req).unwrap();
