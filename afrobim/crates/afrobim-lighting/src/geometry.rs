@@ -35,6 +35,7 @@ pub struct LightingGeometry {
     pub origin_y_m: f64,
 }
 
+#[allow(clippy::too_many_arguments)]
 /// A box with its base centre line starting at `start`, running `length` along the unit plan
 /// direction `dir` raised by `tilt_rad`, `width` across and `depth` square to both.
 fn oriented_box(name: &str, start: [f64; 3], dir: (f64, f64), tilt_rad: f64, length: f64, width: f64, depth: f64, colour: [u8; 3]) -> Mesh3 {

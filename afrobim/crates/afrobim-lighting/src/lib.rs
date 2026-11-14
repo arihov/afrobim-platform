@@ -44,6 +44,7 @@
 //! pillars, voltage drop, protection), energy and carbon assessment, tunnels, high mast
 //! lighting, and costs. See the README.
 
+pub mod bs5489_2003;
 pub mod design;
 mod geometry;
 mod layout;

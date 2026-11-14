@@ -14,18 +14,27 @@
 //! - **MoWT Road Design Manual Volume 1: Geometric Design, January 2010**, section 12.8
 //!   (pages 259 and 260). A local reference, reported beside the UK lines and never a reason to
 //!   fail: where it differs, the UK documents govern.
+//! - **BS 5489-1:2003** (the owner's copy; **a superseded edition**, replaced in 2013 and 2020),
+//!   through [`crate::bs5489_2003`]: Table 2 column clearances, clause 5.2.1.2 vertical
+//!   clearance, clause 5.2.3.3 bracket projection, Tables B.2 and B.3 class selection and
+//!   Table D.1 luminaire maintenance factors. Every line that uses it says so, and the report
+//!   opens with a warning. A mismatch with its informative annexes or recommendations is
+//!   reported as a difference, not a failure; the Table 2 and 5.7 m clearances can fail.
+//! - **TII DN-LHT-03038, February 2012** (Ireland; the NRA addendum to the withdrawn UK
+//!   TD 34/07), paragraphs 2.9 and 2.15. A secondary reference like the MoWT manual.
 //!
 //! # What TD 501 does and does not give
 //!
 //! TD 501 is short on numbers. It hands the lighting class, the performance values, the
 //! maintenance factor, conflict areas and the column set-back to BS 5489-1, BS EN 13201-2, ILP
-//! PLG02, ILP TR30 and BS EN 12767, none of which is freely readable and none of which it
-//! reproduces. So this module holds **no lighting class table and no luminance, illuminance,
-//! uniformity, glare, spacing-to-height or set-back value**. For those, the engineer enters what
-//! the standard requires and the module compares and says whose figure it is, or reports that
-//! the input is needed.
+//! PLG02, ILP TR30 and BS EN 12767 and reproduces none of them. The current BS 5489-1 and
+//! BS EN 13201-2 have not been read. So this crate holds **no luminance, illuminance,
+//! uniformity, threshold increment or spacing-to-height value**, and the only lighting class
+//! selection it holds is that of the superseded 2003 edition. The lighting class remains a
+//! label the engineer enters, and where a check needs a current figure the engineer enters it
+//! and the report says whose figure it is, or reports that the input is needed.
 //!
-//! What is checked exactly, because the freely readable documents state it:
+//! What is checked exactly from the DMRB documents:
 //!
 //! | Check | Source |
 //! |---|---|
@@ -64,6 +73,7 @@
 
 use afrobim_kernel::{Note, Severity};
 
+use crate::bs5489_2003::{self, ClassSelection, IpMinimum, Pollution, RoadType};
 use crate::model::{Arrangement, LightingData, LightingDefinition};
 use crate::{fixed, note};
 
@@ -91,6 +101,18 @@ pub const TD501_RISK_GROUPS: [&str; 2] = ["RG0", "RG1"];
 pub const CD377_RRRAP_SPEED_LIMIT_MPH: f64 = 50.0;
 /// See [`CD377_RRRAP_SPEED_LIMIT_MPH`].
 pub const CD377_RRRAP_AADT: f64 = 5000.0;
+
+/// TII DN-LHT-03038 (February 2012; the NRA addendum to TD 34/07) paragraph 2.15: bracket
+/// projections "should not exceed 1.5 metres for mounting heights up to and including 8 metres,
+/// and 2 metres for all other mounting heights": (mounting height limit m, projection m,
+/// projection above that height m).
+pub const TII_BRACKET_PROJECTION: (f64, f64, f64) = (8.0, 1.5, 2.0);
+/// TII DN-LHT-03038 paragraph 2.15: brackets "inclined slightly upwards at an angle not
+/// exceeding 5°".
+pub const TII_MAX_BRACKET_INCLINATION_DEG: f64 = 5.0;
+/// TII DN-LHT-03038 paragraph 2.9: lighting "should normally comply with luminous intensity
+/// class G6".
+pub const TII_LUMINOUS_INTENSITY_CLASS: &str = "G6";
 
 /// MoWT Geometric Design Manual (January 2010) section 12.8: "luminaries should be mounted at a
 /// height of at least 9 meters".
@@ -157,6 +179,20 @@ pub struct CheckInputs {
     /// The maintenance factor the engineer has determined to BS 5489-1.
     pub maintenance_factor: Option<f64>,
     pub maintenance_factor_source: String,
+    /// The row of BS 5489-1:2003 Table B.2 the road falls in, and its average daily traffic
+    /// (both directions), to report the class that superseded edition suggests.
+    pub road_type: Option<RoadType>,
+    pub class_adt: Option<f64>,
+    /// For a conflict area: the lighting class of the approaching traffic routes (the highest of
+    /// them), to report the BS 5489-1:2003 Table B.3 class.
+    pub conflict_approach_class: Option<String>,
+    /// Luminaire sealing, pollution category and cleaning interval, to report the typical
+    /// luminaire maintenance factor of BS 5489-1:2003 Table D.1.
+    pub luminaire_ip: Option<IpMinimum>,
+    pub pollution: Option<Pollution>,
+    pub cleaning_interval_months: Option<u32>,
+    /// Lamp (light source) flux maintenance factor from the manufacturer's data.
+    pub lamp_flux_maintenance_factor: Option<f64>,
 }
 
 /// How one line came out.
@@ -170,7 +206,9 @@ pub enum Outcome {
     InputNeeded,
     /// A figure or statement for the engineer; nothing to pass or fail.
     Information,
-    /// The local reference differs from the entered design. Not a failure: UK governs.
+    /// A reference that does not govern (a secondary document, informative guidance or a
+    /// recommendation of the superseded BS 5489-1:2003) differs from the entered design. Not a
+    /// failure.
     Differs,
 }
 
@@ -181,7 +219,7 @@ impl Outcome {
             Outcome::Fails => "FAILS",
             Outcome::InputNeeded => "INPUT NEEDED",
             Outcome::Information => "INFORMATION",
-            Outcome::Differs => "DIFFERS (local reference; UK governs)",
+            Outcome::Differs => "DIFFERS (reference only, does not govern)",
         }
     }
 }
@@ -207,6 +245,8 @@ pub struct LightingChecks {
 
 const TD501: &str = "TD 501 v0.1.0";
 const MOWT: &str = "MoWT GDM 2010 s. 12.8";
+const TII: &str = "TII DN-LHT-03038 (2012)";
+const BS: &str = bs5489_2003::EDITION;
 
 impl LightingChecks {
     /// True when no line fails. Lines that need input or only inform do not count either way, so
@@ -223,11 +263,12 @@ impl LightingChecks {
     pub fn calculation(&self) -> Vec<String> {
         let mut out = vec![
             format!("Road lighting requirement checks for '{}'.", self.reference),
-            "Basis: DMRB TD 501 Version 0.1.0 (September 2025) with TA 501 Revision 0, CD 109 Version 1.1.0 and CD 377 Version 5.0.1; MoWT Geometric Design Manual (January 2010) section 12.8 as local reference only.".to_string(),
+            "Basis: DMRB TD 501 Version 0.1.0 (September 2025) with TA 501 Revision 0, CD 109 Version 1.1.0 and CD 377 Version 5.0.1; BS 5489-1:2003 where a line cites it; MoWT Geometric Design Manual (January 2010) section 12.8 and TII DN-LHT-03038 (February 2012) as secondary references only. TD 501 governs.".to_string(),
+            format!("WARNING: {}", bs5489_2003::SUPERSEDED_NOTICE),
         ];
         out.extend(self.lines.iter().map(|l| format!("[{}] {} {}: {}.", l.clause, l.requirement, l.finding, l.outcome.label())));
         out.push(format!(
-            "Summary: {} OK, {} fail, {} need input, {} for information, {} differ from the local reference.",
+            "Summary: {} OK, {} fail, {} need input, {} for information, {} differ from a reference that does not govern.",
             self.count(Outcome::Ok),
             self.count(Outcome::Fails),
             self.count(Outcome::InputNeeded),
@@ -508,6 +549,162 @@ pub fn check_lighting(data: &LightingData, inputs: &CheckInputs) -> LightingChec
         Outcome::Information,
     );
 
+    // BS 5489-1:2003 (superseded edition): what it states exactly.
+    let superseded = "superseded edition: confirm against the current BS 5489-1";
+    let entered_class = data.definition.lighting_class().trim().to_uppercase();
+    if let Some(road) = inputs.road_type {
+        let clause = format!("{TD501} cl. 3.6; {BS} Table B.2 (informative)");
+        let requirement = "The lighting class for a motorway or traffic route by road type and average daily traffic.";
+        match bs5489_2003::traffic_route_class(road, inputs.class_adt) {
+            ClassSelection::Classes(classes) => {
+                let flow = inputs.class_adt.map_or(String::new(), |q| format!(", ADT {}", fixed(q, 0, 0)));
+                let matches = classes.iter().any(|c| c.to_uppercase() == entered_class);
+                line(
+                    clause,
+                    requirement,
+                    format!(
+                        "{}{flow}: {}; entered class '{}' ({superseded}; later editions use the M, C and P class names)",
+                        road.label(),
+                        classes.join(" or "),
+                        data.definition.lighting_class().trim()
+                    ),
+                    if matches { Outcome::Ok } else { Outcome::Differs },
+                );
+            }
+            ClassSelection::FlowNeeded => line(clause, requirement, format!("{}: the average daily traffic is not entered", road.label()), Outcome::InputNeeded),
+            ClassSelection::NotCovered => line(
+                clause,
+                requirement,
+                format!("{}: the table gives '<15 000' and '>15 000' and has no entry for exactly 15 000", road.label()),
+                Outcome::InputNeeded,
+            ),
+        }
+    }
+    if let Some(approach) = inputs.conflict_approach_class.as_deref() {
+        let clause = format!("{TD501} cl. 3.10; {BS} Table B.3 (informative)");
+        let requirement = "The lighting class of a conflict area follows from the class of the approaching traffic routes.";
+        match bs5489_2003::conflict_area_class(approach) {
+            Some(ce) => line(
+                clause,
+                requirement,
+                format!("Approach class {}: conflict area class {ce}; entered class '{}' ({superseded})", approach.trim(), data.definition.lighting_class().trim()),
+                if ce == entered_class { Outcome::Ok } else { Outcome::Differs },
+            ),
+            None => line(clause, requirement, format!("'{}' is not one of ME1 to ME5, the classes of the table", approach.trim()), Outcome::InputNeeded),
+        }
+    }
+    if let (LightingDefinition::Installation(i), Some(v)) = (&data.definition, inputs.design_speed_kph) {
+        if i.arrangement != Arrangement::TwinCentral {
+            let clause = format!("{TD501} cl. 3.4; {BS} Table 2");
+            let requirement = "Recommended minimum clearance from the edge of the carriageway to the face of a lighting column, by design speed.";
+            let clearance = bs5489_2003::min_clearance_m(v);
+            match clearance {
+                Some(c) => line(
+                    clause,
+                    requirement,
+                    format!(
+                        "{} km/h: {} m; set-back to the column axis {} m (the face is nearer by half the column width, which is not modelled; where a safety barrier protects the column its design governs, note 3) ({superseded})",
+                        fixed(v, 0, 1),
+                        m(c),
+                        m(i.setback_m)
+                    ),
+                    if i.setback_m >= c { Outcome::Ok } else { Outcome::Fails },
+                ),
+                None => line(
+                    clause,
+                    requirement,
+                    format!("{} km/h is not a design speed of Table 2 (50, 80, 100, 120); the table is not interpolated", fixed(v, 0, 1)),
+                    Outcome::InputNeeded,
+                ),
+            }
+            // Vertical clearance where the luminaire is over the carriageway or within the clearance.
+            let within = i.overhang_m() >= 0.0 || clearance.is_some_and(|c| i.setback_m - spec.bracket_outreach_m < c);
+            if within {
+                let least = bs5489_2003::VERTICAL_CLEARANCE_OVER_CARRIAGEWAY_M;
+                line(
+                    format!("{BS} cl. 5.2.1.2"),
+                    "The lowest point of a luminaire or bracket over the carriageway, or within the Table 2 clearance, should be at least 5.7 m above the carriageway surface.",
+                    format!(
+                        "Mounting height {} m against {} m; the mounting height is to the luminaire, so the lowest point of the bracket and luminaire is for the engineer to confirm ({superseded})",
+                        m(spec.mounting_height_m),
+                        m(least)
+                    ),
+                    if spec.mounting_height_m >= least { Outcome::Ok } else { Outcome::Fails },
+                );
+            }
+        }
+    }
+    let quarter = bs5489_2003::BRACKET_PROJECTION_MAX_FRACTION_OF_HEIGHT * spec.mounting_height_m;
+    line(
+        format!("{BS} cl. 5.2.3.3"),
+        "Bracket projection is recommended not to exceed one quarter of the mounting height.",
+        format!("Outreach {} m against {} m / 4 = {} m ({superseded})", m(spec.bracket_outreach_m), m(spec.mounting_height_m), m(quarter)),
+        if spec.bracket_outreach_m <= quarter { Outcome::Ok } else { Outcome::Differs },
+    );
+    if let (Some(ip), Some(pollution), Some(months)) = (inputs.luminaire_ip, inputs.pollution, inputs.cleaning_interval_months) {
+        let clause = format!("{TD501} cl. 3.8; {BS} cl. 6.4.4, Table D.1 (informative)");
+        let requirement = "The maintenance factor is the product of the lamp flux maintenance factor (manufacturer's data) and the luminaire maintenance factor (typical values in Table D.1).";
+        match bs5489_2003::luminaire_maintenance_factor(ip, pollution, months) {
+            Some(f) => {
+                let product = match inputs.lamp_flux_maintenance_factor {
+                    Some(l) => format!(
+                        "; with the entered lamp flux maintenance factor {} the maintenance factor is {} × {} = {}",
+                        fixed(l, 0, 3),
+                        fixed(l, 0, 3),
+                        fixed(f, 2, 2),
+                        fixed(l * f, 0, 3)
+                    ),
+                    None => "; the lamp flux maintenance factor is not entered".to_string(),
+                };
+                let entered = inputs.maintenance_factor.map_or(String::new(), |e| format!("; maintenance factor entered by the engineer {}", fixed(e, 0, 3)));
+                line(
+                    clause,
+                    requirement,
+                    format!(
+                        "Typical luminaire maintenance factor for {ip:?}, {pollution:?} pollution, cleaning every {months} months: {}{product}{entered}. The table predates LED luminaires ({superseded})",
+                        fixed(f, 2, 2)
+                    ),
+                    Outcome::Information,
+                );
+            }
+            None => line(
+                clause,
+                requirement,
+                format!("{months} months is not a cleaning interval of Table D.1 (12, 18, 24, 36); the table is not interpolated"),
+                Outcome::InputNeeded,
+            ),
+        }
+    }
+    line(
+        BS.to_string(),
+        "Performance requirements of the lighting classes.",
+        "Not held: BS 5489-1:2003 refers to BS EN 13201-2 for luminance, uniformity, threshold increment and illuminance and does not reproduce them".to_string(),
+        Outcome::Information,
+    );
+
+    // Secondary reference: TII (Ireland).
+    let limit = if spec.mounting_height_m <= TII_BRACKET_PROJECTION.0 { TII_BRACKET_PROJECTION.1 } else { TII_BRACKET_PROJECTION.2 };
+    line(
+        format!("{TII} para. 2.15"),
+        "Bracket projections should not exceed 1.5 m for mounting heights up to and including 8 m and 2 m for all other mounting heights.",
+        format!("Outreach {} m against {} m at a mounting height of {} m", m(spec.bracket_outreach_m), m(limit), m(spec.mounting_height_m)),
+        if spec.bracket_outreach_m <= limit { Outcome::Ok } else { Outcome::Differs },
+    );
+    line(
+        format!("{TII} para. 2.15"),
+        "Brackets should be inclined slightly upwards at an angle not exceeding 5°.",
+        format!("Tilt {}°; TD 501 cl. 2.5 requires zero tilt and governs", fixed(spec.tilt_deg, 0, 2)),
+        if (0.0..=TII_MAX_BRACKET_INCLINATION_DEG).contains(&spec.tilt_deg) { Outcome::Ok } else { Outcome::Differs },
+    );
+    if let Some(g) = lum.luminous_intensity_class.as_deref().map(|s| s.trim().to_uppercase()).filter(|g| !g.is_empty()) {
+        line(
+            format!("{TII} para. 2.9"),
+            "Lighting should normally comply with luminous intensity class G6.",
+            format!("{g} as entered; TD 501 cl. 2.5 allows G4 to G6 and governs"),
+            if g == TII_LUMINOUS_INTENSITY_CLASS { Outcome::Ok } else { Outcome::Differs },
+        );
+    }
+
     // Local reference: MoWT.
     let h = spec.mounting_height_m;
     line(
@@ -708,12 +905,90 @@ mod tests {
         // MoWT: 8 m is under 9 m and outside 12 to 15 m; these differ but do not fail.
         let mowt = find(&c, "MoWT");
         assert_eq!((mowt[0].outcome, mowt[1].outcome), (Outcome::Differs, Outcome::Differs));
-        assert_eq!(c.count(Outcome::Differs), 2);
-        assert!(c.calculation().iter().any(|l| l.contains("UK governs")));
+        assert_eq!(c.count(Outcome::Differs), 3);
+        assert!(c.calculation().iter().any(|l| l.contains("does not govern")));
 
         // A design speed between the table's columns asks for the SSD.
         let c = check_lighting(&data(Arrangement::SingleLeft), &CheckInputs { design_speed_kph: Some(65.0), ..Default::default() });
         assert_eq!(find(&c, "cl. 3.11")[0].outcome, Outcome::InputNeeded);
         assert!(find(&c, "MoWT")[1].finding.contains("gives no distance"));
+    }
+
+    #[test]
+    fn bs_5489_1_2003_and_tii_lines() {
+        let mut d = data(Arrangement::SingleRight);
+        if let LightingDefinition::Installation(i) = &mut d.definition {
+            i.lighting_class = "ME3a".to_string();
+            i.setback_m = 1.2;
+            i.column.bracket_outreach_m = 2.6;
+            i.column.tilt_deg = 5.0;
+            i.column.luminaire.luminous_intensity_class = Some("G6".to_string());
+        }
+        let mut inputs = CheckInputs {
+            design_speed_kph: Some(100.0),
+            road_type: Some(RoadType::MainDistributorSingle),
+            class_adt: Some(12_000.0),
+            luminaire_ip: Some(IpMinimum::Ip6x),
+            pollution: Some(Pollution::Medium),
+            cleaning_interval_months: Some(36),
+            lamp_flux_maintenance_factor: Some(0.9),
+            maintenance_factor: Some(0.78),
+            ..Default::default()
+        };
+        let c = check_lighting(&d, &inputs);
+        let text = c.calculation();
+        assert!(text[2].starts_with("WARNING: BS 5489-1:2003 is a superseded edition"));
+        // Table B.2: main distributor at 12 000 ADT is ME3a, as entered.
+        let class = find(&c, "Table B.2")[0];
+        assert_eq!(class.outcome, Outcome::Ok);
+        assert!(class.finding.contains("ME3a") && class.finding.contains("superseded edition"));
+        // Table 2: 1.5 m at 100 km/h against a 1.2 m set-back.
+        let clearance = find(&c, "2003 Table 2")[0];
+        assert_eq!(clearance.outcome, Outcome::Fails);
+        assert!(clearance.finding.contains("100 km/h: 1.5 m"));
+        // The luminaire overhangs the carriageway by 1.4 m: 10 m clears 5.7 m.
+        assert_eq!(find(&c, "cl. 5.2.1.2")[0].outcome, Outcome::Ok);
+        // A quarter of 10 m is 2.5 m: 2.6 m differs, as it does from TII's 2 m.
+        assert_eq!(find(&c, "cl. 5.2.3.3")[0].outcome, Outcome::Differs);
+        let tii = find(&c, "TII");
+        assert_eq!((tii[0].outcome, tii[1].outcome, tii[2].outcome), (Outcome::Differs, Outcome::Ok, Outcome::Ok));
+        assert!(tii[0].finding.contains("against 2 m"));
+        // Table D.1: IP6X, medium pollution, 36 months is 0.87; 0.9 × 0.87 = 0.783.
+        let mf = find(&c, "Table D.1")[0];
+        assert_eq!(mf.outcome, Outcome::Information);
+        assert!(mf.finding.contains(": 0.87;") && mf.finding.contains("0.9 × 0.87 = 0.783") && mf.finding.contains("0.78"));
+        // TD 501 still fails the 5° tilt that TII allows.
+        assert_eq!(find(&c, "cl. 2.5")[0].outcome, Outcome::Fails);
+
+        // A different class differs without failing; missing flow and odd intervals ask.
+        inputs.class_adt = Some(20_000.0);
+        inputs.cleaning_interval_months = Some(30);
+        inputs.design_speed_kph = Some(60.0);
+        inputs.conflict_approach_class = Some("ME2".to_string());
+        let c = check_lighting(&d, &inputs);
+        assert_eq!(find(&c, "Table B.2")[0].outcome, Outcome::Differs);
+        assert!(find(&c, "Table B.2")[0].finding.contains("ME2"));
+        assert_eq!(find(&c, "Table D.1")[0].outcome, Outcome::InputNeeded);
+        assert_eq!(find(&c, "2003 Table 2")[0].outcome, Outcome::InputNeeded);
+        let conflict = find(&c, "Table B.3")[0];
+        assert_eq!(conflict.outcome, Outcome::Differs);
+        assert!(conflict.finding.contains("CE1"));
+        inputs.road_type = Some(RoadType::StrategicDual);
+        inputs.class_adt = Some(15_000.0);
+        assert!(find(&check_lighting(&d, &inputs), "Table B.2")[0].finding.contains("no entry for exactly 15 000"));
+        inputs.class_adt = None;
+        assert_eq!(find(&check_lighting(&d, &inputs), "Table B.2")[0].outcome, Outcome::InputNeeded);
+
+        // A low luminaire over the carriageway fails the 5.7 m clearance; a set-back one is not checked.
+        if let LightingDefinition::Installation(i) = &mut d.definition {
+            i.column.mounting_height_m = 5.0;
+        }
+        inputs.design_speed_kph = Some(50.0);
+        assert_eq!(find(&check_lighting(&d, &inputs), "cl. 5.2.1.2")[0].outcome, Outcome::Fails);
+        if let LightingDefinition::Installation(i) = &mut d.definition {
+            i.setback_m = 3.0;
+            i.column.bracket_outreach_m = 1.0;
+        }
+        assert!(find(&check_lighting(&d, &inputs), "cl. 5.2.1.2").is_empty());
     }
 }
