@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-built test file following the LandXML 1.2 schema. It was NOT exported by Civil 3D.
+     International feet. A straight alignment with a profile, a station equation and a
+     superelevation that cannot be given a side; and an alignment whose profile, equation and
+     superelevation each have something wrong with them.
+     Every number is an arbitrary test value. None is a design value. -->
+<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.landxml.org/schema/LandXML-1.2 http://www.landxml.org/schema/LandXML-1.2/LandXML-1.2.xsd" date="2026-11-14" time="12:00:00" version="1.2" language="English" readOnly="false">
+  <Units>
+    <Imperial areaUnit="squareFoot" linearUnit="foot" volumeUnit="cubicYard" temperatureUnit="fahrenheit" pressureUnit="inHG" angularUnit="decimal degrees" directionUnit="decimal degrees"/>
+  </Units>
+  <Alignments>
+    <Alignment name="Straight" length="500.000000" staStart="0.000000">
+      <CoordGeom>
+        <Line length="500.000000" staStart="0.000000">
+          <Start>0.000000 0.000000</Start>
+          <End>0.000000 500.000000</End>
+        </Line>
+      </CoordGeom>
+      <StaEquation staAhead="1000.000000" staInternal="300.000000"/>
+      <Profile name="Straight profiles">
+        <ProfAlign name="FG">
+          <PVI>0.000000 100.000000</PVI>
+          <ParaCurve length="200.000000">250.000000 110.000000</ParaCurve>
+          <PVI>500.000000 100.000000</PVI>
+        </ProfAlign>
+        <ProfAlign name="Alt">
+          <PVI>0.000000 90.000000</PVI>
+          <PVI>500.000000 95.000000</PVI>
+        </ProfAlign>
+      </Profile>
+      <Superelevation>
+        <FullSuperSta>100.000000</FullSuperSta>
+        <FullSuperelev>3.0</FullSuperelev>
+        <RunoffSta>200.000000</RunoffSta>
+      </Superelevation>
+    </Alignment>
+    <Alignment name="Faulty" length="500.000000" staStart="0.000000">
+      <CoordGeom>
+        <Line length="500.000000" staStart="0.000000">
+          <Start>100.000000 0.000000</Start>
+          <End>100.000000 500.000000</End>
+        </Line>
+      </CoordGeom>
+      <StaEquation staAhead="400.000000" staBack="250.000000" staInternal="200.000000" staIncrement="increasing"/>
+      <Profile name="Faulty profiles">
+        <ProfAlign name="Bad">
+          <ParaCurve length="100.000000">0.000000 50.000000</ParaCurve>
+          <PVI>500.000000 60.000000</PVI>
+        </ProfAlign>
+      </Profile>
+      <Superelevation>
+        <FullSuperSta>300.000000</FullSuperSta>
+        <FullSuperelev>2.0</FullSuperelev>
+        <RunoffSta>200.000000</RunoffSta>
+      </Superelevation>
+      <Superelevation>
+        <FullSuperSta>100.000000</FullSuperSta>
+        <FullSuperelev>-2.0</FullSuperelev>
+        <RunoffSta>150.000000</RunoffSta>
+      </Superelevation>
+    </Alignment>
+  </Alignments>
+</LandXML>

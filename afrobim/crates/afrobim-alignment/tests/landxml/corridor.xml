@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-built test file following the LandXML 1.2 schema. It was NOT exported by Civil 3D.
+     Vertical profile, station equations and superelevation.
+
+     The geometry is chosen so that every expected value can be worked by hand: tangents along the
+     grid and quarter circles. The profile grades, curve lengths, the superelevation rate and its
+     stations are arbitrary test numbers. They are NOT design values and follow no standard.
+
+     MC10: east 300 m, quarter circle to the left of radius 200 m (100*pi = 314.159265 m), north 300 m.
+       Internal stations: 1000 (start), 1300 (curve starts), 1614.159265 (curve ends), 1914.159265 (end).
+       Station equations: at internal 1300 the displayed station jumps from 1300 to 1350 (a gap);
+       at internal 1600 it drops from 1650 back to 1500 (an overlap).
+       Profile FG: +2 % to the PVI at 1200, -1 % to 1500, +2 % to 1700, -2 % to 1900. It stops
+       14.159 m short of the end of the alignment.
+     Right / Adverse: east 100 m, quarter circle to the right of radius 100 m (50*pi = 157.079633 m). -->
+<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.landxml.org/schema/LandXML-1.2 http://www.landxml.org/schema/LandXML-1.2/LandXML-1.2.xsd" date="2026-11-14" time="12:00:00" version="1.2" language="English" readOnly="false">
+  <Units>
+    <Metric areaUnit="squareMeter" linearUnit="meter" volumeUnit="cubicMeter" temperatureUnit="celsius" pressureUnit="milliBars" angularUnit="decimal degrees" directionUnit="decimal degrees"/>
+  </Units>
+  <Project name="afrobim-alignment tests"/>
+  <Application name="hand-built" desc="test data" manufacturer="AfroBIM" version="1"/>
+  <Alignments name="Corridor">
+    <Alignment name="MC10" length="914.159265" staStart="1000.000000">
+      <CoordGeom>
+        <Line length="300.000000" staStart="1000.000000">
+          <Start>0.000000 0.000000</Start>
+          <End>0.000000 300.000000</End>
+        </Line>
+        <Curve rot="ccw" crvType="arc" length="314.159265" radius="200.000000" staStart="1300.000000">
+          <Start>0.000000 300.000000</Start>
+          <Center>200.000000 300.000000</Center>
+          <End>200.000000 500.000000</End>
+          <PI>0.000000 500.000000</PI>
+        </Curve>
+        <Line length="300.000000" staStart="1614.159265">
+          <Start>200.000000 500.000000</Start>
+          <End>500.000000 500.000000</End>
+        </Line>
+      </CoordGeom>
+      <StaEquation staAhead="1350.000000" staBack="1300.000000" staInternal="1300.000000" staIncrement="increasing"/>
+      <StaEquation staAhead="1500.000000" staBack="1650.000000" staInternal="1600.000000" staIncrement="increasing"/>
+      <Profile name="MC10 profiles">
+        <ProfSurf name="EG">
+          <PntList2D>1000.000 99.500 1900.000 100.500</PntList2D>
+        </ProfSurf>
+        <ProfAlign name="FG">
+          <PVI>1000.000000 100.000000</PVI>
+          <ParaCurve length="120.000000">1200.000000 104.000000</ParaCurve>
+          <UnsymParaCurve lengthIn="80.000000" lengthOut="40.000000">1500.000000 101.000000</UnsymParaCurve>
+          <CircCurve length="79.989336" radius="2000.000000">1700.000000 105.000000</CircCurve>
+          <PVI>1900.000000 101.000000</PVI>
+        </ProfAlign>
+      </Profile>
+      <Superelevation staStart="1240.000000" staEnd="1674.159265">
+        <BeginRunoutSta>1240.000000</BeginRunoutSta>
+        <BeginRunoffSta>1260.000000</BeginRunoffSta>
+        <FullSuperSta>1300.000000</FullSuperSta>
+        <FullSuperelev>5.0</FullSuperelev>
+        <RunoffSta>1614.159265</RunoffSta>
+        <StartofRunoutSta>1654.159265</StartofRunoutSta>
+        <EndofRunoutSta>1674.159265</EndofRunoutSta>
+        <AdverseSE>non-adverse</AdverseSE>
+      </Superelevation>
+    </Alignment>
+    <Alignment name="Right" length="257.079633" staStart="0.000000">
+      <CoordGeom>
+        <Line length="100.000000" staStart="0.000000">
+          <Start>0.000000 1000.000000</Start>
+          <End>0.000000 1100.000000</End>
+        </Line>
+        <Curve rot="cw" crvType="arc" length="157.079633" radius="100.000000" staStart="100.000000">
+          <Start>0.000000 1100.000000</Start>
+          <Center>-100.000000 1100.000000</Center>
+          <End>-100.000000 1200.000000</End>
+          <PI>0.000000 1200.000000</PI>
+        </Curve>
+      </CoordGeom>
+      <Superelevation>
+        <FullSuperSta>100.000000</FullSuperSta>
+        <FullSuperelev>4.0</FullSuperelev>
+        <RunoffSta>250.000000</RunoffSta>
+      </Superelevation>
+    </Alignment>
+    <Alignment name="Adverse" length="257.079633" staStart="0.000000">
+      <CoordGeom>
+        <Line length="100.000000" staStart="0.000000">
+          <Start>1000.000000 1000.000000</Start>
+          <End>1000.000000 1100.000000</End>
+        </Line>
+        <Curve rot="cw" crvType="arc" length="157.079633" radius="100.000000" staStart="100.000000">
+          <Start>1000.000000 1100.000000</Start>
+          <Center>900.000000 1100.000000</Center>
+          <End>900.000000 1200.000000</End>
+          <PI>1000.000000 1200.000000</PI>
+        </Curve>
+      </CoordGeom>
+      <Superelevation>
+        <FullSuperSta>100.000000</FullSuperSta>
+        <FullSuperelev>4.0</FullSuperelev>
+        <RunoffSta>250.000000</RunoffSta>
+        <AdverseSE>adverse</AdverseSE>
+      </Superelevation>
+    </Alignment>
+  </Alignments>
+</LandXML>
