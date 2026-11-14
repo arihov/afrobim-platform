@@ -8,8 +8,11 @@
 //! [`export_ifc_model`] takes the same input and writes the whole model: posts as `IfcMember`
 //! and foundations as `IfcFooting` with swept solids, each sign and its supports as one
 //! `IfcElementAssembly`, every element at its `SitePlacement` inside an `IfcRoad`, and alignments
-//! as `IfcAlignment`. For a document with none of those it writes the same bytes as
-//! [`export_ifc`], which stays as it was: signs on the upright sheet.
+//! as `IfcAlignment`. It also writes the elements of the road modules (markings, side drains and
+//! culverts, gantries, street lighting, road restraint, pavements, corridors and ground surfaces)
+//! from the solids their modules generate, with the entity, predefined type, standard property
+//! sets and quantities the README tabulates. For a document with none of those it writes the same
+//! bytes as [`export_ifc`], which stays as it was: signs on the upright sheet.
 //!
 //! The crate only writes; it has no importer. See the crate README for the entity mapping, the
 //! placement convention and how to validate a file.
@@ -36,7 +39,10 @@ use afrobim_draw::{Colour, Primitive};
 use afrobim_kernel::{Document, Element, ElementId, Generated};
 
 pub use guid::global_id;
-pub use model::{export_ifc_model, write_ifc_model, ALIGNMENT_CATEGORY, ALIGNMENT_CHORD_M, FOUNDATION_CATEGORY, POST_CATEGORY, PROP_DESIGN_BASIS};
+pub use model::{
+    export_ifc_model, write_ifc_model, ALIGNMENT_CATEGORY, ALIGNMENT_CHORD_M, CORRIDOR_CATEGORY, CULVERT_CATEGORY, DRAIN_CATEGORY, FOUNDATION_CATEGORY, GANTRY_CATEGORY, LIGHTING_CATEGORY,
+    MARKING_CATEGORY, PAVEMENT_CATEGORY, POST_CATEGORY, PROP_DESIGN_BASIS, RESTRAINT_CATEGORY, SURFACE_CATEGORY,
+};
 pub use mesh::{tessellate_artwork, Artwork, ArtworkMesh, ARC_BAND_WIDTH_MM};
 pub use step::{step_real, step_string};
 
@@ -149,6 +155,9 @@ enum Value {
     Boolean(bool),
     /// `IfcLengthMeasure`, in the file's length unit (mm).
     Length(f64),
+    /// A measure of another named type, e.g. `IFCPOSITIVELENGTHMEASURE` or `IFCNONNEGATIVELENGTHMEASURE`,
+    /// as a standard property set asks for it.
+    Measure(&'static str, f64),
 }
 
 impl Value {
@@ -161,6 +170,7 @@ impl Value {
             Value::Real(r) => format!("IFCREAL({})", step_real(*r)),
             Value::Boolean(b) => format!("IFCBOOLEAN({})", if *b { ".T." } else { ".F." }),
             Value::Length(l) => format!("IFCLENGTHMEASURE({})", step_real(*l)),
+            Value::Measure(name, v) => format!("{name}({})", step_real(*v)),
         }
     }
 }
@@ -202,6 +212,9 @@ struct Writer<'a> {
     /// and its placement.
     container: u32,
     container_placement: u32,
+    /// The `IfcSite`, which is the container only while there is no road, and its placement.
+    site: u32,
+    site_placement: u32,
     /// `IfcSurfaceStyle` per style name, created on first use.
     styles: BTreeMap<String, u32>,
     thickness: f64,
@@ -221,6 +234,8 @@ impl<'a> Writer<'a> {
             up: 0,
             container: 0,
             container_placement: 0,
+            site: 0,
+            site_placement: 0,
             styles: BTreeMap::new(),
             thickness: positive(options.plate_thickness_mm, 3.0),
             offset: positive(options.artwork_offset_mm, 0.1),
@@ -249,6 +264,8 @@ impl<'a> Writer<'a> {
         d.add("IFCRELAGGREGATES", &format!("{rel_guid},$,$,$,#{project},(#{site})"));
         w.container = site;
         w.container_placement = site_placement;
+        w.site = site;
+        w.site_placement = site_placement;
         if plan.road {
             // IfcRoad is the IfcFacility for a road; the spatial composition table of IFC 4.3
             // puts it under the site.

@@ -168,8 +168,15 @@ name = "afrobim-ifc"
 version = "0.1.0"
 dependencies = [
  "afrobim-alignment",
+ "afrobim-corridor",
+ "afrobim-drainage",
  "afrobim-draw",
+ "afrobim-gantry",
  "afrobim-kernel",
+ "afrobim-lighting",
+ "afrobim-markings",
+ "afrobim-pavement",
+ "afrobim-restraint",
  "afrobim-supports",
  "lyon_tessellation",
  "serde_json",

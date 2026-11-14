@@ -3,6 +3,7 @@
 
 #![allow(dead_code)]
 
+pub mod roads;
 pub mod site;
 pub mod step;
 

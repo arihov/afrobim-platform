@@ -8,10 +8,10 @@ does not link an IFC toolkit. It has two entry points that take the same input:
 | Entry point | Writes |
 | --- | --- |
 | `export_ifc` | The signs, stood upright as they are laid out on the design sheet. Unchanged since the first version. |
-| `export_ifc_model` | The model: signs with their posts and foundations as assemblies, every element where it stands on site, and the alignments. |
+| `export_ifc_model` | The model: signs with their posts and foundations as assemblies, every element where it stands on site, the alignments, and the elements of the road modules (markings, drainage, gantries, lighting, restraint, pavement, corridor, ground). |
 
-For a document without supports, site placements and alignments the two give byte-identical
-files. `export_ifc` ignores `Element::site` and `Element::host` and writes a post or a foundation
+For a document without supports, site placements, alignments and road-module elements the two
+give byte-identical files. `export_ifc` ignores `Element::site` and `Element::host` and writes a post or a foundation
 as an `IfcBuildingElementProxy`; it is kept so that existing callers compile and behave as before.
 
 ```rust
@@ -40,6 +40,7 @@ for note in &export.notes {
 | `export_ifc(document, elements, options) -> IfcExport` | The sign-sheet file plus `notes`. `write_ifc` returns the text only. |
 | `element_global_id(project_name, id)` / `global_id(name)` | The deterministic GlobalIds the exporter uses. |
 | `POST_CATEGORY`, `FOUNDATION_CATEGORY`, `ALIGNMENT_CATEGORY`, `SIGN_CATEGORY` | The element categories with a mapping. |
+| `MARKING_CATEGORY`, `DRAIN_CATEGORY`, `CULVERT_CATEGORY`, `GANTRY_CATEGORY`, `LIGHTING_CATEGORY`, `RESTRAINT_CATEGORY`, `PAVEMENT_CATEGORY`, `CORRIDOR_CATEGORY`, `SURFACE_CATEGORY` | The road-module categories with a mapping, re-exported from their crates. |
 | `PROP_DESIGN_BASIS` | The element property (`"design_basis"`) copied to `DesignBasis`. |
 | `ALIGNMENT_CHORD_M` | Longest chord of an alignment's Axis polyline (1 m). |
 | `tessellate_artwork(drawing) -> Artwork` | The triangulation on its own: one `ArtworkMesh` per colour and paint layer. |
@@ -50,7 +51,14 @@ With a fixed `IfcOptions::timestamp` the same input gives byte-identical text.
 `export_ifc_model` needs nothing the application does not already hand to `export_ifc`: the
 elements of the document (it follows `Element::host` and reads `Element::site`) and, per element,
 the `Generated` of its module. The post and foundation definitions are read from `Element::data`
-with `afrobim-supports`, and alignments with `afrobim-alignment`; this crate depends on both.
+with `afrobim-supports`, and alignments with `afrobim-alignment`; this crate depends on both. The
+road modules' definitions are read with `afrobim-markings`, `-drainage`, `-gantry`, `-lighting`,
+`-restraint`, `-pavement` and `-corridor`, on which it also depends (see "The road modules").
+The signature of `export_ifc_model` and the structs it takes are unchanged: the application's
+existing call exports the road modules as soon as it hands over their elements and, where it has
+them, what their modules generated. When `IfcElementInput::generated` is `None` for a road
+element, the exporter runs that element's module itself; a corridor is always built from the
+document (`afrobim_corridor::corridor_of`), because its module makes no solids.
 
 ## What both entry points export
 
@@ -262,6 +270,180 @@ An alignment is exported as business logic plus a simple curve:
   Joints that are not continuous are exported as given, with a note.
 - Only the horizontal geometry is exported. There is no `IfcAlignmentVertical` or cant.
 
+## The road modules
+
+`export_ifc_model` writes the elements of nine more categories. Every one is modelled by its
+module in site coordinates (X east, Y north, Z up) and drawn by the 3D view from the `Mesh3` solids
+the module generates, in the frame of the element's `SitePlacement` (a corridor in the frame of its
+built surfaces; `afrobim-app/src/view3d.rs`, `frame_of`). The exporter writes the same solids, as
+`IfcTriangulatedFaceSet`s (`Closed` when every edge of the mesh is matched, as a closed solid is;
+open for the corridor and the ground), at the same placement, so the geometry sits where the 3D
+view draws it. Coincident vertices are merged on the way out (a corridor is built from separate
+quads), which changes no triangle.
+
+### What was checked, and where
+
+The IFC 4.3 documentation site (`ifc43-docs.standards.buildingsmart.org`, and
+`standards.buildingsmart.org`, which it redirects to) answered every request from the build
+environment with a Cloudflare challenge (HTTP 403), so its pages could not be fetched. The entities
+and enumerators were checked instead against two things, fetched on 14 November 2026:
+
+1. The markdown source of the documentation, `buildingSMART/IFC4.3.x-development` on GitHub
+   (`docs/schemas/...`), master at commit `eb77fff73a258dc3220b43d985284c2526b6f91f` (13 November
+   2026). Each page is named in the table below. That repository is the development line, so
+   nothing was taken from it alone:
+2. The **IFC4X3_ADD2** EXPRESS schema and the property-set templates that IfcOpenShell 0.9.0.post1
+   ships (`ifcopenshell.schema_by_name("IFC4X3_ADD2")`, `ifcopenshell.util.pset.get_template("IFC4X3")`).
+   Every enumerator, every `Pset_` / `Qto_` name, the entities each set applies to, every
+   property name and its value type were read from there, and the test script
+   `tests/check_roads_ifc.py` checks every standard set of the exported file against the same
+   templates on each run (name, applicable class and predefined type, property names, value types).
+
+No entity name, enumerator or property-set name here is from memory. Where the documentation had
+no specific entity, the table says so.
+
+### Mapping
+
+| AfroBIM category | IFC 4.3 entity | PredefinedType | Pages checked (`docs/schemas/...`) |
+| --- | --- | --- | --- |
+| `marking` (road marking), carried by a pavement | `IfcSurfaceFeature` adhering to the `IfcPavement` by `IfcRelAdheresToElement`; contained nowhere | `LINEMARKING` ("2D lines painted on pavement surfaces to form boundaries, centrelines and edge markings") | `domain/IfcStructuralElementsDomain/Entities/IfcSurfaceFeature.md`, `.../Types/IfcSurfaceFeatureTypeEnum.md`, `core/IfcProductExtension/Entities/IfcRelAdheresToElement.md` |
+| `marking`, no pavement carries it | **No specific entity fits**: `IfcBuildingElementProxy`, contained in the road, `ObjectType` `marking` | `USERDEFINED` | `shared/IfcSharedBldgElements/Entities/IfcBuildingElementProxy.md`; see "Markings" |
+| `drain` (side drain, an open channel) | `IfcPipeSegment` | `GUTTER` ("a continuous open-channel segment of pipe") | `domain/IfcHvacDomain/Entities/IfcPipeSegment.md`, `.../Types/IfcPipeSegmentTypeEnum.md` |
+| `culvert` (pipe culvert), one per barrel | `IfcPipeSegment`; several barrels are one `IfcGroup` | `CULVERT` ("a covered channel or large pipe that forms a watercourse below ground level, usually under a road or railway") | the same two pages; `core/IfcKernel/Entities/IfcGroup.md` |
+| `gantry` | `IfcElementAssembly` aggregating legs, boom, foundations and the hung signs | `SIGNALASSEMBLY` ("an assembly to physically aggregate together one or more signal instances (and also sign instances) including any supporting structural elements such as a simple pole or a rigid frame gantry") | `core/IfcProductExtension/Types/IfcElementAssemblyTypeEnum.md` |
+| gantry leg | `IfcColumn` | `COLUMN` ("a usually vertical member that may be load bearing") | `shared/IfcSharedBldgElements/Entities/IfcColumn.md`, `.../Types/IfcColumnTypeEnum.md` |
+| gantry boom | `IfcBeam` | `BEAM` ("a standard beam usually used horizontally") | `shared/IfcSharedBldgElements/Types/IfcBeamTypeEnum.md` |
+| gantry foundation | `IfcFooting` | `PAD_FOOTING` (as for sign supports) | see "Entity choices" above |
+| `lighting`, one per column | `IfcElementAssembly` | `MAST` ("a vertical structure for the support or mounting of other equipment such as lights") | `core/IfcProductExtension/Types/IfcElementAssemblyTypeEnum.md` |
+| lighting pole | `IfcMember` | `POST` ("a linear (usually vertical) member used to support something") | `shared/IfcSharedBldgElements/Types/IfcMemberTypeEnum.md` |
+| lighting bracket | `IfcMember` | `NOTDEFINED` ("undefined linear element"; no enumerator names a bracket arm) | the same page |
+| luminaire | `IfcLightFixture` | `NOTDEFINED` (`POINTSOURCE` and `DIRECTIONSOURCE` describe the light emission, which the module does not model) | `domain/IfcElectricalDomain/Entities/IfcLightFixture.md`, `.../Types/IfcLightFixtureTypeEnum.md` |
+| lighting installation of several columns | `IfcGroup` of the column assemblies | none | `core/IfcKernel/Entities/IfcGroup.md` |
+| `restraint` (barrier run) | `IfcRailing` | `GUARDRAIL` ("... or to provide restraint to an errant road vehicle, installed on the central reserve of or alongside a road") | `shared/IfcSharedBldgElements/Entities/IfcRailing.md`, `.../Types/IfcRailingTypeEnum.md`, `domain/IfcRoadDomain/PropertySets/Pset_RoadGuardElement.md` |
+| terminal, transition of a run | `IfcRailing`, aggregated by the run, with `Pset_RoadGuardElement` `IsTerminal` / `IsTransition` | `GUARDRAIL` | the same pages |
+| `pavement` | `IfcPavement` | `FLEXIBLE` when the top layer is hot mix asphalt or surface dressing ("pavement with a bituminous surfacing"), else `NOTDEFINED` | `shared/IfcSharedInfrastructureElements/Entities/IfcPavement.md`, `.../Types/IfcPavementTypeEnum.md` |
+| pavement layer (slab) | `IfcCourse`, aggregated by the pavement | `PAVEMENT` ("a layer within a pavement structure that forms a paved area or road") | `.../Entities/IfcCourse.md`, `.../Types/IfcCourseTypeEnum.md` |
+| `corridor` | **No specific entity fits**: `IfcBuildingElementProxy`, `ObjectType` `corridor`, three open surfaces (finished surface, cut slopes, fill slopes) | `USERDEFINED` | see "Corridors" |
+| `surface` (ground TIN) | `IfcGeographicElement`, contained in the site | `TERRAIN` | `core/IfcProductExtension/Entities/IfcGeographicElement.md`, `.../Types/IfcGeographicElementTypeEnum.md` |
+
+Choices the documentation settled, and what it ruled out:
+
+- **Markings.** `IfcSurfaceFeature` is "a modification at (onto, or into) of the surface of an
+  element". The EXPRESS schema, which the IfcOpenShell validator enforces, makes its inverse
+  `AdheresToElement` mandatory (one or more `IfcRelAdheresToElement`) and has a WHERE rule
+  that `ContainedInStructure` is empty ("Surface features shall have no spatial containment
+  relationship", `IfcSurfaceFeature.md`; the same words are in `IfcRelAdheresToElement.md`).
+  A first version that contained an unattached marking in the road failed both rules. So a marking is an
+  `IfcSurfaceFeature` only when a pavement of the document carries it: same alignment, the
+  marking's stations inside the pavement's, its offset inside the offsets the pavement covers
+  (first strip's left edge to last strip's right edge). Otherwise it is an
+  `IfcBuildingElementProxy`, contained in the road, and a note says so; it then has no
+  `Pset_RoadMarkingCommon`, `Pset_MarkingLinesCommon` or `Qto_SurfaceFeatureBaseQuantities`, which
+  apply to `IfcSurfaceFeature` only.
+- **`IfcCivilElement` is not used.** `IfcCivilElement.md`: "IFC4.3.0.0 DEPRECATION This entity is
+  deprecated. Usage of a generic element for civil engineering works is no longer desirable".
+  `IfcBuildingElementProxy` is the documented generic.
+- **Corridors.** `IfcEarthworksCut` is an `IfcFeatureElementSubtraction`: "the resulting void",
+  related to the element it voids by `IfcRelVoidsElement` and placed relative to it
+  (`IfcFeatureElementSubtraction.md`); a corridor's cut slopes are a surface, and there is no
+  element to void. `IfcEarthworksFill` (`SLOPEFILL`, "side slope (batter) fill") names a body, and
+  the module's fill slopes are a surface. The corridor is therefore the generic proxy, with the
+  surfaces as they are built.
+- **Terrain is contained in the site.** `IfcGeographicElement.md`, "Spatial Containment":
+  `IfcSite` ("assignment to a site"). The road is a facility; the ground is not part of it.
+  Everything else is contained in the existing `IfcRoad`; there are no `IfcRoadPart`s.
+- **Lighting pole is `POST`, not `STANDCOLUMN`.** `IfcColumnTypeEnum.STANDCOLUMN` is "a column
+  transmitting vertical loads from a superstructure to an arch below it". A pole supports a
+  luminaire, which is what `IfcMemberTypeEnum.POST` says.
+- **The gantry is `SIGNALASSEMBLY`, not `RIGID_FRAME`.** `RIGID_FRAME` ("with moment-resisting
+  joints, such as gantry") would claim a structural form the module does not model ("schematic
+  envelopes of entered dimensions"); `SIGNALASSEMBLY` names a rigid frame gantry too and is the
+  documented place for sign instances, which are aggregated as parts, as `IfcSign.md` says.
+- **Pavement type.** `FLEXIBLE` is claimed only for a top layer that is bituminous in the model's
+  own material list (`HotMixAsphalt`, `SurfaceDressing`). The module has no concrete material, so
+  `RIGID` is never written; anything else is `NOTDEFINED`.
+
+### Containment and relationships
+
+- Contained in the `IfcRoad` (one `IfcRelContainedInSpatialStructure`): every root product: the
+  drain, each culvert barrel, each gantry assembly, each lighting-column assembly, each barrier
+  run, each pavement, each corridor, and the markings no pavement carries. Contained in the
+  `IfcSite`: the ground surfaces. Not contained: parts of assemblies and of runs and pavements,
+  and markings that adhere (bSI rule SPS007 and the entity documents: an element is contained or
+  an aggregated part, never both).
+- `IfcRelAggregates`: gantry to its legs, boom, foundations and signs; column assembly to its
+  pole, brackets and luminaires; run to its terminals and transitions; pavement to its courses.
+  Parts are placed relative to their whole (bSI rule OJP001).
+- `IfcRelAdheresToElement`: pavement to the markings it carries.
+- `IfcGroup` and `IfcRelAssignsToGroup`: one element that is several products: a lighting
+  installation of several columns, a culvert of several barrels. The group has the element's
+  GlobalId, name and properties and no position.
+- `IfcRelPositions`: the alignment to every root whose site placement names it (and to every
+  lighting column, which names the alignment its layout was computed on).
+- **Placement is absolute.** Each root has an `IfcLocalPlacement` relative to the road at its
+  `SitePlacement`; station and offset are properties (`AfroBIM_SitePlacement`: `Alignment`,
+  `StationM`, `OffsetM`; and the range in the element's own set). **No `IfcLinearPlacement` is
+  written**: it needs a curve geometry (`IfcGradientCurve` or `IfcCompositeCurve`) on the
+  alignment, which this crate does not write.
+
+### Per category
+
+All lengths are millimetres in the file, areas m², volumes m³, as in the rest of the crate. Every
+element also has `AfroBIM_Properties` (its own properties), `AfroBIM_Derived` (what the module
+derived, complete), `AfroBIM_Notes` (every note the module attached: severity and message, named
+by the note's code) and `AfroBIM_SitePlacement`. Each set below named `AfroBIM_...` also carries
+`Mark`, `Category` and `Layer`, the alignment, stations (a range as `StartStationM`,
+`EndStationM`, a single station as `StationM`) and offset where the element has them, and
+`DesignBasis` where there is one (the element property `design_basis` copied unchanged; for a
+marking, when that is absent, the edition of the Traffic Signs Manual the module checks against,
+`afrobim_markings::EDITION`). The other modules record no design basis in the element, so none is
+written for them.
+
+| Element | Standard sets (names, applicable entity and property names checked) | `AfroBIM_` sets |
+| --- | --- | --- |
+| Marking | `Pset_RoadMarkingCommon` (`DiagramNumber`, `MaterialColour`, `MaterialType` when the material is entered), `Pset_MarkingLinesCommon` (`DashedLine`, `DashedLinePattern`, `NominalWidth`, the overall width of a double line), `Qto_SurfaceFeatureBaseQuantities` (`Area` painted, `Length` painted) | `AfroBIM_RoadMarking` (line type, diagram, TSRGD reference, pattern, width, colour, speed limit, material, source citation), `AfroBIM_Quantities` (overall and painted length, painted area, marks, part marks) |
+| Side drain | `Pset_PipeSegmentTypeGutter` (`IsCovered` false), `Pset_PipeSegmentOccurrence` (`Gradient`), `Qto_PipeSegmentBaseQuantities` (`Length` of the drain's own centreline) | `AfroBIM_SideDrain` (section, lining, gradient, Manning's n, placeholder flag), `AfroBIM_Quantities` (excavation, lining and areas) |
+| Culvert barrel | `Pset_PipeSegmentTypeCommon` (`InnerDiameter`, `OuterDiameter`, `Length`), `Pset_PipeSegmentTypeCulvert` (`InternalWidth`, `ClearDepth`, both the diameter of a circular barrel), `Pset_PipeSegmentOccurrence` (`Gradient`, fall over plan length), `Qto_PipeSegmentBaseQuantities` (`Length` of one barrel); `IfcMaterial` when the material text is entered | `AfroBIM_PipeCulvert` (barrels, diameter, wall, inverts, skew, road level, material), `AfroBIM_Quantities` |
+| Gantry | `Pset_ElementAssemblyCommon` (`Reference`); legs `Qto_ColumnBaseQuantities` (`Length`), boom `Qto_BeamBaseQuantities` (`Length`), foundations `Qto_FootingBaseQuantities` (`Length`, `Width`, `Height`, `GrossVolume`) | `AfroBIM_Gantry`, `AfroBIM_GantryMember` (envelope, offset, levels, mass per metre where entered), `AfroBIM_GantryMount` on each hung sign (lane or offset, bottom above the boom, traffic served), `AfroBIM_Quantities` (span or outreach, boom, signs, sign area, foundation concrete); steel mass only where every member has a mass per metre |
+| Lighting column | `Pset_ElementAssemblyCommon` (`Reference`); pole `Pset_MemberCommon` (`IsExternal`); luminaire `Pset_LightFixtureTypeCommon` (`TotalWattage`, `Reference`) | `AfroBIM_LightingColumn` (side, station, offset, level, bearing, mounting height, outreach, tilt, lighting class), `AfroBIM_LightingPart` (luminaire: product, lumen output, power, photometric file, intensity class, CCT, CRI, LED, risk group, mass, windage), `AfroBIM_LightingInstallation` on the group (counts, connected load) |
+| Barrier run | `Pset_RoadGuardElement` (`IsTerminal` and `IsTransition` false), `Pset_RailingCommon` (`IsExternal`), `Qto_RailingBaseQuantities` (`Length` along the barrier) | `AfroBIM_BarrierRun` (classes, system, post spacing, beam height, end treatments, set-back), `AfroBIM_Quantities`; `AfroBIM_BarrierEnd` on a terminal or transition |
+| Terminal, transition | `Pset_RoadGuardElement` (`IsTerminal` or `IsTransition`, `TerminalType` = the performance class) | `AfroBIM_BarrierEnd` |
+| Pavement | `Pset_PavementCommon` (`Reference`, `NominalLength`, `NominalWidth` of the carriageway, `NominalThickness` of its layers), `Qto_PavementBaseQuantities` (`Length`, `NetVolume` of all slabs) | `AfroBIM_Pavement`, `AfroBIM_Quantities` (carriageway area, total volume, slabs) |
+| Course | `Pset_CourseCommon` (`NominalLength`, `NominalWidth`, `NominalThickness`), `Qto_CourseBaseQuantities` (`Length` of the strip's own centre line, `Width`, `Thickness`, `Volume` compacted); `IfcMaterial` named by the layer's material | `AfroBIM_PavementLayer`, `AfroBIM_Quantities` (plan area) |
+| Corridor | none (the proxy has no standard set that fits) | `AfroBIM_Corridor` (alignment, ground surface, definition, regions, interval, stations), `AfroBIM_Quantities` (total cut, total fill, unmeasured length, sections, sections without areas: the module's earthworks by average end area) |
+| Ground | none | `AfroBIM_Surface` (source) |
+
+The quantities are the modules' own, computed from the definitions (`MarkingQuantities`,
+`DrainQuantities`, `CulvertQuantities`, `GantryQuantities`, `RunQuantities`,
+`measure_definition`, the corridor's `CorridorSummary`), never from the display solids. Where the
+solid is an exact prism the two agree and the test script compares them: the painted area times
+the display thickness against the kernel's volume of a marking (within 0.1 %), a gantry
+foundation's `GrossVolume` against its mesh (1e-6), a pavement course's `Volume` against its slab
+(7e-6 on the test document).
+
+### Geometry notes
+
+- **Display shapes stay display shapes.** The module solids are schematics, and are exported as
+  such: lighting columns (a 200 mm display diameter, a square bracket, a luminaire block), the
+  barrier (a post prism and a beam strip at the entered height and spacing), the 5 mm of a
+  marking, the 50 mm skin of an unlined drain, gantry members as the boxes and cylinders of their
+  entered envelopes. None of these dimensions is in a quantity or a standard set.
+- **Vertical position is the module's.** Markings, lighting and restraint carry the profile
+  levels; a pavement is modelled at z = 0 at its carriageway centre and a side drain with its top
+  edges at z = 0 (neither uses the vertical profile); culverts sit at the entered inverts; the
+  corridor and the ground carry elevations. Exported where the 3D view draws them, they therefore
+  do not all stand at the profile.
+- **Terminals and transitions have no geometry**: the module draws none. They are products with a
+  position at the end of the barrier line and properties, and a note says so.
+- **The ground is the surface the module shows**: the whole TIN up to the module's display cap
+  (20 000 triangles), above which it is the regular grid the module resamples it to, and a note
+  says so. Calculations in the module use the whole TIN.
+- **A culvert barrel and a gantry member are separate products.** A barrel has its own pipe
+  segment; a twin-barrel culvert is a group of two.
+- **File size.** The test document (every module, 1.9 thousand instances) is about 280 KiB. Size
+  follows the modules' meshes: a long pavement, corridor or lighting installation has many
+  triangles, and a survey ground has up to 20 000.
+
 ## The sheet convention
 
 Where nothing is placed on site, the design sheet is stood upright:
@@ -283,7 +465,8 @@ placement.
 ## What is not exported
 
 - Linear placement (`IfcLinearPlacement`), alignment curve geometry (`IfcCompositeCurve`,
-  `IfcGradientCurve`), vertical profiles and cant.
+  `IfcGradientCurve`), vertical profiles and cant. Road-module elements are placed absolutely,
+  with station and offset as properties.
 - Georeferencing: no map conversion or coordinate reference system; no `IfcRoadPart` breakdown.
 - Fixings, clamps, base plates, reinforcement, the socket as a void, excavation and backfill.
 - Material grades, categories, layers or profile sets (`IfcMaterialProfileSet`); sheeting classes
@@ -294,6 +477,14 @@ placement.
   of `Generated`.
 - `Pset_SignCommon.Category` and `TactileMarking`, `Qto_SignBaseQuantities.Weight`, the other
   properties of `Pset_MemberCommon`, `Pset_FootingCommon`: the document has no values for them.
+- For the road modules: type objects (`IfcPipeSegmentType`, `IfcRailingType`, ...), classification
+  references (the classification is the entity and predefined type of the mapping table; no
+  `IfcClassificationReference` is written), `IfcRoadPart`s, materials beyond the free text of a
+  pavement layer or a culvert, mass and weight quantities (masses are properties), photometry,
+  structural or hydraulic design results (they are checks in the modules, not stored in the
+  element), geometry for terminals and transitions, the markings' other types (arrows, hatching,
+  studs: the markings module does longitudinal lines only), the survey ground beyond the display
+  cap.
 - Import: the crate cannot read IFC.
 
 ## Validating a file
@@ -305,6 +496,7 @@ test-time tool only. The Rust crate and its Rust tests do not depend on Python.
 pip install ifcopenshell pytest      # pytest is what IfcOpenShell's EXPRESS rule checker needs
 python3 crates/afrobim-ifc/tests/check_ifc.py sheet.ifc          # a file from export_ifc
 python3 crates/afrobim-ifc/tests/check_model_ifc.py model.ifc    # a file from export_ifc_model
+python3 crates/afrobim-ifc/tests/check_roads_ifc.py roads.ifc    # a model with road-module elements
 ```
 
 Both scripts open the file and run `ifcopenshell.validate.validate` (attribute types and
@@ -333,17 +525,51 @@ alignment's element, the stationing, what it positions, and the Axis polyline ag
 `IfcCompositeCurve` that `ifcopenshell.api.alignment` derives from the exported segments,
 evaluated by IfcOpenShell's kernel (limit 0.01 mm).
 
-`cargo test -p afrobim-ifc` runs both: `tests/ifcopenshell.rs` and `tests/ifcopenshell_model.rs`
-export their fixtures to `target/tmp`, write the expectations and run the scripts. When `python3`
+`check_roads_ifc.py` checks, on any export that holds road-module elements: schema and EXPRESS
+rules; project > site > road; that every element is a root contained in the road (terrain: in the
+site), an aggregated part placed relative to its whole, or a surface feature that adheres to an
+element and is contained nowhere; that every class and predefined type is in the mapping table;
+that every `Pset_` / `Qto_` set exists in the IFC4X3 templates, applies to the class and
+predefined type it is on, uses only the template's property names and the template's value types
+(and `AfroBIM_` for the rest); and that IfcOpenShell's geometry iterator builds a shape for every
+product with a representation. With expectations it also compares the kernel's world bounding box
+and triangle count of every element with the module's solids moved to where the 3D view draws
+them (limit 0.05 mm), placements read back through the chain (0.001 mm), the relationships
+(adhesion, groups, aggregation, positioning), entity counts, and the quantities against kernel
+volumes where they can be compared.
+
+`cargo test -p afrobim-ifc` runs all three: `tests/ifcopenshell.rs`, `tests/ifcopenshell_model.rs`
+and `tests/ifcopenshell_roads.rs` export their fixtures to `target/tmp`, write the expectations and run the scripts. When `python3`
 or `ifcopenshell` is missing these tests print `SKIPPED: IfcOpenShell validation not run ...` and
 pass; set `AFROBIM_REQUIRE_IFCOPENSHELL=1` to make that a failure instead. `tests/export.rs` and
-`tests/model.rs` hold the checks that need no toolkit: determinism, byte-identity of the plain
+`tests/model.rs` hold the checks that need no toolkit, and so does `tests/roads.rs`, which builds a
+document with an element of every module through the modules' own APIs
+(`tests/common/roads.rs`) and checks entities and counts, containment, adhesion, placements,
+geometry against the modules' solids, standard sets and quantities against the modules' own
+numbers, positioning, determinism (with and without `generated`), and elements whose data cannot
+be read; the others: determinism, byte-identity of the plain
 export, GlobalIds, string escaping, instance ids and references, entity counts, units,
 placements, relationships, swept-solid parameters, property sets, quantities, the alignment's
 segments, and the fallbacks.
 
 ### What was validated, and what was not
 
+**Road modules.** Validated with IfcOpenShell 0.9.0.post1 on the document of
+`tests/common/roads.rs`, built through the modules' APIs on one alignment (lines, a right-hand
+arc, a profile): three markings (two carried by the pavement, one beyond it), a side drain, a
+single and a twin-barrel culvert, a portal and a cantilever gantry with a sign on the portal, an
+installation of staggered lighting columns and a single column with two luminaires, a barrier
+run with a terminal and a transition, a two-slab pavement with a surface-dressing layer of no
+thickness, a ground TIN and a corridor on it (with cut and fill): `ifcopenshell.validate`
+with schema and EXPRESS rules, **0 issues**; 116 properties of standard sets checked against the
+IFC4X3 templates; 41 shapes built by the geometry iterator for the 41 products with a
+representation; bounding boxes against the modules' solids to 7e-7 mm and triangle counts equal;
+placements to 5e-7 mm; pavement course volumes against their slabs to 7e-6; 939 checks in all.
+The same document without its pavement and corridor (every marking then a proxy) also validates.
+Validation found one real defect on the way: the first version contained an unattached marking
+in the road, which the schema forbids (see "Mapping"); that case is now a proxy.
+
+**Signs, supports and alignments.**
 Validated with IfcOpenShell 0.9.0 on the fixture of `tests/common/site.rs` (five signs with
 supports of every section and shape, placed and unplaced, one sign alone, one loose post, one
 unknown category, one alignment of lines, arcs and clothoids turning both ways) and on the same
@@ -354,6 +580,12 @@ IfcOpenShell's composite curve.
 
 Not validated:
 
+- The road modules were exercised on the hand-built document above and not on a real design
+  (no corridor from a surveyed ground and a LandXML alignment through the toolkit; the larger the
+  document, the larger the file).
+- No file has been opened in a **commercial BIM viewer**, and none in any viewer: what a viewer
+  does with a proxy, a group, a surface feature that adheres to a pavement, or the open surfaces
+  of a corridor was not looked at.
 - The **buildingSMART Validation Service** has not been run. Its rules were read and followed
   where named above (SPS007, OJP001, ALB004, ALB015, ALS005, the spatial composition table), but
   IfcOpenShell's validator checks the schema, not those rules, and not any model view definition.

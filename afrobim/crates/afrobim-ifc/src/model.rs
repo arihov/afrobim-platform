@@ -8,9 +8,12 @@
 //!   solids built from their definitions;
 //! * a sign and its supports as one `IfcElementAssembly` (`SIGNALASSEMBLY`);
 //! * `IfcLocalPlacement`s from each element's `SitePlacement`, inside an `IfcRoad`;
-//! * alignments as `IfcAlignment` with their horizontal layout.
+//! * alignments as `IfcAlignment` with their horizontal layout;
+//! * the road modules' elements, in `road.rs`.
 //!
 //! A document with none of these gives the same text as [`crate::export_ifc`].
+
+mod road;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -28,6 +31,10 @@ use crate::{clip, element_global_id, step_real, step_string, IfcElementInput, If
 pub const POST_CATEGORY: &str = afrobim_supports::POST_CATEGORY;
 /// Category of the elements exported as `IfcFooting` (`PAD_FOOTING`).
 pub const FOUNDATION_CATEGORY: &str = afrobim_supports::FOUNDATION_CATEGORY;
+pub use road::{
+    CORRIDOR_CATEGORY, CULVERT_CATEGORY, DRAIN_CATEGORY, GANTRY_CATEGORY, LIGHTING_CATEGORY, MARKING_CATEGORY, PAVEMENT_CATEGORY, RESTRAINT_CATEGORY, SURFACE_CATEGORY,
+};
+
 /// Category of the elements exported as `IfcAlignment`.
 pub const ALIGNMENT_CATEGORY: &str = afrobim_alignment::CATEGORY;
 /// The element property that holds the free text describing what a support was designed to.
@@ -86,6 +93,16 @@ pub fn export_ifc_model(document: &Document, elements: &[IfcElementInput], optio
         }
     }
 
+    // Signs hung on a gantry are parts of the gantry's assembly, written with it.
+    let mut hung: BTreeSet<ElementId> = BTreeSet::new();
+    for input in elements {
+        let e = input.element;
+        let on_gantry = e.host.and_then(|id| by_id.get(&id)).is_some_and(|h| h.element.category == road::GANTRY_CATEGORY);
+        if e.category == SIGN_CATEGORY && on_gantry && valid_site(e).is_some() && !supports.contains_key(&e.id) {
+            hung.insert(e.id);
+        }
+    }
+
     let alignments: BTreeMap<ElementId, Alignment> = by_id
         .values()
         .filter(|i| i.element.category == ALIGNMENT_CATEGORY)
@@ -93,9 +110,12 @@ pub fn export_ifc_model(document: &Document, elements: &[IfcElementInput], optio
         .filter(|(_, a)| alignment_problem(a).is_none())
         .collect();
     let placed = by_id.values().any(|i| i.element.category != ALIGNMENT_CATEGORY && valid_site(i.element).is_some());
-    let plan = Plan { road: placed || !alignments.is_empty(), volume_unit: by_id.values().any(|i| is_support(i.element)) };
+    let on_road = by_id.values().any(|i| road::is_road_category(&i.element.category));
+    let plan = Plan { road: placed || !alignments.is_empty() || on_road, volume_unit: on_road || by_id.values().any(|i| is_support(i.element)) };
 
-    let mut m = Model { w: Writer::new(options, plan), document, by_id: &by_id, materials: BTreeMap::new(), positioned: Vec::new(), axis_context: None };
+    let mut m = Model { w: Writer::new(options, plan), document, by_id: &by_id, materials: BTreeMap::new(), positioned: Vec::new(), axis_context: None, road: road::RoadState::default() };
+    m.road.hung = hung.clone();
+    m.prepare_road(elements);
     let mut notes = Vec::new();
     let mut roots = Vec::new();
     let mut aligned = Vec::new();
@@ -117,8 +137,12 @@ pub fn export_ifc_model(document: &Document, elements: &[IfcElementInput], optio
             }
             continue;
         }
-        if sign_of.contains_key(&e.id) {
-            continue; // written with its sign
+        if sign_of.contains_key(&e.id) || hung.contains(&e.id) {
+            continue; // written with its sign, or with its gantry
+        }
+        if road::is_road_category(&e.category) {
+            roots.extend(m.road_element(input, &mut notes));
+            continue;
         }
         if valid_site(e).is_none() {
             unplaced += 1;
@@ -152,6 +176,7 @@ pub fn export_ifc_model(document: &Document, elements: &[IfcElementInput], optio
     if placed && unplaced > 0 {
         notes.push(format!("{unplaced} element(s) have no site placement and stand at their sheet position, upright in the plane Y = 0"));
     }
+    m.finish_road();
     if !roots.is_empty() {
         m.w.contain(&roots);
     }
@@ -219,6 +244,8 @@ enum Quantity<'a> {
     Area(&'a str, f64),
     /// m³.
     Volume(&'a str, f64),
+    /// A number of items.
+    Count(&'a str, i64),
 }
 
 impl Writer<'_> {
@@ -287,6 +314,11 @@ impl Writer<'_> {
 
     /// An element quantity set and its relationship to `product`.
     fn quantities(&mut self, product: u32, element: ElementId, name: &str, items: &[Quantity]) {
+        self.quantities_of(product, &format!("element/{}", element.0), name, items);
+    }
+
+    /// The same for any object; `owner` scopes the GlobalIds of the set and its relationship.
+    fn quantities_of(&mut self, product: u32, owner: &str, name: &str, items: &[Quantity]) {
         let ids: Vec<u32> = items
             .iter()
             .map(|q| match q {
@@ -294,11 +326,12 @@ impl Writer<'_> {
                 // Square and cubic metres need more than six decimals to hold a square millimetre.
                 Quantity::Area(n, v) => self.data.add("IFCQUANTITYAREA", &format!("{},$,$,{},$", step_string(n), step_fine(*v))),
                 Quantity::Volume(n, v) => self.data.add("IFCQUANTITYVOLUME", &format!("{},$,$,{},$", step_string(n), step_fine(*v))),
+                Quantity::Count(n, v) => self.data.add("IFCQUANTITYCOUNT", &format!("{},$,$,{v},$", step_string(n))),
             })
             .collect();
-        let guid = step_string(&self.guid(&format!("element/{}/qto/{name}", element.0)));
+        let guid = step_string(&self.guid(&format!("{owner}/qto/{name}")));
         let set = self.data.add("IFCELEMENTQUANTITY", &format!("{guid},$,{},$,$,{}", step_string(name), refs(&ids)));
-        self.define(product, element, name, set);
+        self.define_of(product, owner, name, set);
     }
 }
 
@@ -345,6 +378,8 @@ struct Model<'a> {
     positioned: Vec<(u32, String)>,
     /// The 'Axis' subcontext, created with the first alignment.
     axis_context: Option<u32>,
+    /// What the road modules' elements leave for the end of the export.
+    road: road::RoadState,
 }
 
 impl Model<'_> {
