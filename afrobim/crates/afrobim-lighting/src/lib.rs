@@ -5,14 +5,17 @@
 //! # What governs
 //!
 //! UK practice is the core: DMRB **TD 501 Road lighting design, Version 0.1.0 (September 2025)**,
-//! which applies BS 5489-1 and BS EN 13201. Those two British Standards are not freely readable
-//! and TD 501 reproduces no table from them, so this crate holds **no lighting class table, no
-//! luminance, illuminance or uniformity value, no maintenance factor and no spacing rule**. The
-//! lighting class is a label the engineer enters. The [`design`] module checks only what TD 501
-//! and the DMRB documents it names (TA 501, CD 109, CD 377) state in a form that can be applied
-//! exactly, and says in each line where the requirement comes from. The MoWT *Road Design Manual
-//! Volume 1: Geometric Design* (January 2010), section 12.8, is reported beside it as a local
-//! reference; where it differs, the UK documents govern.
+//! which applies BS 5489-1 and BS EN 13201 and reproduces no table from them. The current
+//! editions of those standards have not been read. The owner's copy of **BS 5489-1:2003, a
+//! superseded edition**, is held in [`bs5489_2003`] (column clearances, class selection tables,
+//! luminaire maintenance factors) and is labelled as superseded wherever it is used. BS EN
+//! 13201-2 is not held, so this crate has **no luminance, illuminance, uniformity or threshold
+//! increment value and no spacing rule**, and the lighting class is a label the engineer enters.
+//! The [`design`] module checks only what these documents and the DMRB documents TD 501 names
+//! (TA 501, CD 109, CD 377) state in a form that can be applied exactly, and says in each line
+//! where the requirement comes from. The MoWT *Road Design Manual Volume 1: Geometric Design*
+//! (January 2010), section 12.8, and TII DN-LHT-03038 (Ireland, February 2012) are reported
+//! beside it as secondary references; where they differ, TD 501 governs.
 //!
 //! # What is modelled
 //!
@@ -23,6 +26,8 @@
 //!   schematic solids from the positions stored in the element.
 //! - [`LightingQuantities`], [`schedule_to_csv`], [`summary_to_csv`]: the take-off.
 //! - [`design::check_lighting`]: the requirement checks, line by line.
+//! - [`bs5489_2003`]: the tables of the superseded BS 5489-1:2003, in one module so that a
+//!   later edition can replace it.
 //!
 //! The geometry is a diagram: a column of a nominal display diameter, a straight horizontal
 //! bracket and a block for the luminaire, at the entered mounting height and outreach. It is not

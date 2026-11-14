@@ -35,24 +35,37 @@ or table in a comment.
 | DMRB TA 501 *Road lighting appraisal* | Revision 0, March 2020 | standardsforhighways.co.uk | Clause 1.1: the need for lighting is established by appraisal |
 | DMRB CD 109 *Highway link design* | Version 1.1.0, 30 October 2026 | standardsforhighways.co.uk | Table 2.10, stopping sight distance, called on by TD 501 clause 3.11 |
 | DMRB CD 377 *Requirements for road restraint systems* | Version 5.0.1, 27 February 2026 | standardsforhighways.co.uk | Clauses 2.2, 2.3 and 2.6.1 item 16, called on by TD 501 clause 3.4 |
-| MoWT *Road Design Manual Volume 1: Geometric Design* | January 2010 | uace.or.ug | Section 12.8 "Lighting" (pages 259 and 260). Local reference only |
+| **BS 5489-1:2003** incorporating Corrigendum No. 1, *Code of practice for the design of road lighting, Part 1* | **2003: superseded** | the owner's copy (not in the repository; copyright BSI) | Table 2, clauses 5.2.1.2, 5.2.3.3, 6.4.4, Tables B.1 to B.5, Table D.1. Module `bs5489_2003` |
+| MoWT *Road Design Manual Volume 1: Geometric Design* | January 2010 | uace.or.ug | Section 12.8 "Lighting" (pages 259 and 260). Secondary reference only |
+| TII DN-LHT-03038 *Design of Road Lighting for the Strategic Motorway and All Purpose Trunk Road Network* | February 2012 (the NRA addendum to UK TD 34/07 of August 2007, which TD 501 has since replaced) | the owner's copy | Paragraphs 2.9, 2.15. Irish; secondary reference only |
 
 Only the core DMRB documents were read, not their National Application Annexes.
 
-**BS 5489-1 and BS EN 13201 are paywalled and TD 501 reproduces no table from them.** TD 501
-hands the lighting class (clause 3.6), the performance values (2.1), the maintenance factor
-(3.8), conflict areas (3.10) and, with CD 377, the column off-set (3.4) to documents that are
-not freely readable (also ILP PLG02, ILP TR30, BS EN 12767). This crate therefore contains:
+> **BS 5489-1:2003 is not the current edition.** It was replaced in 2013 and again in 2020.
+> It is used because it is the edition the owner holds. The later editions select lighting
+> classes differently and use the M, C and P class names of BS EN 13201-2:2015 instead of the
+> ME, CE and S names of 2003; their clearances and maintenance factor guidance may differ too,
+> and Table D.1 predates LED luminaires. **Confirm every value taken from it against the
+> current edition.** Every report line that uses it says "superseded edition", the report opens
+> with a warning, and all of its data is in the one module `bs5489_2003` so that a later
+> edition can replace it.
 
-- no M, C or P lighting class table and no luminance, illuminance, uniformity or glare value;
-- no maintenance factor;
-- no set-back or clearance figure for columns from a UK document;
-- no spacing-to-height rule;
-- no passive safety class by speed.
+TD 501 hands the lighting class (clause 3.6), the performance values (2.1), the maintenance
+factor (3.8), conflict areas (3.10) and, with CD 377, the column off-set (3.4) to BS 5489-1,
+BS EN 13201-2, ILP PLG02, ILP TR30 and BS EN 12767, and reproduces none of them. Of those only
+BS 5489-1:2003 has been read. **BS EN 13201-2 has not been supplied, and BS 5489-1:2003 does not
+reproduce it**, so this crate contains:
 
-Those are inputs: the lighting class is a label, and where a check needs a figure from a
-paywalled standard the engineer enters it with its source and the report says whose figure it
-is. A missing input gives an `INPUT NEEDED` line, never an assumed value.
+- no luminance, uniformity, threshold increment, surround ratio or illuminance value for any
+  lighting class: compliance with a class cannot be shown here;
+- no spacing, mounting height or spacing-to-height rule (BS 5489-1:2003 tabulates none; they
+  come from the photometric calculation);
+- no M, C or P class selection (current editions);
+- no passive safety class by speed (ILP TR30 and BS EN 12767 are not held).
+
+The lighting class stays a label the engineer enters. Where a check needs a current figure the
+engineer enters it with its source and the report says whose figure it is. A missing input gives
+an `INPUT NEEDED` line, never an assumed value.
 
 ### Citations for values in code
 
@@ -65,6 +78,16 @@ is. A missing input gives an `INPUT NEEDED` line, never an assumed value.
 | `TD501_RISK_GROUPS` | RG0, RG1 | TD 501 v0.1.0, clauses 1.4 and 3.15 |
 | tilt check | zero degrees | TD 501 v0.1.0, clause 2.5 |
 | `CD377_RRRAP_SPEED_LIMIT_MPH`, `CD377_RRRAP_AADT` | 50 mph, 5,000 AADT | CD 377 v5.0.1, clauses 2.2 and 2.3 |
+| `bs5489_2003::TABLE_2_CLEARANCE`, `min_clearance_m` | Edge of carriageway to face of column: 0.8 m at 50 km/h, 1.0 m at 80, 1.5 m at 100, 1.5 m at 120 | BS 5489-1:2003, Table 2 |
+| `bs5489_2003::VERTICAL_CLEARANCE_OVER_CARRIAGEWAY_M`, `VERTICAL_CLEARANCE_PEDESTRIAN_M` | 5.7 m; 2.1 m | BS 5489-1:2003, clause 5.2.1.2 |
+| `bs5489_2003::BRACKET_PROJECTION_MAX_FRACTION_OF_HEIGHT` | one quarter of the mounting height | BS 5489-1:2003, clause 5.2.3.3 |
+| `bs5489_2003::TABLE_B1_COMPARABLE` | ME, CE and S classes of comparable level | BS 5489-1:2003, Table B.1 |
+| `bs5489_2003::traffic_route_class` | ME (and S) class by road type and ADT, flow boundaries 40 000, 15 000 and 7 000 | BS 5489-1:2003, Table B.2 |
+| `bs5489_2003::conflict_area_class` | ME1 to ME5 give CE0 to CE4 | BS 5489-1:2003, Table B.3 |
+| `bs5489_2003::subsidiary_road_class` | S1 to S6 by crime rate, Ra, traffic flow and zone | BS 5489-1:2003, Table B.4 |
+| `bs5489_2003::town_centre_class` | CE1 to CE3 by type of traffic, flow and zone | BS 5489-1:2003, Table B.5 |
+| `bs5489_2003::luminaire_maintenance_factor` | 36 values, 0.42 to 0.93, by IP2X/5X/6X, pollution and cleaning interval 12, 18, 24, 36 months | BS 5489-1:2003, Table D.1 |
+| `TII_BRACKET_PROJECTION`, `TII_MAX_BRACKET_INCLINATION_DEG`, `TII_LUMINOUS_INTENSITY_CLASS` | 1.5 m up to 8 m mounting height, else 2 m; 5°; G6 | TII DN-LHT-03038 (2012), paragraphs 2.15, 2.9 |
 | `MOWT_MIN_MOUNTING_HEIGHT_M` | 9 m | MoWT GDM 2010, section 12.8, p. 259 |
 | `MOWT_MEDIAN_MOUNTING_HEIGHT_M` | 12 to 15 m | MoWT GDM 2010, section 12.8, p. 260 |
 | `MOWT_SETBACK_LOW_SPEED`, `MOWT_SETBACK_HIGH_SPEED`, `mowt_setback_behind_kerb_m` | 0.5 m behind the kerb at 50 km/h or less; 1.2 m or greater at 80 km/h or greater | MoWT GDM 2010, section 12.8, p. 260 |
@@ -73,8 +96,9 @@ is. A missing input gives an `INPUT NEEDED` line, never an assumed value.
 
 `design::check_lighting(&data, &inputs)` returns `LightingChecks`; `calculation()` gives the
 report lines, `passes()` is true when no line fails, `notes()` turns failures and missing inputs
-into kernel notes. Each line is `OK`, `FAILS`, `INPUT NEEDED`, `INFORMATION` or `DIFFERS (local
-reference; UK governs)`.
+into kernel notes. Each line is `OK`, `FAILS`, `INPUT NEEDED`, `INFORMATION` or `DIFFERS
+(reference only, does not govern)`. The third line of every report is the warning that
+BS 5489-1:2003 is superseded.
 
 | Check | Clause | Kind |
 |---|---|---|
@@ -93,7 +117,17 @@ reference; UK governs)`.
 | Supply capacity = load + 20 % | TD 501 5.7, 5.8 | arithmetic on the entered powers, luminaires only |
 | Design outputs entered | TD 501 6.53, 6.54 | lists what is missing |
 | Performance, energy indicators, column structure | TD 501 2.1, 4.2, 6.50, 3.19 | stated as not verified |
-| MoWT mounting height, median height, distance behind kerb, frangible columns | MoWT GDM 12.8 | local reference; differences never fail |
+| Lighting class suggested for the road type and ADT | TD 501 3.6; BS 5489-1:2003 Table B.2 | superseded and informative: a different entered class is a difference, not a failure |
+| Conflict area class from the approach class | TD 501 3.10; BS 5489-1:2003 Table B.3 | as above |
+| Column clearance by design speed | TD 501 3.4; BS 5489-1:2003 Table 2 | exact at 50, 80, 100, 120 km/h; can fail; set-back is to the column axis |
+| 5.7 m under a luminaire over the carriageway or within the clearance | BS 5489-1:2003 5.2.1.2 | compares the mounting height; can fail |
+| Bracket projection up to a quarter of the mounting height | BS 5489-1:2003 5.2.3.3 | recommendation: a difference, not a failure |
+| Typical luminaire maintenance factor and its product with the entered lamp factor | TD 501 3.8; BS 5489-1:2003 6.4.4, Table D.1 | information only |
+| Bracket projection 1.5 m or 2 m, inclination up to 5°, G6 | TII DN-LHT-03038 2.15, 2.9 | secondary reference; differences never fail |
+| MoWT mounting height, median height, distance behind kerb, frangible columns | MoWT GDM 12.8 | secondary reference; differences never fail |
+
+`bs5489_2003` also offers `subsidiary_road_class` (Table B.4) and `town_centre_class`
+(Table B.5) for the app to suggest a class; they are not wired into the report.
 
 ## Differences in the MoWT manual
 
@@ -110,6 +144,27 @@ performance values and no reference to a lighting standard. Where it speaks and 
 | Luminaire tilt, light source, glare class | Not addressed | Zero tilt, LED, G4 to G6 (2.5, 3.14) |
 | Unlit gaps | Not addressed | At least 4 × SSD (3.11) |
 | Ducts | Provide ducts during road construction where lighting is intended later | Electrical design, section 5 (not in this crate) |
+
+## Differences in the TII document (Ireland)
+
+DN-LHT-03038 is the UK's TD 34/07 (2007) with an Irish addendum. TD 501 replaced TD 34/07 in the
+UK, so most differences are between an older and a newer UK text.
+
+| Subject | TII DN-LHT-03038 (2012) | TD 501 v0.1.0 (governs) |
+|---|---|---|
+| Luminaire inclination | Brackets inclined slightly upwards, not more than 5° (2.15); no direct light above the horizontal (2.2) | Design tilt shall be zero (2.5) |
+| Luminous intensity class | Should normally be G6 (2.9) | G4 to G6 (2.5, 6.54) |
+| Bracket projection | BS 5489-1 5.2.3.3, and not over 1.5 m up to 8 m mounting height, 2 m otherwise (2.15) | No figure |
+| Column distance from carriageway | Not less than Table 2 of BS 5489-1 (3.4 as amended for Ireland; the UK original sent roads of 50 mph or more to TD 19) | CD 377 and BS 5489-1 (3.4) |
+| Passive safety | UK paragraph 3.5 (TA 89) deleted for Ireland | BS EN 12767 and ILP TR30 (3.5) |
+| Lighting class | Table B.2 of BS 5489-1 with opening-year ADT; ME classes on main carriageways, CE classes in conflict areas, MEW not used unless specified (2.7, 2.8, 3.6) | From BS 5489-1 (current edition) on road hierarchy and traffic data (3.6) |
+| Light source | Colour rendering index Ra ≥ 20 (3.2); dimmable electronic control gear where possible (2.17) | LED (3.14); adaptive lighting and CMS (3.7, 3.18) |
+| Maintenance factor | BS 5489-1 6.4.4, luminaire factors from Table D.1 (3.9) | In accordance with BS 5489-1 (3.8) |
+| Unlit gap | "should not" be less than 4 × SSD (3.19): advice | "shall not" (3.11): a requirement, with SSD one step below desirable minimum |
+| Extent of lighting at junctions | Continue 1.5 × desirable minimum SSD beyond tapers and from conflict points (3.16 to 3.18) | BS 5489-1 and ILP PLG02 (3.10); not coded here |
+| Ingress protection | Preferably IP6X (2.16) | A design output (6.54) |
+
+The 1.5 × SSD extents of TII paragraphs 3.16 to 3.18 are not coded.
 
 ## Layout rules
 
@@ -236,6 +291,18 @@ let csv = schedule_to_csv(&LightingQuantities::of_document(&doc));
    nothing between; and it measures from the kerb, whereas the set-back here is from the
    carriageway edge.
 9. Staggered spacing: see the layout rules.
+10. BS 5489-1:2003 Table 2 gives the clearance to the **face** of the column at four design
+    speeds. It is not interpolated, and the set-back here is to the column **axis** with no
+    column width modelled, so the true face clearance is smaller by half the column width.
+11. BS 5489-1:2003 Table B.2 gives strategic routes "<15 000" and ">15 000": exactly 15 000 ADT
+    has no entry, and the report asks rather than choosing.
+12. BS 5489-1:2003 Table B.3 lists ME1 to ME5 without the a, b, c suffixes; the suffix is
+    ignored. Footnotes b and c of Table B.2 (slip roads, ME3b or ME3c in urban areas) and note 2
+    of Table B.4 (traffic calming) are not applied.
+13. The 5.7 m vertical clearance of BS 5489-1:2003 clause 5.2.1.2 is to the lowest point of the
+    luminaire or bracket; the check compares the mounting height, which is slightly higher.
+14. Class names: an entered "M3" will always show as differing from the 2003 table's "ME3a".
+    That is the edition gap, not a design fault.
 
 ## Not done
 
@@ -243,6 +310,10 @@ let csv = schedule_to_csv(&LightingQuantities::of_document(&doc));
   edge illuminance calculation, no IES LM-63 or EULUMDAT reader, no lumen method. The
   photometric file name is a reference only. Compliance with a lighting class cannot be shown
   with this crate.
+- The performance requirements of the lighting classes (BS EN 13201-2): not supplied, not
+  reproduced by BS 5489-1:2003 or TD 501, so not coded.
+- The current BS 5489-1 (2020): class selection, maintenance factors and clearances of the
+  current edition.
 - Energy performance indicators (BS EN 13201-5), energy and carbon assessment, whole-life cost.
 - Column and foundation structural design (BS EN 40, CD 354, PD 6547). The wind design in
   `afrobim-supports` is for sign posts to the IHE Sign Structures Guide and must not be used for
