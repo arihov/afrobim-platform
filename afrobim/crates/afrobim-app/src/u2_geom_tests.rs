@@ -42,5 +42,20 @@ fn the_solids_of_hatching_and_a_stop_line_lie_at_their_station() {
         let d = ((centre.0 - want.x).powi(2) + (centre.1 - want.y).powi(2)).sqrt();
         eprintln!("{name}: solids centre {centre:?}, alignment point {:?}, distance {d:.2} m, site {:?}", (want.x, want.y), (site.x, site.y));
         assert!(d < 40.0, "{name}: the solids are {d:.1} m from the station");
+        // The level: every solid lies within a thickness of the road level at the stations it
+        // covers (the marking's own two ends bracket them on this gentle profile; 50 mm of slack for
+        // a line across the road, whose ends are at slightly different stations on a bend), not at zero.
+        let profile = al.profile.as_ref().unwrap();
+        let (first, last) = (e.site.as_ref().unwrap().station_m.unwrap(), station * 2.0 - e.site.as_ref().unwrap().station_m.unwrap());
+        let levels: Vec<f64> = (0..=20).map(|k| profile.elevation_at((first + (last - first) * k as f64 / 20.0).clamp(1000.0, 1900.0)).unwrap() * 1000.0).collect();
+        let (lvl_lo, lvl_hi) = levels.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), v| (a.min(*v), b.max(*v)));
+        let mut z = (f64::INFINITY, f64::NEG_INFINITY);
+        for m in &g.solids {
+            for v in &m.vertices {
+                z = (z.0.min(v[2]), z.1.max(v[2]));
+            }
+        }
+        eprintln!("{name}: solids z {z:?}, road level over its stations {lvl_lo:.0} to {lvl_hi:.0} mm");
+        assert!(z.0 >= lvl_lo - 50.0 && z.1 <= lvl_hi + afrobim_markings::DISPLAY_THICKNESS_MM + 50.0, "{name}: solids at {z:?} mm, the road is at {lvl_lo:.0} to {lvl_hi:.0} mm");
     }
 }

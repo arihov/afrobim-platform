@@ -958,3 +958,78 @@ fn definitions_round_trip_and_old_data_reads() {
     // its own elements and rejects the extension's.
     assert!(MarkingDefinition::from_value(&def.to_value()).is_err());
 }
+
+/// A straight road running north from (1000, 5000), stations 0 to 300, rising 3 m over its length
+/// (50 m at station 0, 53 m at station 300): the level at station s is 50 + s / 100 metres, and
+/// plan Y is 5000 + s, so a vertex's expected level follows from its plan position alone.
+fn rising_road() -> (Document, ElementId) {
+    let mut alignment = AlignmentBuilder::new("MC10", 0.0, 1000.0, 5000.0, std::f64::consts::FRAC_PI_2).line(300.0).build().unwrap();
+    alignment.profile = Some(afrobim_alignment::Profile::new("FG", vec![afrobim_alignment::Pvi::point(0.0, 50.0), afrobim_alignment::Pvi::point(300.0, 53.0)]).unwrap());
+    let mut doc = Document::default();
+    let id = doc.add(afrobim_alignment::CATEGORY, "MC10", Pt::new(0.0, 0.0), 1.0, 1.0, "Alignments", serde_json::to_value(&alignment).unwrap());
+    (doc, id)
+}
+
+/// Every vertex of every solid of the marking, in site metres with its height in millimetres.
+fn world_vertices(doc: &Document, id: ElementId) -> Vec<(f64, f64, f64)> {
+    let g = generate(doc, id);
+    let site = doc.find(id).unwrap().site.clone().unwrap();
+    g.solids.iter().flat_map(|m| m.vertices.iter().map(|v| ((site.x + v[0]) / 1000.0, (site.y + v[1]) / 1000.0, v[2]))).collect()
+}
+
+#[test]
+fn every_solid_of_every_kind_of_marking_sits_at_the_road_level_of_its_station() {
+    // A defect this pins: the solids of polygons (stop lines, arrows, the triangle, the diagonals
+    // of hatching, chevrons, studs) were built at height zero, while strips followed the profile,
+    // so on a road at 50 m or more they hung 50 m below the pavement and, in the 3D view, looked
+    // displaced from it. The level here is computed from the plan position alone (Y = 5000 + s,
+    // level = 50 + s/100), not through the engine's own station lookup.
+    let (mut doc, a) = rising_road();
+    let level_at_y = |y_m: f64| (50.0 + (y_m - 5000.0) / 100.0) * 1000.0;
+    let marks = [
+        ("stop line", ExtDefinition::across("1002.1", Basis::Uk, 100.0, -3.5, 0.0)),
+        ("give way triangle", ExtDefinition::point("1023A", Basis::Uk, 120.0, 0.0, 0.0)),
+        ("lane arrow M41", ExtDefinition::point("M41", Basis::Uganda, 140.0, 1.8, 0.0).with_speed(60, "test")),
+        ("arrow block", ExtDefinition::point("1038-ahead", Basis::Uk, 160.0, 1.75, 0.0).with_speed(30, "test")),
+        ("hatching", ExtDefinition::linear("1040", Basis::Uk, 170.0, 200.0, 0.0).with_strip_width(3000).with_width(100).with_speed(40, "test")),
+        ("chevrons", ExtDefinition::linear("1041", Basis::Uk, 210.0, 240.0, 0.0).with_strip_width(3000).with_width(100).with_speed(30, "test")),
+        ("zig-zag", ExtDefinition::linear("M05", Basis::Uganda, 245.0, 270.0, 0.0)),
+        ("studs", ExtDefinition::studs(Basis::Uk, 10.0, 90.0, 0.0, 9000, StudColour::White)),
+        ("zebra", ExtDefinition { count: Some(5), gap_mm: Some(600), ..ExtDefinition::across("M33", Basis::Uganda, 275.0, -2.0, 2.0).with_width(600) }),
+    ];
+    for (what, def) in marks {
+        let id = add_ext_marking(&mut doc, a, "RX-001", &def).unwrap_or_else(|e| panic!("{what}: {e}"));
+        let vertices = world_vertices(&doc, id);
+        assert!(!vertices.is_empty(), "{what}: no solids");
+        // The prism is DISPLAY_THICKNESS_MM thick: the lowest vertex of each column is at the
+        // level and the highest is the thickness above it.
+        for (_, y, z) in &vertices {
+            let level = level_at_y(*y);
+            assert!(*z >= level - 1e-6 && *z <= level + crate::module::DISPLAY_THICKNESS_MM + 1e-6, "{what}: a vertex at y {y:.3} is at {z:.1} mm, the road level there is {level:.1} mm");
+        }
+        // It is not flat on the ground: the span of heights is the rise over the marking's length
+        // (plus the thickness), which for a long marking is far more than the thickness.
+        let (lo, hi) = vertices.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| (lo.min(v.2), hi.max(v.2)));
+        assert!(lo > 50_000.0, "{what}: lowest vertex at {lo} mm");
+        assert!(hi - lo >= crate::module::DISPLAY_THICKNESS_MM - 1e-6, "{what}");
+    }
+}
+
+#[test]
+fn a_marking_sits_over_the_pavement_strip_it_is_laid_on_in_plan_and_in_level() {
+    // The lateral offset is positive to the right looking up-station. On this road, running
+    // north, right is east: an offset of +1.8 m is at X = 1001.8, and -3.5 at X = 996.5.
+    let (mut doc, a) = rising_road();
+    let id = add_ext_marking(&mut doc, a, "RX-001", &ExtDefinition::point("M41", Basis::Uganda, 150.0, 1.8, 0.0).with_speed(60, "test")).unwrap();
+    let v = world_vertices(&doc, id);
+    let (lo, hi) = v.iter().fold(([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]), |(lo, hi), p| ([lo[0].min(p.0), lo[1].min(p.1), lo[2].min(p.2)], [hi[0].max(p.0), hi[1].max(p.1), hi[2].max(p.2)]));
+    let centre = ((lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0);
+    assert!((centre.0 - 1001.8).abs() < 0.05, "X centre {} should be 1001.8", centre.0);
+    assert!((centre.1 - 5150.0).abs() < 0.05, "Y centre {} should be 5150", centre.1);
+    // The arrow's own height sits on the road at its station, 51.5 m at station 150.
+    assert!((lo[2] - 51_000.0).abs() < 600.0 && hi[2] > 51_500.0, "{lo:?} {hi:?}");
+    let id = add_ext_marking(&mut doc, a, "RX-002", &ExtDefinition::across("1002.1", Basis::Uk, 100.0, -3.5, 0.0)).unwrap();
+    let v = world_vertices(&doc, id);
+    let (xlo, xhi) = v.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| (lo.min(p.0), hi.max(p.0)));
+    assert!(xlo > 996.4 && xhi < 1000.1, "the stop line spans X {xlo}..{xhi}, expected 996.5..1000");
+}
