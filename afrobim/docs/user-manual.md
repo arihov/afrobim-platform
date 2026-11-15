@@ -1,6 +1,6 @@
 # AfroBIM user manual
 
-This manual describes the AfroBIM desktop application as the code stands on the `claude/user-manual` branch (workspace version 0.1.0, `afrobim/Cargo.toml`). Where a crate README and the code disagree, the manual follows the code and the disagreement is listed in "Notes for the maintainer" at the end.
+This manual describes the AfroBIM desktop application as the code stood on 15 November 2026 (workspace version 0.1.0, `afrobim/Cargo.toml`). Where a crate README and the code disagree, the manual follows the code and the disagreement is listed in "Notes for the maintainer" at the end.
 
 The reader is a practising highway engineer. The manual does not explain CAD or road engineering basics. It explains what each command asks for, what it produces, the edition of each standard it uses, and the limits the crate authors wrote down.
 
