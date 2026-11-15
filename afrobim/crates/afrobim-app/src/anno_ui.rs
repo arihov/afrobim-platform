@@ -547,7 +547,7 @@ impl AfroBimApp {
         let mut open = true;
         crate::win::new(ctx, "Object snap settings").open(&mut open).default_width(560.0).show(ctx, |ui| {
             ui.checkbox(&mut self.anno.osnap.on, "Object snap on (F3)");
-            ui.label(RichText::new("Used by the text, dimension, leader and measure commands and when dragging an annotation grip. Pick a mode to see which elements provide it.").small().weak());
+            ui.label(RichText::new("Used by the text, dimension, leader and measure commands, when dragging an annotation grip, by the base point and second point of MOVE and COPY, when dragging a grip of an element, and when placing a sign hung from the cursor (its centre lands on the point). Pick a mode to see which elements provide it.").small().weak());
             ui.add_space(4.0);
             egui::Grid::new("osnap-modes").num_columns(2).spacing([14.0, 6.0]).show(ui, |ui| {
                 for m in SnapMode::ALL {
@@ -560,7 +560,7 @@ impl AfroBimApp {
                 }
             });
             ui.add_space(4.0);
-            ui.label(RichText::new("Limits: elements other than alignments, annotations and underlays give snaps from the bounding rectangle of their drawing, not from the artwork inside it. Nothing snaps on a hidden layer. Snap does not yet apply to MOVE, COPY or the signs commands.").small());
+            ui.label(RichText::new("Limits: an element other than an alignment, an annotation or an underlay gives snaps from the lines, arcs and circles of its drawing (the first 2000 of them, and 400 line segments for intersections over all elements); the shapes and lettering of a sign or marking are not snapped to, and an element with no line or arc in its drawing gives the corners, edge middles and centre of its bounding rectangle. Nothing snaps on a hidden layer. A press-and-drag move of the selection snaps to the grid only. The element being moved never snaps to itself.").small());
         });
         self.anno.osnap_open = open;
     }
