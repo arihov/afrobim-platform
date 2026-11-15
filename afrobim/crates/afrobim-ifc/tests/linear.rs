@@ -224,3 +224,28 @@ fn the_export_is_deterministic_in_every_mode() {
         assert_eq!(export(&f, mode).text, export(&f, mode).text);
     }
 }
+
+fn fnv1a(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |h, b| (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3))
+}
+
+/// The files the exporter wrote for these documents before the option existed (commit 0f2351a,
+/// parent of the one that adds it), as length and FNV-1a 64 of the text. `IfcOptions::default()`
+/// must still write them byte for byte.
+#[test]
+fn the_default_export_is_byte_for_byte_what_the_previous_version_wrote() {
+    let sheet = common::fixture();
+    let site = site_fixture();
+    let roads = road_fixture();
+    let got = [
+        ("sheet", afrobim_ifc::export_ifc(&sheet.document, &sheet.inputs(), &options()).text),
+        ("sheet-model", export_ifc_model(&sheet.document, &sheet.inputs(), &options()).text),
+        ("site", export_ifc_model(&site.document, &site.inputs(), &options()).text),
+        ("roads", export_ifc_model(&roads.document, &roads.inputs(), &options()).text),
+    ];
+    let want = [("sheet", 14737, 0x8d58_2f06_6048_a17c_u64), ("sheet-model", 13882, 0xeed6_fb76_5b14_1a36), ("site", 86004, 0x5f29_0b57_d9e7_5d36), ("roads", 291_669, 0xb0c4_eb33_62ce_e533)];
+    for ((name, text), (wname, len, hash)) in got.iter().zip(want) {
+        assert_eq!(*name, wname);
+        assert_eq!((text.len(), fnv1a(text.as_bytes())), (len, hash), "{name} differs from what the previous version wrote");
+    }
+}

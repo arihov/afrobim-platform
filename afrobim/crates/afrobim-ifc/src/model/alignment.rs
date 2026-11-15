@@ -484,7 +484,7 @@ impl Model<'_> {
         let representation = self.w.data.add("IFCSHAPEREPRESENTATION", &format!("#{context},'Axis','Segment',(#{curve_segment})"));
         let shape = self.w.data.add("IFCPRODUCTDEFINITIONSHAPE", &format!("$,$,(#{representation})"));
         let guid = step_string(&self.w.guid(&format!("{owner}/{name}/segment/{index}")));
-        self.w.data.add("IFCALIGNMENTSEGMENT", &format!("{guid},$,{},$,$,#{placement},#{shape},#{design}", step_string(&format!("{}{}", &name[..1].to_uppercase(), index + 1))))
+        self.w.data.add("IFCALIGNMENTSEGMENT", &format!("{guid},$,{},$,$,#{placement},#{shape},#{design}", step_string(&format!("{}{}", name[..1].to_uppercase(), index + 1))))
     }
 
     /// The 'Axis' sub-context, and the 'FootPrint' one, created with the first alignment.
@@ -664,7 +664,13 @@ impl Model<'_> {
             for (i, s) in segs.iter().enumerate() {
                 let (kind, radius) = match s.kind {
                     VKind::Line => ("CONSTANTGRADIENT", None),
-                    VKind::Parabola => ("PARABOLICARC", s.radius),
+                    // The radius of a parabola is the horizontal length over the change of gradient
+                    // (buildingSMART rule ALB012, tolerance 1e-3 in the length unit): worked out
+                    // from the numbers as they are written, not from the unrounded ones.
+                    VKind::Parabola => {
+                        let round = |v: f64, unit: f64| (v * unit).round() / unit;
+                        ("PARABOLICARC", Some(round(s.length * 1000.0, 1e6) / (round(s.g1, 1e12) - round(s.g0, 1e12)) / 1000.0))
+                    }
                     VKind::Circle => ("CIRCULARARC", s.radius),
                 };
                 let design = self.w.data.add(

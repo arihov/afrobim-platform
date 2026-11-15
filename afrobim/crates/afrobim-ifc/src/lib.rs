@@ -14,6 +14,12 @@
 //! sets and quantities the README tabulates. For a document with none of those it writes the same
 //! bytes as [`export_ifc`], which stays as it was: signs on the upright sheet.
 //!
+//! `IfcOptions::alignment` (see [`AlignmentExport`]) switches how alignments are written: the
+//! default is the polyline and absolute placements above; `AlignmentExport::Geometry` writes the
+//! horizontal and vertical layouts with `IfcCompositeCurve` / `IfcGradientCurve` geometry and the
+//! stationing and superelevation referents; `AlignmentExport::Linear` also places the elements
+//! that have a station and offset with `IfcLinearPlacement`.
+//!
 //! The `import` module reads IFC files (IFC2X3, IFC4, IFC4X3) as a reference model for display and
 //! clash checking: [`import::import_ifc`]. The writer above does not change. See the crate README
 //! for the entity mapping, the placement convention, how to validate a file and what the importer

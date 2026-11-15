@@ -195,6 +195,68 @@ def structure(f, expect):
             check(len(pos) == (1 if got else 0), f"{name}: {len(pos)} IfcRelPositions")
 
 
+def service_rules(f):
+    """The alignment rules of the buildingSMART validation service (ifc-gherkin-rules, features
+    ALB and ALS), as far as they can be stated without its harness, re-implemented from the
+    text of the feature files. This is not the service."""
+    hmap = {"LINE": "IfcLine", "CIRCULARARC": "IfcCircle", "CLOTHOID": "IfcClothoid"}
+    vmap = {"CONSTANTGRADIENT": "IfcLine", "PARABOLICARC": "IfcPolynomialCurve", "CIRCULARARC": "IfcCircle"}
+    settings = ifcopenshell.geom.settings()
+    worst = {"position_mm": 0.0, "tangent": 0.0}
+    for a in f.by_type("IfcAlignment"):
+        n = a.Name
+        # ALB003: nested only by horizontal, vertical, cant and referents; ALB030: a local placement.
+        for rel in a.IsNestedBy:
+            for o in rel.RelatedObjects:
+                check(o.is_a() in ("IfcAlignmentHorizontal", "IfcAlignmentVertical", "IfcAlignmentCant", "IfcReferent"), f"ALB003 {n}: nested {o.is_a()}")
+        check(a.ObjectPlacement.is_a("IfcLocalPlacement"), f"ALB030 {n}: placement {a.ObjectPlacement.is_a()}")
+        layouts = [o for rel in a.IsNestedBy for o in rel.RelatedObjects if o.is_a("IfcAlignmentHorizontal") or o.is_a("IfcAlignmentVertical")]
+        # ALB031: one horizontal, or horizontal and vertical.
+        check([x.is_a() for x in layouts] in (["IfcAlignmentHorizontal"], ["IfcAlignmentHorizontal", "IfcAlignmentVertical"]), f"ALB031 {n}: layouts")
+        # ALB010: a referent is nested.
+        check(any(o.is_a("IfcReferent") for rel in a.IsNestedBy for o in rel.RelatedObjects), f"ALB010 {n}: no referent")
+        reps = {(r.RepresentationIdentifier, r.RepresentationType): r.Items[0] for r in a.Representation.Representations}
+        # ALB021: the curve types correspond to the layouts.
+        check((("Axis", "Curve3D") in reps) == any(l.is_a("IfcAlignmentVertical") for l in layouts), f"ALB021 {n}")
+        for layout in layouts:
+            segs = [x for rel in layout.IsNestedBy for x in rel.RelatedObjects]
+            if layout.is_a("IfcAlignmentHorizontal"):
+                curve = reps.get(("FootPrint", "Curve2D")) or reps[("Axis", "Curve2D")]
+                table = hmap
+            else:
+                curve = reps[("Axis", "Curve3D")]
+                table = vmap
+            # ALB022: as many curve segments as layout segments. ALB023: the same geometry type.
+            check(len(curve.Segments) == len(segs), f"ALB022 {n}: {len(curve.Segments)} curve segments for {len(segs)} layout segments")
+            for x, cs in zip(segs, curve.Segments):
+                t = x.DesignParameters.PredefinedType
+                check(cs.ParentCurve.is_a(table[t]), f"ALB023 {n}: {t} has parent curve {cs.ParentCurve.is_a()}")
+                # ALS004 / ALB023 for the segment's own representation: the same curve segment.
+                check(x.Representation.Representations[0].Items[0] == cs, f"ALB023 {n}: segment representation is not the curve's segment")
+                # ALS012: the types of SegmentStart and SegmentLength.
+                check(cs.SegmentStart.is_a() == "IfcLengthMeasure" and cs.SegmentLength.is_a() == "IfcLengthMeasure", f"ALS012 {n}")
+                if layout.is_a("IfcAlignmentVertical"):
+                    d = x.DesignParameters
+                    if t == "PARABOLICARC":
+                        want = d.HorizontalLength / (d.EndGradient - d.StartGradient)
+                        check(abs(d.RadiusOfCurvature - want) <= 1e-3, f"ALB012 {n}: radius {d.RadiusOfCurvature} vs {want}")
+                    elif t != "CIRCULARARC":
+                        check(d.RadiusOfCurvature is None, f"ALB012 {n}: a radius on {t}")
+            # ALB015 / ALS015: the zero-length last segments.
+            check(segs[-1].DesignParameters.is_a("IfcAlignmentHorizontalSegment") and segs[-1].DesignParameters.SegmentLength == 0.0 if layout.is_a("IfcAlignmentHorizontal") else segs[-1].DesignParameters.HorizontalLength == 0.0, f"ALB015 {n}")
+            # ALS016 / ALS017: the end of each segment is the start of the next, by the kernel.
+            for s1, s2 in zip(curve.Segments, list(curve.Segments)[1:]):
+                fn1, fn2 = w.map_shape(settings, s1), w.map_shape(settings, s2)
+                e1 = np.array(w.function_item_evaluator(settings, fn1).evaluate(fn1.end()))
+                st2 = np.array(w.function_item_evaluator(settings, fn2).evaluate(fn2.start()))
+                worst["position_mm"] = max(worst["position_mm"], float(np.linalg.norm(e1[:3, 3] - st2[:3, 3])) * 1000.0)
+                t1, t2 = e1[:3, 0] / np.linalg.norm(e1[:3, 0]), st2[:3, 0] / np.linalg.norm(st2[:3, 0])
+                worst["tangent"] = max(worst["tangent"], float(np.linalg.norm(t1 - t2)))
+    figures["continuity_by_the_kernel"] = worst
+    check(worst["position_mm"] < 1e-3, f"ALS016/ALS017: segments are {worst['position_mm']} mm apart")
+    check(worst["tangent"] < 1e-8, f"ALS016/ALS017: tangents differ by {worst['tangent']}")
+
+
 # ------------------------------------------------------------------------ curve evaluation
 
 
@@ -259,6 +321,51 @@ def recover(referents, station_mm, length_mm):
             dedup.pop()
         dedup.append(v)
     return dedup
+
+
+def derived_curves(path, expect):
+    """The business logic and the geometry say the same thing: IfcOpenShell's own mapping of each
+    IfcAlignmentHorizontalSegment / IfcAlignmentVerticalSegment to an IfcCurveSegment
+    (ifcopenshell.api.alignment, the mapping its alignment API uses to build the geometry from
+    the semantic definition) is applied to the segments the file nests, and the curves it gives
+    are evaluated at the sample distances and compared with the alignment crate."""
+    from ifcopenshell.api.alignment._map_alignment_horizontal_segment import _map_alignment_horizontal_segment
+    from ifcopenshell.api.alignment._map_alignment_vertical_segment import _map_alignment_vertical_segment
+
+    f = ifcopenshell.open(path)
+    settings = ifcopenshell.geom.settings()
+    out = {}
+    for a, e in zip(f.by_type("IfcAlignment"), expect["alignments"]):
+        layouts = {l.is_a(): l for n in a.IsNestedBy for l in n.RelatedObjects if l.is_a("IfcAlignmentHorizontal") or l.is_a("IfcAlignmentVertical")}
+        hsegs = [x for n in layouts["IfcAlignmentHorizontal"].IsNestedBy for x in n.RelatedObjects]
+        mapped = []
+        for x in hsegs:
+            cs = _map_alignment_horizontal_segment(f, x)[0]
+            cs.Transition = "DISCONTINUOUS" if x is hsegs[-1] else "CONTSAMEGRADIENT"
+            mapped.append(cs)
+        composite = f.createIfcCompositeCurve(mapped, False)
+        evh = w.function_item_evaluator(settings, w.map_shape(settings, composite))
+        worst = 0.0
+        for smp in e["samples"]:
+            m = np.array(evh.evaluate(smp["d_m"]))
+            worst = max(worst, math.hypot(m[0, 3] * 1000 - smp["x_mm"], m[1, 3] * 1000 - smp["y_mm"]))
+        worst_z = 0.0
+        if "IfcAlignmentVertical" in layouts:
+            vsegs = [x for n in layouts["IfcAlignmentVertical"].IsNestedBy for x in n.RelatedObjects]
+            vm = []
+            for x in vsegs:
+                cs = _map_alignment_vertical_segment(f, x)[0]
+                cs.Transition = "DISCONTINUOUS" if x is vsegs[-1] else "CONTSAMEGRADIENT"
+                vm.append(cs)
+            gradient = f.createIfcGradientCurve(vm, False, composite)
+            evg = w.function_item_evaluator(settings, w.map_shape(settings, gradient))
+            for smp in e["vertical_samples"]:
+                m = np.array(evg.evaluate(smp["d_m"]))
+                worst_z = max(worst_z, abs(m[2, 3] * 1000 - smp["z_mm"]))
+        out[e["name"]] = {"plan_max_mm": worst, "level_max_mm": worst_z}
+        check(worst < expect["tolerances"]["plan_mm"], f"{e['name']}: curves derived from the design parameters differ by {worst} mm in plan")
+        check(worst_z < expect["tolerances"]["level_mm"], f"{e['name']}: curves derived from the design parameters differ by {worst_z} mm in level")
+    figures["curves_derived_from_the_design_parameters"] = out
 
 
 def stations(f, expect):
@@ -438,8 +545,10 @@ def main():
     validate(fl, "linear")
     validate(fa, "geometry")
     structure(fl, expect)
+    service_rules(fl)
     curve_evaluation(fl, expect)
     stations(fl, expect)
+    derived_curves(linear_path, expect)
     placements(fl, fa, expect)
     worst_independent = independent_frames(fl, fa)
     check(worst_independent < expect["tolerances"]["placement_mm"], f"independent frames differ by {worst_independent} mm")
