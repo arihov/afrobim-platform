@@ -78,6 +78,9 @@ pub struct CanvasController {
     press_on_item: bool,
     press_screen: Pt,
     press_world: Pt,
+    /// The object snap point under the pointer when it was pressed on an element: the base point
+    /// of the press-drag move, as the base point of MOVE is.
+    press_snap: Option<Pt>,
     box_pressed: bool,
     box_removes: bool,
     box_return: CanvasTool,
@@ -85,6 +88,26 @@ pub struct CanvasController {
     /// A model point from object snap, which stands for the pointer while a point is being picked.
     object_snap: Option<Pt>,
     events: Vec<CanvasEvent>,
+}
+
+/// The displacement of a press-drag move of the selection: the pointer at `raw`, the grab point
+/// `base`. An object snap point (`object_snap`) is where the grab point lands, exactly: the
+/// displacement is the vector from the grab point to it, as a MOVE with that second point has, and
+/// ortho and the grid do not move it. With none, the displacement follows the pointer, kept to an
+/// axis by ortho and rounded to the grid spacing. The displacement is snapped, not the pointer:
+/// the grab point is arbitrary.
+pub fn drag_displacement(base: Pt, raw: Pt, object_snap: Option<Pt>, ortho_on: bool, snap_on: bool, spacing: f64) -> Pt {
+    if let Some(target) = object_snap {
+        return target - base;
+    }
+    let mut d = raw - base;
+    if ortho_on {
+        d = ortho(Pt::default(), d);
+    }
+    if snap_on {
+        d = snap(d, spacing);
+    }
+    d
 }
 
 impl Default for CanvasController {
@@ -110,6 +133,7 @@ impl Default for CanvasController {
             press_on_item: false,
             press_screen: Pt::default(),
             press_world: Pt::default(),
+            press_snap: None,
             box_pressed: false,
             box_removes: false,
             box_return: CanvasTool::Idle,
@@ -151,11 +175,16 @@ impl CanvasController {
     pub fn displacement(&self) -> Pt {
         self.displacement
     }
-    /// True while a command is waiting for a point that object snap may give: the base point and
-    /// the second point of MOVE and COPY, a grip being dragged, and a new element hanging from
-    /// the cursor. A press-drag move of the selection snaps to the grid only.
+    /// True while a point is being picked that object snap may give: the base point and the second
+    /// point of MOVE and COPY, a grip being dragged, a new element hanging from the cursor, and a
+    /// press-drag move of the selection (its grab point when the pointer is pressed on an element,
+    /// which is when the pointer is over one, and its target while it is dragged), as MOVE does.
     pub fn wants_object_snap(&self) -> bool {
-        matches!(self.tool, CanvasTool::BasePoint | CanvasTool::SecondPoint | CanvasTool::GripDrag | CanvasTool::Place)
+        match self.tool {
+            CanvasTool::BasePoint | CanvasTool::SecondPoint | CanvasTool::GripDrag | CanvasTool::Place | CanvasTool::DragMove => true,
+            CanvasTool::Idle => self.hover.is_some(),
+            _ => false,
+        }
     }
 
     /// Gives the point object snap found under the pointer (model coordinates), or none. The caller
@@ -272,22 +301,15 @@ impl CanvasController {
         if self.tool == CanvasTool::Idle && self.press_on_item && screen.distance_to(self.press_screen) > Self::DRAG_THRESHOLD_PX {
             self.press_on_item = false;
             self.ghost_ids = doc.selection().to_vec();
-            self.base_point = Some(self.press_world);
+            self.base_point = Some(self.press_snap.take().unwrap_or(self.press_world));
             self.set_tool(CanvasTool::DragMove);
         }
 
         match self.tool {
             CanvasTool::Idle | CanvasTool::SelectObjects => self.update_hover(doc, view, raw),
             CanvasTool::DragMove => {
-                // Snap the displacement, not the cursor: the grab point is arbitrary.
                 let base = self.base_point.unwrap_or(raw);
-                let mut d = raw - base;
-                if self.ortho_on {
-                    d = ortho(Pt::default(), d);
-                }
-                if self.snap_on {
-                    d = snap(d, self.snap_spacing);
-                }
+                let d = drag_displacement(base, raw, self.object_snap, self.ortho_on, self.snap_on, self.snap_spacing);
                 self.displacement = d;
                 self.cursor_world = base + d;
             }
@@ -335,6 +357,7 @@ impl CanvasController {
                     self.press_on_item = true;
                     self.press_screen = screen;
                     self.press_world = raw;
+                    self.press_snap = self.object_snap;
                     return;
                 }
                 self.open_box(screen, shift, CanvasTool::Idle);
@@ -372,6 +395,7 @@ impl CanvasController {
     pub fn left_up(&mut self, doc: &mut Document, view: &mut ViewTransform, screen: Pt) {
         self.pointer_move(doc, view, screen);
         self.press_on_item = false;
+        self.press_snap = None;
 
         match self.tool {
             CanvasTool::DragMove | CanvasTool::GripDrag => {
@@ -612,6 +636,7 @@ impl CanvasController {
 
     fn reset(&mut self) {
         self.object_snap = None;
+        self.press_snap = None;
         self.command = CanvasCommand::None;
         self.box_start = None;
         self.base_point = None;
@@ -861,6 +886,8 @@ mod tests {
         click(&mut c, &mut d, &mut v, s(2400.0, 900.0), false);
         close(origin(&d, 1).x, 1437.0);
         close(origin(&d, 1).y, 413.0);
+        // Back to idle with the pointer over empty space: nothing asks for object snap.
+        c.pointer_move(&mut d, &v, s(7000.0, 5000.0));
         assert!(!c.wants_object_snap());
         // With no snap point the grid and ortho apply again.
         c.set_object_snap(None);
@@ -894,14 +921,69 @@ mod tests {
         close(d.find(id).unwrap().origin.x, 3037.0 - 300.0);
         close(d.find(id).unwrap().origin.y, 2011.0 - 200.0);
 
-        // A press-drag move of the selection and the idle tool do not ask for object snap.
+        // The idle tool asks for object snap only with the pointer over an element (a press there
+        // may start a drag).
         let (mut d, mut v, mut c) = rig();
         assert!(!c.wants_object_snap());
-        c.set_object_snap(Some(Pt::new(7.0, 7.0)));
-        c.left_down(&mut d, &mut v, s(500.0, 250.0), false, false);
-        c.pointer_move(&mut d, &v, s(1500.0, 250.0));
-        assert_eq!(c.tool(), CanvasTool::DragMove);
+        c.pointer_move(&mut d, &v, s(4000.0, 4000.0));
         assert!(!c.wants_object_snap());
+        c.pointer_move(&mut d, &v, s(500.0, 250.0));
+        assert!(c.wants_object_snap());
+    }
+
+    #[test]
+    fn a_press_drag_move_takes_its_grab_point_and_target_from_object_snap() {
+        // Press on A-001 near its corner (1000, 0): object snap gives the corner as the grab point.
+        let (mut d, mut v, mut c) = rig();
+        c.snap_on = true;
+        c.snap_spacing = 100.0;
+        c.ortho_on = true;
+        c.pointer_move(&mut d, &v, s(980.0, 20.0));
+        assert!(c.wants_object_snap());
+        c.set_object_snap(Some(Pt::new(1000.0, 0.0)));
+        c.left_down(&mut d, &mut v, s(980.0, 20.0), false, false);
+        // Dragging: the move is asked for object snap, and the target (4437, 913) is exact, not on
+        // the grid and not on the ortho line.
+        c.set_object_snap(None);
+        c.pointer_move(&mut d, &v, s(1500.0, 20.0));
+        assert_eq!(c.tool(), CanvasTool::DragMove);
+        assert_eq!(c.base_point(), Some(Pt::new(1000.0, 0.0)));
+        assert!(c.wants_object_snap());
+        c.set_object_snap(Some(Pt::new(4437.0, 913.0)));
+        c.pointer_move(&mut d, &v, s(4400.0, 900.0));
+        close(c.displacement().x, 3437.0);
+        close(c.displacement().y, 913.0);
+        close(c.cursor_world().x, 4437.0);
+        c.left_up(&mut d, &mut v, s(4400.0, 900.0));
+        close(origin(&d, 1).x, 3437.0);
+        close(origin(&d, 1).y, 913.0);
+        assert_eq!(origin(&d, 2), Pt::new(2000.0, 0.0));
+        assert_eq!(c.tool(), CanvasTool::Idle);
+
+        // With no snap point the grab point is where the pointer was pressed and the grid and
+        // ortho apply, as before.
+        let (mut d, mut v, mut c) = rig();
+        c.snap_on = true;
+        c.snap_spacing = 100.0;
+        c.left_down(&mut d, &mut v, s(500.0, 250.0), false, false);
+        c.pointer_move(&mut d, &v, s(1000.0, 250.0));
+        assert_eq!(c.base_point(), Some(Pt::new(500.0, 250.0)));
+        c.left_up(&mut d, &mut v, s(1040.0, 330.0));
+        close(origin(&d, 1).x, 500.0);
+        close(origin(&d, 1).y, 100.0);
+    }
+
+    #[test]
+    fn the_drag_displacement_function_snaps_the_displacement_or_takes_the_snap_point() {
+        let (base, raw) = (Pt::new(100.0, 100.0), Pt::new(1340.0, 560.0));
+        // No object snap, no grid, no ortho: the pointer's displacement.
+        assert_eq!(drag_displacement(base, raw, None, false, false, 50.0), Pt::new(1240.0, 460.0));
+        // The grid rounds the displacement (1240, 460) to 100: (1200, 500).
+        assert_eq!(drag_displacement(base, raw, None, false, true, 100.0), Pt::new(1200.0, 500.0));
+        // Ortho keeps the larger component.
+        assert_eq!(drag_displacement(base, raw, None, true, false, 100.0), Pt::new(1240.0, 0.0));
+        // An object snap point wins over both: the vector from the grab point to it.
+        assert_eq!(drag_displacement(base, raw, Some(Pt::new(1337.0, 211.0)), true, true, 100.0), Pt::new(1237.0, 111.0));
     }
 
     #[test]
