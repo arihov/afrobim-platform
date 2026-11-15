@@ -147,15 +147,17 @@ fn builtin_picker(ui: &mut egui::Ui, b: &mut BuiltinChoice) {
 
 /// What the manual does not cover, and the slips found in it.
 fn mowt_panels(ui: &mut egui::Ui) {
-    egui::CollapsingHeader::new("Checks the manual does not cover (stay Not checked)").id_salt("chk-notcovered").show(ui, |ui| {
+    // A screenshot aid: AFROBIM_AID_OPEN_PANELS opens the panels so that they can be captured.
+    let open = std::env::var_os("AFROBIM_AID_OPEN_PANELS").is_some();
+    egui::CollapsingHeader::new("Checks the manual does not cover (stay Not checked)").id_salt("chk-notcovered").default_open(open).show(ui, |ui| {
         for n in afrobim_design::mowt::not_checked_under_mowt_2010() {
-            ui.label(RichText::new(format!("{}: {}. {}", n.check_id, n.what, n.reason)).small());
+            ui.add(egui::Label::new(RichText::new(format!("{}: {}. {}", n.check_id, n.what, n.reason)).small()).wrap());
         }
     });
-    egui::CollapsingHeader::new("Known slips in the manual").id_salt("chk-slips").show(ui, |ui| {
-        ui.label(RichText::new(format!("{} Where a table cell contradicts another table of the same manual it is withheld and the check is reported Not checked, or derived and labelled so; the engineer decides which figure governs.", glue::THIRD_PARTY_NOTE)).small().color(WARN));
+    egui::CollapsingHeader::new("Known slips in the manual").id_salt("chk-slips").default_open(open).show(ui, |ui| {
+        ui.add(egui::Label::new(RichText::new(format!("{} Where a table cell contradicts another table of the same manual it is withheld and the check is reported Not checked, or derived and labelled so; the engineer decides which figure governs.", glue::THIRD_PARTY_NOTE)).small().color(WARN)).wrap());
         for s in afrobim_design::mowt::known_slips() {
-            ui.label(RichText::new(format!("{} ({}): {} Treatment: {}", s.id, s.place, s.what, s.treatment)).small());
+            ui.add(egui::Label::new(RichText::new(format!("{} ({}): {} Treatment: {}", s.id, s.place, s.what, s.treatment)).small()).wrap());
         }
     });
 }
@@ -216,7 +218,7 @@ impl AfroBimApp {
         let mut load: Option<PathBuf> = None;
         let mut template = false;
         let mut csv = false;
-        crate::win::new(ctx, "ALIGNCHECK: design checks").open(&mut open).default_width(980.0).default_height(560.0).show(ctx, |ui| {
+        crate::win::new(ctx, "ALIGNCHECK: design checks").open(&mut open).default_width(860.0).default_height(560.0).vscroll(true).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Alignment");
                 let current = c.design.and_then(|d| designs.iter().find(|x| x.0 == d)).map(|x| x.2.clone()).unwrap_or_else(|| "choose".into());
@@ -241,13 +243,12 @@ impl AfroBimApp {
             if c.source != LimitSource::UserFile {
                 builtin_picker(ui, &mut c.builtin);
                 ui.label(RichText::new(glue::THIRD_PARTY_NOTE).small().weak());
+                mowt_panels(ui);
             }
+            if c.source != LimitSource::Builtin {
             ui.separator();
             ui.label(RichText::new(if c.source == LimitSource::BuiltinWithOverlay { "Your limits table (its stated values replace the built-in ones)" } else { "Limits table" }).strong());
-            if c.source == LimitSource::Builtin {
-                ui.label(RichText::new("Not used: the built-in limits are chosen above. Switch to \"My limits file\" or the overlay to load one.").small().weak());
-            }
-            ui.add_enabled_ui(c.source != LimitSource::Builtin, |ui| {
+            ui.scope(|ui| {
             ui.horizontal(|ui| {
                 ui.add_sized([420.0, 20.0], egui::TextEdit::singleline(&mut c.path).hint_text("path of a limits file (CSV or JSON)"));
                 if ui.button("Browse...").clicked() {
@@ -263,6 +264,7 @@ impl AfroBimApp {
                 }
             });
             });
+            }
             let builtin_ready = c.source == LimitSource::Builtin && c.builtin.selection().is_ok();
             if c.source == LimitSource::Builtin {
                 // The built-in basis needs no file: the run button is here.
@@ -372,9 +374,6 @@ impl AfroBimApp {
                         });
                     });
                 }
-            }
-            if c.source != LimitSource::UserFile {
-                mowt_panels(ui);
             }
             ui.label(RichText::new("These are checks of the geometry against the limits chosen: lateral sight distance, passing and decision sight distance, superelevation and combinations of horizontal and vertical alignment are not checked. A pass is not a certification.").small().weak());
         });

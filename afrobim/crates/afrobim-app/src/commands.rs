@@ -38,6 +38,8 @@ pub enum Action {
     Library,
     AddSupports,
     AddMarking,
+    /// A second-set road marking dialog, by group (`ext_markings_glue::Group::ALL` index).
+    AddExtMarking(u8),
     /// Add the road element with this index in `modules_glue::KINDS`.
     AddRoadElement(u8),
     CheckElement,
@@ -208,6 +210,13 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "LANDXML", aliases: &["ALIGNMENT"], help: "Import horizontal alignments from a LandXML file", action: Action::ImportLandXml },
     CommandInfo { name: "STATION", aliases: &["CHAINAGE"], help: "Place the selected sign on an alignment by station and offset", action: Action::PlaceOnAlignment },
     CommandInfo { name: "MARKINGS", aliases: &["MARKING", "ROADMARKING"], help: "Lay a road marking line along an alignment (Traffic Signs Manual Chapter 5)", action: Action::AddMarking },
+    CommandInfo { name: "MARKTRANSVERSE", aliases: &["STOPLINE", "GIVEWAY"], help: "Lay a stop line, a give way line or the give way triangle across the road, to the UK Chapter 5 or the Uganda manual", action: Action::AddExtMarking(0) },
+    CommandInfo { name: "MARKARROW", aliases: &["ARROWS"], help: "Lay a lane or deflection arrow (UK arrows and Uganda curved arrows are placeholder blocks, not the true shape)", action: Action::AddExtMarking(1) },
+    CommandInfo { name: "MARKHATCH", aliases: &["HATCHING", "CHEVRONS"], help: "Lay hatching, chevrons, island markings or a zig-zag line along the road", action: Action::AddExtMarking(2) },
+    CommandInfo { name: "MARKYELLOW", aliases: &["YELLOWLINE", "WAITING"], help: "Lay a yellow line: waiting restriction or yellow dividing line", action: Action::AddExtMarking(3) },
+    CommandInfo { name: "MARKSTUDS", aliases: &["STUDS", "ROADSTUDS"], help: "Lay road studs along a line, from a row of the manual's stud tables", action: Action::AddExtMarking(4) },
+    CommandInfo { name: "MARKWORD", aliases: &["WORDED", "SLOWMARK"], help: "Lay a worded marking such as STOP or SLOW (a placeholder block, not the true letters)", action: Action::AddExtMarking(5) },
+    CommandInfo { name: "MARKLINES2", aliases: &["UGLINES"], help: "Lay a lane, edge or double line of the Uganda Traffic Signs Manual", action: Action::AddExtMarking(6) },
     CommandInfo { name: "DRAIN", aliases: &["SIDEDRAIN"], help: "Add a side drain along an alignment, with placeholder dimensions to edit", action: Action::AddRoadElement(0) },
     CommandInfo { name: "CULVERT", aliases: &[], help: "Add a pipe culvert across an alignment at a station, with placeholder dimensions to edit", action: Action::AddRoadElement(1) },
     CommandInfo { name: "GANTRY", aliases: &["PORTAL"], help: "Add a portal sign gantry at a station, with placeholder dimensions to edit", action: Action::AddRoadElement(2) },

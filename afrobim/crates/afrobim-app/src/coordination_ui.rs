@@ -177,16 +177,25 @@ fn pick_set(ui: &mut egui::Ui, title: &str, options: &[String], chosen: &mut BTr
     });
 }
 
+/// What a clash run on a worker thread hands back: the coordination state with its results, the
+/// per-test statistics and the number of bodies tested.
+pub struct ClashOut {
+    pub co: afrobim_coordination::Coordination,
+    pub stats: Vec<afrobim_coordination::RunStats>,
+    pub bodies: usize,
+}
+
 impl AfroBimApp {
-    /// Builds the scene from the document exactly as the 3D view places it and runs every test.
-    pub(crate) fn run_clash_tests(&mut self) {
+    /// The bodies of the scene, built from the document exactly as the 3D view places it; None
+    /// (with the reason in the status line) when there is no test to run.
+    fn clash_bodies(&mut self) -> Option<Vec<afrobim_coordination::Body>> {
         self.sync_generated();
         self.sync_corridor_surfaces();
         self.coord.sync(&self.doc);
         if self.coord.co.tests.is_empty() {
             self.status = "There are no clash tests yet. Add one in CLASHTESTS, then run.".into();
             self.coord.tests_open = true;
-            return;
+            return None;
         }
         let site_mode = self.site_mode();
         let mut bodies = {
@@ -196,9 +205,44 @@ impl AfroBimApp {
         };
         // Reference models read from IFC take part as bodies of category `reference:<model>`.
         bodies.extend(self.refs.bodies());
+        Some(bodies)
+    }
+
+    /// Runs every test on the UI thread (headless runs and tests).
+    pub(crate) fn run_clash_tests(&mut self) {
+        let Some(bodies) = self.clash_bodies() else { return };
         let n = bodies.len();
         let scene = Scene::new(bodies);
         let stats = self.coord.co.run(&scene);
+        self.apply_clash_run(stats, n);
+    }
+
+    /// Runs every test on a worker thread, with a progress indicator and Cancel. The results are
+    /// applied only if the document has not changed since the run started.
+    pub(crate) fn run_clash_tests_bg(&mut self) {
+        if self.bg.clash.is_some() {
+            self.status = "A clash run is already in progress.".into();
+            return;
+        }
+        let Some(bodies) = self.clash_bodies() else { return };
+        let mut co = self.coord.co.clone();
+        let fp = crate::background::fingerprint(&self.doc);
+        self.bg.clash = Some(crate::background::Job::spawn("Clash run", fp, move || {
+            let n = bodies.len();
+            let scene = Scene::new(bodies);
+            let stats = co.run(&scene);
+            ClashOut { co, stats, bodies: n }
+        }));
+        self.status = "Clash run started on a worker thread; the model stays editable, but an edit discards the result.".into();
+    }
+
+    /// Takes the finished worker's results in.
+    pub(crate) fn apply_clash_out(&mut self, out: ClashOut) {
+        self.coord.co = out.co;
+        self.apply_clash_run(out.stats, out.bodies);
+    }
+
+    fn apply_clash_run(&mut self, stats: Vec<afrobim_coordination::RunStats>, n: usize) {
         let open_before = self.coord.co.results.clashes.len();
         let found: usize = stats.iter().map(|s| s.clashes).sum();
         let new = self.coord.co.results.count(Status::New);
@@ -317,7 +361,7 @@ impl AfroBimApp {
                 changed = true;
             }
             if run {
-                self.run_clash_tests();
+                self.run_clash_tests_bg();
             }
         }
 
@@ -506,7 +550,7 @@ impl AfroBimApp {
                 self.export_clashes_csv();
             }
             if run {
-                self.run_clash_tests();
+                self.run_clash_tests_bg();
             }
         }
 

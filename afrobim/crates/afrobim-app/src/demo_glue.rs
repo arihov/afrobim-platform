@@ -51,7 +51,7 @@ fn add_programme(doc: &mut Document) -> Result<(), String> {
         ("A40", "3", "Pavement layers", 15, &[afrobim_pavement::PAVEMENT_CATEGORY]),
         ("A50", "4", "Barrier and street lighting", 10, &[afrobim_restraint::CATEGORY, afrobim_lighting::CATEGORY]),
         ("A60", "5", "Signs, supports and gantry", 8, &[crate::signs_glue::CATEGORY, afrobim_supports::POST_CATEGORY, afrobim_supports::FOUNDATION_CATEGORY, afrobim_gantry::GANTRY_CATEGORY]),
-        ("A70", "6", "Road markings", 4, &[afrobim_markings::CATEGORY]),
+        ("A70", "6", "Road markings", 4, &[afrobim_markings::CATEGORY, afrobim_markings::CATEGORY_EXT]),
         ("A80", "7", "Completion", 0, &[]),
     ];
     for (id, wbs, name, duration, categories) in list {

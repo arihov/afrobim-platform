@@ -661,6 +661,12 @@ pub fn demo(doc: &mut Document) -> Vec<String> {
         }
     };
     hide_design_layers(doc);
+    // Demo values: the alignment check is set to the built-in MoWT basis, class II, rolling
+    // terrain, 70 km/h, emax 7 %, so that CHECKALL shows real statuses with their citations.
+    if let Some(alignment) = alignment_of_design(doc, design_a) {
+        let builtin = BuiltinChoice { class: Some(design::mowt::RoadClass::II), terrain: Some(design::mowt::Terrain::Rolling), speed_kmh: Some(70.0), emax_percent: Some(7.0), ..Default::default() };
+        store_check(doc, alignment, &AlignCheckInputs { source: LimitSource::Builtin, builtin, ..Default::default() });
+    }
     // Demo values: the second option moves the middle PI 60 m to the south and uses a 300 m radius.
     let mut b = a.clone();
     b.horizontal.name = "Option B".into();
@@ -779,7 +785,7 @@ mod tests {
     #[test]
     fn a_profile_pvi_edit_changes_a_markings_level() {
         let (mut doc, d, a) = doc_with_design();
-        let request = markings_glue::MarkingRequest { line: 0, start_station_m: 1050.0, end_station_m: 1200.0, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: Some(150), material: String::new() };
+        let request = markings_glue::MarkingRequest { line: 0, start_station_m: 1050.0, end_station_m: 1200.0, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: Some(150), material: String::new(), basis_uganda: false, uk_fallback: None };
         let mark = markings_glue::add(&mut doc, a, &request).unwrap();
         let level = |doc: &Document| {
             let e = doc.elements().iter().find(|e| e.name == mark).unwrap();
@@ -800,7 +806,7 @@ mod tests {
     #[test]
     fn a_shorter_alignment_lists_the_marking_and_the_sign_now_out_of_range() {
         let (mut doc, d, a) = doc_with_design();
-        let request = markings_glue::MarkingRequest { line: 0, start_station_m: 1100.0, end_station_m: 1500.0, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: Some(150), material: String::new() };
+        let request = markings_glue::MarkingRequest { line: 0, start_station_m: 1100.0, end_station_m: 1500.0, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: Some(150), material: String::new(), basis_uganda: false, uk_fallback: None };
         let mark = markings_glue::add(&mut doc, a, &request).unwrap();
         let sign = add_sign_at(&mut doc, a, 1470.0, 4.0);
         let sign_mark = doc.find(sign).unwrap().name.clone();

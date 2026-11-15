@@ -1,9 +1,11 @@
 //! AfroBIM desktop application.
 
+mod aids;
 mod alignment_glue;
 mod anno_glue;
 mod anno_ui;
 mod app;
+mod background;
 mod canvas;
 mod check_all;
 mod check_inputs;
@@ -16,11 +18,14 @@ mod coordination_ui;
 mod cost_glue;
 mod cost_ui;
 mod demo_glue;
+mod ext_markings_glue;
+mod ext_markings_ui;
 mod design_glue;
 mod design_profile;
 mod design_ui;
 mod design_windows;
 mod icons;
+mod ifc_options;
 mod issues_ui;
 mod lighting_inputs;
 mod markings_glue;
@@ -45,7 +50,17 @@ mod supports_glue;
 #[cfg(test)]
 mod u1_tests;
 #[cfg(test)]
+mod u2_align_tests;
+#[cfg(test)]
 mod u2_drain_tests;
+#[cfg(test)]
+mod u2_geom_tests;
+#[cfg(test)]
+mod u2_pack_tests;
+#[cfg(test)]
+mod u2_units_tests;
+#[cfg(test)]
+mod u2_ifc_tests;
 #[cfg(test)]
 mod u2_tests;
 mod underlay;
@@ -91,6 +106,8 @@ pub struct Options {
     pub date: Option<String>,
     /// Sub-tab to show in the Bill and Estimate windows (0 is the first), to look at each without a pointer.
     pub subtab: Option<u8>,
+    /// Screenshot aid: fill a dialog with arbitrary test values (see `aids.rs`).
+    pub aid: Option<String>,
     /// After the demo clash run, zoom to the clash with this index (from 0) in the 3D view.
     pub zoom_clash: Option<usize>,
     /// A limits table (CSV or JSON) that ALIGNCHECK loads when it opens, and the row of it to check against.
@@ -147,8 +164,14 @@ pub struct Options {
 }
 
 fn parse_args() -> Options {
+    parse_args_from(std::env::args().skip(1))
+}
+
+/// The options from an argument list. An argument that is not an option is the document to
+/// open (the Windows file association passes the file that way).
+fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
     let mut o = Options::default();
-    let mut args = std::env::args().skip(1);
+    let mut args = args;
     while let Some(a) = args.next() {
         match a.as_str() {
             "--screenshot" => o.screenshot = args.next().map(PathBuf::from),
@@ -164,6 +187,7 @@ fn parse_args() -> Options {
             "--run" => o.run = args.next(),
             "--date" => o.date = args.next(),
             "--zoom-clash" => o.zoom_clash = args.next().and_then(|v| v.parse().ok()),
+            "--aid" => o.aid = args.next(),
             "--subtab" => o.subtab = args.next().and_then(|v| v.parse().ok()),
             "--export-set" => o.export_set = args.next().map(PathBuf::from),
             "--sheet-set" => o.sheet_set = args.next(),
@@ -221,5 +245,22 @@ fn main() -> eframe::Result<()> {
             eprintln!("AfroBIM: starting without multisampling ({first})");
             run(&options, 0)
         }
+    }
+}
+
+#[cfg(test)]
+mod arg_tests {
+    use super::*;
+
+    #[test]
+    fn a_positional_argument_is_the_document_to_open() {
+        let o = parse_args_from(["road.afrobim".to_string()].into_iter());
+        assert_eq!(o.open, Some(PathBuf::from("road.afrobim")));
+        let o = parse_args_from(["road.afrobim", "--demo", "--tab", "Roads"].map(String::from).into_iter());
+        assert_eq!(o.open, Some(PathBuf::from("road.afrobim")));
+        assert!(o.demo && o.tab.as_deref() == Some("Roads"));
+        // An option's value is not mistaken for a document.
+        let o = parse_args_from(["--landxml", "a.xml"].map(String::from).into_iter());
+        assert_eq!(o.open, None);
     }
 }

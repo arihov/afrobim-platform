@@ -438,6 +438,7 @@ impl AfroBimApp {
                 let now = now_unix();
                 let textures = &mut self.issues.textures;
                 let (due_text, labels_text, comment) = (&mut self.issues.due_text, &mut self.issues.labels_text, &mut self.issues.comment);
+                let units = crate::anno_ui::units_of(&self.doc);
                 let Some(issue) = self.coord.co.issue_mut(&guid) else { return };
                 egui::ScrollArea::vertical().id_salt("issue-detail").auto_shrink([false, false]).show(ui, |ui| {
                     changed |= ui.add(egui::TextEdit::singleline(&mut issue.title).desired_width(f32::INFINITY)).changed();
@@ -482,7 +483,7 @@ impl AfroBimApp {
                         ui.label(RichText::new(format!("Elements: {}", issue.elements.iter().map(|e| if e.mark.is_empty() { e.ifc_guid.clone().unwrap_or_default() } else { e.mark.clone() }).collect::<Vec<_>>().join(", "))).small());
                     }
                     if let Some(p) = issue.location {
-                        ui.label(RichText::new(format!("Location: {:.0}, {:.0}, {:.0} mm", p[0], p[1], p[2])).small().weak());
+                        ui.label(RichText::new(format!("Location: {}, {}, {}", units.length_u(p[0]), units.length_u(p[1]), units.length_u(p[2]))).small().weak());
                     }
                     ui.separator();
                     ui.label(RichText::new("Comments").strong());

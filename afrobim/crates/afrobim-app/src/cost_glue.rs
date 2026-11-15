@@ -41,7 +41,10 @@ pub fn sign_rows(engine: Option<&afrobim_signs::SignEngine>, doc: &Document) -> 
 
 /// Every quantity line of the model.
 pub fn collect(doc: &Document, signs: &[SignQuantity]) -> QuantitySet {
-    collect_all(doc, signs, &CollectOptions::default())
+    let mut set = collect_all(doc, signs, &CollectOptions::default());
+    // `afrobim-cost` does not collect the second marking set (`marking_ext`); the app adds its lines.
+    crate::ext_markings_glue::collect_into(doc, &mut set);
+    set
 }
 
 /// The estimate element's id and name for each estimate in the document.

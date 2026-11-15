@@ -65,7 +65,7 @@ pub struct AfroBimApp {
     pub(crate) last_ifc_name: Option<String>,
     signs_ready: bool,
     pub(crate) module_status: String,
-    standard: String,
+    pub(crate) standard: String,
     pub(crate) engine: Option<std::sync::Arc<afrobim_signs::SignEngine>>,
     fonts_dir: PathBuf,
     pub(crate) cache: HashMap<ElementId, Cached>,
@@ -90,6 +90,12 @@ pub struct AfroBimApp {
     design_dialog: Option<(ElementId, String, f64, supports_glue::DesignRequest)>,
     /// The "Road marking" dialog: alignment and request.
     marking_dialog: Option<(Option<ElementId>, markings_glue::MarkingRequest)>,
+    /// The second-set marking dialog.
+    pub(crate) ext_marking_dialog: Option<crate::ext_markings_ui::ExtDialog>,
+    /// Slow work running on worker threads.
+    pub(crate) bg: crate::background::Background,
+    /// The IFC export options dialog is open.
+    pub(crate) ifc_options_open: bool,
     /// The "add a road element" dialog: kind, alignment, start and end station, distance, right side.
     road_dialog: Option<(usize, Option<ElementId>, f64, f64, f64, bool)>,
     /// The "hang a sign on a gantry" dialog: sign, gantry, over a lane, lane number, offset, and
@@ -99,7 +105,7 @@ pub struct AfroBimApp {
     pub(crate) design_report: Option<(String, Vec<String>)>,
     /// The dialogs of street lighting, road restraint, pavement, pavement design and corridors,
     /// and the cross-section window.
-    road: road_dialogs::RoadDialogs,
+    pub(crate) road: road_dialogs::RoadDialogs,
     /// The built 3D surfaces of corridors.
     pub(crate) corridor_cache: HashMap<ElementId, CorridorSurfaces>,
     /// The "Place on alignment" dialog: sign, alignment, station (m), offset (m), right side.
@@ -133,21 +139,7 @@ const CMD_ID: &str = "afrobim-command-line";
 impl AfroBimApp {
     pub fn new(cc: &eframe::CreationContext<'_>, options: Options) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
-        let mut modules = ModuleRegistry::default();
-        supports_glue::register(&mut modules);
-        alignment_glue::register(&mut modules);
-        markings_glue::register(&mut modules);
-        modules_glue::register(&mut modules);
-        crate::coordination_glue::register(&mut modules);
-        modules.register(Box::new(crate::reference_models::RefModule));
-        modules.register(Box::new(afrobim_schedule::ScheduleModule::default()));
-        modules.register(Box::new(afrobim_cost::EstimateModule));
-        modules.register(Box::new(afrobim_progress::ProgressModule));
-        crate::sheets_glue::register(&mut modules);
-        afrobim_design::register(&mut modules);
-        afrobim_annotate::register(&mut modules);
-        modules.register(Box::new(crate::underlay::UnderlayModule));
-        modules.register(Box::new(afrobim_kernel::ProjectSettingsModule));
+        let mut modules = crate::background::worker_registry();
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
             Ok(l) => {
@@ -201,6 +193,9 @@ impl AfroBimApp {
             supports_dialog: None,
             design_dialog: None,
             marking_dialog: None,
+            ext_marking_dialog: None,
+            bg: Default::default(),
+            ifc_options_open: false,
             road_dialog: None,
             hang_dialog: None,
             design_report: None,
@@ -289,7 +284,7 @@ impl AfroBimApp {
             // covers, so that the IFC export can attach them to it (see `markings_glue::demo`).
             if app.options.demo {
                 if let Some((alignment_id, a)) = alignment_glue::alignments(&app.doc).into_iter().next().and_then(|(id, _)| Some((id, alignment_glue::alignment_of(&app.doc, id)?))) {
-                    for problem in markings_glue::demo(&mut app.doc, alignment_id, &a) {
+                    for problem in markings_glue::demo(&mut app.doc, alignment_id, &a).into_iter().chain(crate::ext_markings_glue::demo(&mut app.doc, alignment_id, &a)) {
                         app.status = problem;
                     }
                 }
@@ -440,6 +435,9 @@ impl AfroBimApp {
                 Err(e) => eprintln!("AfroBIM: sheet export failed: {e}"),
             }
             app.quit = true;
+        }
+        if let Some(aid) = app.options.aid.clone() {
+            app.apply_aid(&aid);
         }
         if let Some(path) = app.options.export_pack.clone() {
             app.pack_compose();
@@ -736,7 +734,7 @@ impl AfroBimApp {
     /// Writes the whole model as IFC 4.3: signs with their artwork, posts and foundations as
     /// solids aggregated with their sign, elements at their site positions, and alignments.
     /// Elements not placed on site stand upright as on the sheet (see the afrobim-ifc README).
-    fn export_ifc(&mut self, path: PathBuf) {
+    pub(crate) fn export_ifc(&mut self, path: PathBuf) {
         self.sync_generated();
         let inputs: Vec<afrobim_ifc::IfcElementInput> = self
             .doc
@@ -751,6 +749,7 @@ impl AfroBimApp {
         let options = afrobim_ifc::IfcOptions {
             project_name: project,
             application: format!("AfroBIM {}", env!("CARGO_PKG_VERSION")),
+            alignment: crate::ifc_options::mode_of(&self.doc),
             ..afrobim_ifc::IfcOptions::default()
         };
         let export = afrobim_ifc::export_ifc_model(&self.doc, &inputs, &options);
@@ -896,11 +895,9 @@ impl AfroBimApp {
             Action::ExportIfc => {
                 if self.doc.elements().is_empty() {
                     self.status = "Nothing to export.".into();
-                } else if let Some(mut path) = rfd::FileDialog::new().add_filter("IFC 4.3 (STEP)", &["ifc"]).set_file_name("model.ifc").save_file() {
-                    if path.extension().is_none() {
-                        path.set_extension("ifc");
-                    }
-                    self.export_ifc(path);
+                } else {
+                    // The options come first (how alignments are written); the file is chosen from there.
+                    self.ifc_options_open = true;
                 }
             }
             Action::ExportQuantities => {
@@ -910,6 +907,12 @@ impl AfroBimApp {
                     }
                     self.export_quantities(path.clone());
                     self.write_module_quantities(&path);
+                    if let Some((schedule, rows)) = crate::ext_markings_glue::quantities(&self.doc) {
+                        match std::fs::write(path.with_extension("markings2.csv"), schedule) {
+                            Ok(()) => self.status.push_str(&format!(" {rows} second-set road marking(s) measured to {}.", path.with_extension("markings2.csv").display())),
+                            Err(e) => self.status.push_str(&format!(" Second-set marking quantities not written: {e}.")),
+                        }
+                    }
                     if let Some((schedule, summary, rows)) = markings_glue::quantities(&self.doc) {
                         let written = std::fs::write(path.with_extension("markings.csv"), schedule).and_then(|()| std::fs::write(path.with_extension("markings.summary.csv"), summary));
                         match written {
@@ -1026,10 +1029,11 @@ impl AfroBimApp {
                 }
                 None => self.status = "Select one sign first, then design its supports.".into(),
             },
+            Action::AddExtMarking(g) => self.open_ext_marking(crate::ext_markings_glue::Group::ALL[(g as usize).min(6)]),
             Action::AddMarking => match alignment_glue::alignments(&self.doc).first().map(|a| a.0) {
                 Some(first) => {
                     let (start, end) = alignment_glue::alignment_of(&self.doc, first).map(|a| (a.start_station_m, a.end_station_m())).unwrap_or((0.0, 0.0));
-                    let request = markings_glue::MarkingRequest { line: 0, start_station_m: start, end_station_m: end, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: None, material: String::new() };
+                    let request = markings_glue::MarkingRequest { line: 0, start_station_m: start, end_station_m: end, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: None, material: String::new(), basis_uganda: false, uk_fallback: None };
                     self.marking_dialog = Some((Some(first), request));
                 }
                 None => self.status = "There is no alignment yet. Import one with File → Import LandXML.".into(),
@@ -1133,7 +1137,7 @@ impl AfroBimApp {
                 self.coord.sync(&self.doc);
                 self.coord.tests_open = true;
             }
-            Action::ClashRun => self.run_clash_tests(),
+            Action::ClashRun => self.run_clash_tests_bg(),
             Action::ClashResults => {
                 self.coord.sync(&self.doc);
                 self.coord.results_open = true;
@@ -1405,6 +1409,13 @@ impl AfroBimApp {
         }
         if self.ctl.is_busy() {
             self.log(format!("{} {}", self.ctl.prompt(), text));
+            // A typed point or offset is read in the document's length unit (a bare number is in
+            // that unit); the controller works in millimetres, so it is handed the millimetres.
+            let units = crate::anno_ui::units_of(&self.doc);
+            let text = match crate::anno_glue::parse_point(&text, self.ctl.base_point(), &units) {
+                Some(p) if text.chars().any(|c| c.is_ascii_digit()) => format!("{},{}", p.x, p.y),
+                _ => text,
+            };
             self.ctl.submit_text(&mut self.doc, &mut self.view, &text);
             return;
         }
@@ -2430,6 +2441,10 @@ impl AfroBimApp {
             }
         }
 
+        self.ext_marking_window(ctx);
+        self.background_tick(ctx);
+        self.ifc_options_window(ctx);
+
         if let Some((mut alignment, mut req)) = self.marking_dialog.take() {
             let choices = alignment_glue::alignments(&self.doc);
             let types = markings_glue::line_types();
@@ -2451,6 +2466,26 @@ impl AfroBimApp {
                             if ui.selectable_value(&mut req.line, i, format!("{} (diagram {}, {})", t.name, t.diagram, t.speed.label())).clicked() {
                                 req.width_mm = None;
                             }
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Basis");
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.selectable_value(&mut req.basis_uganda, false, afrobim_markings::Basis::Uk.label());
+                            ui.selectable_value(&mut req.basis_uganda, true, afrobim_markings::Basis::Uganda.label());
+                        });
+                        if req.basis_uganda {
+                            ui.label(RichText::new(format!("{}: not defined in the Uganda manual (the longitudinal catalogue here is the UK diagrams; the Uganda lines are under Uganda lines).", spec.name)).small().color(Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                            let mut on = req.uk_fallback.is_some();
+                            if ui.checkbox(&mut on, "use the UK value").changed() {
+                                req.uk_fallback = on.then(String::new);
+                            }
+                            if let Some(reason) = &mut req.uk_fallback {
+                                ui.add(egui::TextEdit::multiline(reason).desired_rows(2).desired_width(330.0).hint_text("required: the reason is stored with the marking"));
+                            }
+                        } else {
+                            req.uk_fallback = None;
                         }
                     });
                     ui.end_row();
@@ -2839,7 +2874,7 @@ impl AfroBimApp {
     fn screenshot_mode(&mut self, ctx: &egui::Context) {
         let Some(path) = self.options.screenshot.clone() else { return };
         // Wait for a viewpoint snapshot or a running import before the picture is taken.
-        if self.issues.snap.is_some() || self.refs.busy() || self.under.busy() {
+        if self.issues.snap.is_some() || self.refs.busy() || self.under.busy() || self.bg.busy() {
             ctx.request_repaint();
             return;
         }
