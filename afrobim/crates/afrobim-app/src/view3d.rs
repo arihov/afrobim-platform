@@ -160,7 +160,7 @@ impl Frame {
 /// ground surfaces. A corridor has no solids of its own: its surfaces are built from the
 /// corridor and cached by the app (`AfroBimApp::corridor_cache`).
 pub(crate) fn is_site_solid(category: &str) -> bool {
-    category == crate::markings_glue::CATEGORY || crate::modules_glue::owns(category) || crate::modules_glue::is_surface(category)
+    category == crate::markings_glue::CATEGORY || category == crate::ext_markings_glue::CATEGORY_EXT || crate::modules_glue::owns(category) || crate::modules_glue::is_surface(category)
 }
 
 /// The alignment's centreline as site points in millimetres, at the profile's level where the

@@ -16,6 +16,8 @@ mod coordination_ui;
 mod cost_glue;
 mod cost_ui;
 mod demo_glue;
+mod ext_markings_glue;
+mod ext_markings_ui;
 mod design_glue;
 mod design_profile;
 mod design_ui;

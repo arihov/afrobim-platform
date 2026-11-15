@@ -779,7 +779,7 @@ mod tests {
     #[test]
     fn a_profile_pvi_edit_changes_a_markings_level() {
         let (mut doc, d, a) = doc_with_design();
-        let request = markings_glue::MarkingRequest { line: 0, start_station_m: 1050.0, end_station_m: 1200.0, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: Some(150), material: String::new() };
+        let request = markings_glue::MarkingRequest { line: 0, start_station_m: 1050.0, end_station_m: 1200.0, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: Some(150), material: String::new(), basis_uganda: false, uk_fallback: None };
         let mark = markings_glue::add(&mut doc, a, &request).unwrap();
         let level = |doc: &Document| {
             let e = doc.elements().iter().find(|e| e.name == mark).unwrap();
@@ -800,7 +800,7 @@ mod tests {
     #[test]
     fn a_shorter_alignment_lists_the_marking_and_the_sign_now_out_of_range() {
         let (mut doc, d, a) = doc_with_design();
-        let request = markings_glue::MarkingRequest { line: 0, start_station_m: 1100.0, end_station_m: 1500.0, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: Some(150), material: String::new() };
+        let request = markings_glue::MarkingRequest { line: 0, start_station_m: 1100.0, end_station_m: 1500.0, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: Some(150), material: String::new(), basis_uganda: false, uk_fallback: None };
         let mark = markings_glue::add(&mut doc, a, &request).unwrap();
         let sign = add_sign_at(&mut doc, a, 1470.0, 4.0);
         let sign_mark = doc.find(sign).unwrap().name.clone();

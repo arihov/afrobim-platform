@@ -154,7 +154,19 @@ fn panels(tab: Tab) -> &'static [Panel] {
     const MODIFY_TAB: &[Panel] = &[MODIFY, SUPPORTS, Panel { title: "Alignment", items: &[Big(Icon::Station, "Place by station", "STATION")] }, DRAFTING];
     const ROADS: &[Panel] = &[
         ALIGNMENT,
-        Panel { title: "Markings", items: &[Big(Icon::Markings, "Road markings", "MARKINGS")] },
+        Panel {
+            title: "Markings",
+            items: &[
+                Big(Icon::Markings, "Road markings", "MARKINGS"),
+                Big(Icon::StopLine, "Stop and give way", "MARKTRANSVERSE"),
+                Big(Icon::Arrow, "Arrows", "MARKARROW"),
+                Big(Icon::Hatch, "Hatching, chevrons", "MARKHATCH"),
+                Big(Icon::YellowLine, "Yellow lines", "MARKYELLOW"),
+                Big(Icon::Studs, "Road studs", "MARKSTUDS"),
+                Big(Icon::WordedMark, "Worded", "MARKWORD"),
+                Big(Icon::Markings, "Uganda lines", "MARKLINES2"),
+            ],
+        },
         Panel { title: "Drainage", items: &[Big(Icon::Drainage, "Side drain", "DRAIN"), Big(Icon::Drainage, "Pipe culvert", "CULVERT"), Big(Icon::Rational, "Rational flow", "RATIONAL"), Big(Icon::Design, "Check", "CHECK")] },
         Panel { title: "Lighting", items: &[Big(Icon::Lighting, "Street lighting", "LIGHTING"), Big(Icon::Lighting, "Light column", "LIGHTCOLUMN"), Big(Icon::Photometry, "Photometry", "PHOTOMETRY")] },
         Panel { title: "Restraint", items: &[Big(Icon::Barrier, "Road restraint", "BARRIER")] },

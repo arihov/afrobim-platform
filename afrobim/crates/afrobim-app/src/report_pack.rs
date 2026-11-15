@@ -108,7 +108,7 @@ fn section_of(doc: &Document, r: &Row) -> usize {
         c if c == afrobim_lighting::CATEGORY => 5,
         c if c == afrobim_gantry::GANTRY_CATEGORY => 6,
         c if c == crate::alignment_glue::CATEGORY => 7,
-        c if c == afrobim_markings::CATEGORY => 9,
+        c if c == afrobim_markings::CATEGORY || c == afrobim_markings::CATEGORY_EXT => 9,
         _ if r.check.starts_with("Sign support") => 1,
         _ if r.check.starts_with("Sign visibility") => 8,
         _ => 9,

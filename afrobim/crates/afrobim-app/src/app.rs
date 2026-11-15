@@ -90,6 +90,8 @@ pub struct AfroBimApp {
     design_dialog: Option<(ElementId, String, f64, supports_glue::DesignRequest)>,
     /// The "Road marking" dialog: alignment and request.
     marking_dialog: Option<(Option<ElementId>, markings_glue::MarkingRequest)>,
+    /// The second-set marking dialog.
+    pub(crate) ext_marking_dialog: Option<crate::ext_markings_ui::ExtDialog>,
     /// The "add a road element" dialog: kind, alignment, start and end station, distance, right side.
     road_dialog: Option<(usize, Option<ElementId>, f64, f64, f64, bool)>,
     /// The "hang a sign on a gantry" dialog: sign, gantry, over a lane, lane number, offset, and
@@ -201,6 +203,7 @@ impl AfroBimApp {
             supports_dialog: None,
             design_dialog: None,
             marking_dialog: None,
+            ext_marking_dialog: None,
             road_dialog: None,
             hang_dialog: None,
             design_report: None,
@@ -910,6 +913,12 @@ impl AfroBimApp {
                     }
                     self.export_quantities(path.clone());
                     self.write_module_quantities(&path);
+                    if let Some((schedule, rows)) = crate::ext_markings_glue::quantities(&self.doc) {
+                        match std::fs::write(path.with_extension("markings2.csv"), schedule) {
+                            Ok(()) => self.status.push_str(&format!(" {rows} second-set road marking(s) measured to {}.", path.with_extension("markings2.csv").display())),
+                            Err(e) => self.status.push_str(&format!(" Second-set marking quantities not written: {e}.")),
+                        }
+                    }
                     if let Some((schedule, summary, rows)) = markings_glue::quantities(&self.doc) {
                         let written = std::fs::write(path.with_extension("markings.csv"), schedule).and_then(|()| std::fs::write(path.with_extension("markings.summary.csv"), summary));
                         match written {
@@ -1026,10 +1035,11 @@ impl AfroBimApp {
                 }
                 None => self.status = "Select one sign first, then design its supports.".into(),
             },
+            Action::AddExtMarking(g) => self.open_ext_marking(crate::ext_markings_glue::Group::ALL[(g as usize).min(6)]),
             Action::AddMarking => match alignment_glue::alignments(&self.doc).first().map(|a| a.0) {
                 Some(first) => {
                     let (start, end) = alignment_glue::alignment_of(&self.doc, first).map(|a| (a.start_station_m, a.end_station_m())).unwrap_or((0.0, 0.0));
-                    let request = markings_glue::MarkingRequest { line: 0, start_station_m: start, end_station_m: end, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: None, material: String::new() };
+                    let request = markings_glue::MarkingRequest { line: 0, start_station_m: start, end_station_m: end, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: None, material: String::new(), basis_uganda: false, uk_fallback: None };
                     self.marking_dialog = Some((Some(first), request));
                 }
                 None => self.status = "There is no alignment yet. Import one with File → Import LandXML.".into(),
@@ -2430,6 +2440,8 @@ impl AfroBimApp {
             }
         }
 
+        self.ext_marking_window(ctx);
+
         if let Some((mut alignment, mut req)) = self.marking_dialog.take() {
             let choices = alignment_glue::alignments(&self.doc);
             let types = markings_glue::line_types();
@@ -2451,6 +2463,26 @@ impl AfroBimApp {
                             if ui.selectable_value(&mut req.line, i, format!("{} (diagram {}, {})", t.name, t.diagram, t.speed.label())).clicked() {
                                 req.width_mm = None;
                             }
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("Basis");
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            ui.selectable_value(&mut req.basis_uganda, false, afrobim_markings::Basis::Uk.label());
+                            ui.selectable_value(&mut req.basis_uganda, true, afrobim_markings::Basis::Uganda.label());
+                        });
+                        if req.basis_uganda {
+                            ui.label(RichText::new(format!("{}: not defined in the Uganda manual (the longitudinal catalogue here is the UK diagrams; the Uganda lines are under Uganda lines).", spec.name)).small().color(Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                            let mut on = req.uk_fallback.is_some();
+                            if ui.checkbox(&mut on, "use the UK value").changed() {
+                                req.uk_fallback = on.then(String::new);
+                            }
+                            if let Some(reason) = &mut req.uk_fallback {
+                                ui.add(egui::TextEdit::multiline(reason).desired_rows(2).desired_width(330.0).hint_text("required: the reason is stored with the marking"));
+                            }
+                        } else {
+                            req.uk_fallback = None;
                         }
                     });
                     ui.end_row();
