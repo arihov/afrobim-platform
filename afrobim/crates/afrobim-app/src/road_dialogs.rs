@@ -30,7 +30,7 @@ pub enum Outcome {
 
 /// The pavement design dialog.
 pub struct DesignDialog {
-    form: DesignForm,
+    pub(crate) form: DesignForm,
     /// The pavement the inputs are kept on (`check.pavement_design`), so the model-wide check can
     /// compare the design with its layers. None: the design is run without being kept.
     element: Option<ElementId>,
@@ -54,7 +54,7 @@ pub struct RoadDialogs {
     barrier: Option<(Option<ElementId>, RestraintRequest)>,
     pavement: Option<(Option<ElementId>, PavementRequest)>,
     speed: Option<(ElementId, SpeedInput)>,
-    design: Option<DesignDialog>,
+    pub(crate) design: Option<DesignDialog>,
     corridor: Option<(Option<ElementId>, CorridorRequest)>,
     sections: Option<SectionsView>,
     lighting_check: Option<crate::lighting_inputs::LightingCheck>,
@@ -285,6 +285,77 @@ fn layer_list(ui: &mut Ui, salt: &str, rows: &mut Vec<LayerRow>) {
     if ui.button("Add a layer").clicked() {
         rows.push(LayerRow::empty());
     }
+}
+
+/// What the "fill from MoWT class" button read, with where each figure is printed.
+#[derive(Clone)]
+struct MowtFill {
+    lane_width_m: f64,
+    carriageway_width_m: f64,
+    shoulder_width_m: f64,
+    crossfall_percent: Option<f64>,
+    shoulder_crossfall_percent: Option<f64>,
+    citation: String,
+}
+
+/// The MoWT Road Design Manual Vol. I lookups for a class (Table 4-2b and the class tables 4-3 to
+/// 4-9), as a button the engineer presses: never filled silently. The class chosen is kept in the
+/// UI memory under `salt`. Returns the figures when the button was pressed; the caller writes
+/// them into fields the engineer can still edit, and the citation stays shown.
+fn mowt_fill_row(ui: &mut Ui, salt: &str) -> Option<MowtFill> {
+    use afrobim_design::mowt::{cross_section, RoadClass};
+    let id = egui::Id::new(("mowt-fill", salt));
+    let mut class: Option<RoadClass> = ui.data(|d| d.get_temp(id));
+    let mut filled: Option<String> = ui.data(|d| d.get_temp(id.with("note")));
+    let mut out = None;
+    ui.horizontal_wrapped(|ui| {
+        ui.label("Fill from MoWT class");
+        egui::ComboBox::from_id_salt(id.with("class")).selected_text(class.map(|c| c.manual_name().to_string()).unwrap_or_else(|| "choose a class".into())).show_ui(ui, |ui| {
+            for c in RoadClass::ALL {
+                ui.selectable_value(&mut class, Some(c), c.manual_name());
+            }
+        });
+        if ui.add_enabled(class.is_some(), egui::Button::new("Fill the fields")).on_hover_text("Writes the manual's lane and shoulder widths and cross-fall for this class into the fields below. You can still edit them.").clicked() {
+            if let Some(c) = class {
+                let lane = cross_section::lane_width_m(c);
+                let cs = cross_section::class_cross_section(c);
+                let fall = cross_section::normal_cross_fall_percent(c).ok();
+                let sfall = cross_section::shoulder_cross_fall_percent(c).ok();
+                let citation = format!(
+                    "MoWT Road Design Manual Vol. I (2010), class {}: lane width {} m ({}); carriageway {} m and shoulders {} m each side ({}){}.",
+                    c.manual_name(),
+                    lane.value,
+                    lane.source.citation(),
+                    cs.value.carriageway_width_m,
+                    cs.value.shoulder_width_each_side_m,
+                    cs.source.citation(),
+                    fall.as_ref().map(|f| format!("; cross-fall {} % ({})", f.value, f.source.citation())).unwrap_or_default()
+                );
+                filled = Some(citation.clone());
+                out = Some(MowtFill {
+                    lane_width_m: lane.value,
+                    carriageway_width_m: cs.value.carriageway_width_m,
+                    shoulder_width_m: cs.value.shoulder_width_each_side_m,
+                    crossfall_percent: fall.map(|f| f.value),
+                    shoulder_crossfall_percent: sfall.map(|f| f.value),
+                    citation,
+                });
+            }
+        }
+    });
+    if let Some(note) = &filled {
+        ui.label(RichText::new(format!("Filled from: {note} Check them against your project before using them.")).small().weak());
+    }
+    ui.data_mut(|d| {
+        match class {
+            Some(c) => d.insert_temp(id, c),
+            None => {}
+        }
+        if let Some(n) = filled {
+            d.insert_temp(id.with("note"), n);
+        }
+    });
+    out
 }
 
 fn not_a_design(ui: &mut Ui, what: &str) {
@@ -558,6 +629,19 @@ fn pavement_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
                 ui.end_row();
                 station_row(ui, doc, alignment, "pavement-start", "Start station", &mut req.start_station_m);
                 station_row(ui, doc, alignment, "pavement-end", "End station", &mut req.end_station_m);
+                ui.label("");
+                ui.vertical(|ui| {
+                    if let Some(fill) = mowt_fill_row(ui, "pavement") {
+                        req.carriageway_width_m = fill.carriageway_width_m;
+                        if let Some(f) = fill.crossfall_percent {
+                            req.crossfall_percent = f;
+                        }
+                        let s = ShoulderRequest { width_m: fill.shoulder_width_m, crossfall_percent: fill.shoulder_crossfall_percent.unwrap_or(0.0) };
+                        req.left_shoulder = Some(s.clone());
+                        req.right_shoulder = Some(s);
+                    }
+                });
+                ui.end_row();
                 ui.label("Carriageway width");
                 number(ui, &mut req.carriageway_width_m, 0.1, " m");
                 ui.end_row();
@@ -616,7 +700,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut run, mut create) = (true, false, false);
     crate::win::new(ctx, "Pavement design").collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label("Method");
             for (i, m) in road_glue::methods().iter().enumerate() {
                 ui.selectable_value(&mut d.form.method, i, m.name());
@@ -982,6 +1066,18 @@ fn corridor_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
             ui.end_row();
             ui.label("Name");
             text(ui, &mut req.name, "e.g. Corridor", 140.0);
+            ui.end_row();
+            ui.label("");
+            ui.vertical(|ui| {
+                if let Some(fill) = mowt_fill_row(ui, "corridor") {
+                    req.lane_width_m = fill.lane_width_m;
+                    if let Some(f) = fill.crossfall_percent {
+                        req.lane_crossfall_percent = f;
+                    }
+                    req.shoulder = Some(ShoulderRequest { width_m: fill.shoulder_width_m, crossfall_percent: fill.shoulder_crossfall_percent.unwrap_or(0.0) });
+                    let _ = &fill.citation;
+                }
+            });
             ui.end_row();
             ui.label("Lane width, each side");
             number(ui, &mut req.lane_width_m, 0.05, " m");

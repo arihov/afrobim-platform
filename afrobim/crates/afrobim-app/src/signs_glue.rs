@@ -65,23 +65,49 @@ impl Module for SignsModule {
     }
 }
 
-/// Looks for `relative` in the directories named by `env_var`, next to the executable and in
-/// every folder above the executable and the working directory (so a source checkout works).
+/// Looks for `relative`, in this order: the path named by the environment variable `env_var`;
+/// next to the executable; on macOS the bundle's resource directory (`exe_dir/../Resources`);
+/// then every folder above the executable and above the working directory (so a source
+/// checkout works).
 fn find(env_var: &str, relative: &Path) -> Option<PathBuf> {
-    if let Ok(dir) = std::env::var(env_var) {
+    let exe = std::env::current_exe().ok();
+    let cwd = std::env::current_dir().ok();
+    find_in(std::env::var(env_var).ok().as_deref(), exe.as_deref(), cwd.as_deref(), cfg!(target_os = "macos"), relative)
+}
+
+/// [`find`] with its inputs given, so that each step can be tested.
+fn find_in(env_value: Option<&str>, exe: Option<&Path>, cwd: Option<&Path>, bundle: bool, relative: &Path) -> Option<PathBuf> {
+    if let Some(dir) = env_value {
         let p = PathBuf::from(dir);
         if p.exists() {
             return Some(p);
         }
     }
+    if let Some(dir) = exe.and_then(Path::parent) {
+        let p = dir.join(relative);
+        if p.exists() {
+            return Some(p);
+        }
+        if bundle {
+            let p = dir.join("..").join("Resources").join(relative);
+            if p.exists() {
+                return Some(p);
+            }
+        }
+    }
     let mut roots: Vec<PathBuf> = Vec::new();
-    if let Ok(exe) = std::env::current_exe() {
+    if let Some(exe) = exe {
         roots.extend(exe.ancestors().skip(1).map(Path::to_path_buf));
     }
-    if let Ok(cwd) = std::env::current_dir() {
+    if let Some(cwd) = cwd {
         roots.extend(cwd.ancestors().map(Path::to_path_buf));
     }
     roots.into_iter().map(|r| r.join(relative)).find(|p| p.exists())
+}
+
+/// The Uganda pack's override (`AFROBIM_PACK_UG`) may name the folder or its `pack.xml`.
+fn ug_override(pack: PathBuf) -> PathBuf {
+    if pack.is_dir() { pack.join("pack.xml") } else { pack }
 }
 
 /// One entry of the standard-sign library: a catalogued sign ready to insert.
@@ -103,12 +129,21 @@ pub struct Loaded {
     pub fonts_dir: PathBuf,
 }
 
-/// Loads a rule pack and the Transport fonts. `AFROBIM_PACK` overrides the default standard's
-/// location.
+/// Loads a rule pack and the Transport fonts. `AFROBIM_PACK` overrides the UK pack's location (the
+/// JSON file) and `AFROBIM_PACK_UG` the Uganda pack's (its folder or its pack.xml).
 pub fn load_module(standard: &str) -> Result<Loaded, String> {
     let (_, _, file) = STANDARDS.iter().find(|(id, _, _)| *id == standard).ok_or_else(|| format!("unknown standard {standard}"))?;
-    let env = if standard == DEFAULT_STANDARD { "AFROBIM_PACK" } else { "AFROBIM_PACK_UNSET" };
-    let pack = find(env, &Path::new("packs").join(file)).ok_or_else(|| format!("rule pack packs/{file} was not found"))?;
+    let relative = Path::new("packs").join(file);
+    let pack = if standard == DEFAULT_STANDARD {
+        find("AFROBIM_PACK", &relative)
+    } else {
+        // The override names the folder or its pack.xml; otherwise the usual lookup finds the file.
+        match std::env::var("AFROBIM_PACK_UG").ok().map(PathBuf::from).filter(|p| p.exists()) {
+            Some(p) => Some(ug_override(p)),
+            None => find("AFROBIM_PACK_UG", &relative),
+        }
+    }
+    .ok_or_else(|| format!("rule pack packs/{file} was not found"))?;
     let fonts_dir = find("AFROBIM_FONTS", Path::new("fonts"))
         .ok_or_else(|| "the fonts folder was not found (set AFROBIM_FONTS to the folder holding the Transport fonts)".to_string())?;
     let engine = Arc::new(SignEngine::load(&pack, &fonts_dir).map_err(|e| e.to_string())?);
@@ -541,4 +576,63 @@ pub fn edit_ui(ui: &mut egui::Ui, data: &mut Value) -> bool {
         *data = to_value(&def);
     }
     changed
+}
+
+#[cfg(test)]
+mod lookup_tests {
+    use super::*;
+
+    fn tmp(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("afrobim-find-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn touch(p: &Path) {
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, "x").unwrap();
+    }
+
+    #[test]
+    fn the_lookup_tries_the_variable_then_the_exe_folder_then_the_bundle_then_the_ancestors() {
+        let root = tmp("order");
+        let other = tmp("cwd");
+        let rel = Path::new("packs/p.json");
+        let exe = root.join("app/bin/afrobim");
+        std::fs::create_dir_all(root.join("app/bin")).unwrap();
+        // Nothing anywhere.
+        assert_eq!(find_in(None, Some(&exe), Some(&other), true, rel), None);
+        // The folders above the executable (a source checkout).
+        touch(&root.join("app/packs/p.json"));
+        assert_eq!(find_in(None, Some(&exe), None, true, rel), Some(root.join("app/packs/p.json")));
+        // The working directory's ancestors.
+        std::fs::remove_file(root.join("app/packs/p.json")).unwrap();
+        touch(&other.join("packs/p.json"));
+        assert_eq!(find_in(None, Some(&exe), Some(&other.join("sub")), true, rel), Some(other.join("packs/p.json")));
+        // The bundle resource directory beats the ancestors, on macOS only.
+        touch(&root.join("app/Resources/packs/p.json"));
+        let found = find_in(None, Some(&exe), Some(&other), true, rel).unwrap();
+        assert!(found.ends_with("Resources/packs/p.json"), "{found:?}");
+        assert_eq!(find_in(None, Some(&exe), Some(&other), false, rel), Some(other.join("packs/p.json")));
+        // Next to the executable beats the bundle directory.
+        touch(&root.join("app/bin/packs/p.json"));
+        assert_eq!(find_in(None, Some(&exe), Some(&other), true, rel), Some(root.join("app/bin/packs/p.json")));
+        // The environment variable beats everything; a path that does not exist falls through.
+        let env_file = other.join("env.json");
+        touch(&env_file);
+        assert_eq!(find_in(env_file.to_str(), Some(&exe), Some(&other), true, rel), Some(env_file.clone()));
+        assert_eq!(find_in(Some("/no/such/path"), Some(&exe), None, true, rel), Some(root.join("app/bin/packs/p.json")));
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&other);
+    }
+
+    #[test]
+    fn the_uganda_override_accepts_the_folder_or_the_file() {
+        let d = tmp("ug");
+        touch(&d.join("pack.xml"));
+        assert_eq!(ug_override(d.clone()), d.join("pack.xml"));
+        assert_eq!(ug_override(d.join("pack.xml")), d.join("pack.xml"));
+        let _ = std::fs::remove_dir_all(&d);
+    }
 }

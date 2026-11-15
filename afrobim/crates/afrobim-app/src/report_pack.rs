@@ -28,14 +28,14 @@ pub const STATEMENT: &str = "This pack is a record of calculations for checking 
 pub const BASIS: &[(&str, &str, &str)] = &[
     ("Traffic signs and markings", "UK Traffic Signs Manual (chapter editions as held, Chapter 7 2013, Chapter 5 2018 edition written for TSRGD 2016); Uganda Traffic Signs Manual Vol. 1 and 2 (July 2004)", "The 2003 edition of Chapter 5 is superseded and was not used. TSRGD 2016 itself, Chapters 6 and 8 and TrafxPLAN documents were not read."),
     ("Sign supports", "IHE Sign Structures Guide 2021 applying BS EN 12899-1:2007 and its UK National Annex; BS EN 1993-1-1; PD 6547 or CD 354 revision 1 for the planted foundation; MoWT Road Design Manual Vol. 4 Bridge Design (January 2010) Section 5.3 Table 2 for Uganda wind", "The ground factor G and the BS EN 40-2 Table 7 planting depth are inputs (tables not held). The MoWT wind map is blank in the published PDF. Using the bridge manual's velocity pressure as the sign's basic wind pressure is a reading of two documents that do not refer to each other."),
-    ("Drainage", "MoWT Road Design Manual Vol. 2 Drainage Design (January 2010); DMRB CG 501 v2.2.0, CD 521 v1.2.0, CD 522 v0.1.0, CD 529 v1.1.0 (September 2025)", "Which basis governs is the engineer's choice. The SANRAL Drainage Manual is not built; no South African value is held."),
-    ("Pavement", "MoWT Road Design Manual Vol. 3 Part I Flexible Pavements (January 2010); DMRB CD 224 Revision 0 (March 2020) and CD 226 v0.1.0 (29 November 2021); AASHTO Guide for Design of Pavement Structures (1993)", "CD 224 and CD 226 are SUPERSEDED revisions (by v0.1.0 and v0.2.0 of 2025); the current ones could not be obtained and the DMRB method gives no complete structure. South African SAPEM and TRH4 are not built."),
+    ("Drainage", "MoWT Road Design Manual Vol. 2 Drainage Design (January 2010); DMRB CG 501 v2.2.0, CD 521 v1.2.0, CD 522 v0.1.0, CD 529 v1.1.0 (September 2025); SANRAL Drainage Manual, sixth edition (September 2013)", "Which basis governs is the engineer's choice and each keeps its own values. The MoWT complete culvert check uses FHWA HDS-5 inlet control (equations; nomographs can differ by 10 per cent). SANRAL: the slope unit of Table 7.2 is not stated by the manual and is the engineer's answer; rainfall is always entered."),
+    ("Pavement", "MoWT Road Design Manual Vol. 3 Part I Flexible Pavements (January 2010); DMRB CD 224 Revision 0 (March 2020) and CD 226 v0.1.0 (29 November 2021); AASHTO Guide for Design of Pavement Structures (1993)", "CD 224 and CD 226 are SUPERSEDED revisions (by v0.1.0 and v0.2.0 of 2025); the current ones could not be obtained and the DMRB method gives no complete structure. The South African basis (SAPEM Chapter 10, reproducing Draft TRH4) gives design traffic in E80, traffic class, climatic class and the subgrade action only: the TRH4 catalogue was not obtainable, so it gives no layers. E80 is not interchangeable with the other methods' standard axles."),
     ("Road restraint", "DMRB CD 377 v5.0.1 (27 February 2026); CD 127 v1.0.1 (29 July 2021); BS EN 1317-2:2010 (the owner's scan); DD ENV 1317-4:2002", "The currency of BS EN 1317-2:2010 is for the owner to confirm. DD ENV 1317-4:2002 is a Draft for Development that CD 377 5.0.1 still cites. PD CEN/TS 1317-7 is not held."),
     ("Gantries", "DMRB CD 365 Revision 1 (March 2020); CD 127 v1.0.1; CD 377 Revision 4 (January 2021, read only, no value taken)", "CD 365 Revision 1 and CD 377 Revision 4 are watermarked SUPERSEDED. The current CD 365 is awaited."),
     ("Street lighting", "DMRB TD 501 v0.1.0 (September 2025); TA 501 Revision 0 (March 2020); CD 109 v1.1.0; CD 377 v5.0.1; BS 5489-1:2003 (owner's copy); Stockmar Handbook about Interpretation of EN 13201 (LiTG, October 2017); MoWT Road Design Manual Vol. 1 Section 12.8; TII DN-LHT-03038 (2012)", "BS 5489-1:2003 is a SUPERSEDED edition (replaced in 2013 and 2020). The EN 13201-2 class values come from the Stockmar handbook, a SECONDARY source: BS EN 13201-2, -3 and -5 are not held. The MoWT manual and TII document are secondary references."),
     ("Lighting photometry", "IES LM-63 and EULUMDAT file formats as described in the sources cited in afrobim-lighting; EN 13032-1 (public preview)", "Not an EN 13201-3 calculation; not validated against DIALux, Relux or AGi32; luminance needs a user r-table; TI, U_l and wet U_o are not computed."),
     ("Sign visibility", "UK Traffic Signs Manual Chapter 1 (1982 edition), Chapter 2 x-height extract, Chapter 3 (2008), Chapter 4 (2013), Chapter 7 (2013); Uganda Traffic Signs Manual Vol. 1 (July 2004)", "An analysis aid: it compares and cites and states no compliance. The 1.05 m eye height is stated in the sources for other criteria. Stopping sight distance (TD 9) is not held."),
-    ("Alignment design", "No standard's values are built in: the limits table is entered by the user with its sources", "Checks are only as good as the table loaded."),
+    ("Alignment design", "Uganda MoWT Road Design Manual Vol. I: Geometric Design (January 2010), built in as a selectable basis (class, terrain, design speed, emax), or the user's own limits table with its sources, or the built-in row with the user's table laid over it", "The copy of the manual used was hosted by a third party and was not compared with a Ministry original. Cells where the manual contradicts itself are withheld and read Not checked. Minimum curve and spiral lengths, tangent lengths and the minimum vertical curve length are not stated by the manual and are Not checked."),
     ("Programme, estimate and site progress", "No standard: durations, rates, terms and records are the user's", "MS Project XML and Primavera P6 XER files have not been opened in those programs."),
 ];
 
@@ -108,15 +108,42 @@ fn section_of(doc: &Document, r: &Row) -> usize {
         c if c == afrobim_lighting::CATEGORY => 5,
         c if c == afrobim_gantry::GANTRY_CATEGORY => 6,
         c if c == crate::alignment_glue::CATEGORY => 7,
-        c if c == afrobim_markings::CATEGORY => 9,
+        c if c == afrobim_markings::CATEGORY || c == afrobim_markings::CATEGORY_EXT => 9,
         _ if r.check.starts_with("Sign support") => 1,
         _ if r.check.starts_with("Sign visibility") => 8,
         _ => 9,
     }
 }
 
-/// The inputs stored with an element as `key: value` lines, empty entries left out.
-pub fn inputs_lines(doc: &Document, id: ElementId) -> Vec<String> {
+/// The stored-input keys a check reads. A check is shown only the inputs that belong to it: a
+/// sign's visibility inputs are not printed under its support check, and the other way round.
+/// A check that reads none (the marking rules, the layout rules) shows none.
+pub fn keys_of_check(check: &str) -> &'static [&'static str] {
+    use crate::check_inputs as k;
+    if check.starts_with("Sign support design") {
+        &[k::KEY_SUPPORT]
+    } else if check.starts_with("Sign visibility") {
+        &["check.visibility"]
+    } else if check.starts_with("Side drain") {
+        &[k::KEY_DRAIN, k::KEY_RATIONAL]
+    } else if check.starts_with("Culvert") {
+        &[k::KEY_CULVERT, k::KEY_RATIONAL]
+    } else if check.starts_with("Lighting requirement") {
+        &[k::KEY_LIGHTING]
+    } else if check.starts_with("Barrier run") {
+        &[k::KEY_RESTRAINT]
+    } else if check.starts_with("Pavement design check") {
+        &[k::KEY_PAVEMENT]
+    } else if check.starts_with("Alignment geometry") {
+        &[crate::design_glue::CHECK_KEY]
+    } else {
+        &[]
+    }
+}
+
+/// The inputs stored with an element that belong to `check`, as `key: value` lines, empty entries left out.
+pub fn inputs_lines(doc: &Document, id: ElementId, check: &str) -> Vec<String> {
+    let keys = keys_of_check(check);
     fn walk(prefix: &str, v: &serde_json::Value, out: &mut Vec<String>) {
         match v {
             serde_json::Value::Null => {}
@@ -139,7 +166,7 @@ pub fn inputs_lines(doc: &Document, id: ElementId) -> Vec<String> {
     let mut out = Vec::new();
     let Some(e) = doc.find(id) else { return out };
     for (k, text) in &e.properties {
-        if !k.starts_with("check.") || k == crate::visibility_ui::KEY_ACCEPTED {
+        if !k.starts_with("check.") || k == crate::visibility_ui::KEY_ACCEPTED || !keys.contains(&k.as_str()) {
             continue;
         }
         match serde_json::from_str::<serde_json::Value>(text) {
@@ -196,7 +223,7 @@ pub fn build(doc: &Document, registry: &ModuleRegistry, engine: Option<&afrobim_
             let s = section_of(doc, r);
             (
                 s,
-                PackRow { section: SECTION_TITLES[s].to_string(), mark: r.mark.clone(), category: r.category.clone(), check: r.check.clone(), status: r.status.label(), reason: r.reason.clone(), inputs: inputs_lines(doc, r.element), lines: r.lines.clone(), notes: r.notes.clone() },
+                PackRow { section: SECTION_TITLES[s].to_string(), mark: r.mark.clone(), category: r.category.clone(), check: r.check.clone(), status: r.status.label(), reason: r.reason.clone(), inputs: inputs_lines(doc, r.element, &r.check), lines: r.lines.clone(), notes: r.notes.clone() },
             )
         })
         .collect();
@@ -212,6 +239,8 @@ pub fn build(doc: &Document, registry: &ModuleRegistry, engine: Option<&afrobim_
         }
     }
     let mut basis = vec![
+        Block::Heading("Design bases in use in this document".into()),
+        Block::Lines(design_bases_lines(doc, standard)),
         Block::Para(format!("Sign design standard of this document: {standard}. The documents and editions below are those the engines state in their own documentation; which of them governs a project is the engineer's choice.")),
         Block::Table(Table { headers: vec!["Area".into(), "Documents and editions read".into(), "Status and limits".into()], rows: BASIS.iter().map(|b| vec![b.0.into(), b.1.into(), b.2.into()]).collect(), col_widths_mm: vec![26.0, 70.0, 0.0], title: Some("Standards and editions".into()), ..Table::default() }),
         Block::Heading("Warnings written by the engines in this pack".into()),
@@ -247,6 +276,100 @@ pub fn build(doc: &Document, registry: &ModuleRegistry, engine: Option<&afrobim_
     sections.push(Section { title: SECTION_TITLES[13].into(), body: programme_blocks(doc) });
 
     Pack { project, info, document: document.to_string(), composed: composed.to_string(), standard: standard.to_string(), sections, rows: rows.into_iter().map(|(_, r)| r).collect() }
+}
+
+/// The speed band rule and the design basis each kind of check is using, from what the document stores.
+pub fn design_bases_lines(doc: &Document, standard: &str) -> Vec<String> {
+    use afrobim_drainage::design::DesignBasis;
+    let mut out = vec![format!("Sign standard: {standard}.")];
+    out.push(format!("Speed band rule (a km/h limit read against the UK mph thresholds): {}.", speed_rule_text(&afrobim_kernel::speed_band_rule(doc))));
+    // Drainage: the basis of each element that has stored inputs.
+    let mut drain: BTreeMap<&'static str, Vec<String>> = BTreeMap::new();
+    for e in doc.elements() {
+        let basis = if e.category == afrobim_drainage::DRAIN_CATEGORY {
+            crate::check_inputs::load::<crate::check_inputs::DrainInputs>(doc, e.id, crate::check_inputs::KEY_DRAIN).map(|i| i.basis())
+        } else if e.category == afrobim_drainage::CULVERT_CATEGORY {
+            crate::check_inputs::load::<crate::check_inputs::CulvertInputs>(doc, e.id, crate::check_inputs::KEY_CULVERT).map(|i| i.basis())
+        } else {
+            None
+        };
+        if let Some(b) = basis {
+            drain.entry(b.name()).or_default().push(e.name.clone());
+        }
+        let _: Option<DesignBasis> = None;
+    }
+    if drain.is_empty() {
+        out.push("Drainage: no basis is stored (no drain or culvert has stored check inputs).".into());
+    }
+    for (name, marks) in &drain {
+        out.push(format!("Drainage: {name}: {}.", marks.join(", ")));
+    }
+    // Pavement: the method of each pavement with stored inputs.
+    let mut methods: BTreeMap<&'static str, Vec<String>> = BTreeMap::new();
+    for e in doc.elements().iter().filter(|e| e.category == afrobim_pavement::PAVEMENT_CATEGORY) {
+        if let Some(form) = crate::check_inputs::load::<crate::road_glue::DesignForm>(doc, e.id, crate::check_inputs::KEY_PAVEMENT) {
+            methods.entry(crate::road_glue::methods()[form.method.min(crate::road_glue::methods().len() - 1)].name()).or_default().push(e.name.clone());
+        }
+    }
+    if methods.is_empty() {
+        out.push("Pavement: no design method is stored.".into());
+    }
+    for (name, marks) in &methods {
+        out.push(format!("Pavement: {name}: {}.", marks.join(", ")));
+    }
+    // Alignment checks: where the limits come from.
+    let mut any = false;
+    for e in doc.elements().iter().filter(|e| e.category == crate::alignment_glue::CATEGORY) {
+        if let Some(s) = crate::design_glue::stored_check(doc, e.id) {
+            any = true;
+            let what = match s.source {
+                crate::design_glue::LimitSource::UserFile => format!("the user's limits file {} (row {})", s.limits_path, s.row_label),
+                crate::design_glue::LimitSource::Builtin => format!("the built-in MoWT Road Design Manual Vol. I (January 2010), {}", builtin_text(&s.builtin)),
+                crate::design_glue::LimitSource::BuiltinWithOverlay => format!("the built-in MoWT Road Design Manual Vol. I (January 2010), {}, with the user's limits file {} laid over it (row {})", builtin_text(&s.builtin), s.limits_path, s.row_label),
+            };
+            out.push(format!("Alignment {}: limits from {what}.", e.name));
+        }
+    }
+    if !any {
+        out.push("Alignment checks: no limits source is stored.".into());
+    }
+    // Markings: the basis of each second-set marking, and every UK value used under the Uganda basis.
+    let (mut uk, mut ug, mut fallbacks) = (0, 0, Vec::new());
+    for e in doc.elements().iter().filter(|e| e.category == afrobim_markings::CATEGORY_EXT) {
+        if let Ok(d) = afrobim_markings::ExtDefinition::from_value(&e.data) {
+            match d.basis {
+                afrobim_markings::Basis::Uk => uk += 1,
+                afrobim_markings::Basis::Uganda => ug += 1,
+            }
+            if let Some(r) = d.uk_fallback {
+                fallbacks.push(format!("{}: {r}", e.name));
+            }
+        }
+    }
+    if uk + ug > 0 {
+        out.push(format!("Road markings, second set: {uk} to the UK Traffic Signs Manual Chapter 5 (2018), {ug} to the Uganda Traffic Signs Manual (2004)."));
+        for f in fallbacks {
+            out.push(format!("UK value used under the Uganda basis by the engineer's choice, {f}"));
+        }
+    }
+    out
+}
+
+fn builtin_text(b: &crate::design_glue::BuiltinChoice) -> String {
+    match b.selection() {
+        Ok(s) => format!("class {}, {}, {} km/h, emax {} %, {} maximum gradient{}", s.class.manual_name(), s.terrain.manual_name(), s.design_speed_kmh, s.emax_percent, if b.absolute_grade { "absolute" } else { "desirable" }, if b.minimum_grade_in_cut { ", minimum grade in cut checked" } else { "" }),
+        Err(why) => format!("selection incomplete ({why})"),
+    }
+}
+
+fn speed_rule_text(rule: &afrobim_kernel::SpeedBandRule) -> String {
+    use afrobim_kernel::SpeedBandRule as R;
+    match rule {
+        R::RoundUp { .. } => "round up to the next band".to_string(),
+        R::Exact => "use the exact converted value".to_string(),
+        R::AskEachTime => "ask each time".to_string(),
+        R::Table(t) => format!("the user's table of {} limit(s)", t.len()),
+    }
 }
 
 fn photometry_blocks(doc: &Document) -> Vec<Block> {
@@ -726,9 +849,37 @@ impl AfroBimApp {
         self.pack.pack = Some(pack);
     }
 
+    /// Composes the pack on a worker thread, with a progress indicator and Cancel. The pack is
+    /// kept only if the document has not changed since the composition started.
+    pub(crate) fn pack_compose_bg(&mut self) {
+        if self.bg.pack.is_some() {
+            self.status = "The report pack is already being composed.".into();
+            return;
+        }
+        let doc = self.doc.clone();
+        let fp = crate::background::fingerprint(&self.doc);
+        let (title, standard_label, standard) = (self.title_for_pack(), self.standard_label(), self.standard.clone());
+        let composed = crate::sheets_glue::now_text();
+        self.bg.pack = Some(crate::background::Job::spawn("Report pack", fp, move || {
+            // The worker builds its own modules and sign engine: the app's are not `Send`.
+            let mut modules = crate::background::worker_registry();
+            let engine = match crate::signs_glue::load_module(&standard) {
+                Ok(l) => {
+                    modules.register(l.module);
+                    Some(l.engine)
+                }
+                Err(_) => None,
+            };
+            let pack = build(&doc, &modules, engine.as_deref(), &composed, &title, &standard_label);
+            let pages = compose(&pack).len();
+            (pack, pages)
+        }));
+        self.status = "Composing the report pack on a worker thread.".into();
+    }
+
     pub(crate) fn pack_open(&mut self) {
         self.pack.open = true;
-        self.pack_compose();
+        self.pack_compose_bg();
     }
 
     pub(crate) fn pack_export_dialog(&mut self) {
@@ -776,7 +927,7 @@ impl AfroBimApp {
         });
         self.pack.open = open;
         if recompose {
-            self.pack_compose();
+            self.pack_compose_bg();
         }
         if export {
             self.pack_export_dialog();

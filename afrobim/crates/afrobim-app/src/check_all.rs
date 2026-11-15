@@ -225,6 +225,7 @@ fn check_element(doc: &Document, e: &Element, m: &mut Maker) {
         c if c == restraint::CATEGORY => restraint_check(doc, e, m),
         c if c == pavement::PAVEMENT_CATEGORY => pavement_check(doc, e, m),
         c if c == afrobim_markings::CATEGORY => rules(e, "Marking rules (Traffic Signs Manual Chapter 5 checks of the marking engine)", m),
+        c if c == afrobim_markings::CATEGORY_EXT => rules(e, "Marking rules, second set (UK Chapter 5 or Uganda Traffic Signs Manual, by the basis chosen)", m),
         c if c == alignment_glue::CATEGORY => alignment_check(doc, e, m),
         _ => {}
     }
