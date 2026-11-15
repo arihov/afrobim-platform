@@ -1805,7 +1805,7 @@ impl AfroBimApp {
                 if ui.selectable_label(self.ctl.ortho_on, "ORTHO").on_hover_text("Hold moves to the X or Y axis (F8)").clicked() {
                     self.ctl.ortho_on = !self.ctl.ortho_on;
                 }
-                if ui.selectable_label(self.anno.osnap.on, "OSNAP").on_hover_text("Object snap for annotation commands (F3). OSNAPSETTINGS says which modes and what provides them").clicked() {
+                if ui.selectable_label(self.anno.osnap.on, "OSNAP").on_hover_text("Object snap for annotation commands, MOVE, COPY, grips and placing a sign (F3). OSNAPSETTINGS says which modes and what provides them").clicked() {
                     self.anno.osnap.on = !self.anno.osnap.on;
                 }
                 if crate::anno_ui::scale_control(ui, &mut self.doc) {
@@ -2150,12 +2150,14 @@ impl AfroBimApp {
                     if mid_down {
                         self.view.pan(delta.x as f64, delta.y as f64);
                     }
+                    self.ctl_object_snap(s);
                     self.ctl.pointer_move(&mut self.doc, &self.view, s);
                     self.anno_pointer(s);
                 }
                 if over {
                     if scroll != 0.0 {
                         self.view.zoom_about(s, (scroll as f64 * 0.0025).exp());
+                        self.ctl_object_snap(s);
                         self.ctl.pointer_move(&mut self.doc, &self.view, s);
                     }
                     if mid_double {
@@ -2169,6 +2171,7 @@ impl AfroBimApp {
                             if self.anno.grip_hover.is_some() {
                                 self.ctl.pointer_leave();
                             }
+                            self.ctl_object_snap(s);
                             self.ctl.left_down(&mut self.doc, &mut self.view, s, shift, false);
                             self.canvas_drag = true;
                         }
@@ -2196,6 +2199,7 @@ impl AfroBimApp {
                     self.anno_release(s);
                 } else if released && self.canvas_drag {
                     self.canvas_drag = false;
+                    self.ctl_object_snap(s);
                     self.ctl.left_up(&mut self.doc, &mut self.view, s);
                 }
             }

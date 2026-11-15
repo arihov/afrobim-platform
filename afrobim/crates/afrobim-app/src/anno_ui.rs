@@ -184,7 +184,7 @@ impl AfroBimApp {
                 painter.add(Shape::dashed_line(&[sp(&self.view, *last), sp(&self.view, a.cursor)], Stroke::new(1.0_f32, GHOST.gamma_multiply(0.7)), 5.0, 3.0));
             }
         }
-        if cursor_inside && (a.session.is_some() || a.grip_drag.is_some()) {
+        if cursor_inside && (a.session.is_some() || a.grip_drag.is_some() || self.ctl.wants_object_snap()) {
             if let Some(c) = &a.snap {
                 let at = sp(&self.view, c.p);
                 snap_marker(painter, at, c.mode);
@@ -222,6 +222,18 @@ impl AfroBimApp {
 
     // ─── the point under the cursor ─────────────────────────────────────────────────────
 
+    /// Every object snap candidate near `raw` (model mm): the model (an element with a drawing by
+    /// its lines and arcs, otherwise its bounding rectangle), the underlays and the grid, for the
+    /// modes that are on. The one source for the annotation commands, grips, MOVE, COPY and
+    /// placing a sign.
+    pub(crate) fn osnap_candidates(&self, raw: Pt) -> Vec<Cand> {
+        let radius = SNAP_REACH_PX / self.view.scale;
+        let extra = self.under.snaps_near(&self.doc, raw, radius);
+        let grid = self.grid_on.then(|| display_spacing(self.grid_spacing, self.view.scale, 14.0));
+        let drawn = |id: afrobim_kernel::ElementId| self.cache.get(&id).and_then(|c| c.generated.as_ref().ok()).map(|g| &g.drawing);
+        anno_glue::candidates_with(&self.doc, raw, radius, &self.anno.osnap, grid, &extra, &drawn)
+    }
+
     /// The point a click here would give: ortho and grid snap, then object snap over both.
     fn anno_snap_point(&mut self, raw: Pt) -> Pt {
         let last = self.anno.session.as_ref().and_then(|s| s.points().last().copied());
@@ -232,12 +244,13 @@ impl AfroBimApp {
         if self.ctl.snap_on {
             p = snap(p, self.ctl.snap_spacing);
         }
-        self.anno.snap = None;
+        // The marker is the annotation command's own here; MOVE, COPY and placing set theirs in
+        // `ctl_object_snap`, which runs before this on the same event.
+        if self.anno.session.is_some() || self.anno.grip_drag.is_some() {
+            self.anno.snap = None;
+        }
         if self.anno.osnap.on && (self.anno.session.is_some() || self.anno.grip_drag.is_some()) {
-            let radius = SNAP_REACH_PX / self.view.scale;
-            let extra = self.under.snaps_near(&self.doc, raw, radius);
-            let grid = self.grid_on.then(|| display_spacing(self.grid_spacing, self.view.scale, 14.0));
-            let mut cands = anno_glue::candidates(&self.doc, raw, radius, &self.anno.osnap, grid, &extra);
+            let mut cands = self.osnap_candidates(raw);
             if let Some(d) = &self.anno.grip_drag {
                 // A grip does not snap to its own annotation.
                 let own: Vec<Pt> = anno_glue::grips_of(&self.doc, d.id);
@@ -249,6 +262,30 @@ impl AfroBimApp {
             }
         }
         p
+    }
+
+    /// Object snap for MOVE, COPY, a dragged grip and a sign hung from the cursor: the winning
+    /// candidate under the pointer, never one of the elements being moved (they would snap to
+    /// themselves), handed to the controller as the point picked. Called with the screen point
+    /// before every pointer event the controller gets. Clears the marker when there is no
+    /// candidate, object snap is off or the controller is not waiting for a point.
+    pub(crate) fn ctl_object_snap(&mut self, screen: Pt) {
+        if self.anno.session.is_some() || self.anno.grip_drag.is_some() {
+            return;
+        }
+        self.anno.snap = None;
+        self.ctl.set_object_snap(None);
+        if !self.anno.osnap.on || !self.ctl.wants_object_snap() {
+            return;
+        }
+        let raw = self.view.to_world(screen);
+        let moving = self.ctl.ghost_ids().to_vec();
+        let mut cands = self.osnap_candidates(raw);
+        cands.retain(|c| !c.owner.is_some_and(|o| moving.contains(&o)));
+        if let Some(c) = anno_glue::best(cands, raw) {
+            self.ctl.set_object_snap(Some(c.p));
+            self.anno.snap = Some(c);
+        }
     }
 
     /// The pointer moved over the 2D canvas.

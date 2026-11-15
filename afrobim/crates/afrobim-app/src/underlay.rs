@@ -503,7 +503,7 @@ impl UnderlayState {
             let Some(en) = self.entries.get(&e.id) else { continue };
             for (p, mode) in en.snaps.iter() {
                 if (p.x - cursor.x).abs() <= radius && (p.y - cursor.y).abs() <= radius && afrobim_annotate::geometry::dist(*p, cursor) <= radius {
-                    out.push(Cand { p: *p, mode: *mode, from: format!("underlay {}", e.name) });
+                    out.push(Cand { p: *p, mode: *mode, from: format!("underlay {}", e.name), owner: None });
                 }
             }
         }
