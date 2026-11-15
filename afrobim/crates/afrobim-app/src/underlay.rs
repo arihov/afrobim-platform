@@ -15,7 +15,7 @@
 //! cryptographic hash.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
@@ -298,7 +298,7 @@ struct Entry {
     snap_key: Option<BuildKey>,
     building: Option<BuildKey>,
     /// What the file said when it was read, for the window.
-    pub hash_now: String,
+    hash_now: String,
 }
 
 /// The runtime side of the underlays: what was read, what is drawn, the jobs in flight.
@@ -339,10 +339,6 @@ impl UnderlayState {
 
     pub fn built(&self, id: ElementId) -> Option<&Built> {
         self.entries.get(&id).and_then(|e| e.built.as_ref())
-    }
-
-    pub fn hash_now(&self, id: ElementId) -> Option<&str> {
-        self.entries.get(&id).map(|e| e.hash_now.as_str())
     }
 
     /// Attaches a DXF: adds the record to the document and starts reading. DWG is refused by the
@@ -480,8 +476,8 @@ impl UnderlayState {
         }
     }
 
-    /// Blocks until every read and build in flight has finished (tests, and unattended runs that
-    /// take a picture).
+    /// Blocks until every read and build in flight has finished (tests).
+    #[cfg(test)]
     pub fn wait(&mut self, doc: &mut Document, view_scale: f64) {
         for _ in 0..4000 {
             self.sync(doc, view_scale);
@@ -582,10 +578,6 @@ impl UnderlayState {
         }
     }
 
-    /// The path a new document remembers, for listing.
-    pub fn paths(doc: &Document) -> Vec<(ElementId, PathBuf)> {
-        doc.elements().iter().filter_map(|e| def_of(e).map(|d| (e.id, PathBuf::from(d.path)))).collect()
-    }
 }
 
 impl crate::app::AfroBimApp {
@@ -703,7 +695,10 @@ impl crate::app::AfroBimApp {
                             });
                         }
                         if let Some(b) = self.under.built(id) {
-                            ui.label(egui::RichText::new(format!("Drawn at this zoom: {} segments, {} texts. {}", b.segs.len(), b.labels.len(), if b.truncated { "The file hit the item limit: part of it is not drawn." } else { "" })).small().weak());
+                            ui.label(egui::RichText::new(format!("Drawn at this zoom: {} segments from {} items, {} texts. {}", b.segs.len(), b.items, b.labels.len(), if b.truncated { "The file hit the item limit: part of it is not drawn." } else { "" })).small().weak());
+                            for w in b.warnings.iter().take(5) {
+                                ui.label(egui::RichText::new(w).small().color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                            }
                         }
                         ui.horizontal(|ui| {
                             if ui.button("Zoom to it").clicked() {
@@ -760,6 +755,7 @@ impl crate::app::AfroBimApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn temp_dxf(name: &str, lines: usize) -> PathBuf {
         let mut dxf = afrobim_dxf::DxfDocument::new();

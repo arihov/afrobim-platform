@@ -1569,9 +1569,46 @@ impl AfroBimApp {
                     }
                     ui.separator();
                     item(ui, "Standard signs…", "LIBRARY", Action::Library);
+                    ui.separator();
+                    item(ui, "Sign schedule from CSV…", "SIGNSCHEDULE", Action::SignSchedule);
+                    item(ui, "Export the sign schedule (CSV)…", "SIGNSCHEDULEOUT", Action::SignScheduleOut);
+                    item(ui, "Blank sign schedule template…", "SIGNSCHEDULETEMPLATE", Action::SignScheduleTemplate);
+                    ui.separator();
+                    item(ui, "DXF underlay…", "UNDERLAY", Action::Underlay);
                 });
                 ui.menu_button("Annotate", |ui| {
                     item(ui, "Show / hide element marks", "MARKS", Action::ToggleMarks);
+                    ui.separator();
+                    item(ui, "Text", "TEXT", Action::Anno(crate::anno_glue::Kind::Text));
+                    item(ui, "Multiline text", "MTEXT", Action::Anno(crate::anno_glue::Kind::MText));
+                    item(ui, "Edit text", "TEXTEDIT", Action::TextEdit);
+                    ui.separator();
+                    item(ui, "Dimension", "DIM", Action::Anno(crate::anno_glue::Kind::Dim));
+                    item(ui, "Linear", "DIMLINEAR", Action::Anno(crate::anno_glue::Kind::DimLinear));
+                    item(ui, "Aligned", "DIMALIGNED", Action::Anno(crate::anno_glue::Kind::DimAligned));
+                    item(ui, "Angular", "DIMANGULAR", Action::Anno(crate::anno_glue::Kind::DimAngular));
+                    item(ui, "Radius", "DIMRADIUS", Action::Anno(crate::anno_glue::Kind::DimRadius));
+                    item(ui, "Diameter", "DIMDIAMETER", Action::Anno(crate::anno_glue::Kind::DimDiameter));
+                    item(ui, "Arc length", "DIMARC", Action::Anno(crate::anno_glue::Kind::DimArc));
+                    item(ui, "Continue", "DIMCONTINUE", Action::Anno(crate::anno_glue::Kind::DimContinue));
+                    item(ui, "Baseline", "DIMBASELINE", Action::Anno(crate::anno_glue::Kind::DimBaseline));
+                    item(ui, "Station and offset", "DIMSTATION", Action::Anno(crate::anno_glue::Kind::DimStation));
+                    item(ui, "Level", "DIMLEVEL", Action::Anno(crate::anno_glue::Kind::DimLevel));
+                    ui.separator();
+                    item(ui, "Leader", "LEADER", Action::Anno(crate::anno_glue::Kind::Leader));
+                    item(ui, "Mark leader", "MLEADER", Action::Anno(crate::anno_glue::Kind::MLeader));
+                    ui.separator();
+                    item(ui, "Distance", "DIST", Action::Anno(crate::anno_glue::Kind::Dist));
+                    item(ui, "Angle", "MEASUREANGLE", Action::Anno(crate::anno_glue::Kind::MeasureAngle));
+                    item(ui, "Radius of three points", "MEASURERADIUS", Action::Anno(crate::anno_glue::Kind::MeasureRadius));
+                    item(ui, "Area", "AREA", Action::Anno(crate::anno_glue::Kind::Area));
+                    item(ui, "ID point", "ID", Action::Anno(crate::anno_glue::Kind::Id));
+                    item(ui, "Measure results…", "MEASURERESULTS", Action::MeasureResults);
+                    ui.separator();
+                    item(ui, "Text styles…", "STYLE", Action::TextStyles);
+                    item(ui, "Dimension styles…", "DIMSTYLE", Action::DimStyles);
+                    item(ui, "Object snap on / off", "OSNAP", Action::ToggleOsnap);
+                    item(ui, "Object snap settings…", "OSNAPSETTINGS", Action::OsnapSettings);
                 });
                 ui.menu_button("Format", |ui| {
                     for (i, (id, label, _)) in signs_glue::STANDARDS.iter().enumerate() {
@@ -1599,6 +1636,10 @@ impl AfroBimApp {
                     ui.separator();
                     item(ui, "Check the whole model…", "CHECKALL", Action::CheckAll);
                     item(ui, "Rational method…", "RATIONAL", Action::Rational);
+                    ui.separator();
+                    item(ui, "Layer manager…", "LAYER", Action::Layers);
+                    item(ui, "Units…", "UNITS", Action::Units);
+                    item(ui, "Project settings…", "PROJECTSETTINGS", Action::ProjectSettings);
                     ui.separator();
                     item(ui, "Dark / light theme", "THEME", Action::ToggleTheme);
                     item(ui, "Dark / light model space", "CANVAS", Action::ToggleCanvas);

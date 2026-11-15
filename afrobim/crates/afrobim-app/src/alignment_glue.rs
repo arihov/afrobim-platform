@@ -103,7 +103,7 @@ pub fn place_sign(doc: &mut Document, sign: ElementId, alignment_id: ElementId, 
     Ok(format!(
         "{mark} placed on {} at {} , {:.2} m {}{level}.",
         alignment.name,
-        afrobim_alignment::format_station(station_m, 3),
+        crate::anno_ui::units_of(doc).station(station_m),
         distance_m.abs(),
         if right { "right" } else { "left" }
     ))

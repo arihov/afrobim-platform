@@ -161,7 +161,8 @@ impl AfroBimApp {
             if let (Some(base), true) = (c.base_point(), c.tool() != CanvasTool::Place) {
                 let (a, b) = (p(self.view.to_screen(base)), p(self.view.to_screen(base + d)));
                 painter.extend(Shape::dashed_line(&[a, b], Stroke::new(1.0_f32, RUBBER), 5.0, 3.0));
-                tip(painter, b + Vec2::new(16.0, 18.0), &format!("Δ {:.0} , {:.0}   {:.0} mm", d.x, d.y, (d.x * d.x + d.y * d.y).sqrt()));
+                let u = crate::anno_ui::units_of(&self.doc);
+                tip(painter, b + Vec2::new(16.0, 18.0), &format!("Δ {} , {}   {}", u.length(d.x), u.length(d.y), u.length_u((d.x * d.x + d.y * d.y).sqrt())));
             }
         }
 

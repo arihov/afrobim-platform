@@ -52,29 +52,6 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 20] = [
-        Kind::Text,
-        Kind::MText,
-        Kind::Dim,
-        Kind::DimLinear,
-        Kind::DimAligned,
-        Kind::DimAngular,
-        Kind::DimRadius,
-        Kind::DimDiameter,
-        Kind::DimArc,
-        Kind::DimContinue,
-        Kind::DimBaseline,
-        Kind::DimStation,
-        Kind::DimLevel,
-        Kind::Leader,
-        Kind::MLeader,
-        Kind::Dist,
-        Kind::MeasureAngle,
-        Kind::MeasureRadius,
-        Kind::Area,
-        Kind::Id,
-    ];
-
     pub fn is_measure(self) -> bool {
         matches!(self, Kind::Dist | Kind::MeasureAngle | Kind::MeasureRadius | Kind::Area | Kind::Id)
     }
@@ -181,12 +158,13 @@ pub fn parse_point(text: &str, last: Option<Pt>, u: &DisplayUnits) -> Option<Pt>
 /// The element a click at `p` would attach a leader to: the topmost pickable model element that
 /// is not an annotation or a settings record.
 pub fn pick_model(doc: &Document, p: Pt, radius: f64) -> Option<ElementId> {
-    let id = doc.pick(p, radius)?;
-    let e = doc.find(id)?;
-    if ann::is_annotation(e) || e.category == ann::SETTINGS_CATEGORY || e.category == afrobim_kernel::PROJECT_SETTINGS_CATEGORY {
-        return None;
-    }
-    Some(id)
+    doc.elements()
+        .iter()
+        .rev()
+        .filter(|e| !ann::is_annotation(e) && e.category != ann::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY)
+        .filter(|e| doc.layer_visible(&e.layer) && !doc.layers().iter().any(|l| l.name == e.layer && l.locked))
+        .find(|e| e.bounds().inflate(radius).contains_point(p))
+        .map(|e| e.id)
 }
 
 /// The level at a site point in metres and where it came from: the first survey surface that
@@ -274,10 +252,6 @@ impl Session {
             _ => {}
         }
         Ok(s)
-    }
-
-    pub fn alignment_name(&self) -> Option<&str> {
-        self.alignment.as_deref()
     }
 
     /// How many points are collected so far.

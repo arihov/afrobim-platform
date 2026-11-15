@@ -229,7 +229,7 @@ impl AfroBimApp {
                 v.extend(afrobim_fabrication::sign_schedule::PARAMS.iter().map(|p| Field::Param(p.name.to_string())));
                 v
             };
-            egui::ScrollArea::vertical().max_height(330.0).show(ui, |ui| {
+            egui::ScrollArea::vertical().max_height(130.0).show(ui, |ui| {
                 egui::Grid::new("sched-map").num_columns(4).spacing([10.0, 4.0]).striped(true).show(ui, |ui| {
                     ui.label(RichText::new("File column").strong());
                     ui.label(RichText::new("Schedule field").strong());
@@ -350,7 +350,7 @@ impl AfroBimApp {
         let mut open = true;
         let (mut apply_now, mut replan) = (false, false);
         let work = crate::win::work_rect(ctx);
-        crate::win::new(ctx, "Sign schedule: import plan").open(&mut open).default_width(700.0).default_pos(crate::win::first_position(work) + egui::vec2(40.0, 60.0)).show(ctx, |ui| {
+        crate::win::new(ctx, "Sign schedule: import plan").open(&mut open).default_width(700.0).default_pos(crate::win::first_position(work) + egui::vec2(0.0, 392.0)).show(ctx, |ui| {
             let st = &mut self.signsched;
             let Some(plan) = &st.plan else {
                 ui.label("No plan yet: choose a file with SIGNSCHEDULE.");
@@ -377,7 +377,7 @@ impl AfroBimApp {
                 });
             }
             ui.add_space(4.0);
-            egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+            egui::ScrollArea::vertical().max_height(110.0).show(ui, |ui| {
                 egui::Grid::new("sched-plan").num_columns(5).spacing([10.0, 3.0]).striped(true).show(ui, |ui| {
                     for h in ["Line", "Mark", "What", "Where", "Result"] {
                         ui.label(RichText::new(h).strong());

@@ -113,6 +113,23 @@ mod tests {
     use afrobim_alignment::{Alignment, Pi};
 
     #[test]
+    fn a_kmh_limit_is_read_through_the_project_rule_and_the_note_stays_on_the_marking() {
+        let mut doc = Document::default();
+        let a = Alignment::from_pis("MC10", 0.0, &[Pi { x: 0.0, y: 0.0, radius: 0.0, spiral_in: 0.0, spiral_out: 0.0 }, Pi { x: 300.0, y: 0.0, radius: 0.0, spiral_in: 0.0, spiral_out: 0.0 }]).unwrap();
+        let alignment = crate::alignment_glue::add(&mut doc, &a).unwrap();
+        let line = line_types().iter().position(|s| s.id == "1008.1").unwrap();
+        let req = MarkingRequest { line, start_station_m: 0.0, end_station_m: 90.0, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: Some((80.0, None)), width_mm: Some(100), material: String::new() };
+        let mark = add(&mut doc, alignment, &req).unwrap();
+        let note = doc.elements().iter().find(|e| e.name == mark).unwrap().properties.get("Speed band").cloned().unwrap();
+        assert!(note.contains("treats it as 50 mph") && note.contains("read at 50 mph"), "{note}");
+        // "Ask each time" refuses until the engineer answers.
+        afrobim_kernel::set_speed_band_rule(&mut doc, &afrobim_kernel::SpeedBandRule::AskEachTime);
+        assert!(add(&mut doc, alignment, &req).unwrap_err().contains("asks each time"));
+        let yes = MarkingRequest { speed_kmh: Some((80.0, Some(true))), ..req };
+        assert!(add(&mut doc, alignment, &yes).is_ok());
+    }
+
+    #[test]
     fn a_centre_line_is_added_and_measured() {
         let mut doc = Document::default();
         let a = Alignment::from_pis("MC10", 0.0, &[Pi { x: 0.0, y: 0.0, radius: 0.0, spiral_in: 0.0, spiral_out: 0.0 }, Pi { x: 300.0, y: 0.0, radius: 0.0, spiral_in: 0.0, spiral_out: 0.0 }]).unwrap();

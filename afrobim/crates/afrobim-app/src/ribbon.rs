@@ -500,6 +500,19 @@ mod tests {
     }
 
     #[test]
+    fn the_cad_basics_are_live_commands_not_planned_items() {
+        // Text, dimension, leader, measure, sign schedule, DXF underlay, layer manager and units
+        // are all buttons that run a command; what is still planned is listed here by label.
+        let planned: Vec<&str> = TABS.iter().flat_map(|(tab, _)| panels(*tab)).flat_map(|p| p.items).filter_map(|i| if let Planned(_, label, _) = *i { Some(label) } else { None }).collect();
+        for label in ["Text", "Dimension", "Leader", "Measure", "Sign schedule", "DXF underlay", "Layer manager", "Units"] {
+            assert!(!planned.contains(&label), "{label} is still planned");
+        }
+        for command in ["TEXT", "MTEXT", "TEXTEDIT", "DIM", "DIMLINEAR", "DIMALIGNED", "DIMANGULAR", "DIMRADIUS", "DIMDIAMETER", "DIMARC", "DIMCONTINUE", "DIMBASELINE", "DIMSTATION", "DIMLEVEL", "LEADER", "MLEADER", "DIST", "AREA", "ID", "STYLE", "DIMSTYLE", "OSNAP", "LAYER", "UNITS", "PROJECTSETTINGS", "UNDERLAY", "SIGNSCHEDULE", "SIGNSCHEDULEOUT", "XREF", "MEASURE"] {
+            assert!(commands::resolve(command).is_some(), "{command} is not a command");
+        }
+    }
+
+    #[test]
     fn every_command_can_be_reached_from_the_ribbon() {
         // The sign inserts are on the Signs tab, built from the templates; Quit stays on the
         // File menu.

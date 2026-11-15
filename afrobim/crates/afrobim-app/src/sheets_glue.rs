@@ -13,7 +13,7 @@ use afrobim_draw::{Colour, Drawing, Extents, Primitive, Pt2};
 use afrobim_kernel::{Document, Element, ElementId, Generated, Module, ModuleRegistry, Note};
 use afrobim_schedule::{Date, GanttOptions, SCurveBasis};
 use afrobim_sheets::{
-    add_sheet_set, compose_set_with, load_sheet_set, module_quantities, priced_bill_table, project_info, set_project_info, sheet_sets, store_sheet_set, ComposedSet, DetailLabel, DetailSource,
+    add_sheet_set, load_sheet_set, module_quantities, priced_bill_table, project_info, set_project_info, sheet_sets, store_sheet_set, ComposedSet, DetailLabel, DetailSource,
     DetailView, Model, Numbering, Orientation, Page, PaperSize, PlanSeries, PlanView, ProfileView, ProjectInfo, Revision, Scale, SheetSet, SheetSource, SheetSpec, Table, TableSeries, UserField,
     ViewDef, ViewKind, SHEETS_CATEGORY,
 };
@@ -441,9 +441,67 @@ pub fn compose_stored(doc: &Document, registry: &ModuleRegistry, id: ElementId, 
     let model = Model { doc, registry };
     let feed_notes = feed_set(&mut set, &model, live);
     let info = project_info(doc);
-    let composed = compose_set_with(&model, &set, &info);
+    let composed = compose_with_annotations(&model, &set, &info);
     Ok(Composed { set_name: name, set, composed, feed_notes, at: now_text() })
 }
+
+/// The set composed by the sheets crate, with the document's annotation drawn on each plan view.
+///
+/// Annotation lives in model millimetres. A plan view maps model metres to paper by
+/// `paper = R(theta) * (model_mm / 1000 * k) + t` (`plan_transform`), where `k` is the paper
+/// millimetres a metre takes (1000 / denominator). The annotation engine's `sheet_drawing` gives
+/// `model_mm / denominator`, so the view's own turn and shift finish the job. What falls outside
+/// the view's window is cut. Annotation is sized for the annotation scale it was made at: when that
+/// is not the scale of the plan it prints larger or smaller than its paper height, and the sheet
+/// says so.
+pub fn compose_with_annotations(model: &Model, set: &SheetSet, info: &ProjectInfo) -> ComposedSet {
+    let (expanded, mut warnings) = afrobim_sheets::sheetset::expand(model, set);
+    let total = expanded.len();
+    let mut sheets = Vec::with_capacity(total);
+    for (i, e) in expanded.iter().enumerate() {
+        let mut s = afrobim_sheets::sheetset::compose_sheet(model, &set.styles, info, e, i + 1, total);
+        add_annotations(&mut s, model, &set.styles, &e.spec);
+        warnings.extend(s.warnings.iter().map(|w| format!("Sheet {}: {w}", s.number)));
+        sheets.push(s);
+    }
+    ComposedSet { sheets, warnings }
+}
+
+fn add_annotations(sheet: &mut afrobim_sheets::ComposedSheet, model: &Model, styles: &afrobim_sheets::style::Styles, spec: &SheetSpec) {
+    use afrobim_sheets::geom::Aff;
+    let doc = model.doc;
+    if !doc.elements().iter().any(afrobim_annotate::is_annotation) {
+        return;
+    }
+    let annotation_scale = afrobim_annotate::settings::load(doc).annotation_scale;
+    let area = spec.views_area();
+    for v in &spec.views {
+        let ViewKind::Plan(pv) = &v.kind else { continue };
+        let rect = area.fraction(&v.area).inset(1.0);
+        let Ok(alignment) = model.alignment(&pv.alignment) else { continue };
+        let (s0, s1) = (pv.from_station_m.max(alignment.start_station_m), pv.to_station_m.min(alignment.end_station_m()));
+        let Some(tf) = afrobim_sheets::plan::plan_transform(&alignment, s0, s1, pv.scale, pv.rotation, &rect) else { continue };
+        let t = tf.map.apply(Pt2::new(0.0, 0.0));
+        let m = Aff::scale_rotate(1.0, tf.rotation_deg).then(&Aff::translate(t.x, t.y));
+        let sd = afrobim_annotate::sheet_drawing(doc, Pt2::new(0.0, 0.0), 1.0 / pv.scale.0, None);
+        afrobim_sheets::draw_drawing(sheet, styles, &sd.drawing, &m, &rect, ANNOTATION_LAYER);
+        let rgb = styles.pens.pen(ANNOTATION_LAYER).rgb;
+        let mut drawn = 0;
+        for l in &sd.labels {
+            let at = m.apply(l.at);
+            if rect.contains(at) {
+                drawn += 1;
+                sheet.text(afrobim_sheets::SheetText { layer: ANNOTATION_LAYER.into(), at, height_mm: l.height_mm, text: l.text.clone(), align: l.align, rotation_deg: l.rotation_deg + tf.rotation_deg, bold: l.bold, rgb });
+            }
+        }
+        if drawn > 0 && (annotation_scale - pv.scale.0).abs() > 0.5 {
+            sheet.warn(format!("Annotation was made for 1:{annotation_scale} but this plan is {}: its text prints at {:.0} percent of the paper height it was given.", pv.scale.label(), annotation_scale / pv.scale.0 * 100.0));
+        }
+    }
+}
+
+/// The layer annotation is drawn on in sheets.
+pub const ANNOTATION_LAYER: &str = "ANNOTATION";
 
 // ─── exports ────────────────────────────────────────────────────────────────────────────
 

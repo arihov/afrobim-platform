@@ -4,7 +4,6 @@
 //! typed text); this file turns clicks, hover and the command line into calls of it, and paints
 //! what it returns.
 
-use afrobim_alignment::Alignment;
 use afrobim_annotate as ann;
 use afrobim_annotate::geometry::{dist, pt};
 use afrobim_annotate::{Ann, AnnGeometry, AnnotationSettings, DimData, DimKind, DimStyle, DisplayUnits, Justify, LayerProps, LeaderText, Seg, TextStyle};
@@ -538,7 +537,7 @@ impl AfroBimApp {
         crate::win::new(ctx, "Layer manager").open(&mut open).default_width(700.0).show(ctx, |ui| {
             let rows: Vec<ann::LayerInfo> = ann::layers::list(&self.doc).into_iter().filter(|l| !hidden_layer(&l.name)).collect();
             let mut msg: Option<String> = None;
-            egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
+            egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
                 egui::Grid::new("layers-grid").num_columns(8).spacing([10.0, 4.0]).striped(true).show(ui, |ui| {
                     for h in ["Current", "Name", "On", "Lock", "Colour", "Line weight (mm)", "Elements", ""] {
                         ui.label(RichText::new(h).strong());
@@ -1277,16 +1276,13 @@ pub fn alignment_names(doc: &Document) -> Vec<String> {
     alignment_glue::alignments(doc).into_iter().map(|a| a.1).collect()
 }
 
-#[allow(dead_code)]
-fn _alignment_type_is_used(_: &Alignment) {}
-
 // ─── demo ─────────────────────────────────────────────────────────────────────────────────
 
 /// Demo only: a text note, an aligned dimension, a mark leader and, when there is an alignment,
 /// a station and offset dimension.
 ///
 /// **Every value here is an arbitrary demo value**: the 1:50 annotation scale, the note's wording,
-/// the dimension's position, the 40 percent station and the 6 m offset of the station dimension.
+/// the dimension's position (800 mm left of the sign), the 40 percent station, the 6 m offset and the 1:500 size of the station dimension.
 /// The station dimension is in site coordinates, so it sits with the alignment, on its own layer
 /// that the demo leaves off (turn it on in LAYER or run DIMSTATION).
 pub fn demo(doc: &mut Document) -> Vec<String> {
@@ -1301,8 +1297,8 @@ pub fn demo(doc: &mut Document) -> Vec<String> {
         if let Err(e) = ann::add_text(doc, note, anno_glue::LAYER) {
             problems.push(format!("Demo text: {e}"));
         }
-        // An aligned dimension under the sign, 600 mm below its lower edge (demo value).
-        let d = DimData::new(DimKind::Linear { p1: pt(b.min.x, b.min.y), p2: pt(b.max.x, b.min.y), line_pt: pt(b.min.x, b.min.y - 600.0), orient: ann::LinearOrient::Aligned }, &style);
+        // An aligned dimension of the sign's height, 800 mm to the left of it (demo value).
+        let d = DimData::new(DimKind::Linear { p1: pt(b.min.x, b.min.y), p2: pt(b.min.x, b.max.y), line_pt: pt(b.min.x - 800.0, b.min.y), orient: ann::LinearOrient::Aligned }, &style);
         if let Err(e) = ann::add_dimension(doc, d, anno_glue::LAYER) {
             problems.push(format!("Demo dimension: {e}"));
         }
@@ -1317,7 +1313,9 @@ pub fn demo(doc: &mut Document) -> Vec<String> {
         let internal = a.start_station_m + a.length() * 0.4; // demo value
         if let Some(p) = a.point_at_offset(internal, 6.0) {
             let site = pt(p.0 * 1000.0, p.1 * 1000.0);
-            let style = st.current_dim();
+            // Demo value: this dimension is read at site scale, so it is sized for 1:500.
+            let mut style = st.current_dim();
+            style.scale = 500.0;
             let d = DimData::new(DimKind::StationOffset { point: site, alignment: a.name.clone(), text_pt: pt(site.x + 4000.0, site.y + 6000.0) }, &style);
             match ann::add_dimension(doc, d, "ANNOTATION-SITE") {
                 Ok(_) => {

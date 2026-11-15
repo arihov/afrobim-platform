@@ -1058,6 +1058,36 @@ mod tests {
     }
 
     #[test]
+    fn the_band_comes_from_the_project_rule_and_an_override_is_recorded() {
+        let (mut doc, id) = doc_with_sign();
+        let mut f = VisForm::new(Some(id));
+        f.eye_height_accepted = true;
+        f.traffic = 1;
+        f.speed = "80".into();
+        f.speed_mph = false;
+        assert_eq!(store_form(&mut doc, &f), Ok(1));
+        // The default rule resolves 80 km/h to 50 mph, the 41 to 50 mph row, with the sentence.
+        assert_eq!(afrobim_visibility::load(&doc, id).unwrap().uk_band, Some(SpeedBandMph::From41To50));
+        let line = band_line(&doc, id).unwrap();
+        assert!(line.contains("treats it as 50 mph") && line.contains("41 to 50 mph"), "{line}");
+        // The engineer overrides the band for this check: the override is stored and recorded.
+        f.band_override = true;
+        f.band = Some(SpeedBandMph::From51To60);
+        assert_eq!(store_form(&mut doc, &f), Ok(1));
+        assert_eq!(afrobim_visibility::load(&doc, id).unwrap().uk_band, Some(SpeedBandMph::From51To60));
+        let line = band_line(&doc, id).unwrap();
+        assert!(line.contains("overrode") && line.contains("51 to 60 mph"), "{line}");
+        assert!(VisForm::for_sign(&doc, id).band_override);
+        // With "ask each time" nothing is stored until it is answered.
+        afrobim_kernel::set_speed_band_rule(&mut doc, &afrobim_kernel::SpeedBandRule::AskEachTime);
+        f.band_override = false;
+        assert!(store_form(&mut doc, &f).unwrap_err().contains("asks each time"));
+        f.band_answer = Some(true);
+        assert_eq!(store_form(&mut doc, &f), Ok(1));
+        assert_eq!(afrobim_visibility::load(&doc, id).unwrap().uk_band, Some(SpeedBandMph::From41To50));
+    }
+
+    #[test]
     fn a_stored_record_runs_through_the_engine_and_reaches_a_checkall_row() {
         let (mut doc, id) = doc_with_sign();
         let src = VisSource { scene: scene_from_document(&doc, &|_| Vec::new(), &SceneOptions::default()), x_heights: HashMap::new() };
