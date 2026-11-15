@@ -33,9 +33,12 @@
 //! The result of anything in this module is a calculation for an engineer to check, not a
 //! certified design.
 
+pub mod culvert_check;
 pub mod dmrb;
 pub mod hydraulics;
+pub mod inlet;
 pub mod mowt;
+pub mod sanral;
 
 pub use hydraulics::{circular_critical_depth_m, froude_number, manning_velocity_m_s, normal_depth_m, ChannelGeometry, GRAVITY_M_S2};
 
@@ -53,6 +56,9 @@ pub enum DesignBasis {
     /// UK *Design Manual for Roads and Bridges*: CG 501 version 2.2.0, CD 521 version 1.2.0,
     /// CD 522 version 0.1.0 and CD 529 version 1.1.0. See [`dmrb`].
     Dmrb,
+    /// South African National Roads Agency (SANRAL) *Drainage Manual*, sixth edition, September
+    /// 2013. See [`sanral`].
+    Sanral,
 }
 
 /// A limit a basis states, with where it states it.
@@ -94,14 +100,20 @@ pub struct CulvertLayoutLimits {
 }
 
 impl DesignBasis {
-    /// Every basis held.
+    /// The two bases held before the SANRAL basis was added, in menu order. Kept unchanged so that
+    /// existing code that counts or maps over it still compiles; use [`DesignBasis::EVERY`] for
+    /// all three.
     pub const ALL: [DesignBasis; 2] = [DesignBasis::Mowt, DesignBasis::Dmrb];
+
+    /// Every basis held, including [`DesignBasis::Sanral`].
+    pub const EVERY: [DesignBasis; 3] = [DesignBasis::Mowt, DesignBasis::Dmrb, DesignBasis::Sanral];
 
     /// A short name for a menu.
     pub fn name(self) -> &'static str {
         match self {
             DesignBasis::Mowt => "MoWT Uganda (2010)",
             DesignBasis::Dmrb => "UK DMRB",
+            DesignBasis::Sanral => "SANRAL South Africa (6th ed. 2013)",
         }
     }
 
@@ -110,6 +122,7 @@ impl DesignBasis {
         match self {
             DesignBasis::Mowt => mowt::BASIS,
             DesignBasis::Dmrb => dmrb::BASIS,
+            DesignBasis::Sanral => sanral::BASIS,
         }
     }
 
@@ -118,6 +131,7 @@ impl DesignBasis {
         match self {
             DesignBasis::Mowt => "DDM Example 4-1, Section 9.5.1 Step 12, Appendix 10.4",
             DesignBasis::Dmrb => "CD 521 Equation 5.25",
+            DesignBasis::Sanral => "SDM Equation 4.27 (p. 4-14)",
         }
     }
 
@@ -126,6 +140,7 @@ impl DesignBasis {
         match self {
             DesignBasis::Mowt => "DDM Appendix 10.4 Col. 11, on the hydraulic depth",
             DesignBasis::Dmrb => "general hydraulics; not a requirement of the DMRB documents held",
+            DesignBasis::Sanral => "SDM Equation 5.5 (p. 5-22), Fr = (Q²B/gA³)^0,5, the same on the hydraulic depth",
         }
     }
 
@@ -134,6 +149,7 @@ impl DesignBasis {
         match self {
             DesignBasis::Mowt => "DDM states no freeboard for open drains",
             DesignBasis::Dmrb => "the DMRB documents held (CG 501, CD 521, CD 522, CD 529) state no freeboard for ditches; ditch design is in CD 532, which is not held",
+            DesignBasis::Sanral => "SDM Table 5.3 (p. 5-22) gives a minimum freeboard (0,15E to 0,30y by section and Froude number); enter it, or use sanral::check_channel_sanral which computes it",
         }
     }
 
@@ -142,6 +158,7 @@ impl DesignBasis {
         match self {
             DesignBasis::Mowt => mowt::culvert_layout_limits(),
             DesignBasis::Dmrb => dmrb::culvert_layout_limits(),
+            DesignBasis::Sanral => sanral::culvert_layout_limits(),
         }
     }
 }
@@ -347,6 +364,30 @@ mod tests {
         assert_eq!(DesignBasis::ALL.map(|b| b.name()), ["MoWT Uganda (2010)", "UK DMRB"]);
         // The basis is stored with an element by name.
         assert_eq!(serde_json::to_string(&DesignBasis::Dmrb).unwrap(), "\"Dmrb\"");
+    }
+
+    #[test]
+    fn the_sanral_basis_cites_only_its_own_documents() {
+        let input = ChannelInput {
+            basis: DesignBasis::Sanral,
+            geometry: ChannelGeometry::trapezoid(1.0, 1.5),
+            depth_m: 0.6,
+            manning_n: 0.025,
+            roughness_source: "entered".into(),
+            gradient_m_per_m: 0.004,
+            design_flow_m3_s: 1.0,
+            permissible_velocity_m_s: None,
+            permissible_source: String::new(),
+            required_freeboard_m: None,
+        };
+        let s = check_channel(&input).unwrap();
+        let m = check_channel(&ChannelInput { basis: DesignBasis::Mowt, ..input.clone() }).unwrap();
+        assert_eq!((s.normal_depth_m, s.velocity_m_s), (m.normal_depth_m, m.velocity_m_s));
+        let t = s.calculation().join("\n");
+        assert!(t.starts_with("Design basis: SANRAL Drainage Manual") && t.contains("SDM Equation 4.27") && t.contains("SDM Table 5.3"));
+        assert!(!t.contains("DDM") && !t.contains("CD 521") && !t.contains("MoWT"));
+        assert_eq!(serde_json::to_string(&DesignBasis::Sanral).unwrap(), "\"Sanral\"");
+        assert_eq!(DesignBasis::EVERY.map(|b| b.name()), ["MoWT Uganda (2010)", "UK DMRB", "SANRAL South Africa (6th ed. 2013)"]);
     }
 
     #[test]

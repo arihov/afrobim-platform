@@ -49,7 +49,9 @@
 //!
 //! * Culvert **inlet control**: the manual gives it only as nomographs (Appendices 9.3 to 9.5).
 //!   The governing headwater is the higher of inlet and outlet control (Section 9.5.1 Step 9),
-//!   so [`outlet_control`] alone does not size a culvert.
+//!   so [`outlet_control`] alone does not size a culvert. This module does not compute inlet
+//!   control; [`super::inlet`] does, from the FHWA HDS-5 equations, and
+//!   [`super::culvert_check`] takes the greater of the two.
 //! * Backwater profiles, flow over the road, performance curves, the approximate capacity
 //!   tables of Appendices 9.19 to 9.21, box and slab culverts, bridges, energy dissipators and
 //!   scour.

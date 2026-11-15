@@ -9,6 +9,8 @@ use afrobim_draw::{Colour, Drawing, Extents, Mesh3, Primitive, Pt2};
 use afrobim_kernel::{Element, Generated, Module, Note, SitePlacement};
 use serde::{Deserialize, Serialize};
 
+use crate::design::culvert_check::{culvert_check, CulvertCheck, CulvertCheckInput, FreeboardInput};
+use crate::design::inlet::InletEdge;
 use crate::design::mowt::{culvert_structure_type, outlet_control, OutletControl, OutletControlInput};
 use crate::design::DesignBasis;
 use crate::{
@@ -357,6 +359,40 @@ impl PipeCulvertDefinition {
             manning_n,
             entrance_loss_ke,
             tailwater_m,
+        })
+    }
+
+    /// The complete culvert check under the MoWT basis: [`PipeCulvertDefinition::outlet_control`]
+    /// (unchanged), inlet control by FHWA HDS-5 for the chosen inlet ([`InletEdge`], a circular
+    /// row), the greater of the two with the controlling condition named, the allowable headwater
+    /// (the engineer's input) and DDM's own limits. `freeboard` is the shoulder break level and
+    /// road class for DDM Section 9.6, if they are known. The inlet invert level used for the
+    /// freeboard is this definition's.
+    pub fn culvert_check(
+        &self,
+        design_flow_m3_s: f64,
+        manning_n: f64,
+        entrance_loss_ke: f64,
+        tailwater_m: f64,
+        inlet_edge: InletEdge,
+        allowable_headwater_m: f64,
+        shoulder_break_and_class: Option<(f64, bool)>,
+    ) -> Result<CulvertCheck, DrainageError> {
+        self.check()?;
+        culvert_check(&CulvertCheckInput {
+            outlet: OutletControlInput {
+                design_flow_m3_s,
+                barrels: self.barrels,
+                diameter_m: self.internal_diameter_mm / 1000.0,
+                length_m: self.length_mm / 1000.0,
+                fall_m: self.fall_m(),
+                manning_n,
+                entrance_loss_ke,
+                tailwater_m,
+            },
+            inlet_edge,
+            allowable_headwater_m,
+            freeboard: shoulder_break_and_class.map(|(level, major)| FreeboardInput { shoulder_break_level_m: level, inlet_invert_level_m: self.invert_level_inlet_m, major_road: major }),
         })
     }
 
@@ -785,5 +821,35 @@ mod tests {
         close(r.input.fall_m, 0.24, 1e-9);
         close(r.flow_per_barrel_m3_s, 1.5, 1e-12);
         assert!(PipeCulvertDefinition { barrels: 0, ..twin() }.outlet_control(3.0, 0.012, 0.5, 1.0).is_err());
+    }
+
+    #[test]
+    fn culvert_check_uses_the_definition_and_keeps_the_outlet_lines() {
+        let def = twin();
+        let c = def.culvert_check(3.0, 0.012, 0.5, 1.0, InletEdge::ConcreteSquareEdgeHeadwall, 2.0, Some((1152.0, true))).unwrap();
+        assert_eq!((c.input.outlet.barrels, c.input.outlet.diameter_m), (2, 0.9));
+        close(c.inlet.input.slope_m_per_m, 0.24 / 12.0, 1e-12);
+        close(c.inlet.input.flow_m3_s, 1.5, 1e-12);
+        assert_eq!(c.outlet.calculation(), def.outlet_control(3.0, 0.012, 0.5, 1.0).unwrap().calculation());
+        let (free, _) = c.freeboard.unwrap();
+        close(free, 1152.0 - (1150.24 + c.headwater_m), 1e-9);
+        assert!(PipeCulvertDefinition { barrels: 0, ..twin() }.culvert_check(3.0, 0.012, 0.5, 1.0, InletEdge::ConcreteSquareEdgeHeadwall, 2.0, None).is_err());
+    }
+
+    #[test]
+    fn sanral_layout_notes_cite_the_manual() {
+        // 600 mm is the minimum up to 30 m; 900 mm beyond 30 m; slope about 1 %.
+        let small = PipeCulvertDefinition { internal_diameter_mm: 450.0, ..twin() };
+        let notes = small.layout_notes(DesignBasis::Sanral);
+        assert!(notes.iter().any(|n| n.code == "CULVERT_BELOW_MINIMUM_DIAMETER" && n.message.contains("SDM 7.2.2.5")));
+        let long = PipeCulvertDefinition { internal_diameter_mm: 600.0, length_mm: 35_000.0, invert_level_inlet_m: 1150.35, ..twin() };
+        let notes = long.layout_notes(DesignBasis::Sanral);
+        assert!(notes.iter().any(|n| n.code == "CULVERT_TOO_SMALL_FOR_ITS_LENGTH" && n.message.contains("900 mm")));
+        // The MoWT 45 degree skew limit and the DDM gradient limits are not applied under the SANRAL basis.
+        let skewed = PipeCulvertDefinition { skew_deg: 60.0, ..twin() };
+        assert!(skewed.layout_notes(DesignBasis::Sanral).iter().all(|n| n.code != "CULVERT_SKEW_ABOVE_LIMIT"));
+        assert!(skewed.layout_notes(DesignBasis::Mowt).iter().any(|n| n.code == "CULVERT_SKEW_ABOVE_LIMIT"));
+        let g = PipeCulvertModule::with_basis(DesignBasis::Sanral).generate(&element(&twin())).unwrap();
+        assert!(g.notes.iter().all(|n| !n.message.contains("DDM")));
     }
 }

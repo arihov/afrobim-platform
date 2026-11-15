@@ -8,12 +8,15 @@
 //! geometry. The culvert module raises notes against the few layout limits the chosen design
 //! basis states in words (minimum diameter, skew, gradient); each note cites its clause.
 //!
-//! **Design** ([`design`]). Open-channel flow by Manning's equation under either of two bases
+//! **Design** ([`design`]). Open-channel flow by Manning's equation under any of three bases
 //! the engineer chooses between ([`design::DesignBasis`]): the Uganda Ministry of Works and
 //! Transport *Road Design Manual Volume 2: Drainage Design* (January 2010), which also gives
 //! peak flow by the Rational method and culvert outlet-control headwater ([`design::mowt`]),
-//! and the UK *Design Manual for Roads and Bridges* ([`design::dmrb`]). Each module's
-//! documentation states what it covers, what stays an input and what is not done.
+//! the UK *Design Manual for Roads and Bridges* ([`design::dmrb`]) and the South African
+//! SANRAL *Drainage Manual*, sixth edition ([`design::sanral`]). Culvert inlet control and the
+//! complete culvert check under the MoWT basis are [`design::inlet`] and
+//! [`design::culvert_check`]. Each module's documentation states what it covers, what stays an
+//! input and what is not done.
 //!
 //! # Frames and conventions
 //!
