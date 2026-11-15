@@ -26,7 +26,7 @@ use afrobim_supports::{
 };
 
 use crate::rot;
-use crate::step::{list, opt_string, reals, refs, step_fine};
+use crate::step::{list, opt_string, reals, refs, step_fine, step_measure};
 use crate::{clip, element_global_id, step_real, step_string, IfcElementInput, IfcExport, IfcOptions, Plan, Value, Writer, SIGN_CATEGORY};
 
 /// Category of the elements exported as `IfcMember` (`POST`).
@@ -394,9 +394,10 @@ impl Writer<'_> {
             .iter()
             .map(|q| match q {
                 Quantity::Length(n, v) => self.data.add("IFCQUANTITYLENGTH", &format!("{},$,$,{},$", step_string(n), step_real(*v))),
-                // Square and cubic metres need more than six decimals to hold a square millimetre.
-                Quantity::Area(n, v) => self.data.add("IFCQUANTITYAREA", &format!("{},$,$,{},$", step_string(n), step_fine(*v))),
-                Quantity::Volume(n, v) => self.data.add("IFCQUANTITYVOLUME", &format!("{},$,$,{},$", step_string(n), step_fine(*v))),
+                // Square and cubic metres need more than six decimals to hold a square millimetre, and
+                // no more significant digits than are the same on every platform (see `step_measure`).
+                Quantity::Area(n, v) => self.data.add("IFCQUANTITYAREA", &format!("{},$,$,{},$", step_string(n), step_measure(*v))),
+                Quantity::Volume(n, v) => self.data.add("IFCQUANTITYVOLUME", &format!("{},$,$,{},$", step_string(n), step_measure(*v))),
                 Quantity::Count(n, v) => self.data.add("IFCQUANTITYCOUNT", &format!("{},$,$,{v},$", step_string(n))),
             })
             .collect();
