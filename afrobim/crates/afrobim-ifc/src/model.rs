@@ -13,6 +13,7 @@
 //!
 //! A document with none of these gives the same text as [`crate::export_ifc`].
 
+mod alignment;
 mod road;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -24,6 +25,7 @@ use afrobim_supports::{
     FoundationDefinition, FoundationShape, PostDefinition, Section, Socket, PROP_MOUNTING_HEIGHT_MM, PROP_POSITION_ALONG_SIGN_MM, PROP_SETBACK_MM,
 };
 
+use crate::rot;
 use crate::step::{list, opt_string, reals, refs, step_fine};
 use crate::{clip, element_global_id, step_real, step_string, IfcElementInput, IfcExport, IfcOptions, Plan, Value, Writer, SIGN_CATEGORY};
 
@@ -113,10 +115,38 @@ pub fn export_ifc_model(document: &Document, elements: &[IfcElementInput], optio
     let on_road = by_id.values().any(|i| road::is_road_category(&i.element.category));
     let plan = Plan { road: placed || !alignments.is_empty() || on_road, volume_unit: on_road || by_id.values().any(|i| is_support(i.element)) };
 
-    let mut m = Model { w: Writer::new(options, plan), document, by_id: &by_id, materials: BTreeMap::new(), positioned: Vec::new(), axis_context: None, road: road::RoadState::default() };
+    let mut m = Model {
+        w: Writer::new(options, plan),
+        document,
+        by_id: &by_id,
+        materials: BTreeMap::new(),
+        positioned: Vec::new(),
+        axis_context: None,
+        road: road::RoadState::default(),
+        geo: Vec::new(),
+        geo_by_name: BTreeMap::new(),
+        geo_of_element: BTreeMap::new(),
+        footprint_context: None,
+        enumerations: BTreeMap::new(),
+        extra_notes: Vec::new(),
+        linear_count: 0,
+    };
     m.road.hung = hung.clone();
     m.prepare_road(elements);
     let mut notes = Vec::new();
+    if options.alignment.is_full() {
+        // The alignments come first: what is placed on them refers to their curves.
+        let mut written = BTreeSet::new();
+        for input in elements {
+            let e = input.element;
+            if e.category == ALIGNMENT_CATEGORY && written.insert(e.id) {
+                if let Some(a) = alignments.get(&e.id) {
+                    let index = m.alignment_full(e, a, &mut notes);
+                    m.geo_of_element.insert(e.id, index);
+                }
+            }
+        }
+    }
     let mut roots = Vec::new();
     let mut aligned = Vec::new();
     let mut unplaced = 0usize;
@@ -155,14 +185,14 @@ pub fn export_ifc_model(document: &Document, elements: &[IfcElementInput], optio
             None if is_support(e) => {
                 notes.push(format!("{}: no sign among the exported elements hosts this {}; exported on its own", e.name, e.category));
                 let pose = valid_site(e).map_or(Pose::sheet(e.origin.x, e.origin.y), |s| Pose::site(s, 0.0));
-                let placement = m.w.placement(m.w.container_placement, pose);
+                let placement = m.root_placement(e, pose);
                 let product = m.support(input, placement, None, &mut notes);
                 m.site_properties(product, &format!("element/{}", e.id.0), e);
                 product
             }
             None => {
                 let pose = valid_site(e).map_or(Pose::sheet(e.origin.x, e.origin.y), |s| Pose::site(s, 0.0));
-                let placement = m.w.placement(m.w.container_placement, pose);
+                let placement = m.root_placement(e, pose);
                 let product = m.w.product(document, input, placement, &mut notes);
                 m.site_properties(product, &format!("element/{}", e.id.0), e);
                 product
@@ -171,6 +201,7 @@ pub fn export_ifc_model(document: &Document, elements: &[IfcElementInput], optio
         if let Some(name) = valid_site(e).and_then(|s| s.alignment.clone()) {
             m.positioned.push((root, name));
         }
+        m.w.frame = None;
         roots.push(root);
     }
     if placed && unplaced > 0 {
@@ -182,6 +213,13 @@ pub fn export_ifc_model(document: &Document, elements: &[IfcElementInput], optio
     }
     m.write_materials();
     m.write_alignments(&aligned, &mut notes);
+    notes.append(&mut m.extra_notes);
+    if m.linear_count > 0 {
+        notes.push(format!(
+            "{} element(s) are placed by IfcLinearPlacement on their alignment, with the absolute placement as CartesianPosition; the rest keep absolute placements",
+            m.linear_count
+        ));
+    }
     IfcExport { text: m.w.finish(), notes }
 }
 
@@ -249,24 +287,57 @@ enum Quantity<'a> {
 }
 
 impl Writer<'_> {
-    /// An `IfcLocalPlacement` at `pose` in the axes of the placement `relative_to`.
-    fn placement(&mut self, relative_to: u32, pose: Pose) -> u32 {
+    /// An `IfcAxis2Placement3D` at `pose`: the location, and a reference direction turned about
+    /// +Z unless the turn is nil.
+    fn axes_of(&mut self, pose: Pose) -> u32 {
         let location = self.data.add("IFCCARTESIANPOINT", &reals(&[pose.x, pose.y, pose.z]));
         let turn = pose.rotation_deg.rem_euclid(360.0);
-        let axes = if !(1e-9..=360.0 - 1e-9).contains(&turn) {
+        if !(1e-9..=360.0 - 1e-9).contains(&turn) {
             self.data.add("IFCAXIS2PLACEMENT3D", &format!("#{location},$,$"))
         } else {
             let (sin, cos) = turn.to_radians().sin_cos();
             let x = self.data.add("IFCDIRECTION", &format!("({},{},0.)", step_fine(cos), step_fine(sin)));
             self.data.add("IFCAXIS2PLACEMENT3D", &format!("#{location},#{},#{x}", self.up))
+        }
+    }
+
+    /// An `IfcAxis2Placement3D` from a turn and a location: the Z axis and the reference
+    /// direction are the third and first columns of the turn.
+    fn axes_of_turn(&mut self, q: &rot::Rot, at: [f64; 3]) -> u32 {
+        let location = self.data.add("IFCCARTESIANPOINT", &reals(&at));
+        let (x, z) = (rot::column(q, 0), rot::column(q, 2));
+        let axis = self.data.add("IFCDIRECTION", &format!("({},{},{})", step_fine(z[0]), step_fine(z[1]), step_fine(z[2])));
+        let x = self.data.add("IFCDIRECTION", &format!("({},{},{})", step_fine(x[0]), step_fine(x[1]), step_fine(x[2])));
+        self.data.add("IFCAXIS2PLACEMENT3D", &format!("#{location},#{axis},#{x}"))
+    }
+
+    /// An `IfcLocalPlacement` at `pose` in the axes of the placement `relative_to`.
+    ///
+    /// When `relative_to` is the placement of an element that was put on an alignment, `pose` is
+    /// still the pose the part had in the element's old (absolute) frame; it is written in the
+    /// frame the linear placement gives, so the part stays where it was.
+    fn placement(&mut self, relative_to: u32, pose: Pose) -> u32 {
+        let axes = match self.reframed.get(&relative_to).copied() {
+            Some(q) => {
+                // The element's own geometry has been written by now; what follows is its parts.
+                self.frame = None;
+                let turned = rot::mul(&q, &rot::about_z(pose.rotation_deg));
+                self.axes_of_turn(&turned, rot::apply(&q, [pose.x, pose.y, pose.z]))
+            }
+            None => self.axes_of(pose),
         };
         self.data.add("IFCLOCALPLACEMENT", &format!("#{relative_to},#{axes}"))
     }
 
     /// A styled `IfcExtrudedAreaSolid`: `profile`, centred on (`cx`, `cy`), from `z0` upwards.
     fn extrusion(&mut self, profile: u32, cx: f64, cy: f64, z0: f64, depth: f64, style: u32) -> u32 {
-        let location = self.data.add("IFCCARTESIANPOINT", &reals(&[cx, cy, z0]));
-        let position = self.data.add("IFCAXIS2PLACEMENT3D", &format!("#{location},$,$"));
+        let position = match self.frame {
+            Some(q) => self.axes_of_turn(&q, rot::apply(&q, [cx, cy, z0])),
+            None => {
+                let location = self.data.add("IFCCARTESIANPOINT", &reals(&[cx, cy, z0]));
+                self.data.add("IFCAXIS2PLACEMENT3D", &format!("#{location},$,$"))
+            }
+        };
         let solid = self.data.add("IFCEXTRUDEDAREASOLID", &format!("#{profile},#{position},#{},{}", self.up, step_real(depth)));
         self.data.add("IFCSTYLEDITEM", &format!("#{solid},(#{style}),$"));
         solid
@@ -380,6 +451,18 @@ struct Model<'a> {
     axis_context: Option<u32>,
     /// What the road modules' elements leave for the end of the export.
     road: road::RoadState,
+    /// The alignments written in full (`AlignmentExport::Geometry` and `::Linear`), by element
+    /// name and by alignment name, and the 'FootPrint' sub-context they share.
+    geo: Vec<alignment::AlignGeo>,
+    geo_by_name: BTreeMap<String, usize>,
+    geo_of_element: BTreeMap<ElementId, usize>,
+    footprint_context: Option<u32>,
+    /// `IfcPropertyEnumeration`s written, by name.
+    enumerations: BTreeMap<String, u32>,
+    /// Remarks that arise while elements are placed, for the export's notes.
+    extra_notes: Vec<String>,
+    /// Elements placed by an `IfcLinearPlacement`.
+    linear_count: usize,
 }
 
 impl Model<'_> {
@@ -456,7 +539,7 @@ impl Model<'_> {
         // A sign's site level is the ground under it; its face starts one mounting height up. On
         // the sheet the face keeps its place, so the ground is one mounting height below it.
         let ground = valid_site(e).map_or(Pose::sheet(e.origin.x, e.origin.y - mounting), |s| Pose::site(s, 0.0));
-        let placement = self.w.placement(self.w.container_placement, ground);
+        let placement = self.root_placement(e, ground);
         let part_inputs: Vec<&IfcElementInput> = parts.iter().filter_map(|id| self.by_id.get(id).copied()).collect();
         let posts = part_inputs.iter().filter(|p| p.element.category == POST_CATEGORY).count();
         let foundations = part_inputs.len() - posts;
@@ -751,7 +834,17 @@ impl Model<'_> {
         if aligned.is_empty() {
             return;
         }
-        let ids: Vec<u32> = aligned.iter().map(|(input, a)| self.alignment(input.element, a, notes)).collect();
+        let full = self.w.options.alignment.is_full();
+        let ids: Vec<u32> = aligned
+            .iter()
+            .map(|(input, a)| match self.geo_of_element.get(&input.element.id) {
+                Some(index) if full => self.geo[*index].ifc,
+                _ => self.alignment(input.element, a, notes),
+            })
+            .collect();
+        if full {
+            self.reference_alignments(&ids);
+        }
         // "Every IfcAlignment must be related to IfcProject using the IfcRelAggregates
         // relationship", and none is contained in a spatial element (IfcAlignment, IFC 4.3).
         let guid = step_string(&self.w.guid("rel-alignments"));

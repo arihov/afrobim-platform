@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 pub mod cases;
+pub mod linear;
 pub mod roads;
 pub mod site;
 pub mod step;
@@ -55,6 +56,7 @@ pub fn options() -> IfcOptions {
         timestamp: Some(TIMESTAMP),
         plate_thickness_mm: THICKNESS,
         artwork_offset_mm: OFFSET,
+        ..IfcOptions::default()
     }
 }
 

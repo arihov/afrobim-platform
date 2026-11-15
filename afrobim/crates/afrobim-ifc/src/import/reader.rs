@@ -11,6 +11,8 @@ use super::tess::{circle, prism, triangulate_3d};
 use super::xform::{cross, placement_2d, placement_3d, scale, unit, Mat, V3};
 use super::*;
 
+mod linear;
+
 const GREY: [u8; 3] = [170, 170, 178];
 const MAX_DEPTH: usize = 24;
 
@@ -81,6 +83,8 @@ struct Imp<'a> {
     opts: &'a ImportOptions,
     unit_mm: f64,
     placements: HashMap<u32, Result<Mat, String>>,
+    /// Basis curves of linear placements, evaluated once.
+    curves: HashMap<u32, Result<Rc<linear::CurveEval>, String>>,
     maps: HashMap<u32, Rc<MappedRep>>,
     report: ImportReport,
 }
@@ -108,6 +112,7 @@ pub(super) fn import(f: &StepFile, opts: &ImportOptions) -> Result<ReferenceMode
         opts,
         unit_mm: 1000.0,
         placements: HashMap::new(),
+        curves: HashMap::new(),
         maps: HashMap::new(),
         report: ImportReport {
             schema: f.header.schemas.first().cloned().unwrap_or_default(),
@@ -208,7 +213,7 @@ impl<'a> Imp<'a> {
                 base = Err(format!("placement #{c} does not exist"));
                 break;
             };
-            if e.ty != "IFCLOCALPLACEMENT" {
+            if e.ty != "IFCLOCALPLACEMENT" && e.ty != "IFCLINEARPLACEMENT" {
                 base = Err(format!("{} placement not resolved", e.ty));
                 *self.report.placements_unresolved.entry(e.ty.to_string()).or_default() += 1;
                 break;
@@ -219,11 +224,15 @@ impl<'a> Imp<'a> {
         let mut acc = base;
         for &c in chain.iter().rev() {
             let e = self.get(c).unwrap();
-            let rel = match self.a(&e, "RelativePlacement").as_ref().and_then(|r| self.axis_placement(r)) {
-                Some(m) => m,
-                None => Mat::IDENTITY,
+            let rel = if e.ty == "IFCLINEARPLACEMENT" {
+                self.linear_relative(&e)
+            } else {
+                Ok(self.a(&e, "RelativePlacement").as_ref().and_then(|r| self.axis_placement(r)).unwrap_or(Mat::IDENTITY))
             };
-            acc = acc.map(|p| p.mul(&rel));
+            acc = match (acc, rel) {
+                (Ok(p), Ok(r)) => Ok(p.mul(&r)),
+                (Err(why), _) | (_, Err(why)) => Err(why),
+            };
             self.placements.insert(c, acc.clone());
         }
         acc
