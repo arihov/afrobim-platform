@@ -1,8 +1,10 @@
 //! Road markings as AfroBIM model elements, to the UK Traffic Signs Manual Chapter 5.
 //!
 //! This first cut holds the **longitudinal lines**: centre lines, lane lines, warning lines,
-//! edge of carriageway lines and double white lines. Everything else in Chapter 5 is listed as
-//! not done in the crate README.
+//! edge of carriageway lines and double white lines. The second set of markings (transverse
+//! lines, arrows, hatching and chevrons, yellow lines, road studs) and the Uganda Traffic Signs
+//! Manual's markings are extension elements (category [`CATEGORY_EXT`], [`ExtMarkingModule`],
+//! [`ExtDefinition`]), chosen by [`Basis`]. What is left out is listed in the crate README.
 //!
 //! - [`catalogue`]: the line types with their mark, gap and widths ([`LineSpec`]), and the rows
 //!   of the manual's tables that choose a diagram and width by speed limit and road layout
@@ -28,12 +30,24 @@
 //! Only the horizontal geometry of the alignment is used. The road surface is taken as level
 //! ground at z = 0.
 
+pub mod basis;
 pub mod catalogue;
 mod definition;
+#[cfg(test)]
+mod ext_tests;
+pub mod ext_catalogue;
+mod ext_def;
+pub mod ext_lookup;
+mod ext_module;
 pub mod layout;
 mod module;
 mod quantities;
 
+pub use basis::{Basis, Lookup, NotDefined, UGANDA_EDITION, UK_EDITION};
+pub use ext_catalogue::{ext_catalogue, ext_catalogue_for, ext_spec, ArrowDef, ArrowSize, CrossingDef, ExtSpec, Family, GeometryStatus, HatchDef, HatchModule, Kind, LinesDef, Reference, Sel, StrandDef, TaperedArrow, TransverseDef, TriangleDef, WordDef, ZigZagDef};
+pub use ext_def::{polygon_area, ExtDefinition, ExtLaid, ExtResolved, Piece, Setting, Shape, CATEGORY_EXT};
+pub use ext_lookup::{uganda_lane_arrow_siting, uganda_overtaking_sight_distance_m, deflection_row, lane_arrow_siting, lookup_family, lookup_type, stud_catalogue, stud_rows, uk_stud_spacing_on_bend, DeflectionRow, LaneArrowSiting, StudColour, StudRow, TypeRef, STUD_ID};
+pub use ext_module::{add_ext_marking, ext_markings_to_csv, ext_marking_of, ext_plan, set_ext_marking, sync_ext_markings, ExtMarkingModule, ExtPlan, ExtQuantities, ExtTakeoff, SkippedExt, EXT_CSV_HEADER};
 pub use catalogue::{
     applications, applications_for, catalogue, kmh, select, spec, speed_label, Application, DoubleLine, LineGroup, LineSpec, LineType, MarkingColour,
     MinMarks, Pattern, RoadContext, SpeedBand, EDITION, EDITION_URL,

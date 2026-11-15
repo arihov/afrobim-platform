@@ -55,7 +55,7 @@ fn draw_colour(colour: MarkingColour) -> Colour {
 
 /// Adds the closed prism over a strip to a mesh. `left` and `right` are the strip's edges in
 /// the direction of travel, point for point.
-fn add_prism(mesh: &mut Mesh3, left: &[Pt2], right: &[Pt2], levels: &[f64], thickness: f64) {
+pub(crate) fn add_prism(mesh: &mut Mesh3, left: &[Pt2], right: &[Pt2], levels: &[f64], thickness: f64) {
     let base = mesh.vertices.len() as u32;
     for (i, (l, r)) in left.iter().zip(right).enumerate() {
         // Per section: 0 left bottom, 1 right bottom, 2 left top, 3 right top.
@@ -204,7 +204,7 @@ fn derived(def: &MarkingDefinition, resolved: &Resolved, layout: &Layout, origin
 }
 
 /// The alignment stored in an element of category `"alignment"`.
-fn alignment_of(doc: &Document, id: ElementId) -> Result<Alignment, MarkingError> {
+pub(crate) fn alignment_of(doc: &Document, id: ElementId) -> Result<Alignment, MarkingError> {
     let e = doc.find(id).ok_or(MarkingError::ElementNotFound(id.0))?;
     if e.category != afrobim_alignment::CATEGORY {
         return Err(MarkingError::NotAnAlignment(e.name.clone()));
@@ -215,7 +215,7 @@ fn alignment_of(doc: &Document, id: ElementId) -> Result<Alignment, MarkingError
 }
 
 /// The Error notes of a list as one message.
-fn errors(notes: &[Note]) -> Option<String> {
+pub(crate) fn errors(notes: &[Note]) -> Option<String> {
     let messages: Vec<&str> = notes.iter().filter(|n| n.severity == Severity::Error).map(|n| n.message.as_str()).collect();
     (!messages.is_empty()).then(|| messages.join(" "))
 }

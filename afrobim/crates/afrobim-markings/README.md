@@ -6,6 +6,12 @@ lines, warning lines, edge of carriageway lines and double white lines, laid out
 alignment, drawn in plan, given thin solids for the 3D site view, checked against the manual's
 tables and measured.
 
+Two parts. The first (this section down to "Limits") is the **longitudinal lines** of the UK
+Chapter 5, category `marking`. The second, at the end of this file ("Second set (R2) and the
+Uganda basis (R3)"), adds transverse lines, arrows, hatching and chevrons, yellow lines, road
+studs and the Uganda Traffic Signs Manual's markings, category `marking_ext`, with a choice of
+basis.
+
 ## Source edition
 
 **Traffic Signs Manual, Chapter 5: Road Markings, 2018** (TSO, first published 2019,
@@ -23,7 +29,8 @@ citations hold for either copy.
 The 2003 edition in `Manuals/tsm-chapter-05.pdf` is superseded and was **not** used; no number
 here was taken from it or compared with it. The PDF of the 2018 edition is not in this
 repository. TSRGD 2016 itself was not read for this crate: diagram numbers and Schedule
-references are quoted as Chapter 5 prints them.
+references are quoted as Chapter 5 prints them. (The second part reads TSRGD 2016 for the
+diagrams Chapter 5 does not dimension; see its sources table.)
 
 No dimension is from memory. Every number in `catalogue.rs` carries its figure, table or
 paragraph, and the tests assert each one against that citation.
@@ -283,23 +290,302 @@ user.
   whether a marking is warranted (visibility distances V and W of Table 2-4, the double white
   line design procedure of 3.9, junction layouts): that is the engineer's judgement.
 - Table 12-2 laying tolerances are not applied or checked.
-- TSRGD 2016 was not read directly.
+- TSRGD 2016 was not read for the first part; the second part reads the diagrams it names.
 
 ## Not done
 
-Listed so that nothing is assumed to be half-built:
+The first part's list stands for the longitudinal lines (raised profile edge lines 1012.2 and
+1012.3, 1009B, double white lines versions B and C, 1013.5, splayed and inclined double lines).
+Of the other items once listed here, the second part now covers stop and give way lines, lane and
+deflection arrows (lane arrows as placeholder blocks), hatching and chevrons, yellow waiting
+lines, road studs and the Uganda manual's markings; what it leaves out is listed there.
 
-- Raised profile edge lines, diagrams 1012.2 and 1012.3 (ribs: 2.6, Figure 2-7), and diagram
-  1009B.
-- Double white lines version B (hatched, up to 1200 mm) and the change-over version C; diagram
-  1013.5; splayed and inclined double lines (3.5, 3.6); deflection arrows.
-- Transverse markings: Stop and Give Way lines (Chapter 3).
-- Arrows, lane destinations and worded markings (sections 9 and 11).
-- Hatching and chevrons (diagrams 1040 to 1042), tapers (Tables 2-6, 2-7).
-- Yellow lines and other waiting and loading restrictions; red routes.
-- Road studs (section 4; the stud-spacing columns of Tables 2-1 to 2-5 are not catalogued).
+Still not done anywhere in this crate:
+
+- Worded markings beyond placeholder blocks, lane destinations (diagram 1035), bifurcation
+  arrows, tapers, tramway, cycle, bus markings, red routes, loading restriction lines.
 - Yellow box junctions, yellow bar markings, traffic calming markings.
-- Cycle, bus and tram markings.
 - Junction and roundabout layouts (sections 5 to 7).
-- The Uganda Traffic Signs Manual's markings.
 - Rates and costs.
+
+
+---
+
+# Second set (R2) and the Uganda basis (R3)
+
+Added without changing the first catalogue: the longitudinal lines above, their elements, their
+quantities and their tests are as they were. Everything below lives in **new elements of category
+`marking_ext`** (module `ExtMarkingModule`), so the code that reads `marking` elements
+(`MarkingDefinition::from_value` in the IFC export, cost collector and sheets) never sees them.
+The app wires them in by registering the second module and calling the new functions; see "Using
+it from the app".
+
+## Sources for this part
+
+| Short name | Document | Used for |
+|---|---|---|
+| UK TSM Ch.5 2018 | Traffic Signs Manual Chapter 5 Road Markings, 2018 (as above; held as two PDFs, printed pages quoted) | Tables 2-1, 2-2, 2-3, 2-5, 2-6, 9-1, 11-2; Figures 2-8, 2-16, 2-17, 9-1, 9-5; paragraphs 2.7.1, 2.11, 3.3, 4.4, 4.5, 6.2.2, 11.2 |
+| TSRGD 2016 | The Traffic Signs Regulations and General Directions 2016, SI 2016/362 (`Manuals/TSRGD-2016-uksi_20160362_en.pdf`, 547 pages, printed page numbers) | Diagrams the chapter refers to and does not dimension: 1017 and 1018.1 (Schedule 7 Part 4, p.116), 1002.1 and 1003A and 1023A (Schedule 9 Part 6, pp.147 and 148), 1003.1 (Schedule 11 Part 4, p.223), 1001 (Schedule 14 Part 2, p.468) |
+| Uganda TSM 2004 | **Republic of Uganda, Ministry of Works, Housing and Communications, Road Development Program Phase 2, Traffic Signs Manual, Volume 1 and Volume 2 (Appendices), TRL Limited, July 2004, Contract RDP/GN/S008.** Edition confirmed from the title pages of both PDFs. | Vol.1 section E Road Markings (printed pages 34 to 40, Table E.1 on p.40); Vol.2 Appendix 3 section 7 sign pages M01 to M71 (the sign pages carry no page number; they are cited by sign number and by the page of the PDF, pp.161 to 187) |
+
+Dimensions that appear only in a figure were read from the rendered page. Where a figure's
+dimension could not be assigned to a feature with confidence, the entry says so in its `notes`
+and the value is an **input** of the element, not a catalogue number.
+
+## Basis
+
+```rust
+use afrobim_markings::{lookup_family, lookup_type, Basis, Family, Lookup};
+
+// Ask a basis what it defines. No silent fall back.
+match lookup_family(Basis::Uganda, Family::WarningLine) {
+    Lookup::Found(ids) => println!("{ids:?}"),
+    Lookup::NotDefined(n) => println!("{}", n.message()), // "...: not defined in the Uganda manual"
+}
+let ids = lookup_family(Basis::Uganda, Family::StopLine).found().unwrap(); // ["M31"]
+let t = lookup_type(Basis::Uk, "1040"); // Found(TypeRef::Ext(spec))
+```
+
+* `Basis::Uk` (UK TSM Chapter 5 2018; speeds in mph) and `Basis::Uganda` (Uganda TSM 2004; speeds
+  in **km/h**, the manual's own unit).
+* Existing `MarkingDefinition` elements have `basis: None`, which is UK, unchanged. Setting
+  `basis = Some(Basis::Uganda)` on one of them is an Error (`marking.basis.not_defined`, "...: not
+  defined in the Uganda manual") because the first catalogue holds UK diagrams only.
+* **UK value chosen on purpose.** `MarkingDefinition::uk_fallback` and
+  `ExtDefinition::with_uk_fallback("reason")` make the UK value usable under the Uganda basis.
+  The reason is stored in the element, written as an Info note (`marking.basis.uk_fallback`), shown
+  in the derived values (`UK fallback (caller's choice)`) and written in the schedule column
+  `uk_fallback`.
+* A Uganda sign on a UK element is refused the same way.
+* What this crate finds the Uganda manual does not define (`lookup_family` says so): warning
+  lines, hatched markings (UK 1040) and double white lines (UK 1013.1). It has its own M05
+  zig-zag, M23 no parking line, M53 island marking and yellow dividing lines, which the UK
+  chapter does not.
+* Speeds: the API takes the number to use in the basis's own unit and a note
+  (`with_speed(60, "100 km/h taken as the 60 mph band by project rule PR-3")`). The note is
+  written into the derived values (`Speed note (caller)`) and the schedule. This crate does
+  not map km/h to mph bands.
+
+## Catalogue added, with diagram numbers and citations
+
+Dimensions in mm. "Placeholder" means a bounding block only (see "Not done and why"). Details,
+interpretations and applications are in `ExtSpec::notes` and `ExtSpec::applies`.
+
+### UK (`Basis::Uk`)
+
+| Id | Marking | Dimensions read | Citation |
+|---|---|---|---|
+| `1017` (S7-4-2) | Single yellow waiting line | width 50, 75 or 100 (an input); 150 from the edge of carriageway to the line (read as clear distance) | TSRGD 2016 Sch.7 Pt.4 item 2, p.116 |
+| `1018.1` (S7-4-1) | Double yellow waiting lines | each line 50, 75 or 100; gap 50, 75 or 100 (an input); 150 from the edge | TSRGD 2016 Sch.7 Pt.4 item 1, p.116 |
+| `1001` (S14-2-46) | Stop line at light signals | continuous, 200 or 300 wide | TSRGD 2016 Sch.14 Pt.2 item 46, p.468 |
+| `1002.1` (S9-6-1) | Stop line at a stop sign | continuous, 400 wide | TSRGD 2016 Sch.9 Pt.6 item 1, p.147 |
+| `1003.1` (S11-4-1) | Give way line, roundabout | marks 1000, gaps 1000, width 200 or 300 (300 where the warning line is 1004.1 or a hatch boundary is 6 m and 3 m) | TSRGD 2016 Sch.11 Pt.4 item 1, p.223; UK TSM Ch.5 2018 6.2.2, p.62 |
+| `1003A` (S9-6-3) | Give way line, double broken | two rows, each 200 wide, 300 apart; marks 600, gaps 300 | TSRGD 2016 Sch.9 Pt.6 item 3, p.148 |
+| `1023A` (S9-6-4) | Give way triangle | base 1250, height 3750, border 150 on the sides, 600 on the base (reading noted) | TSRGD 2016 Sch.9 Pt.6 item 4, p.148 |
+| `1022` (S9-6-2) | STOP (placeholder block) | tile widths S 548, T 436, O 624, P 520 = 2128 across; 1600 or 2800 along | UK TSM Ch.5 2018 Table 11-2 p.112, 11.7; TSRGD p.147 |
+| `1024` (S11-4-15) | SLOW (placeholder block) | S 548, L 428, O 624, W 732 = 2332 across; 1600 at 40 mph or less, 2800 over 40 | UK TSM Ch.5 2018 11.2.1 p.106, Table 11-2 p.112 |
+| `1038-ahead`, `-turn`, `-ahead-and-turn`, `-two-way` (S11-4-20) | Lane arrows (placeholder blocks) | length 4000, 6000, 9000 (4 m at 40 mph or less, 6 m at 50 or 60, 9 m at 70); widths 500 (shaft 300), 750, 850, 1200 by panel of the figure | UK TSM Ch.5 2018 Fig 9-1 and Table 9-1, p.97; TSRGD Sch.11 Pt.4 item 20, p.237 |
+| `1014` (S11-4-14) | Deflection arrow (placeholder block) | length 4500, 6000, 9000; shaft 150, 200, 300; lateral extent 525, 700, 1050; head length 1500, 2000, 3000 | UK TSM Ch.5 2018 Fig 9-5, p.100 |
+| `1040` (S11-4-23) | Hatched marking, parallel part | boundary 100 or 150; marks 4000 and gaps 2000 at 40 mph or less, 6000 and 3000 over; diagonals 45 degrees, 150 wide at 3000 spacing (short) or 200 wide at 2000 (long); 800 to 8000 between the boundaries | UK TSM Ch.5 2018 Fig 2-8 p.24, 2.7.1 p.23 |
+| `1041` (S11-4-27) | Chevron marking, parallel part | as 1040 with 90 degree chevrons | UK TSM Ch.5 2018 Fig 2-16 p.30, 2.11 pp.30 to 31 |
+| `1042` (S9-6-22) | Mandatory chevron marking, parallel-sided | continuous boundary 150 or 200; chevrons 90 degrees, arm 150 or 200, pitch 3400; 500 to 8000 between the boundaries | UK TSM Ch.5 2018 Fig 2-17 p.31, 2.11.2 |
+| `STUD` | Road studs | spacing and colour by line type (below) | Tables 2-1, 2-2, 2-3, 2-5 pp.12 to 20; 3.3.1 p.36; 4.4, 4.5 pp.48 to 49 |
+
+Lookup tables with their own tests: `lane_arrow_siting(mph)` (Table 9-1, p.97), `deflection_row(
+speed85_mph)` (Table 2-6, p.24: taper 1 in 40/40/45/50/55, arrow 4.5/4.5/6/6/9 m, tip to taper
+13.75, 43.75, 79.75 and so on), `stud_rows`, `uk_stud_spacing_on_bend` (4.5.3).
+
+### Uganda (`Basis::Uganda`)
+
+| Id | Marking | Dimensions read | Geometry |
+|---|---|---|---|
+| `M01` | Continuous dividing line, yellow | 100 | lines |
+| `M02` | Double continuous dividing line, yellow | two 100, 130 apart | lines |
+| `M03` | Broken dividing line, yellow | 100; urban 3000/6000, rural 4000/8000 | lines |
+| `M04-L`, `M04-R` | Continuous and broken, yellow | M01 and M03, 130 apart (side of the broken line is not stated; `-L`/`-R` is the caller's choice) | lines |
+| `M05` | Zig-zag dividing line, yellow | 100 wide, marks 2000, gaps 150, lateral extent 500 (300) | drawn |
+| `M11`, `M12` | Lane lines, white | 100; M12 urban 3000/6000, rural 4000/8000 | lines |
+| `M21` | Standard edge line, white | 100, 100 from the carriageway edge | lines |
+| `M22` | Continuity line, white | 100 (200), 1000/1000 | lines |
+| `M23` | No parking line, yellow | 100, about 250 out from the kerb (reading noted) | lines |
+| `M31` | Stop line, white | continuous 400 | drawn |
+| `M32` | Give way line, white | broken 400, marks 600, gaps 300 (read from proportions) | drawn |
+| `M33` | Uncontrolled crossing | stripes 500 to 700, gaps 500 to 700, 3.0 to 5.0 m wide | drawn |
+| `M34` | Signal crossing | two 100 broken lines, 500/500, 2.5 to 5.0 m apart | drawn |
+| `M35` | Hump chequerboard | squares 500 (at least 300) | catalogue only (site inputs) |
+| `M41` | Lane arrow, ahead | 4000 (6000 above 60 km/h), head 1575, head width 500, shaft 300 tapering to 120 | **outline drawn** |
+| `M42`, `M43`, `M44`, `M45` | Turn, ahead-or-turn, diverge, deflecting arrows | lengths 4000/6000, 8000/16000, 5000/8000 | placeholder blocks |
+| `M51`, `M52` | Chevron markings at island noses | 150 border, 600 tip, 8000 max | catalogue only |
+| `M53` | Traffic island marking | yellow bars 200 at 45 degrees, 2000 apart, 150 continuous borders | parallel part drawn |
+| `M61` | Give way marking (triangle) | 1250, 3750, 150, 600 | drawn |
+| `M62` | STOP text marking | 2050 wide, 1600 or 2800 long | placeholder block |
+| `M63` | Speed limit marking | dimensions not assignable | catalogue only |
+| `M71` | Parking bay | min 2500 by 5000, 100 line | catalogue only |
+| `STUD` | Road studs (Table E.1, Vol.1 p.40) | M01/M02/M04 white 6 m; M03/M12 white 18 m urban, 24 m rural; M21 red (amber next to medians) 18/24; M22 green 3 | point elements |
+
+Citations are `Uganda TSM Vol.2 (2004) App.3 sign page Mnn (PDF p.nnn); Vol.1 section E.x (p.nn)`
+in each entry. Application rules (where each is used, sight distances, siting of arrows) are
+kept in `ExtSpec::applies`; two are also functions: `uganda_lane_arrow_siting(length_m)` (15 m
+and a further 30 m, plus 50 per cent for 6 m arrows) and
+`uganda_overtaking_sight_distance_m(km/h)` (50: 150 m, 60: 180, 80: 240, 100: 300).
+
+## Using it from the app
+
+```rust
+use afrobim_markings::*;
+
+// Register next to MarkingModule.
+modules.register(Box::new(ExtMarkingModule));
+
+// Linear item: station range and offset (positive right looking up-station).
+// Yellow double line, kerb on the left at 4.0 m: lines lie inward of the kerb.
+let def = ExtDefinition::linear("1018.1", Basis::Uk, 120.0, 180.0, -4.0)
+    .with_width(100).with_separation(75).with_material("thermoplastic");
+let id = add_ext_marking(&mut doc, alignment_id, "RX-001", &def)?; // Err carries the Error notes
+
+// Hatching: strip width (clear, between the inner edges of the boundaries) is an input.
+let hatch = ExtDefinition::linear("1040", Basis::Uk, 400.0, 460.0, 0.0)
+    .with_strip_width(3000).with_width(100)
+    .with_speed(40, "64 km/h limit: 40 mph band, project rule PR-3");
+
+// Across the road: station, from-offset, to-offset (a lane, or the whole carriageway width).
+let stop = ExtDefinition::across("1002.1", Basis::Uk, 500.0, -3.65, 0.0);
+let give_way = ExtDefinition::across("M32", Basis::Uganda, 500.0, -3.65, 0.0);
+
+// Point item: station, offset (centre of the item), rotation in degrees from up-station.
+let arrow = ExtDefinition::point("M41", Basis::Uganda, 470.0, -1.8, 0.0).with_speed(80, "80 km/h");
+let slow = ExtDefinition::point("1024", Basis::Uk, 470.0, -1.8, 0.0).with_speed(30, "30 mph");
+
+// Studs: pick the row, then place them.
+let rows = stud_rows(Basis::Uk, "1005.1", None, Some(60)); // spacing, colour, citation
+let studs = ExtDefinition::studs(Basis::Uk, 0.0, 90.0, 0.0, 18_000, StudColour::White);
+
+// A UK value under the Uganda basis is refused unless chosen:
+let uk_on_ug = ExtDefinition::linear("1040", Basis::Uganda, 0.0, 24.0, 0.0)
+    .with_strip_width(3000).with_width(100).with_speed(30, "")
+    .with_uk_fallback("no Uganda equivalent; UK 1040 adopted for this junction");
+
+// Edit, read back, follow an alignment that changed; quantities.
+set_ext_marking(&mut doc, id, &edited)?;
+let back = ext_marking_of(&doc, id);
+sync_ext_markings(&mut doc);
+let takeoff = ExtTakeoff::measure(doc.elements());
+let schedule = ext_markings_to_csv(&takeoff);
+```
+
+Catalogue for a dialog: `ext_catalogue_for(Basis::Uganda)` (each `ExtSpec` has `id`, `name`,
+`diagram`, `kind`, `geometry` status, `applies`, `citation`, `notes`), `stud_catalogue()`.
+
+Placement rules (also in `ext_def.rs`):
+
+* Linear items: `station_m` to `end_station_m` at `offset_m`; marks and gaps are laid as for the
+  first catalogue (along the line itself, whole marks, a cut mark is a part mark).
+* Across the road: from `offset_m` to `across_to_offset_m` at `station_m`, square to the
+  alignment, turned about the `offset_m` end by `rotation_deg`. A broken line starts from the
+  `offset_m` end.
+* Point items: the centre of the item's bounding block is at the station and offset; rotation 0
+  points up-station; rotation is anticlockwise in plan.
+* An item is one rigid shape at its centre (a template), so on a bend it stays straight.
+* Items on a kerb or carriageway edge (`1017`, `1018.1`, `M21`, `M23`): `offset_m` is the edge, the
+  line lies inward of it (toward the alignment), the sign of the offset says which side.
+
+Output per element: plan drawing, solids (display thickness 5 mm, display only, as before; stud
+markers are 100 mm square for display only), and derived values (`Basis`, `Marking`, `TSRGD
+reference`, dimensions, `Station`, `Offset`, `Colour`, `Number`, `Part marks`, `Painted length`,
+`Painted area`, `Block area`, `Source`, `Reading notes`, `Speed note (caller)`, `UK fallback
+(caller's choice)`, `plan_origin_x_m`, `plan_origin_y_m`).
+
+Quantities (`ExtTakeoff`, `ext_markings_to_csv`): painted area, painted length, number (whole
+marks, bars, stripes, arrows, studs; one for a point item) and part marks, and for a placeholder
+the area of its block. **A placeholder has no painted area** (the cell is empty and the flag
+`placeholder` is true); its block area overstates the paint and must not be priced as paint.
+
+## What each quantity is
+
+| Item | Number | Painted length | Painted area |
+|---|---|---|---|
+| Lines | whole marks | sum of mark lengths | length x width |
+| Stop and give way lines | marks across (per row) | sum of mark lengths x rows | length x width |
+| Hatching, chevrons, island marking | boundary marks + diagonals or chevrons | boundary marks + diagonal lengths | boundary area + sum of ideal diagonal areas |
+| Zig-zag | marks | sum of slope lengths | sum of parallelogram areas |
+| Crossings | stripes, or marks of the side lines | stripe length x number, or mark lengths | sum |
+| Triangle, M41 | 1 | 0 or length | ring or outline area |
+| Placeholder block | 1 | 0 | none (block area separate) |
+| Studs | studs | 0 | none |
+
+## Worked examples reproduced from the sources, and slips found in them
+
+Reproduced in tests:
+
+* Uganda M41: the figure's 2425 equals 4000 minus the head length 1575; the outline's area is
+  0.50925 (shaft) plus 0.39375 (head) = 0.903 m2 by shoelace.
+* Uganda lane arrow siting: 15 m and a further 30 m; "increased by 50%" for 6 m arrows is
+  22.5 m and 45 m.
+* UK Table 9-1 "up to 1.5 times": 37.5 m, 75 m.
+* UK Table 11-2 tile widths sum for SLOW (2332) and STOP (2128).
+* UK Table 2-6 rows, Table 2-1, 2-2, 2-3, 2-5 stud spacings, 3.3.1 range, 4.5.3 reduction.
+* Uganda M01 sight distance table.
+
+Slips and unclear points in the sources (nothing was corrected silently):
+
+1. UK Ch.5 2018, 2.11.1 prints diagram "1049B (S9-67)"; every other place has S9-6-7.
+2. UK Ch.5 2018, 11.2.2 refers to "the triangle marking to diagram 1023 (S9-6-4)"; the
+   Regulations (Sch.9 Pt.6 item 4) and 6.3.6 call it 1023A.
+3. UK Ch.5 2018 Figure 2-9 says three deflection arrows are "spaced at 2 and 3 seconds of travel
+   time at 70 mph" and shows 64 m and 96 m. At 70 mph (31.29 m/s) 2 s is 62.6 m and 3 s is 93.9 m.
+   The 2:3 ratio holds; the metres do not. The differences between arrows in Table 2-6
+   (54 m and 99 m in the 61 to 70 mph row) do not reproduce from 2 s and 3 s at any single speed
+   either. The Table 2-6 values are used as printed.
+4. UK Ch.5 2018 Figure 2-8: the area between the boundary lines is dimensioned "800 min / 8000
+   max" and a further "400 min" appears without a clear object; the chapter's text does not
+   say between which edges 800 and 8000 are measured. The first is an input read as the clear width between the
+   boundary lines' inner edges; the second is not used. Figure 2-17's "1000" is not used either.
+5. Uganda Vol.1 E.4 and Vol.2 index: "M44 Diverge arrow – ahead of left turn lane" (probably "or").
+6. Uganda Vol.1 E.6.2 is headed "Purpose and Use of Road Markings" but covers road studs.
+7. Uganda M04 does not say on which side of the pair the broken line is; M43's figure carries
+   seven dimensions without saying which is the overall width; M32's 300 and 600 are not labelled
+   mark and gap (read from proportions); M53's taper table prints a symbol (extracted as `#`)
+   where a less-than-or-equal sign is probably meant; the 6 m versions of the arrows are "extended
+   proportionally" without saying which dimensions scale.
+8. Uganda M21: "marked 100 mm from the edge of the carriageway" and M23 "about 250 mm out from the
+   kerb" do not say which edge of the line the distance is to; the near edge is taken.
+
+## Not done and why (this part)
+
+* **Letter shapes** (STOP, SLOW, M62): only tile widths and character heights are given; blocks.
+* **Lane arrows 1038**: Chapter 5 and the Regulations give one length and one width per panel
+  and say "full details are shown on the working drawings", which were not available. Blocks;
+  no painted area. The semantics of the four panels (turn, ahead, ahead and turn, branches both
+  sides) are read from thumbnails.
+* **Deflection arrow 1014**: the bend of the shaft and the head's barbs are not dimensioned
+  beyond Figure 9-5's lengths and widths. Block.
+* **Bifurcation arrow 1039, guidance arrows 1038.1, lane destinations 1035**: not read.
+* **Hatching** 1040.3, 1040.4, 1040.5, tapers (Tables 2-6 and 2-7 are catalogued as lookups, tapered
+  geometry is not laid), the refuge approach, and the tapered versions of 1041 and 1042.
+* **Raised rib edge lines** 1012.2 and 1012.3 (Figure 2-7), 1009B (cycle track junction, in
+  Chapter 3), double white lines version B and 1013.5, as in the first part.
+* **Yellow lines**: 1017 and 1018.1 only. The loading restriction lines 1019 and 1020.1, the
+  red route lines 1017.1 and 1018.2, clearways 1025.1, entrance markings 1027.1 and the end marks
+  of 1017 and 1018.1 are in the Regulations and were not read or modelled. Shades of yellow are in
+  12.5.3 of the chapter (a note, not geometry).
+* **Mini-roundabout** 1003.3 and 1003.4: not read.
+* **Uganda**: curved arrows (M42 to M45 bends and branches), M35, M51, M52, M63, M71 and the
+  tapers of M53 are catalogued or blocks, not drawn.
+* The Uganda manual leaves the tolerances, laying (start of the pattern) and the width of M53
+  unstated; the same rules as the first part apply.
+* Uganda `M21` with a paved shoulder, and `M23` on the kerb face, are not modelled.
+* Not read: UK Chapter 6 crossings and zig-zags, Chapter 3 regulatory markings.
+
+## Limits (this part)
+
+* Plan geometry only; item areas are the ideal shapes (a hatch on a tight curve is slightly
+  distorted by its vertex mapping and its area is not corrected).
+* Hatching and chevrons start their first diagonal at the start station (the sources do not
+  say); only whole diagonals are drawn; the lean of a diagonal is not dimensioned (`mirror`).
+* Studs: one at the start station and one at each whole spacing along the offset line; the stud
+  spacings are those of the tables for the line type and are inputs of the element (use
+  `stud_rows`). A bend or fog reduction is the caller's (`uk_stud_spacing_on_bend` for 4.5.3).
+* Speed-dependent choices use the number the caller gives in the basis's own unit; where the
+  table has no column (for example 45 mph for Table 9-1) the element is refused, never rounded.
+* The 6 m Uganda arrow scales head and shaft lengths by 6000/4000 and keeps all widths.
+* TSRGD diagrams are read from the 2016 PDF as published; amendments after 2016 are not applied.

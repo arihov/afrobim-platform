@@ -1,6 +1,6 @@
 [package]
 name = "afrobim-markings"
-description = "Road markings as model elements: UK Traffic Signs Manual Chapter 5 longitudinal lines, laid out along an alignment, with quantities"
+description = "Road markings as model elements: UK Traffic Signs Manual Chapter 5 and Uganda Traffic Signs Manual markings, laid out along an alignment, with quantities"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

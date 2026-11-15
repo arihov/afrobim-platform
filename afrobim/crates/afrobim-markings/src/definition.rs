@@ -4,6 +4,7 @@ use afrobim_alignment::Alignment;
 use afrobim_kernel::{Note, Severity};
 use serde::{Deserialize, Serialize};
 
+use crate::basis::Basis;
 use crate::catalogue::{applications_for, spec, speed_label, LineGroup, LineSpec, LineType, MarkingColour, Pattern, SpeedBand};
 use crate::layout::{lay_out, Layout, LayoutError, PatternAnchor, StrandSpec};
 use crate::MarkingError;
@@ -50,6 +51,16 @@ pub struct MarkingDefinition {
     /// Which end the pattern is laid from; see [`crate::layout`].
     #[serde(default)]
     pub anchor: PatternAnchor,
+    /// The standard the marking is taken from. `None` (as in every element stored before this
+    /// field existed) is the UK Traffic Signs Manual Chapter 5, with unchanged behaviour. The
+    /// types of this catalogue are UK types: under `Some(Basis::Uganda)` they are "not defined
+    /// in the Uganda manual" (an Error) unless `uk_fallback` records a deliberate choice of the
+    /// UK value. Uganda types are laid with [`crate::ExtDefinition`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub basis: Option<Basis>,
+    /// The caller's reason for using a UK value under the Uganda basis; recorded in an Info note.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uk_fallback: Option<String>,
 }
 
 /// A definition resolved against the catalogue: what will actually be laid.
@@ -80,6 +91,8 @@ impl MarkingDefinition {
             colour: spec(line_type).colour,
             material: String::new(),
             anchor: PatternAnchor::Start,
+            basis: None,
+            uk_fallback: None,
         }
     }
 
@@ -126,6 +139,22 @@ impl MarkingDefinition {
             return (None, notes);
         };
         let spec = spec(line_type);
+        if self.basis == Some(Basis::Uganda) {
+            match &self.uk_fallback {
+                None => {
+                    notes.push(note(
+                        Severity::Error,
+                        "marking.basis.not_defined",
+                        format!(
+                            "{} (UK diagram {}): not defined in the Uganda manual. Choose a type the Uganda manual defines (see lookup_family), or record the UK value as a deliberate choice (uk_fallback).",
+                            spec.name, spec.diagram
+                        ),
+                    ));
+                    return (None, notes);
+                }
+                Some(reason) => notes.push(note(Severity::Info, "marking.basis.uk_fallback", format!("UK value of diagram {} used under the Uganda basis by the caller's choice: {reason}", spec.diagram))),
+            }
+        }
         let speed = self.speed_limit_mph;
         if speed == 0 {
             notes.push(note(Severity::Error, "marking.speed.missing", "No speed limit is given; the manual selects the diagram and width by speed limit.".to_string()));
