@@ -15,6 +15,8 @@ mod document;
 mod drafting;
 mod geometry;
 mod module;
+mod settings;
+pub mod speed_band;
 mod undo;
 mod view;
 
@@ -24,5 +26,9 @@ pub use document::{Document, DocumentError, Element, ElementId, Layer, SelectMod
 pub use drafting::{display_spacing, ortho, parse_point, snap};
 pub use geometry::BBox;
 pub use module::{Generated, Module, ModuleRegistry, Note, Severity};
+pub use settings::{
+    project_setting, project_settings_id, set_project_setting, ProjectSettingsModule, PROJECT_SETTINGS_CATEGORY, PROJECT_SETTINGS_LAYER,
+};
+pub use speed_band::{set_speed_band_rule, speed_band_rule, SpeedBandRule};
 pub use undo::UndoHistory;
 pub use view::ViewTransform;
