@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use afrobim_draw::Mesh3;
 use afrobim_kernel::{Element, ElementId, Generated, Module, Severity};
-use afrobim_markings::{MarkingDefinition, MarkingModule, MarkingQuantities, Pattern};
+use afrobim_markings::{ext_spec, ExtDefinition, Family, ExtMarkingModule, ExtQuantities, GeometryStatus, Kind, MarkingDefinition, MarkingModule, MarkingQuantities, Pattern, STUD_ID};
 use afrobim_pavement::{measure_definition, Material, PavementDefinition, PavementModule};
 use afrobim_restraint::{BarrierElement, EndTreatment, RestraintModule, RunQuantities};
 
@@ -23,6 +23,8 @@ use crate::{clip, element_global_id, step_string, IfcElementInput, Value};
 
 /// Category of the elements exported as `IfcSurfaceFeature` (`LINEMARKING`).
 pub const MARKING_CATEGORY: &str = afrobim_markings::CATEGORY;
+/// Category of the second marking set, exported as `IfcSurfaceFeature` (see [`ext_feature_type`]).
+pub const MARKING_EXT_CATEGORY: &str = afrobim_markings::CATEGORY_EXT;
 /// Category of the elements exported as `IfcPipeSegment` (`GUTTER`).
 pub const DRAIN_CATEGORY: &str = afrobim_drainage::DRAIN_CATEGORY;
 /// Category of the elements exported as `IfcPipeSegment` (`CULVERT`).
@@ -47,6 +49,7 @@ const STATION_TOLERANCE_M: f64 = 1e-3;
 pub(super) fn is_road_category(category: &str) -> bool {
     [
         MARKING_CATEGORY,
+        MARKING_EXT_CATEGORY,
         DRAIN_CATEGORY,
         CULVERT_CATEGORY,
         GANTRY_CATEGORY,
@@ -57,6 +60,57 @@ pub(super) fn is_road_category(category: &str) -> bool {
         SURFACE_CATEGORY,
     ]
     .contains(&category)
+}
+
+/// How a marking of the second set is written: the `IfcSurfaceFeature` predefined type it takes
+/// and why.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FeatureType {
+    /// The `IfcSurfaceFeatureTypeEnum` enumerator.
+    pub predefined: &'static str,
+    /// `ObjectType`, which the schema requires when `predefined` is `USERDEFINED`.
+    pub object_type: Option<&'static str>,
+    /// The wording of the enumerator's documentation the choice rests on, or the reason no
+    /// enumerator fits.
+    pub because: &'static str,
+}
+
+const LINE: FeatureType = FeatureType { predefined: "LINEMARKING", object_type: None, because: "2D lines painted on pavement surfaces to form boundaries, centrelines and edge markings" };
+const SYMBOL: FeatureType = FeatureType { predefined: "SYMBOLMARKING", object_type: None, because: "surface markings that convey information in the form of symbols and shapes such as arrows, text or pictorial symbols" };
+const HATCH: FeatureType = FeatureType { predefined: "HATCHMARKING", object_type: None, because: "surface markings defined by enclosed 2d shape with defined hatch fillings" };
+const SURFACE_MARKING: FeatureType = FeatureType { predefined: "PAVEMENTSURFACEMARKING", object_type: None, because: "painted or chemical lines or symbols on the surface of pavements" };
+const STUD: FeatureType = FeatureType {
+    predefined: "USERDEFINED",
+    object_type: Some("ROAD_STUD"),
+    because: "no enumerator names a raised stud fixed to the pavement (RUMBLESTRIP is a raised, textured strip; the marking enumerators are for painted or chemical markings)",
+};
+
+/// The `IfcSurfaceFeature` type of a second-set marking, from the kind of the catalogue entry:
+/// lines, transverse lines and the zig-zag line are `LINEMARKING`; arrows, triangles and worded
+/// markings are `SYMBOLMARKING`; hatching, chevrons and island markings are `HATCHMARKING`;
+/// crossings with side lines are `LINEMARKING`, crossings of stripes are `PAVEMENTSURFACEMARKING`;
+/// an entry with no drawn geometry takes the type of its family (chevrons hatch, worded markings
+/// symbol, parking bay line, the hump marking `PAVEMENTSURFACEMARKING`); road studs are `USERDEFINED` (`ROAD_STUD`). `None` for
+/// an identifier not in the catalogue.
+pub fn ext_feature_type(type_id: &str) -> Option<FeatureType> {
+    if type_id.eq_ignore_ascii_case(STUD_ID) {
+        return Some(STUD);
+    }
+    let spec = ext_spec(type_id)?;
+    Some(match spec.kind {
+        Kind::Lines(_) | Kind::Transverse(_) | Kind::ZigZag(_) => LINE,
+        Kind::Crossing(c) if !c.stripes => LINE,
+        Kind::Crossing(_) => SURFACE_MARKING,
+        Kind::Arrow(_) | Kind::Triangle(_) | Kind::Word(_) => SYMBOL,
+        Kind::Hatch(_) => HATCH,
+        // Catalogued only, nothing drawn: the family says what the marking is.
+        Kind::None => match spec.family {
+            Family::ChevronMarking | Family::HatchedMarking | Family::IslandMarking => HATCH,
+            Family::WordedMarking | Family::LaneArrow | Family::DeflectionArrow | Family::GiveWayTriangle => SYMBOL,
+            Family::ParkingBay | Family::StopLine | Family::GiveWayLine => LINE,
+            _ => SURFACE_MARKING,
+        },
+    })
 }
 
 /// A pavement a marking can adhere to: its element, alignment, stations and the offsets it covers.
@@ -87,14 +141,19 @@ pub(super) struct RoadState {
 impl RoadState {
     /// The pavement that carries a marking: on its alignment, over its stations and at its offset.
     fn carrying(&self, d: &MarkingDefinition) -> Option<ElementId> {
+        self.carrying_range(&d.alignment, d.start_station_m, d.end_station_m, d.offset_m, d.offset_m)
+    }
+
+    /// The pavement that covers a range of stations and of offsets on an alignment.
+    fn carrying_range(&self, alignment: &str, start_m: f64, end_m: f64, offset_lo_m: f64, offset_hi_m: f64) -> Option<ElementId> {
         self.covers
             .iter()
             .find(|p| {
-                p.alignment == d.alignment
-                    && p.start_m - STATION_TOLERANCE_M <= d.start_station_m
-                    && d.end_station_m <= p.end_m + STATION_TOLERANCE_M
-                    && p.left_m - STATION_TOLERANCE_M <= d.offset_m
-                    && d.offset_m <= p.right_m + STATION_TOLERANCE_M
+                p.alignment == alignment
+                    && p.start_m - STATION_TOLERANCE_M <= start_m
+                    && end_m <= p.end_m + STATION_TOLERANCE_M
+                    && p.left_m - STATION_TOLERANCE_M <= offset_lo_m
+                    && offset_hi_m <= p.right_m + STATION_TOLERANCE_M
             })
             .map(|p| p.pavement)
     }
@@ -109,6 +168,7 @@ fn generated<'a>(input: &'a IfcElementInput) -> Option<Cow<'a, Generated>> {
     let e = input.element;
     let result = match e.category.as_str() {
         c if c == MARKING_CATEGORY => MarkingModule.generate(e),
+        c if c == MARKING_EXT_CATEGORY => ExtMarkingModule.generate(e),
         c if c == DRAIN_CATEGORY => afrobim_drainage::SideDrainModule::default().generate(e),
         c if c == CULVERT_CATEGORY => afrobim_drainage::PipeCulvertModule::default().generate(e),
         c if c == GANTRY_CATEGORY => afrobim_gantry::GantryModule.generate(e),
@@ -218,6 +278,7 @@ impl Model<'_> {
         let g = g.as_deref();
         let out = match e.category.as_str() {
             c if c == MARKING_CATEGORY => self.marking(input, g, notes),
+            c if c == MARKING_EXT_CATEGORY => self.ext_marking(input, g, notes),
             c if c == DRAIN_CATEGORY => self.side_drain(input, g, notes),
             c if c == CULVERT_CATEGORY => self.culvert(input, g, notes),
             c if c == GANTRY_CATEGORY => self.gantry(input, g, notes),
@@ -508,6 +569,160 @@ impl Model<'_> {
                     ],
                 );
             }
+        }
+        if let Some(a) = valid_site(e).and_then(|s| s.alignment.clone()) {
+            self.position_on(product, &a);
+        }
+        match host {
+            Some(pavement) => {
+                self.road.adhering.push((product, pavement));
+                Vec::new()
+            }
+            None => vec![product],
+        }
+    }
+
+    // ─── road markings of the second set ────────────────────────────────────────────────────
+
+    /// A marking of the second set (stop and give way lines, triangle, arrows, hatching and
+    /// chevrons, yellow lines, studs, worded blocks, the Uganda types): an `IfcSurfaceFeature` of
+    /// the type [`ext_feature_type`] gives, adhering to the pavement that carries it, otherwise
+    /// the documented `IfcBuildingElementProxy` contained in the road. A placeholder block is
+    /// written as the block it is and says so in its properties.
+    fn ext_marking(&mut self, input: &IfcElementInput, g: Option<&Generated>, notes: &mut Vec<String>) -> Vec<u32> {
+        let e = input.element;
+        let def = ExtDefinition::from_value(&e.data).ok();
+        let resolved = def.as_ref().and_then(|d| d.lay_out().0).map(|(r, _)| r);
+        let feature = resolved.as_ref().and_then(|r| ext_feature_type(&r.id));
+        let host = match (&def, feature) {
+            (Some(d), Some(_)) => {
+                let (lo, hi) = match d.across_to_offset_m {
+                    Some(to) => (d.offset_m.min(to), d.offset_m.max(to)),
+                    None => (d.offset_m, d.offset_m),
+                };
+                self.road.carrying_range(&d.alignment, d.station_m, d.end_station_m.unwrap_or(d.station_m), lo, hi)
+            }
+            _ => None,
+        };
+        if host.is_none() {
+            notes.push(format!(
+                "{}: no pavement in the document carries this marking (same alignment, stations and offsets), and an IfcSurfaceFeature must adhere to an element; exported as IfcBuildingElementProxy",
+                e.name
+            ));
+        }
+        let pose = Self::road_pose(e, notes);
+        let placement = self.root_placement(e, pose);
+        let meshes: Vec<(&str, Cow<Mesh3>)> = g.iter().flat_map(|g| g.solids.iter()).map(|m| ("Road marking", Cow::Borrowed(m))).collect();
+        let shape = self.body_of(&meshes, &e.name, notes);
+        if shape.is_none() {
+            notes.push(format!("{}: no geometry exported, the marking has no solids", e.name));
+        }
+        let placeholder = match resolved.as_ref().and_then(|r| r.geometry) {
+            Some(GeometryStatus::Placeholder(why)) => Some(why),
+            _ => None,
+        };
+        let description = resolved.as_ref().map(|r| {
+            let base = format!("{}, {}", r.name, r.diagram);
+            if placeholder.is_some() { format!("{base} (placeholder block, not the true shape)") } else { base }
+        });
+        let (entity, predefined, object_type) = match (host, feature) {
+            (Some(_), Some(f)) => ("IFCSURFACEFEATURE", f.predefined, f.object_type),
+            _ => ("IFCBUILDINGELEMENTPROXY", "USERDEFINED", Some("marking")),
+        };
+        let product = self.make(
+            entity,
+            &element_global_id(&self.w.options.project_name, e.id),
+            &e.name,
+            description.as_deref(),
+            object_type,
+            placement,
+            shape,
+            &e.id.0.to_string(),
+            false,
+            predefined,
+        );
+        let mut p = identity(e);
+        let mut basis = None;
+        let quantities = def.as_ref().and_then(|d| ExtQuantities::measure(&e.name, d).ok());
+        if let (Some(d), Some(r)) = (&def, &resolved) {
+            p.push(("TypeId".to_string(), text(&r.id)));
+            p.push(("Marking".to_string(), text(&r.name)));
+            p.push(("Basis".to_string(), text(d.basis.label())));
+            p.push(("Diagram".to_string(), text(&r.diagram)));
+            if !r.tsrgd.is_empty() {
+                p.push(("TsrgdReference".to_string(), text(&r.tsrgd)));
+            }
+            p.push(("Colour".to_string(), text(quantities.as_ref().map_or(r.colour.label(), |q| q.colour.as_str()))));
+            if !d.material.trim().is_empty() {
+                p.push(("Material".to_string(), text(&d.material)));
+            }
+            if let Some(f) = feature {
+                p.push(("IfcMapping".to_string(), text(&format!("{} {}: {}", entity_label(host.is_some()), f.predefined, f.because))));
+            }
+            if let Some(why) = placeholder {
+                p.push(("PlaceholderBlock".to_string(), Value::Boolean(true)));
+                p.push((
+                    "ShapeStatus".to_string(),
+                    text(&format!("Placeholder block: the bounding block of the marking, not its true shape. {why}")),
+                ));
+            } else {
+                p.push(("PlaceholderBlock".to_string(), Value::Boolean(false)));
+            }
+            if let Some(s) = d.speed {
+                p.push(("Speed".to_string(), Value::Integer(i64::from(s))));
+            }
+            if !d.speed_note.trim().is_empty() {
+                p.push(("SpeedNote".to_string(), text(&d.speed_note)));
+            }
+            if let Some(why) = d.uk_fallback.as_deref().filter(|w| !w.trim().is_empty()) {
+                p.push(("UkFallback".to_string(), text(why)));
+            }
+            p.push(("Source".to_string(), text(&r.citation)));
+            stations(&mut p, &d.alignment, Some(d.station_m), d.end_station_m, Some(d.offset_m));
+            basis = Some(d.basis.edition());
+        } else {
+            notes.push(format!("{}: its definition cannot be read or has errors; exported without its marking data", e.name));
+        }
+        self.element_sets(product, e, g, "AfroBIM_RoadMarkingExt", p, basis);
+
+        if let (Some(r), Some(q)) = (&resolved, &quantities) {
+            // Pset_RoadMarkingCommon applies to IfcSurfaceFeature with HATCHMARKING, LINEMARKING,
+            // PAVEMENTSURFACEMARKING or SYMBOLMARKING (the IFC4X3 property set template); a stud is
+            // USERDEFINED and a proxy is not an IfcSurfaceFeature, so neither carries it.
+            let standard_type = feature.is_some_and(|f| f.predefined != "USERDEFINED");
+            if host.is_some() && standard_type {
+                let mut common = vec![("DiagramNumber".to_string(), text(&r.diagram)), ("MaterialColour".to_string(), text(&q.colour))];
+                if !q.material.trim().is_empty() {
+                    common.push(("MaterialType".to_string(), text(&q.material)));
+                }
+                self.w.property_set(product, e.id, "Pset_RoadMarkingCommon", &common);
+            }
+            if host.is_some() {
+                // A placeholder block has no painted area and a stud has none: only what is known.
+                let mut base = Vec::new();
+                if let Some(a) = q.painted_area_m2 {
+                    base.push(Quantity::Area("Area", a));
+                }
+                if q.painted_length_m > 0.0 {
+                    base.push(Quantity::Length("Length", q.painted_length_m * 1000.0));
+                }
+                if !base.is_empty() {
+                    self.w.quantities(product, e.id, "Qto_SurfaceFeatureBaseQuantities", &base);
+                }
+            }
+            let mut own = vec![
+                Quantity::Length("OverallLength", q.overall_length_m * 1000.0),
+                Quantity::Length("PaintedLength", q.painted_length_m * 1000.0),
+                Quantity::Count("Number", q.number as i64),
+                Quantity::Count("PartMarks", q.part_marks as i64),
+            ];
+            if let Some(a) = q.painted_area_m2 {
+                own.push(Quantity::Area("PaintedArea", a));
+            }
+            if let Some(a) = q.block_area_m2.filter(|_| q.placeholder) {
+                own.push(Quantity::Area("PlaceholderBlockArea", a));
+            }
+            self.w.quantities(product, e.id, "AfroBIM_Quantities", &own);
         }
         if let Some(a) = valid_site(e).and_then(|s| s.alignment.clone()) {
             self.position_on(product, &a);
@@ -1411,6 +1626,10 @@ fn culvert_properties(p: &mut Vec<(String, Value)>, d: &afrobim_drainage::PipeCu
 }
 
 /// The pattern of a line type: both lines of a double line.
+fn entity_label(feature: bool) -> &'static str {
+    if feature { "IfcSurfaceFeature" } else { "IfcBuildingElementProxy (no pavement carries it);" }
+}
+
 fn pattern_label(spec: &afrobim_markings::LineSpec) -> String {
     match spec.double {
         Some(d) => format!("left line {}; right line {}", d.left.label(), d.right.label()),

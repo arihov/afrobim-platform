@@ -7,13 +7,14 @@
 
 use std::collections::HashMap;
 
-use afrobim_alignment::format_station;
+use afrobim_annotate::DisplayUnits;
 use afrobim_design::{fit_to_ground, CurveKind, CurveSpec, FitInputs, FitResult, VPvi, VerticalDesign, FIT_LABEL};
 use afrobim_kernel::{display_spacing, ElementId};
 use egui::{pos2, Align2, Color32, FontId, PointerButton, Rect, RichText, Sense, Shape, Stroke, Vec2};
 
 use crate::app::AfroBimApp;
 use crate::design_glue::{self as glue, VEdit};
+use crate::disp::{cell_changed, cell_text, parse_cell, Cell};
 use crate::design_ui::{plan_text, BAD, GOOD, WARN};
 
 /// The entries of "Fit to ground", all text and all blank to start.
@@ -128,11 +129,13 @@ impl AfroBimApp {
         let name = design.horizontal.name.clone();
         let last = self.design.last.clone();
         let mut ui_state = std::mem::take(&mut self.design.profile);
+        let units = crate::anno_ui::units_of(&self.doc);
+        let u = &units;
         let revision = self.design.revision;
         let _ = revision;
         crate::win::new(ctx, "Profile editor").open(&mut open).default_width(1020.0).default_height(700.0).show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("{name}: stations {} to {}", format_station(alignment.start_station_m, 3), format_station(alignment.end_station_m(), 3))).strong());
+                ui.label(RichText::new(format!("{name}: stations {} to {}", crate::disp::station(u, alignment.start_station_m), crate::disp::station(u, alignment.end_station_m()))).strong());
                 ui.separator();
                 ui.label("Ground");
                 let current = ui_state.surface.and_then(|s| surfaces.iter().find(|x| x.0 == s)).map(|s| s.1.clone()).unwrap_or_else(|| "no surface".into());
@@ -161,7 +164,7 @@ impl AfroBimApp {
             if !ui_state.exag_text.trim().is_empty() && exag.is_none() {
                 ui.label(RichText::new("The exaggeration must be a number greater than zero; blank fits the window.").small().color(BAD));
             }
-            let shown_exag = profile_plot(ui, &alignment, &design, &ui_state.ground, &mut ui_state.drag, &mut ui_state.pending, ui_state.fit_result.as_ref().and_then(|r| r.as_ref().ok()), exag, ui_state.add_mode, &mut edit);
+            let shown_exag = profile_plot(ui, &alignment, &design, &ui_state.ground, &mut ui_state.drag, &mut ui_state.pending, ui_state.fit_result.as_ref().and_then(|r| r.as_ref().ok()), exag, ui_state.add_mode, u, &mut edit);
             ui.label(RichText::new(match shown_exag {
                 Some(e) => format!("Vertical exaggeration in use: {e:.2} : 1. Click-drag a PVI to move it; refused moves show the engine's reason."),
                 None => "No profile to draw yet.".to_string(),
@@ -174,23 +177,23 @@ impl AfroBimApp {
                 ui.label(RichText::new("This alignment has no profile yet.").strong());
                 ui.label("Add at least two PVIs: switch on \"Add PVIs by clicking\" and click on the plot, or type a station and a level. Nothing is assumed.");
                 ui.horizontal(|ui| {
-                    ui.label("Station (m)");
-                    ui.add_sized([90.0, 20.0], egui::TextEdit::singleline(&mut ui_state.typed.0));
-                    ui.label("Level (m)");
+                    ui.label("Station");
+                    ui.add_sized([90.0, 20.0], egui::TextEdit::singleline(&mut ui_state.typed.0).hint_text("1+250.000"));
+                    ui.label(crate::disp::head(u, "Level"));
                     ui.add_sized([90.0, 20.0], egui::TextEdit::singleline(&mut ui_state.typed.1));
                     if ui.button("Add PVI").clicked() {
-                        match (parse(&ui_state.typed.0), parse(&ui_state.typed.1)) {
+                        match (crate::disp::parse_station(u, &ui_state.typed.0), crate::disp::parse_len(u, &ui_state.typed.1)) {
                             (Some(s), Some(z)) => {
                                 ui_state.pending.push((s, z));
                                 ui_state.pending.sort_by(|a, b| a.0.total_cmp(&b.0));
                                 ui_state.problem.clear();
                             }
-                            _ => ui_state.problem = "Enter the station and the level as numbers.".into(),
+                            _ => ui_state.problem = "Enter the station (1+250.000 or metres) and the level as a length.".into(),
                         }
                     }
                 });
                 for (i, p) in ui_state.pending.iter().enumerate() {
-                    ui.label(format!("PVI {i}: station {}  level {:.3} m", format_station(p.0, 3), p.1));
+                    ui.label(format!("PVI {i}: station {}  level {}", crate::disp::station(u, p.0), crate::disp::len_u(u, p.1)));
                 }
                 ui.horizontal(|ui| {
                     if ui.add_enabled(ui_state.pending.len() >= 2, egui::Button::new("Create the profile from these PVIs")).clicked() {
@@ -206,12 +209,12 @@ impl AfroBimApp {
             }
             if ui_state.fit_open {
                 ui.separator();
-                fit_section(ui, &mut ui_state, &mut run_fit, &mut accept_fit, design.vertical.is_some());
+                fit_section(ui, &mut ui_state, &mut run_fit, &mut accept_fit, design.vertical.is_some(), u);
             }
             if let Some(v) = &design.vertical {
                 ui.separator();
                 match v.solve() {
-                    Ok(sol) => pvi_table(ui, v, &sol, &mut ui_state, &mut edit),
+                    Ok(sol) => pvi_table(ui, v, &sol, &mut ui_state, u, &mut edit),
                     Err(e) => {
                         ui.label(RichText::new(format!("The profile cannot be solved: {e}")).color(BAD));
                     }
@@ -283,38 +286,41 @@ impl AfroBimApp {
             self.design.profile.fit_result = Some(Err("That surface cannot be read.".into()));
             return;
         };
-        let need = |what: &str, text: &str| parse(text).ok_or_else(|| format!("Enter the {what} as a number."));
+        let u = crate::anno_ui::units_of(&self.doc);
+        let number = |what: &str, text: &str| parse(text).ok_or_else(|| format!("Enter the {what} as a number."));
+        let length = |what: &str, text: &str| crate::disp::parse_len(&u, text).ok_or_else(|| format!("Enter the {what} as a length (a number in {}, or with m or mm).", crate::disp::suffix(&u)));
         let inputs = (|| -> Result<FitInputs, String> {
             Ok(FitInputs {
-                sample_spacing_m: need("sample spacing (m)", &f.spacing)?,
-                tolerance_m: need("tolerance (m)", &f.tolerance)?,
-                min_segment_length_m: need("minimum segment length (m)", &f.min_segment)?,
-                max_grade: need("maximum grade (%)", &f.max_grade_percent)? / 100.0,
-                min_curve_length_m: need("minimum curve length (m)", &f.min_curve)?,
-                k_crest: if f.k_crest.trim().is_empty() { None } else { Some(need("K for crests", &f.k_crest)?) },
-                k_sag: if f.k_sag.trim().is_empty() { None } else { Some(need("K for sags", &f.k_sag)?) },
+                sample_spacing_m: length("sample spacing", &f.spacing)?,
+                tolerance_m: length("tolerance", &f.tolerance)?,
+                min_segment_length_m: length("minimum segment length", &f.min_segment)?,
+                max_grade: number("maximum grade (%)", &f.max_grade_percent)? / 100.0,
+                min_curve_length_m: length("minimum curve length", &f.min_curve)?,
+                // K is a length per percent: a bare number is in the display length unit per percent.
+                k_crest: if f.k_crest.trim().is_empty() { None } else { Some(length("K for crests", &f.k_crest)?) },
+                k_sag: if f.k_sag.trim().is_empty() { None } else { Some(length("K for sags", &f.k_sag)?) },
             })
         })();
         self.design.profile.fit_result = Some(inputs.and_then(|i| fit_to_ground(alignment, &tin, &i).map_err(|e| e.to_string())));
     }
 }
 
-fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &mut bool, replaces: bool) {
+fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &mut bool, replaces: bool, u: &DisplayUnits) {
     ui.label(RichText::new("Fit to ground").strong());
     ui.label("Proposes a profile from the ground by a least squares fit of straight segments. You enter every input: nothing is assumed, and the fit knows nothing of drainage, cover, sight distance, earthwork balance or any standard.");
     egui::Grid::new("fit-form").num_columns(4).spacing([10.0, 6.0]).show(ui, |ui| {
         let f = &mut st.fit;
         for (label, field, hint) in [
-            ("Sample spacing (m)", &mut f.spacing, ""),
-            ("Tolerance on the ground (m)", &mut f.tolerance, ""),
-            ("Minimum segment length (m)", &mut f.min_segment, ""),
-            ("Maximum grade (%)", &mut f.max_grade_percent, ""),
+            (crate::disp::head(u, "Sample spacing"), &mut f.spacing, ""),
+            (crate::disp::head(u, "Tolerance on the ground"), &mut f.tolerance, ""),
+            (crate::disp::head(u, "Minimum segment length"), &mut f.min_segment, ""),
+            ("Maximum grade (%)".to_string(), &mut f.max_grade_percent, ""),
         ] {
             ui.label(label);
             ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(field).hint_text(hint));
         }
         ui.end_row();
-        for (label, field, hint) in [("Minimum curve length (m)", &mut f.min_curve, ""), ("K for crests (optional)", &mut f.k_crest, "none"), ("K for sags (optional)", &mut f.k_sag, "none")] {
+        for (label, field, hint) in [(crate::disp::head(u, "Minimum curve length"), &mut f.min_curve, ""), (format!("K for crests, {} per % (optional)", crate::disp::suffix(u)), &mut f.k_crest, "none"), (format!("K for sags, {} per % (optional)", crate::disp::suffix(u)), &mut f.k_sag, "none")] {
             ui.label(label);
             ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(field).hint_text(hint));
         }
@@ -332,11 +338,11 @@ fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &m
                 ui.label(RichText::new(FIT_LABEL).strong().size(14.0).color(Color32::from_rgb(0xFF, 0xD0, 0x80)));
             });
             ui.label(format!(
-                "{} PVIs proposed (drawn dashed in orange). Largest height above the ground {:.3} m, largest depth below it {:.3} m, RMS difference {:.3} m.",
+                "{} PVIs proposed (drawn dashed in orange). Largest height above the ground {}, largest depth below it {}, RMS difference {}.",
                 fit.design.pvis.len(),
-                fit.max_above_ground_m,
-                fit.max_below_ground_m,
-                fit.rms_difference_m
+                crate::disp::len_u(u, fit.max_above_ground_m),
+                crate::disp::len_u(u, fit.max_below_ground_m),
+                crate::disp::len_u(u, fit.rms_difference_m)
             ));
             if !fit.gaps.is_empty() {
                 ui.label(RichText::new(format!("{} stretch(es) where the centreline is off the surface were left out.", fit.gaps.len())).small().color(WARN));
@@ -371,6 +377,7 @@ fn profile_plot(
     fit: Option<&FitResult>,
     exag: Option<f64>,
     add_mode: bool,
+    u: &DisplayUnits,
     edit: &mut Option<VEdit>,
 ) -> Option<f64> {
     let width = ui.available_width().max(300.0);
@@ -427,14 +434,14 @@ fn profile_plot(
     let mut s = (s0 / sx).ceil() * sx;
     while s <= s1 {
         painter.line_segment([pos2(x_of(s), plot.top()), pos2(x_of(s), plot.bottom())], Stroke::new(1.0_f32, grid));
-        painter.text(pos2(x_of(s), plot.bottom() + 3.0), Align2::CENTER_TOP, format_station(s, 0), FontId::proportional(10.0), weak);
+        painter.text(pos2(x_of(s), plot.bottom() + 3.0), Align2::CENTER_TOP, afrobim_alignment::format_station(s, 0), FontId::proportional(10.0), weak);
         s += sx;
     }
     let sy = display_spacing(0.5, ys, 30.0);
     let mut z = ((zmid - plot.height() as f64 / ys / 2.0) / sy).ceil() * sy;
     while z <= zmid + plot.height() as f64 / ys / 2.0 {
         painter.line_segment([pos2(plot.left(), y_of(z)), pos2(plot.right(), y_of(z))], Stroke::new(1.0_f32, grid));
-        painter.text(pos2(plot.left() - 4.0, y_of(z)), Align2::RIGHT_CENTER, format!("{z:.1}"), FontId::proportional(10.0), weak);
+        painter.text(pos2(plot.left() - 4.0, y_of(z)), Align2::RIGHT_CENTER, crate::disp::axis(u, z), FontId::proportional(10.0), weak);
         z += sy;
     }
     painter.rect_stroke(plot, 0.0, Stroke::new(1.0_f32, weak), egui::StrokeKind::Inside);
@@ -481,7 +488,7 @@ fn profile_plot(
             let r = Rect::from_center_size(at, Vec2::splat(11.0));
             clipped.rect_filled(r, 0.0, if hot { Color32::from_rgb(0xFF, 0x5A, 0x36) } else { Color32::from_rgb(0x2F, 0x7F, 0xE0) });
             clipped.rect_stroke(r, 0.0, Stroke::new(1.0_f32, Color32::WHITE), egui::StrokeKind::Inside);
-            plan_text(&clipped, at + Vec2::new(8.0, -10.0), Align2::LEFT_BOTTOM, &format!("PVI {i}  {:.2}", p.elevation_m), 10.0, ink, dark);
+            plan_text(&clipped, at + Vec2::new(8.0, -10.0), Align2::LEFT_BOTTOM, &format!("PVI {i}  {}", crate::disp::len(u, p.elevation_m)), 10.0, ink, dark);
         }
     }
     if let Some(f) = fit {
@@ -506,7 +513,7 @@ fn profile_plot(
     // Pointer.
     let hover = response.hover_pos();
     if let Some(h) = hover.filter(|h| plot.contains(*h)) {
-        painter.text(rect.left_bottom() + Vec2::new(62.0, -2.0), Align2::LEFT_BOTTOM, format!("station {}   level {:.3} m", format_station(station_of(h.x), 3), level_of(h.y)), FontId::proportional(10.5), weak);
+        painter.text(rect.left_bottom() + Vec2::new(62.0, -2.0), Align2::LEFT_BOTTOM, format!("station {}   level {}", crate::disp::station(u, station_of(h.x)), crate::disp::len_u(u, level_of(h.y))), FontId::proportional(10.5), weak);
         ui.ctx().set_cursor_icon(if add_mode { egui::CursorIcon::Crosshair } else { egui::CursorIcon::Default });
     }
     let pvi_at = |pos: egui::Pos2| design.vertical.as_ref().and_then(|v| v.pvis.iter().position(|p| pos2(x_of(p.station_m), y_of(p.elevation_m)).distance(pos) <= 9.0));
@@ -564,28 +571,30 @@ fn profile_plot(
 }
 
 /// The PVI table: station, level, grades, curve by length or K, and the high or low point.
-fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::VerticalSolution, st: &mut ProfileUi, edit: &mut Option<VEdit>) {
+fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::VerticalSolution, st: &mut ProfileUi, u: &DisplayUnits, edit: &mut Option<VEdit>) {
     ui.label(RichText::new("PVI table").strong());
-    ui.label(RichText::new("Grades are in percent. Give a vertical curve by its length or by K (metres of curve per 1 % change of grade); the other is worked out. No K and no length are assumed.").small().weak());
+    ui.label(RichText::new(format!("Stations are shown as 1+250.000 and may be typed that way or as a number of metres. Lengths and levels are in the document's display unit ({}; a trailing m or mm overrides it when typing). Grades are in percent. Give a vertical curve by its length or by K ({} of curve per 1 % change of grade); the other is worked out. No K and no length are assumed.", crate::disp::suffix(u), crate::disp::suffix(u))).small().weak());
     egui::ScrollArea::both().id_salt("pvi-table").max_height(190.0).auto_shrink([false, true]).show(ui, |ui| {
         egui::Grid::new("pvi-grid").num_columns(11).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
-            for h in ["PVI", "Station (m)", "Level (m)", "Grade in %", "Grade out %", "Curve by", "Value", "L (m)", "K", "High or low point", ""] {
+            let heads = ["PVI".to_string(), "Station".to_string(), crate::disp::head(u, "Level"), "Grade in %".to_string(), "Grade out %".to_string(), "Curve by".to_string(), "Value".to_string(), crate::disp::head(u, "L"), crate::disp::k_head(u), "High or low point".to_string(), String::new()];
+            for h in heads {
                 ui.label(RichText::new(h).strong());
             }
             ui.end_row();
             for (i, p) in v.pvis.iter().enumerate() {
                 ui.label(format!("{i}"));
                 for (k, value) in [(0u8, p.station_m), (1u8, p.elevation_m)] {
-                    let text = st.bufs.entry((i, k)).or_insert_with(|| format!("{value:.3}"));
+                    let text = st.bufs.entry((i, k)).or_insert_with(|| cell_text(u, if k == 0 { Cell::PviStation } else { Cell::PviLevel }, value));
                     let r = ui.add_sized([86.0, 20.0], egui::TextEdit::singleline(text));
                     if r.lost_focus() {
-                        match (st.bufs.get(&(i, 0)).and_then(|t| parse(t)), st.bufs.get(&(i, 1)).and_then(|t| parse(t))) {
+                        let typed = |k: u8, c: Cell| st.bufs.get(&(i, k)).and_then(|t| parse_cell(u, c, t).ok().flatten());
+                        match (typed(0, Cell::PviStation), typed(1, Cell::PviLevel)) {
                             (Some(s), Some(z)) => {
-                                if (s - p.station_m).abs() > 1e-9 || (z - p.elevation_m).abs() > 1e-9 {
+                                if cell_changed(u, Cell::PviStation, p.station_m, Some(s)) || cell_changed(u, Cell::PviLevel, p.elevation_m, Some(z)) {
                                     *edit = Some(VEdit::MovePvi(i, s, z));
                                 }
                             }
-                            _ => st.problem = format!("PVI {i}: station and level must be numbers."),
+                            _ => st.problem = format!("PVI {i}: the station must be 1+250.000 or metres and the level a length."),
                         }
                     }
                 }
@@ -616,17 +625,17 @@ fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::Vertic
                     }
                     if new_mode != 0 {
                         let value = match p.curve {
-                            CurveSpec::Length { length_m } if new_mode == 1 => format!("{length_m}"),
-                            CurveSpec::K { k } if new_mode == 2 => format!("{k}"),
+                            CurveSpec::Length { length_m } if new_mode == 1 => cell_text(u, Cell::CurveLength, length_m),
+                            CurveSpec::K { k } if new_mode == 2 => cell_text(u, Cell::CurveK, k),
                             _ => String::new(),
                         };
                         let text = st.bufs.entry((i, 2 + new_mode)).or_insert(value);
-                        let r = ui.add_sized([70.0, 20.0], egui::TextEdit::singleline(text).hint_text(if new_mode == 1 { "metres" } else { "m per %" }));
+                        let r = ui.add_sized([70.0, 20.0], egui::TextEdit::singleline(text).hint_text(if new_mode == 1 { crate::disp::suffix(u).to_string() } else { format!("{} per %", crate::disp::suffix(u)) }));
                         if r.lost_focus() {
                             let t = st.bufs.get(&(i, 2 + new_mode)).cloned().unwrap_or_default();
-                            match parse(&t).filter(|x| *x > 0.0) {
+                            match parse_cell(u, if new_mode == 1 { Cell::CurveLength } else { Cell::CurveK }, &t).ok().flatten() {
                                 Some(x) => *edit = Some(if new_mode == 1 { VEdit::CurveLength(i, x) } else { VEdit::CurveK(i, x) }),
-                                None => st.problem = format!("PVI {i}: the curve {} must be a number greater than zero.", if new_mode == 1 { "length" } else { "K" }),
+                                None => st.problem = format!("PVI {i}: the curve {} must be a length greater than zero.", if new_mode == 1 { "length" } else { "K (a length per percent)" }),
                             }
                         }
                     } else {
@@ -636,10 +645,10 @@ fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::Vertic
                     ui.label("");
                     ui.label("");
                 }
-                ui.label(curve.map(|c| format!("{:.3}", c.length_m)).unwrap_or_default());
-                ui.label(curve.map(|c| format!("{:.2}", c.k)).unwrap_or_default());
+                ui.label(curve.map(|c| crate::disp::len(u, c.length_m)).unwrap_or_default());
+                ui.label(curve.map(|c| crate::disp::k(u, c.k)).unwrap_or_default());
                 ui.label(match curve.and_then(|c| c.turning_point.map(|t| (c.kind, t))) {
-                    Some((kind, (s, z))) => format!("{} {} / {z:.3}", if kind == CurveKind::Crest { "high" } else { "low" }, format_station(s, 3)),
+                    Some((kind, (s, z))) => format!("{} {} / {}", if kind == CurveKind::Crest { "high" } else { "low" }, crate::disp::station(u, s), crate::disp::len(u, z)),
                     None => String::new(),
                 });
                 ui.horizontal(|ui| {
@@ -653,20 +662,20 @@ fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::Vertic
     });
     ui.horizontal(|ui| {
         ui.label("Add a PVI at station");
-        ui.add_sized([90.0, 20.0], egui::TextEdit::singleline(&mut st.typed.0));
+        ui.add_sized([90.0, 20.0], egui::TextEdit::singleline(&mut st.typed.0).hint_text("1+250.000"));
         ui.label("level");
         ui.add_sized([90.0, 20.0], egui::TextEdit::singleline(&mut st.typed.1).hint_text("blank: on the profile"));
         if ui.button("Add PVI").clicked() {
-            match (parse(&st.typed.0), st.typed.1.trim().is_empty()) {
+            match (crate::disp::parse_station(u, &st.typed.0), st.typed.1.trim().is_empty()) {
                 (Some(s), true) => *edit = Some(VEdit::InsertAt(s)),
-                (Some(s), false) => match parse(&st.typed.1) {
+                (Some(s), false) => match crate::disp::parse_len(u, &st.typed.1) {
                     Some(z) => {
                         let index = v.pvis.iter().position(|p| p.station_m > s).unwrap_or(v.pvis.len());
                         *edit = Some(VEdit::InsertPvi(index, s, z));
                     }
-                    None => st.problem = "The level must be a number.".into(),
+                    None => st.problem = "The level must be a length.".into(),
                 },
-                _ => st.problem = "Enter the station as a number.".into(),
+                _ => st.problem = "Enter the station as 1+250.000 or as a number of metres.".into(),
             }
         }
     });

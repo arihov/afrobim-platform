@@ -82,6 +82,8 @@ pub struct CanvasController {
     box_removes: bool,
     box_return: CanvasTool,
     place_id: Option<ElementId>,
+    /// A model point from object snap, which stands for the pointer while a point is being picked.
+    object_snap: Option<Pt>,
     events: Vec<CanvasEvent>,
 }
 
@@ -112,6 +114,7 @@ impl Default for CanvasController {
             box_removes: false,
             box_return: CanvasTool::Idle,
             place_id: None,
+            object_snap: None,
             events: Vec::new(),
         }
     }
@@ -148,6 +151,22 @@ impl CanvasController {
     pub fn displacement(&self) -> Pt {
         self.displacement
     }
+    /// True while a command is waiting for a point that object snap may give: the base point and
+    /// the second point of MOVE and COPY, a grip being dragged, and a new element hanging from
+    /// the cursor. A press-drag move of the selection snaps to the grid only.
+    pub fn wants_object_snap(&self) -> bool {
+        matches!(self.tool, CanvasTool::BasePoint | CanvasTool::SecondPoint | CanvasTool::GripDrag | CanvasTool::Place)
+    }
+
+    /// Gives the point object snap found under the pointer (model coordinates), or none. The caller
+    /// sets it before each pointer event it forwards, from [`CanvasController::wants_object_snap`]
+    /// onward. While it is set it is the point picked: it replaces the pointer position and the
+    /// grid snap and ortho do not move it (an object snap point is exact, as in a CAD program).
+    /// A new element hanging from the cursor is centred on it.
+    pub fn set_object_snap(&mut self, p: Option<Pt>) {
+        self.object_snap = p;
+    }
+
     pub fn ghost_ids(&self) -> &[ElementId] {
         &self.ghost_ids
     }
@@ -273,10 +292,10 @@ impl CanvasController {
                 self.cursor_world = base + d;
             }
             CanvasTool::GripDrag | CanvasTool::SecondPoint => {
-                self.cursor_world = self.constrain(raw);
+                self.cursor_world = self.object_snap.unwrap_or_else(|| self.constrain(raw));
                 self.displacement = self.cursor_world - self.base_point.unwrap_or(self.cursor_world);
             }
-            CanvasTool::BasePoint => self.cursor_world = self.snapped(raw),
+            CanvasTool::BasePoint => self.cursor_world = self.object_snap.unwrap_or_else(|| self.snapped(raw)),
             CanvasTool::Place => self.update_place_ghost(doc, view),
             _ => {}
         }
@@ -515,7 +534,11 @@ impl CanvasController {
         };
         // The element hangs from the cursor by its centre; snap lands its lower-left corner on the grid.
         let raw = view.to_world(self.cursor_screen);
-        let origin = self.snapped(Pt::new(raw.x - e.width / 2.0, raw.y - e.height / 2.0));
+        // An object snap point is where the centre goes, exactly; otherwise the grid takes the corner.
+        let origin = match self.object_snap {
+            Some(p) => Pt::new(p.x - e.width / 2.0, p.y - e.height / 2.0),
+            None => self.snapped(Pt::new(raw.x - e.width / 2.0, raw.y - e.height / 2.0)),
+        };
         self.displacement = origin - e.origin;
     }
 
@@ -588,6 +611,7 @@ impl CanvasController {
     }
 
     fn reset(&mut self) {
+        self.object_snap = None;
         self.command = CanvasCommand::None;
         self.box_start = None;
         self.base_point = None;
@@ -812,6 +836,72 @@ mod tests {
         assert_eq!(c.tool(), CanvasTool::Idle);
         close(d.find(id).unwrap().origin.x, 3700.0);
         close(d.find(id).unwrap().origin.y, 2800.0);
+    }
+
+    #[test]
+    fn object_snap_gives_the_points_of_move_copy_and_place() {
+        // The snap point replaces the pointer and is exact: grid snap and ortho do not move it.
+        let (mut d, mut v, mut c) = rig();
+        c.snap_on = true;
+        c.snap_spacing = 100.0;
+        c.ortho_on = true;
+        click(&mut c, &mut d, &mut v, s(500.0, 250.0), false);
+        c.start_move(&mut d);
+        assert!(c.wants_object_snap());
+        // Base point: the corner of A-001 (1000, 500) given by object snap, the pointer a few px away.
+        c.set_object_snap(Some(Pt::new(1000.0, 500.0)));
+        click(&mut c, &mut d, &mut v, s(1030.0, 540.0), false);
+        assert_eq!(c.base_point(), Some(Pt::new(1000.0, 500.0)));
+        assert_eq!(c.tool(), CanvasTool::SecondPoint);
+        // Second point: (2437, 913), not a multiple of the grid and off the ortho line.
+        c.set_object_snap(Some(Pt::new(2437.0, 913.0)));
+        c.pointer_move(&mut d, &v, s(2400.0, 900.0));
+        close(c.cursor_world().x, 2437.0);
+        close(c.cursor_world().y, 913.0);
+        click(&mut c, &mut d, &mut v, s(2400.0, 900.0), false);
+        close(origin(&d, 1).x, 1437.0);
+        close(origin(&d, 1).y, 413.0);
+        assert!(!c.wants_object_snap());
+        // With no snap point the grid and ortho apply again.
+        c.set_object_snap(None);
+        d.select(&ids(&[1]), SelectMode::Replace);
+        c.start_move(&mut d);
+        click(&mut c, &mut d, &mut v, s(0.0, 0.0), false);
+        click(&mut c, &mut d, &mut v, s(3000.0, 400.0), false);
+        close(origin(&d, 1).x, 1437.0 + 3000.0);
+        close(origin(&d, 1).y, 413.0);
+
+        // COPY takes its points from object snap too, and repeats.
+        let (mut d, mut v, mut c) = rig();
+        click(&mut c, &mut d, &mut v, s(500.0, 250.0), false);
+        c.start_copy(&mut d);
+        c.set_object_snap(Some(Pt::new(0.0, 0.0)));
+        click(&mut c, &mut d, &mut v, s(10.0, 10.0), false);
+        c.set_object_snap(Some(Pt::new(2000.0, 500.0)));
+        click(&mut c, &mut d, &mut v, s(1990.0, 510.0), false);
+        let copies: Vec<_> = c.take_events().into_iter().filter(|e| matches!(e, CanvasEvent::Copy(..))).collect();
+        assert_eq!(copies, vec![CanvasEvent::Copy(ids(&[1]), 2000.0, 500.0)]);
+
+        // A new element hangs by its centre from the snap point, with no grid.
+        let (mut d, mut v, mut c) = rig();
+        c.snap_on = true;
+        c.snap_spacing = 100.0;
+        let id = d.add("sign", "n", Pt::new(5000.0, 5000.0), 600.0, 400.0, "0", json!({}));
+        c.start_place(&d, &v, id);
+        assert!(c.wants_object_snap());
+        c.set_object_snap(Some(Pt::new(3037.0, 2011.0)));
+        click(&mut c, &mut d, &mut v, s(3000.0, 2000.0), false);
+        close(d.find(id).unwrap().origin.x, 3037.0 - 300.0);
+        close(d.find(id).unwrap().origin.y, 2011.0 - 200.0);
+
+        // A press-drag move of the selection and the idle tool do not ask for object snap.
+        let (mut d, mut v, mut c) = rig();
+        assert!(!c.wants_object_snap());
+        c.set_object_snap(Some(Pt::new(7.0, 7.0)));
+        c.left_down(&mut d, &mut v, s(500.0, 250.0), false, false);
+        c.pointer_move(&mut d, &v, s(1500.0, 250.0));
+        assert_eq!(c.tool(), CanvasTool::DragMove);
+        assert!(!c.wants_object_snap());
     }
 
     #[test]

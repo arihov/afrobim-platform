@@ -28,14 +28,33 @@ fn export_text(doc: &Document, options: &afrobim_ifc::IfcOptions) -> String {
 }
 
 #[test]
-fn a_second_set_marking_is_exported_as_a_building_element_proxy() {
-    // `afrobim-ifc` has no mapping for category `marking_ext`: the marking is written as a
-    // generic IfcBuildingElementProxy named by its mark, with its category as the object type.
-    // It is not an IfcSurfaceFeature and it is not attached to a pavement.
+fn a_second_set_marking_no_pavement_carries_is_exported_as_a_building_element_proxy() {
+    // An IfcSurfaceFeature must adhere to an element, so a marking no pavement carries is the
+    // documented proxy fallback: a generic IfcBuildingElementProxy named by its mark, with the
+    // object type `marking`, as for the first set. It has no standard marking property sets.
     let (doc, _, mark) = doc_with_stop_line();
     let text = export_text(&doc, &afrobim_ifc::IfcOptions { timestamp: Some(0), ..Default::default() });
     let line = text.lines().find(|l| l.contains(&format!("'{mark}'")) && l.contains("IFCBUILDINGELEMENTPROXY")).expect("the marking is in the file as a proxy");
-    assert!(line.contains("'marking_ext'"), "{line}");
+    assert!(line.contains("'marking'") && !line.contains("'marking_ext'"), "{line}");
+    assert!(!text.contains("IFCSURFACEFEATURE") && !text.contains("Pset_RoadMarkingCommon"));
+}
+
+#[test]
+fn a_second_set_marking_a_pavement_carries_is_an_ifc_surface_feature_adhering_to_it() {
+    // The stop line (1002.1, a line painted across the road) is LINEMARKING, "2D lines painted on
+    // pavement surfaces to form boundaries, centrelines and edge markings" (IFC 4.3).
+    let (mut doc, a, mark) = doc_with_stop_line();
+    let alignment = alignment_glue::alignment_of(&doc, a).unwrap();
+    let layers = vec![afrobim_pavement::Layer::new("Surfacing", afrobim_pavement::Material::HotMixAsphalt, 50.0)];
+    let mut pavement = afrobim_pavement::PavementDefinition::new(alignment.clone(), 8.0, 2.5, layers);
+    pavement.start_station_m = alignment.start_station_m;
+    pavement.end_station_m = alignment.start_station_m + 300.0;
+    afrobim_pavement::add_pavement(&mut doc, "PV-001", &pavement).unwrap();
+    let text = export_text(&doc, &afrobim_ifc::IfcOptions { timestamp: Some(0), ..Default::default() });
+    let line = text.lines().find(|l| l.starts_with("#") && l.contains("IFCSURFACEFEATURE") && l.contains(&format!("'{mark}'"))).expect("the marking is an IfcSurfaceFeature");
+    assert!(line.contains(".LINEMARKING."), "{line}");
+    assert!(text.contains("IFCRELADHERESTOELEMENT"));
+    assert!(text.contains("Pset_RoadMarkingCommon"));
 }
 
 #[test]

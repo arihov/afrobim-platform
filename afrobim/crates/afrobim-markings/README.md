@@ -165,8 +165,10 @@ curve.
 
 Solids: one mesh per line, every mark a closed prism in the same frame, from z = 0 to
 `DISPLAY_THICKNESS_MM` (5 mm). **That thickness is for display only**: it comes from no
-standard and enters no quantity. The road surface is taken as level ground at z = 0; the
-vertical profile is not used.
+standard and enters no quantity. Where the alignment has a vertical profile the solids lie at
+the profile level at each mark's stations (`plan_at_level`, clamped to the profile's ends);
+with no profile the road surface is taken as level ground at z = 0. The quantities do not use
+the profile.
 
 ## Quantities
 
@@ -578,7 +580,7 @@ Slips and unclear points in the sources (nothing was corrected silently):
 
 ## Limits (this part)
 
-* Plan geometry only; item areas are the ideal shapes (a hatch on a tight curve is slightly
+* Plan geometry for quantities; the display solids follow the profile (see below); item areas are the ideal shapes (a hatch on a tight curve is slightly
   distorted by its vertex mapping and its area is not corrected).
 * Hatching and chevrons start their first diagonal at the start station (the sources do not
   say); only whole diagonals are drawn; the lean of a diagonal is not dimensioned (`mirror`).
@@ -589,3 +591,21 @@ Slips and unclear points in the sources (nothing was corrected silently):
   table has no column (for example 45 mph for Table 9-1) the element is refused, never rounded.
 * The 6 m Uganda arrow scales head and shaft lengths by 6000/4000 and keeps all widths.
 * TSRGD diagrams are read from the 2016 PDF as published; amendments after 2016 are not applied.
+
+### Level of the solids, and the IFC mapping (round 4)
+
+* **Level.** The solids of a second-set marking lie at the profile level of the alignment. A
+  strip (a line, the boundary lines of hatching or chevrons) takes the level of each of its
+  stations. A polygon (a stop or give way line, the triangle, an arrow, a worded block, the
+  diagonals of hatching and chevrons, the zig-zag marks, a stud, the crossing stripes) takes, at
+  each vertex, the level of the station of that plan point (`Alignment::station_offset`), with
+  the mean of the other vertices where a vertex has none. Until round 4 polygons were extruded
+  from z = 0 and strips followed the profile, so on a road at 100 m the diagonals of a hatch hung
+  100 m below its boundary lines and the 3D view (and the IFC) showed them away from the
+  pavement. `ext_plan` takes the station lookup as its last argument. The test
+  `every_solid_of_every_kind_of_marking_sits_at_the_road_level_of_its_station` fails on the old
+  code (a vertex at 0 mm where the road is at 50 998 mm) and passes now. The level is for display
+  only, as the 5 mm thickness is, and enters no quantity.
+* **IFC.** `afrobim-ifc` writes `marking_ext` as `IfcSurfaceFeature` adhering to a pavement that
+  carries it, with the predefined type of its catalogue kind; see "Second marking set" in
+  `crates/afrobim-ifc/README.md`.

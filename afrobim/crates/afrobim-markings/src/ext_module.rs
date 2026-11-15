@@ -48,19 +48,21 @@ fn points(shape: &Shape) -> Vec<(f64, f64)> {
     }
 }
 
-fn add_convex_prism(mesh: &mut Mesh3, poly: &[Pt2], z0: f64, thickness: f64) {
+/// A convex polygon extruded up by `thickness`, its underside at the level of each vertex
+/// (`levels` has one entry per vertex).
+fn add_convex_prism(mesh: &mut Mesh3, poly: &[Pt2], levels: &[f64], thickness: f64) {
     let n = poly.len();
-    if n < 3 {
+    if n < 3 || levels.len() != n {
         return;
     }
     let area: f64 = (0..n).map(|i| poly[i].x * poly[(i + 1) % n].y - poly[(i + 1) % n].x * poly[i].y).sum();
-    let ordered: Vec<Pt2> = if area < 0.0 { poly.iter().rev().copied().collect() } else { poly.to_vec() };
+    let order: Vec<usize> = if area < 0.0 { (0..n).rev().collect() } else { (0..n).collect() };
     let base = mesh.vertices.len() as u32;
-    for p in &ordered {
-        mesh.vertices.push([p.x, p.y, z0]);
+    for &i in &order {
+        mesh.vertices.push([poly[i].x, poly[i].y, levels[i]]);
     }
-    for p in &ordered {
-        mesh.vertices.push([p.x, p.y, z0 + thickness]);
+    for &i in &order {
+        mesh.vertices.push([poly[i].x, poly[i].y, levels[i] + thickness]);
     }
     let n = n as u32;
     for i in 1..n - 1 {
@@ -75,8 +77,12 @@ fn add_convex_prism(mesh: &mut Mesh3, poly: &[Pt2], z0: f64, thickness: f64) {
 }
 
 /// Draws a laid-out marking in plan and builds its solids; `None` when nothing was laid.
-/// `level_mm(station)` raises solids of strips to the road level (display only).
-pub fn ext_plan(laid: &ExtLaid, colour: Colour, name: &str, level_mm: &dyn Fn(f64) -> f64) -> Option<ExtPlan> {
+/// `level_mm(station)` raises solids to the road level (display only). A strip knows its
+/// stations; a polygon (a mark, an arrow, a stop line, a stud) does not, so `station_at(x, y)`
+/// gives the station of a plan point in metres (`None` where it has none), and each vertex of the
+/// polygon takes the level of its own station. A vertex with no station takes the mean level of
+/// the polygon's other vertices, or zero when none has one.
+pub fn ext_plan(laid: &ExtLaid, colour: Colour, name: &str, level_mm: &dyn Fn(f64) -> f64, station_at: &dyn Fn(f64, f64) -> Option<f64>) -> Option<ExtPlan> {
     let mut pts = laid.pieces.iter().flat_map(|p| points(&p.shape));
     let first = pts.next()?;
     let ((min_x, min_y), (max_x, max_y)) = pts.fold((first, first), |(lo, hi), p| ((lo.0.min(p.0), lo.1.min(p.1)), (hi.0.max(p.0), hi.1.max(p.1))));
@@ -104,7 +110,11 @@ pub fn ext_plan(laid: &ExtLaid, colour: Colour, name: &str, level_mm: &dyn Fn(f6
             }
             Shape::Poly(p) => {
                 let poly: Vec<Pt2> = p.iter().map(mm).collect();
-                add_convex_prism(mesh, &poly, 0.0, DISPLAY_THICKNESS_MM);
+                let known: Vec<Option<f64>> = p.iter().map(|q| station_at(q.0, q.1).map(level_mm)).collect();
+                let found: Vec<f64> = known.iter().flatten().copied().collect();
+                let mean = if found.is_empty() { 0.0 } else { found.iter().sum::<f64>() / found.len() as f64 };
+                let levels: Vec<f64> = known.iter().map(|k| k.unwrap_or(mean)).collect();
+                add_convex_prism(mesh, &poly, &levels, DISPLAY_THICKNESS_MM);
                 primitives.push(Primitive::Fill { outline: poly, colour });
             }
         }
@@ -172,7 +182,9 @@ impl Module for ExtMarkingModule {
         let profile = def.geometry.as_ref().and_then(|a| a.profile.as_ref());
         let level = |station: f64| profile.and_then(|p| p.range().and_then(|(lo, hi)| p.elevation_at(station.clamp(lo, hi)).ok())).unwrap_or(0.0) * 1000.0;
         let colour = draw_colour(resolved.colour, resolved.stud_colour);
-        let Some(plan) = ext_plan(&laid, colour, &resolved.name, &level) else {
+        let alignment = def.geometry.as_ref();
+        let station_at = |x: f64, y: f64| alignment.and_then(|a| a.station_offset(x, y)).map(|(station, _)| station);
+        let Some(plan) = ext_plan(&laid, colour, &resolved.name, &level, &station_at) else {
             return Ok(Generated { notes, ..Generated::default() });
         };
         Ok(Generated { drawing: plan.drawing, notes, derived: derived(&def, &resolved, &laid, plan.origin_x_m, plan.origin_y_m), solids: plan.solids })
@@ -185,7 +197,7 @@ fn footprint(def: &ExtDefinition) -> Result<(f64, f64, SitePlacement), MarkingEr
         (Some(l), None) => l,
         (_, message) => return Err(MarkingError::InvalidDefinition(message.unwrap_or_else(|| "the marking cannot be laid out".to_string()))),
     };
-    let plan = ext_plan(&laid, draw_colour(resolved.colour, resolved.stud_colour), &resolved.name, &|_| 0.0).ok_or_else(|| MarkingError::InvalidDefinition("the marking has no marks".to_string()))?;
+    let plan = ext_plan(&laid, draw_colour(resolved.colour, resolved.stud_colour), &resolved.name, &|_| 0.0, &|_, _| None).ok_or_else(|| MarkingError::InvalidDefinition("the marking has no marks".to_string()))?;
     let site = SitePlacement {
         x: plan.origin_x_m * 1000.0,
         y: plan.origin_y_m * 1000.0,

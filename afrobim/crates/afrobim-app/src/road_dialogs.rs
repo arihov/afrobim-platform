@@ -39,6 +39,22 @@ pub struct DesignDialog {
     make: Option<(Option<ElementId>, PavementRequest)>,
 }
 
+/// Builds a corridor for the sections window.
+pub fn build_sections(doc: &Document, id: ElementId) -> Result<SectionsView, String> {
+    let built = road_glue::built_corridor(doc, id)?;
+    if built.sections.is_empty() {
+        return Err("The corridor has no sections.".into());
+    }
+    let mark = doc.find(id).map(|e| e.name.clone()).unwrap_or_default();
+    Ok(SectionsView { mark, corridor: built, index: 0, exaggeration: 1.0 })
+}
+
+/// Builds the corridor of the sections window on a worker thread, on a copy of the document.
+pub fn spawn_sections(doc: &Document, id: ElementId) -> crate::background::Job<Result<SectionsView, String>> {
+    let copy = doc.clone();
+    crate::background::Job::spawn("Cross-section build", crate::background::fingerprint(doc), move || build_sections(&copy, id))
+}
+
 /// The cross-section window: one corridor, built, and the section being looked at.
 pub struct SectionsView {
     pub mark: String,
@@ -134,14 +150,9 @@ impl RoadDialogs {
         Ok(())
     }
 
-    pub fn open_sections(&mut self, doc: &Document, id: ElementId) -> Result<(), String> {
-        let built = road_glue::built_corridor(doc, id)?;
-        if built.sections.is_empty() {
-            return Err("The corridor has no sections.".into());
-        }
-        let mark = doc.find(id).map(|e| e.name.clone()).unwrap_or_default();
-        self.sections = Some(SectionsView { mark, corridor: built, index: 0, exaggeration: 1.0 });
-        Ok(())
+    /// Shows a built corridor in the sections window.
+    pub fn show_sections(&mut self, view: SectionsView) {
+        self.sections = Some(view);
     }
 
     /// Draws every open dialog and returns what they produced this frame.

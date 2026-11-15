@@ -237,4 +237,4 @@ A record in the model-wide check (`CHECKALL`) can map `RoadRun` rows to its rows
   sign are the engineer's. The check lines compare and cite; they do not decide.
 - Corridors are rebuilt from their definition when the scene is built, which is slow on a large
   model (`SceneOptions::include_corridors`).
-- Not wired into `afrobim-app`; no UI. Debug builds only were run (no release build, by rule).
+- Wired into `afrobim-app` (`visibility_ui.rs`): the `VISIBILITY` dialog (inputs stored on the sign as `check.visibility`), `VISIBILITYRUN`, the results and drawings windows, the 3D overlay of the limiting sight line, the `CHECKALL` rows and the sheet detail feeds. Since round 4 the scene build and the run of the app's `VISIBILITY` and `VISIBILITYRUN` commands (one sign or the road) are done on a worker thread, with a progress window and Cancel, and are applied only if the document is unchanged (`VisInput::compute`); `CHECKALL` still builds the scene on the interface thread. Pointer interaction was not exercised, only the functions the windows call. Debug builds only were run (no release build, by rule).

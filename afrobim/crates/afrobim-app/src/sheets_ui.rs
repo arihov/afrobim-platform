@@ -6,6 +6,7 @@
 //! prefilled except the crate's neutral defaults for paper, frame, pens and text heights, which
 //! are shown as editable defaults. Scales, lengths, overlaps and intervals start empty.
 
+use afrobim_annotate::DisplayUnits;
 use afrobim_draw::{Colour, Drawing, Primitive, Pt2};
 use afrobim_kernel::{Document, ElementId, Pt, ViewTransform};
 use afrobim_sheets::{
@@ -177,7 +178,7 @@ impl SourceForm {
 
     /// The form for an existing source, so that it can be edited. A source made some other way
     /// than by these forms gets the properties form.
-    fn from_source(index: usize, source: &SheetSource, defaults: Page) -> SourceForm {
+    fn from_source(index: usize, source: &SheetSource, defaults: Page, u: &DisplayUnits) -> SourceForm {
         let t = source.template();
         let mut f = SourceForm::new(FormKind::Props, t.page);
         f.editing = Some(index);
@@ -185,6 +186,10 @@ impl SourceForm {
         f.prefix = t.number_prefix.clone().unwrap_or_default();
         let n = |v: f64| afrobim_sheets::trim_number(v, 6);
         let opt = |v: Option<f64>| v.map(n).unwrap_or_default();
+        // Lengths and intervals are shown in the document's display unit; stations are internal
+        // numbers here and `to_displayed` turns them into the stations as drawn.
+        let l = |v: f64| crate::disp::len_field(u, v);
+        let lopt = |v: Option<f64>| v.map(l).unwrap_or_default();
         match source {
             SheetSource::PlanSeries(p) => {
                 if let Some(ViewKind::Plan(v)) = p.template.views.get(p.plan_view).map(|v| &v.kind) {
@@ -193,15 +198,15 @@ impl SourceForm {
                     f.from = opt(p.from_station_m);
                     f.to = opt(p.to_station_m);
                     f.scale = n(v.scale.0);
-                    f.length = n(p.length_m);
-                    f.overlap = n(p.overlap_m);
+                    f.length = l(p.length_m);
+                    f.overlap = l(p.overlap_m);
                     (f.rotation, f.degrees) = match v.rotation {
                         PlanRotation::AlignChord => (0, String::new()),
                         PlanRotation::NorthUp => (1, String::new()),
                         PlanRotation::Degrees(d) => (2, n(d)),
                     };
-                    f.tick = n(v.tick_interval_m);
-                    f.label_every = n(v.label_interval_m);
+                    f.tick = l(v.tick_interval_m);
+                    f.label_every = l(v.label_interval_m);
                     // The title of an expanded sheet adds the station range; the stored one does not.
                 }
             }
@@ -213,10 +218,10 @@ impl SourceForm {
                     f.to = n(v.to_station_m);
                     f.scale = n(v.h_scale.0);
                     f.v_scale = n(v.h_scale.0 / v.vertical_exaggeration);
-                    f.datum = opt(v.datum_level_m);
-                    f.grid_sta = n(v.grid_station_interval_m);
-                    f.grid_lvl = n(v.grid_level_interval_m);
-                    f.band = if v.band_interval_m > 0.0 { n(v.band_interval_m) } else { String::new() };
+                    f.datum = lopt(v.datum_level_m);
+                    f.grid_sta = l(v.grid_station_interval_m);
+                    f.grid_lvl = l(v.grid_level_interval_m);
+                    f.band = if v.band_interval_m > 0.0 { l(v.band_interval_m) } else { String::new() };
                     f.surface = v.surface.clone().unwrap_or_default();
                     f.ann = v.annotations;
                 }
@@ -317,14 +322,25 @@ impl SourceForm {
     /// Turns the internal stations a stored source holds into the stations shown on the drawings,
     /// with their regions, for the edit form.
     fn to_displayed(&mut self, doc: &Document) {
-        let Some(a) = self.alignment_obj(doc) else { return };
-        self.regions = a.station_equations.region_count();
+        let u = crate::anno_ui::units_of(doc);
+        let a = self.alignment_obj(doc);
+        if let Some(a) = &a {
+            self.regions = a.station_equations.region_count();
+        }
+        // Without the alignment the stations stay as they are stored (internal), in the same form.
+        let shown_of = |v: f64| a.as_ref().map(|a| crate::station_input::internal_to_displayed(a, v)).unwrap_or((v, 0));
         for (text, region) in [(&mut self.from, &mut self.from_region), (&mut self.to, &mut self.to_region)] {
             if let Ok(v) = text.trim().parse::<f64>() {
-                let (shown, r) = crate::station_input::internal_to_displayed(&a, v);
-                *text = afrobim_sheets::trim_number(shown, 6);
+                let (shown, r) = shown_of(v);
+                *text = crate::disp::station(&u, shown);
                 *region = r;
             }
+        }
+        // A list of sections: each station as drawn (a station that occurs in two regions is
+        // shown once and must be told apart when it is typed again).
+        if self.mode == 2 {
+            let tokens: Vec<String> = self.list.split(|c: char| c == ',' || c == ';' || c.is_whitespace()).filter(|t| !t.is_empty()).map(|t| t.parse::<f64>().map(|v| crate::disp::station(&u, shown_of(v).0)).unwrap_or_else(|_| t.to_string())).collect();
+            self.list = tokens.join(", ");
         }
     }
 }
@@ -397,26 +413,42 @@ impl SourceForm {
                 Ok(())
             }
         };
+        let u = &crate::anno_ui::units_of(doc);
+        let unit = crate::disp::suffix(u);
+        // A length or an interval in the display unit (a number, or with m or mm), in metres.
+        let len = |text: &str, what: &str| crate::disp::parse_len_or(u, text, what);
+        let len_pos = |text: &str, what: &str| -> Result<f64, String> {
+            let v = len(text, what)?;
+            if v > 0.0 {
+                Ok(v)
+            } else {
+                Err(format!("{what} must be more than 0."))
+            }
+        };
+        let len_opt = |text: &str, what: &str| -> Result<Option<f64>, String> { if text.trim().is_empty() { Ok(None) } else { len(text, what).map(Some) } };
+        // A station as drawn: 1+250.000 or a number of metres.
+        let sta = |text: &str, what: &str| crate::disp::parse_station_or(u, text, what);
+        let sta_opt = |text: &str, what: &str| -> Result<Option<f64>, String> { if text.trim().is_empty() { Ok(None) } else { sta(text, what).map(Some) } };
         match self.kind {
             FormKind::Plan => {
                 need_alignment(&self.alignment)?;
                 let scale = parse_pos(&self.scale, "the scale 1:n (n)")?;
-                let length = parse_pos(&self.length, "the length of alignment on each sheet (m)")?;
-                let overlap = parse(&self.overlap, "the overlap between sheets (m, 0 for none)")?;
+                let length = len_pos(&self.length, &format!("the length of alignment on each sheet ({unit})"))?;
+                let overlap = len(&self.overlap, &format!("the overlap between sheets ({unit}, 0 for none)"))?;
                 if overlap < 0.0 || overlap >= length {
                     return Err("The overlap must be at least 0 and less than the sheet length.".into());
                 }
                 let al = self.alignment_obj(doc);
-                let from = parse_opt(&self.from, "the first station")?.map(|v| internal_of(al.as_ref(), v, self.from_region)).transpose()?;
-                let to = parse_opt(&self.to, "the last station")?.map(|v| internal_of(al.as_ref(), v, self.to_region)).transpose()?;
+                let from = sta_opt(&self.from, "the first station")?.map(|v| internal_of(al.as_ref(), v, self.from_region)).transpose()?;
+                let to = sta_opt(&self.to, "the last station")?.map(|v| internal_of(al.as_ref(), v, self.to_region)).transpose()?;
                 if let (Some(a), Some(b)) = (from, to) {
                     if b <= a {
                         return Err("The last station must be beyond the first.".into());
                     }
                 }
                 let mut v = PlanView::new(&self.alignment, 0.0, 1.0, Scale(scale));
-                v.tick_interval_m = parse_pos(&self.tick, "the tick interval (m)")?;
-                v.label_interval_m = parse_pos(&self.label_every, "the station label interval (m)")?;
+                v.tick_interval_m = len_pos(&self.tick, &format!("the tick interval ({unit})"))?;
+                v.label_interval_m = len_pos(&self.label_every, &format!("the station label interval ({unit})"))?;
                 v.rotation = match self.rotation {
                     0 => PlanRotation::AlignChord,
                     1 => PlanRotation::NorthUp,
@@ -430,16 +462,16 @@ impl SourceForm {
                 let h = parse_pos(&self.scale, "the horizontal scale 1:n (n)")?;
                 let vs = parse_pos(&self.v_scale, "the vertical scale 1:m (m)")?;
                 let al = self.alignment_obj(doc);
-                let from = internal_of(al.as_ref(), parse(&self.from, "the first station")?, self.from_region)?;
-                let to = internal_of(al.as_ref(), parse(&self.to, "the last station")?, self.to_region)?;
+                let from = internal_of(al.as_ref(), sta(&self.from, "the first station")?, self.from_region)?;
+                let to = internal_of(al.as_ref(), sta(&self.to, "the last station")?, self.to_region)?;
                 if to <= from {
                     return Err("The last station must be beyond the first.".into());
                 }
                 let mut v = ProfileView::new(&self.alignment, from, to, Scale(h), h / vs);
-                v.datum_level_m = parse_opt(&self.datum, "the datum level")?;
-                v.grid_station_interval_m = parse_pos(&self.grid_sta, "the grid interval along the profile (m)")?;
-                v.grid_level_interval_m = parse_pos(&self.grid_lvl, "the grid interval of level (m)")?;
-                v.band_interval_m = parse_opt(&self.band, "the band interval")?.unwrap_or(0.0).max(0.0);
+                v.datum_level_m = len_opt(&self.datum, "the datum level")?;
+                v.grid_station_interval_m = len_pos(&self.grid_sta, &format!("the grid interval along the profile ({unit})"))?;
+                v.grid_level_interval_m = len_pos(&self.grid_lvl, &format!("the grid interval of level ({unit})"))?;
+                v.band_interval_m = len_opt(&self.band, "the band interval")?.unwrap_or(0.0).max(0.0);
                 v.surface = Some(self.surface.clone()).filter(|s| !s.is_empty());
                 v.annotations = self.ann;
                 Ok(SheetSource::Single(spec(vec![ViewDef::full(ViewKind::Profile(v))])))
@@ -455,17 +487,17 @@ impl SourceForm {
                 match self.mode {
                     0 => {
                         let al = self.alignment_obj(doc);
-                        v.from_station_m = parse_opt(&self.from, "the first station")?.map(|x| internal_of(al.as_ref(), x, self.from_region)).transpose()?;
-                        v.to_station_m = parse_opt(&self.to, "the last station")?.map(|x| internal_of(al.as_ref(), x, self.to_region)).transpose()?;
+                        v.from_station_m = sta_opt(&self.from, "the first station")?.map(|x| internal_of(al.as_ref(), x, self.from_region)).transpose()?;
+                        v.to_station_m = sta_opt(&self.to, "the last station")?.map(|x| internal_of(al.as_ref(), x, self.to_region)).transpose()?;
                     }
                     mode => {
                         let corridor = afrobim_corridor::corridor_of(doc, id).map_err(|e| format!("Corridor '{}' cannot be built: {e}", self.corridor))?;
                         let have: Vec<f64> = corridor.sections.iter().map(|s| s.station_m).collect();
                         let wanted: Vec<f64> = if mode == 1 {
                             let al = self.alignment_obj(doc);
-                            let from = internal_of(al.as_ref(), parse(&self.from, "the first station")?, self.from_region)?;
-                            let to = internal_of(al.as_ref(), parse(&self.to, "the last station")?, self.to_region)?;
-                            let step = parse_pos(&self.interval, "the interval between sections (m)")?;
+                            let from = internal_of(al.as_ref(), sta(&self.from, "the first station")?, self.from_region)?;
+                            let to = internal_of(al.as_ref(), sta(&self.to, "the last station")?, self.to_region)?;
+                            let step = len_pos(&self.interval, &format!("the interval between sections ({unit})"))?;
                             let mut out: Vec<f64> = Vec::new();
                             for s in have.iter().copied().filter(|s| *s >= from - 1e-6 && *s <= to + 1e-6) {
                                 if out.last().is_none_or(|l| s >= l + step - 1e-6) {
@@ -474,7 +506,7 @@ impl SourceForm {
                             }
                             out
                         } else {
-                            self.list.split(|c: char| c == ',' || c == ';' || c.is_whitespace()).filter(|t| !t.is_empty()).map(|t| parse(t, "a station in the list").and_then(|v| internal_of(self.alignment_obj(doc).as_ref(), v, 0))).collect::<Result<Vec<f64>, String>>()?
+                            self.list.split(|c: char| c == ',' || c == ';' || c.is_whitespace()).filter(|t| !t.is_empty()).map(|t| sta(t, "a station in the list").and_then(|v| internal_of(self.alignment_obj(doc).as_ref(), v, 0))).collect::<Result<Vec<f64>, String>>()?
                         };
                         let found: Vec<f64> = wanted.iter().copied().filter(|w| have.iter().any(|h| (h - w).abs() <= 1e-3)).collect();
                         if found.is_empty() {
@@ -1000,13 +1032,14 @@ impl AfroBimApp {
         let surfaces: Vec<String> = self.doc.elements().iter().filter(|e| e.category == afrobim_corridor::SURFACE_CATEGORY).map(|e| e.name.clone()).collect();
         let signs: Vec<String> = self.doc.elements().iter().filter(|e| e.category == crate::signs_glue::CATEGORY).map(|e| e.name.clone()).collect();
         let categories: Vec<(String, String)> = self.module_categories().into_iter().filter(|(c, _)| c != afrobim_sheets::SHEETS_CATEGORY && c != afrobim_sheets::PROJECT_INFO_CATEGORY).collect();
+        let units = crate::anno_ui::units_of(&self.doc);
         let ranges: Vec<(String, String)> = alignments
             .iter()
             .filter_map(|name| {
                 let id = crate::alignment_glue::alignments(&self.doc).into_iter().find(|a| &a.1 == name)?.0;
                 let a = crate::alignment_glue::alignment_of(&self.doc, id)?;
-                let prof = a.profile.as_ref().and_then(|p| p.range()).map(|(lo, hi)| format!(", profile {lo:.3} to {hi:.3}")).unwrap_or_else(|| ", no profile".into());
-                Some((name.clone(), format!("{name}: internal stations {:.3} to {:.3}{prof}", a.start_station_m, a.end_station_m())))
+                let prof = a.profile.as_ref().and_then(|p| p.range()).map(|(lo, hi)| format!(", profile {} to {}", crate::disp::station(&units, lo), crate::disp::station(&units, hi))).unwrap_or_else(|| ", no profile".into());
+                Some((name.clone(), format!("{name}: internal stations {} to {}{prof}", crate::disp::station(&units, a.start_station_m), crate::disp::station(&units, a.end_station_m()))))
             })
             .collect();
 
@@ -1101,7 +1134,7 @@ impl AfroBimApp {
                     ui.end_row();
                     for (i, source) in set.sources.iter().enumerate() {
                         let t = source.template();
-                        let kind = SourceForm::from_source(i, source, s.defaults).kind;
+                        let kind = SourceForm::from_source(i, source, s.defaults, &DisplayUnits::default()).kind;
                         ui.label((i + 1).to_string());
                         ui.label(kind.short());
                         ui.label(&t.title);
@@ -1125,7 +1158,7 @@ impl AfroBimApp {
                     ui.label(RichText::new("No sheets yet. Add one from a template below.").small().weak());
                 }
                 if let Some(i) = edit {
-                    let mut form = SourceForm::from_source(i, &set.sources[i], s.defaults);
+                    let mut form = SourceForm::from_source(i, &set.sources[i], s.defaults, &crate::anno_ui::units_of(&self.doc));
                     form.to_displayed(&self.doc);
                     s.form = Some(form);
                 }
@@ -1193,7 +1226,7 @@ impl AfroBimApp {
             let title = if f.editing.is_some() { format!("Edit sheet: {}", f.kind.short()) } else { format!("Add: {}", f.kind.short()) };
             crate::win::new(ctx, title).collapsible(false).default_width(560.0).show(ctx, |ui| {
                 egui::ScrollArea::vertical().auto_shrink([true, true]).max_height(560.0).show(ui, |ui| {
-                    form_fields(ui, &mut f, &alignments, &corridors, &surfaces, &signs, &categories, &range_note);
+                    form_fields(ui, &mut f, &alignments, &corridors, &surfaces, &signs, &categories, &range_note, &units);
                 });
                 ui.add_space(6.0);
                 if !f.error.is_empty() {
@@ -1529,7 +1562,7 @@ fn combo_row(ui: &mut Ui, label: &str, id: &str, value: &mut String, options: &[
 }
 
 #[allow(clippy::too_many_arguments)]
-fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors: &[String], surfaces: &[String], signs: &[String], categories: &[(String, String)], range_note: &str) {
+fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors: &[String], surfaces: &[String], signs: &[String], categories: &[(String, String)], range_note: &str, u: &DisplayUnits) {
     egui::Grid::new("source-form").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
         ui.label("Sheet title");
         edit(ui, &mut f.title, 260.0, "");
@@ -1545,8 +1578,8 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
                 combo_row(ui, "Alignment", "form-alignment", &mut f.alignment, alignments, false);
                 station_text_row(ui, "First station (as drawn)", &mut f.from, &mut f.from_region, "empty: the alignment's start", f.regions);
                 station_text_row(ui, "Last station (as drawn)", &mut f.to, &mut f.to_region, "empty: the alignment's end", f.regions);
-                text_row(ui, "Length on each sheet (m)", &mut f.length, "enter the length");
-                text_row(ui, "Overlap (m)", &mut f.overlap, "enter the overlap, 0 for none");
+                text_row(ui, &crate::disp::head(u, "Length on each sheet"), &mut f.length, "enter the length");
+                text_row(ui, &crate::disp::head(u, "Overlap"), &mut f.overlap, "enter the overlap, 0 for none");
                 text_row(ui, "Scale 1:", &mut f.scale, "enter n");
                 ui.label("Rotation");
                 ui.horizontal(|ui| {
@@ -1558,8 +1591,8 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
                     }
                 });
                 ui.end_row();
-                text_row(ui, "Station tick every (m)", &mut f.tick, "enter the interval");
-                text_row(ui, "Station label every (m)", &mut f.label_every, "enter the interval");
+                text_row(ui, &crate::disp::head(u, "Station tick every"), &mut f.tick, "enter the interval");
+                text_row(ui, &crate::disp::head(u, "Station label every"), &mut f.label_every, "enter the interval");
             }
             FormKind::Profile => {
                 combo_row(ui, "Alignment", "form-alignment", &mut f.alignment, alignments, false);
@@ -1567,10 +1600,10 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
                 station_text_row(ui, "Last station (as drawn)", &mut f.to, &mut f.to_region, "enter the station", f.regions);
                 text_row(ui, "Horizontal scale 1:", &mut f.scale, "enter n");
                 text_row(ui, "Vertical scale 1:", &mut f.v_scale, "enter m");
-                text_row(ui, "Datum level (m)", &mut f.datum, "empty: a grid line under the lowest level");
-                text_row(ui, "Grid along the profile (m)", &mut f.grid_sta, "enter the interval");
-                text_row(ui, "Grid of level (m)", &mut f.grid_lvl, "enter the interval");
-                text_row(ui, "Data band every (m)", &mut f.band, "empty: the grid interval");
+                text_row(ui, &crate::disp::head(u, "Datum level"), &mut f.datum, "empty: a grid line under the lowest level");
+                text_row(ui, &crate::disp::head(u, "Grid along the profile"), &mut f.grid_sta, "enter the interval");
+                text_row(ui, &crate::disp::head(u, "Grid of level"), &mut f.grid_lvl, "enter the interval");
+                text_row(ui, &crate::disp::head(u, "Data band every"), &mut f.band, "empty: the grid interval");
                 combo_row(ui, "Ground surface", "form-surface", &mut f.surface, surfaces, true);
                 ui.label("Vertical geometry");
                 ui.vertical(|ui| {
@@ -1591,12 +1624,12 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
                 });
                 ui.end_row();
                 if f.mode == 2 {
-                    text_row(ui, "Stations (as drawn)", &mut f.list, "for example 100, 150, 200");
+                    text_row(ui, "Stations (as drawn)", &mut f.list, "for example 1+100.000, 1+150.000");
                 } else {
                     station_text_row(ui, "First station (as drawn)", &mut f.from, &mut f.from_region, if f.mode == 0 { "empty: the first section" } else { "enter the station" }, f.regions);
                     station_text_row(ui, "Last station (as drawn)", &mut f.to, &mut f.to_region, if f.mode == 0 { "empty: the last section" } else { "enter the station" }, f.regions);
                     if f.mode == 1 {
-                        text_row(ui, "Interval (m)", &mut f.interval, "enter the interval");
+                        text_row(ui, &crate::disp::head(u, "Interval"), &mut f.interval, "enter the interval");
                     }
                 }
                 text_row(ui, "Scale 1:", &mut f.scale, "enter n");
@@ -1665,7 +1698,7 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
     });
     if !range_note.is_empty() && matches!(f.kind, FormKind::Plan | FormKind::Profile) {
         ui.label(RichText::new(range_note).small().weak());
-        ui.label(RichText::new("Stations are entered as the stations shown on the drawings. With station equations, pick the region where a station occurs more than once; AfroBIM converts to internal stations.").small().weak());
+        ui.label(RichText::new("Stations are entered as the stations shown on the drawings, as 1+250.000 or as a number of metres; lengths and intervals are in the document's display unit (a trailing m or mm overrides it). With station equations, pick the region where a station occurs more than once; AfroBIM converts to internal stations.").small().weak());
     }
     if f.kind == FormKind::Props {
         ui.label(RichText::new("This sheet was not made by these forms: its title, paper and numbering can be changed here.").small().weak());
@@ -2041,10 +2074,93 @@ mod tests {
         assert!((v.from_station_m - 1500.0).abs() < 1e-6, "{}", v.from_station_m);
         assert!(v.to_station_m > v.from_station_m);
         // The edit form shows the stations as drawn, with their regions.
-        let mut g = SourceForm::from_source(0, &src, Page::default());
+        let mut g = SourceForm::from_source(0, &src, Page::default(), &DisplayUnits::default());
         g.to_displayed(&doc);
-        assert_eq!((g.from.as_str(), g.from_region), ("1550", 2));
+        assert_eq!((g.from.as_str(), g.from_region), ("1+550.000", 2));
         assert!(g.build(&doc, Some(&src)).unwrap() == src);
+    }
+
+    /// The demo document with its display length unit set to millimetres.
+    fn doc_in_millimetres() -> Document {
+        let mut doc = demo_doc();
+        let mut settings = afrobim_annotate::settings::load(&doc);
+        settings.units.length = afrobim_annotate::LengthUnit::Millimetre;
+        settings.units.length_decimals = 1;
+        afrobim_annotate::settings::store(&mut doc, &settings);
+        doc
+    }
+
+    #[test]
+    fn the_sheet_forms_take_lengths_and_stations_in_the_display_units_and_store_metres() {
+        let doc = doc_in_millimetres();
+        // A plan series: a bare length is millimetres, a suffix overrides it, a station is k+mmm or metres.
+        let mut f = form(FormKind::Plan, &doc);
+        f.title = "PLAN".into();
+        f.scale = "2500".into();
+        f.length = "300000".into(); // millimetres
+        f.overlap = "20m".into();
+        f.tick = "25000".into();
+        f.label_every = "100000mm".into();
+        f.from = "1+000.000".into();
+        f.to = "1250".into();
+        let src = f.build(&doc, None).unwrap();
+        let SheetSource::PlanSeries(p) = &src else { panic!("not a plan series") };
+        assert_eq!((p.length_m, p.overlap_m), (300.0, 20.0), "the source holds metres");
+        let ViewKind::Plan(v) = &p.template.views[0].kind else { panic!("not a plan") };
+        assert_eq!((v.tick_interval_m, v.label_interval_m), (25.0, 100.0));
+        // The edit form shows them again in the same units, and building it gives the same source.
+        let units = crate::anno_ui::units_of(&doc);
+        let mut g = SourceForm::from_source(0, &src, Page::default(), &units);
+        g.to_displayed(&doc);
+        assert_eq!((g.length.as_str(), g.overlap.as_str(), g.tick.as_str(), g.label_every.as_str()), ("300000", "20000", "25000", "100000"));
+        assert!(g.from.contains('+') && g.to.contains('+'), "stations are shown as k+mmm: {} {}", g.from, g.to);
+        assert!(g.build(&doc, Some(&src)).unwrap() == src);
+        // A length that is not one is refused with its name, in the display unit.
+        f.length = "x".into();
+        let e = f.build(&doc, None).unwrap_err();
+        assert!(e.contains("not a length") && e.contains("(mm)"), "{e}");
+        f.length = "300000".into();
+        f.from = "1+5".into();
+        assert!(f.build(&doc, None).unwrap_err().contains("not a station"));
+        // A profile: level and grid intervals are lengths, scales stay as 1:n.
+        let mut p = form(FormKind::Profile, &doc);
+        p.title = "PROFILE".into();
+        p.from = "1+000.000".into();
+        p.to = "1+250.000".into();
+        p.scale = "5000".into();
+        p.v_scale = "250".into();
+        p.datum = "100000".into();
+        p.grid_sta = "100000".into();
+        p.grid_lvl = "2000".into();
+        p.band = "50000".into();
+        let src = p.build(&doc, None).unwrap();
+        let SheetSource::Single(spec) = &src else { panic!("not a single sheet") };
+        let ViewKind::Profile(v) = &spec.views[0].kind else { panic!("not a profile") };
+        assert_eq!((v.datum_level_m, v.grid_station_interval_m, v.grid_level_interval_m, v.band_interval_m), (Some(100.0), 100.0, 2.0, 50.0));
+        assert_eq!((v.h_scale, v.vertical_exaggeration), (Scale(5000.0), 20.0));
+        let mut g = SourceForm::from_source(0, &src, Page::default(), &units);
+        g.to_displayed(&doc);
+        assert_eq!((g.datum.as_str(), g.grid_sta.as_str(), g.grid_lvl.as_str(), g.band.as_str(), g.scale.as_str(), g.v_scale.as_str()), ("100000", "100000", "2000", "50000", "5000", "250"));
+        assert!(g.build(&doc, Some(&src)).unwrap() == src);
+        // Sections: an interval and a list of stations.
+        let corridor = doc.elements().iter().find(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY).unwrap().name.clone();
+        let mut c = form(FormKind::Sections, &doc);
+        c.title = "SECTIONS".into();
+        c.corridor = corridor;
+        c.mode = 1;
+        c.from = "1+000.000".into();
+        c.to = "1+900.000".into();
+        c.interval = "100000".into();
+        c.scale = "200".into();
+        c.exaggeration = "1".into();
+        c.columns = "2".into();
+        c.per_sheet = "4".into();
+        assert!(c.build(&doc, None).is_ok(), "{:?}", c.build(&doc, None).err());
+        c.mode = 2;
+        c.list = "1+100.000, 1150, 1+200.000".into();
+        assert!(c.build(&doc, None).is_ok() || c.build(&doc, None).unwrap_err().contains("no section"));
+        c.list = "1+1".into();
+        assert!(c.build(&doc, None).unwrap_err().contains("not a station"));
     }
 
     #[test]
@@ -2066,7 +2182,7 @@ mod tests {
         assert_eq!((v.h_scale, v.vertical_exaggeration, v.datum_level_m, v.band_interval_m), (Scale(5000.0), 20.0, None, 0.0));
         assert!(!v.annotations.k_value && v.annotations.pvi);
         // The edit form shows what the source holds, and building it again gives the same source.
-        let g = SourceForm::from_source(0, &src, Page::default());
+        let g = SourceForm::from_source(0, &src, Page::default(), &DisplayUnits::default());
         assert!(g.kind == FormKind::Profile && g.scale == "5000" && g.v_scale == "250" && g.grid_lvl == "2" && g.from == "1000");
         assert!(g.build(&doc, Some(&src)).unwrap() == src);
         // The last station must be beyond the first.

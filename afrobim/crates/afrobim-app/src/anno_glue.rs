@@ -817,11 +817,11 @@ impl SnapMode {
     /// Which element types provide this mode. Stated plainly in the OSNAP dialog.
     pub fn provided_by(self) -> &'static str {
         match self {
-            SnapMode::Endpoint => "alignments (the ends of each line, curve and spiral); the corners of every element's bounding rectangle; DXF underlays",
-            SnapMode::Midpoint => "alignments (the middle of each element); the middle of each edge of an element's bounding rectangle; DXF underlays",
-            SnapMode::Centre => "alignment arcs; the centre of an element's bounding rectangle; arcs and circles of DXF underlays",
-            SnapMode::Quadrant => "circles of DXF underlays only",
-            SnapMode::Intersection => "straight alignment elements and bounding rectangle edges with each other; straight segments of DXF underlays",
+            SnapMode::Endpoint => "alignments (the ends of each line, curve and spiral); the ends of the lines and arcs of an element's drawing, or the corners of its bounding rectangle where the drawing has none; DXF underlays",
+            SnapMode::Midpoint => "alignments (the middle of each element); the middle of each line and arc of an element's drawing, or of each edge of its bounding rectangle where the drawing has none; DXF underlays",
+            SnapMode::Centre => "alignment arcs; the centres of the arcs and circles of an element's drawing, or the centre of its bounding rectangle where the drawing has none; arcs and circles of DXF underlays",
+            SnapMode::Quadrant => "circles of an element's drawing; circles of DXF underlays",
+            SnapMode::Intersection => "straight alignment elements, the drawn lines of elements (or their bounding rectangle edges) with each other; straight segments of DXF underlays",
             SnapMode::Node => "the definition points of annotations (dimension points, text insertion, leader points); points, text and block inserts of DXF underlays",
             SnapMode::Grid => "the grid, when it is shown",
         }
@@ -874,6 +874,9 @@ pub struct Cand {
     pub mode: SnapMode,
     /// What provides it, for the tooltip.
     pub from: String,
+    /// The element it belongs to (none for the grid and the underlays), so that an element being
+    /// moved does not snap to itself.
+    pub owner: Option<ElementId>,
 }
 
 fn segment_intersection(a: (Pt, Pt), b: (Pt, Pt)) -> Option<Pt> {
@@ -889,14 +892,88 @@ fn segment_intersection(a: (Pt, Pt), b: (Pt, Pt)) -> Option<Pt> {
     ((0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u)).then(|| pt(p.x + t * r.x, p.y + t * r.y))
 }
 
+/// The most lines and arcs of one element's drawing that are examined for one query. A drawing
+/// with more (a long run of markings, a surface) is read only as far as this and the rest offers
+/// nothing; an element with no line or arc in the part read falls back to its bounding rectangle.
+pub const DRAWN_BUDGET: usize = 2000;
+
+/// The most drawn straight segments kept, over every element, for intersections. Pairs are
+/// compared, so this bounds the work of a query at about `SEGMENT_BUDGET` squared over two.
+pub const SEGMENT_BUDGET: usize = 400;
+
 /// Candidates of the model within `radius` of `cursor` (model mm). `grid` is the grid spacing
-/// when the grid is shown. `extra` carries what the underlays provide.
+/// when the grid is shown. `extra` carries what the underlays provide. Elements are offered by
+/// their bounding rectangle; see [`candidates_with`] for elements with a drawing.
+#[cfg(test)]
 pub fn candidates(doc: &Document, cursor: Pt, radius: f64, osnap: &Osnap, grid: Option<f64>, extra: &[Cand]) -> Vec<Cand> {
+    candidates_with(doc, cursor, radius, osnap, grid, extra, &|_| None)
+}
+
+/// What a drawing offers: its snap points (point, mode, what it is) and its straight segments,
+/// in model millimetres, for the part of it within `window` (x0, y0, x1, y1). `origin` is the
+/// element's origin (its drawing is in the element's own frame). Reads at most `budget` lines and
+/// arcs. Lines give their ends (Endpoint) and middle (Midpoint) and are also segments; an arc
+/// gives its ends, its middle (Midpoint) and its centre (Centre); a circle (an arc of a full
+/// turn) gives its centre and its four quadrant points. The second result is true when the
+/// drawing has any line or arc in the part read.
+pub fn drawn_snaps(origin: Pt, d: &afrobim_draw::Drawing, window: (f64, f64, f64, f64), budget: usize) -> (Vec<(Pt, SnapMode, &'static str)>, Vec<(Pt, Pt)>, bool) {
+    use afrobim_draw::Primitive;
+    let mut points = Vec::new();
+    let mut segments = Vec::new();
+    let mut read = 0usize;
+    let inside = |a: Pt, b: Pt| a.x.max(b.x) >= window.0 && a.x.min(b.x) <= window.2 && a.y.max(b.y) >= window.1 && a.y.min(b.y) <= window.3;
+    for prim in &d.primitives {
+        match prim {
+            Primitive::Line { from, to, .. } => {
+                read += 1;
+                let (a, b) = (pt(origin.x + from.x, origin.y + from.y), pt(origin.x + to.x, origin.y + to.y));
+                if inside(a, b) {
+                    points.push((a, SnapMode::Endpoint, "line"));
+                    points.push((b, SnapMode::Endpoint, "line"));
+                    points.push((mid(a, b), SnapMode::Midpoint, "line"));
+                    segments.push((a, b));
+                }
+            }
+            Primitive::Arc { centre, radius, start_deg, end_deg, .. } => {
+                read += 1;
+                let c = pt(origin.x + centre.x, origin.y + centre.y);
+                if inside(pt(c.x - radius, c.y - radius), pt(c.x + radius, c.y + radius)) {
+                    let at = |deg: f64| pt(c.x + radius * deg.to_radians().cos(), c.y + radius * deg.to_radians().sin());
+                    points.push((c, SnapMode::Centre, "arc"));
+                    if (end_deg - start_deg).abs() >= 360.0 - 1e-6 {
+                        for q in 0..4 {
+                            points.push((at(q as f64 * 90.0), SnapMode::Quadrant, "circle"));
+                        }
+                    } else {
+                        points.push((at(*start_deg), SnapMode::Endpoint, "arc"));
+                        points.push((at(*end_deg), SnapMode::Endpoint, "arc"));
+                        points.push((at((start_deg + end_deg) / 2.0), SnapMode::Midpoint, "arc"));
+                    }
+                }
+            }
+            _ => {}
+        }
+        if read >= budget {
+            break;
+        }
+    }
+    (points, segments, read > 0)
+}
+
+/// As [`candidates`], where `drawn` gives an element's generated drawing when it has one. An
+/// element with a drawing that has lines or arcs is offered by them ([`drawn_snaps`]: ends and
+/// middles of lines, centres, ends and middles of arcs, centres and quadrants of circles, at most
+/// [`DRAWN_BUDGET`] per element and [`SEGMENT_BUDGET`] segments for intersections), not by its
+/// bounding rectangle. An element with no drawing, or none with a line or an arc (a sign whose
+/// face is filled shapes and lettering), keeps the corners, edge middles and centre of its
+/// bounding rectangle.
+#[allow(clippy::too_many_arguments)]
+pub fn candidates_with<'d>(doc: &Document, cursor: Pt, radius: f64, osnap: &Osnap, grid: Option<f64>, extra: &[Cand], drawn: &dyn Fn(ElementId) -> Option<&'d afrobim_draw::Drawing>) -> Vec<Cand> {
     let mut out: Vec<Cand> = Vec::new();
     let near = |p: Pt| (p.x - cursor.x).abs() <= radius && (p.y - cursor.y).abs() <= radius && dist(p, cursor) <= radius;
-    let push = |out: &mut Vec<Cand>, p: Pt, mode: SnapMode, from: &str| {
+    let push = |out: &mut Vec<Cand>, owner: Option<ElementId>, p: Pt, mode: SnapMode, from: &str| {
         if osnap.has(mode) && near(p) {
-            out.push(Cand { p, mode, from: from.to_string() });
+            out.push(Cand { p, mode, from: from.to_string(), owner });
         }
     };
     let window = (cursor.x - radius * 4.0, cursor.y - radius * 4.0, cursor.x + radius * 4.0, cursor.y + radius * 4.0);
@@ -907,10 +984,11 @@ pub fn candidates(doc: &Document, cursor: Pt, radius: f64, osnap: &Osnap, grid: 
         }
         let b = e.bounds();
         let touches = b.max.x >= window.0 && b.min.x <= window.2 && b.max.y >= window.1 && b.min.y <= window.3;
+        let owner = Some(e.id);
         if ann::is_annotation(e) {
             if touches || e.width == 0.0 {
                 for g in grips_of(doc, e.id) {
-                    push(&mut out, g, SnapMode::Node, &format!("definition point of {}", e.name));
+                    push(&mut out, owner, g, SnapMode::Node, &format!("definition point of {}", e.name));
                 }
             }
             continue;
@@ -923,15 +1001,15 @@ pub fn candidates(doc: &Document, cursor: Pt, radius: f64, osnap: &Osnap, grid: 
                 let (ex, ey, _) = el.end();
                 let (ex, ey) = (ex * 1000.0, ey * 1000.0);
                 let from = format!("alignment {}", e.name);
-                push(&mut out, pt(sx, sy), SnapMode::Endpoint, &from);
-                push(&mut out, pt(ex, ey), SnapMode::Endpoint, &from);
+                push(&mut out, owner, pt(sx, sy), SnapMode::Endpoint, &from);
+                push(&mut out, owner, pt(ex, ey), SnapMode::Endpoint, &from);
                 let (mx, my) = el.point_at(el.length / 2.0);
-                push(&mut out, pt(mx * 1000.0, my * 1000.0), SnapMode::Midpoint, &from);
+                push(&mut out, owner, pt(mx * 1000.0, my * 1000.0), SnapMode::Midpoint, &from);
                 if let (Some(r), Some(turn)) = (el.radius_start(), el.turn()) {
                     if el.kind() == afrobim_alignment::ElementKind::Arc {
                         let h = el.heading_rad;
                         let side = if matches!(turn, afrobim_alignment::Turn::Left) { 1.0 } else { -1.0 };
-                        push(&mut out, pt(sx - side * r * 1000.0 * h.sin(), sy + side * r * 1000.0 * h.cos()), SnapMode::Centre, &from);
+                        push(&mut out, owner, pt(sx - side * r * 1000.0 * h.sin(), sy + side * r * 1000.0 * h.cos()), SnapMode::Centre, &from);
                     }
                 }
                 if el.kind() == afrobim_alignment::ElementKind::Line && osnap.has(SnapMode::Intersection) {
@@ -946,24 +1024,43 @@ pub fn candidates(doc: &Document, cursor: Pt, radius: f64, osnap: &Osnap, grid: 
         if !touches {
             continue;
         }
+        // The drawing, where the element has one with lines or arcs in it.
+        if let Some(d) = drawn(e.id) {
+            let (points, segs, any) = drawn_snaps(e.origin, d, window, DRAWN_BUDGET);
+            if any {
+                for (p, mode, what) in points {
+                    push(&mut out, owner, p, mode, &format!("{what} of {}", e.name));
+                }
+                if osnap.has(SnapMode::Intersection) {
+                    for (a, b2) in segs {
+                        if segments.len() < SEGMENT_BUDGET {
+                            segments.push(((a, b2), format!("line of {}", e.name)));
+                        }
+                    }
+                }
+                continue;
+            }
+        }
         let from = format!("bounding rectangle of {}", e.name);
         let (x0, y0, x1, y1) = (b.min.x, b.min.y, b.max.x, b.max.y);
         let corners = [pt(x0, y0), pt(x1, y0), pt(x1, y1), pt(x0, y1)];
         for c in corners {
-            push(&mut out, c, SnapMode::Endpoint, &from);
+            push(&mut out, owner, c, SnapMode::Endpoint, &from);
         }
         for i in 0..4 {
             let (a, b2) = (corners[i], corners[(i + 1) % 4]);
-            push(&mut out, mid(a, b2), SnapMode::Midpoint, &from);
-            segments.push(((a, b2), from.clone()));
+            push(&mut out, owner, mid(a, b2), SnapMode::Midpoint, &from);
+            if segments.len() < SEGMENT_BUDGET {
+                segments.push(((a, b2), from.clone()));
+            }
         }
-        push(&mut out, pt((x0 + x1) / 2.0, (y0 + y1) / 2.0), SnapMode::Centre, &from);
+        push(&mut out, owner, pt((x0 + x1) / 2.0, (y0 + y1) / 2.0), SnapMode::Centre, &from);
     }
     if osnap.has(SnapMode::Intersection) {
         for i in 0..segments.len() {
             for j in i + 1..segments.len() {
                 if let Some(p) = segment_intersection(segments[i].0, segments[j].0) {
-                    push(&mut out, p, SnapMode::Intersection, &format!("{} and {}", segments[i].1, segments[j].1));
+                    push(&mut out, None, p, SnapMode::Intersection, &format!("{} and {}", segments[i].1, segments[j].1));
                 }
             }
         }
@@ -976,7 +1073,7 @@ pub fn candidates(doc: &Document, cursor: Pt, radius: f64, osnap: &Osnap, grid: 
     if let (Some(step), true) = (grid, osnap.has(SnapMode::Grid)) {
         if step > 0.0 {
             let g = pt((cursor.x / step).round() * step, (cursor.y / step).round() * step);
-            push(&mut out, g, SnapMode::Grid, "grid");
+            push(&mut out, None, g, SnapMode::Grid, "grid");
         }
     }
     out
@@ -1283,5 +1380,152 @@ mod tests {
         let side = if matches!(arc.turn(), Some(afrobim_alignment::Turn::Left)) { 1.0 } else { -1.0 };
         let h = arc.heading_rad;
         pt(arc.x * 1000.0 - side * r * h.sin(), arc.y * 1000.0 + side * r * h.cos())
+    }
+
+    // ─── object snap on the drawing of a model element ────────────────────────────────────────
+
+    fn sign_at(doc: &mut Document, name: &str, at: (f64, f64), size: (f64, f64)) -> ElementId {
+        doc.add("sign", name, pt(at.0, at.1), size.0, size.1, "0", serde_json::Value::Null)
+    }
+
+    fn line(a: (f64, f64), b: (f64, f64)) -> afrobim_draw::Primitive {
+        afrobim_draw::Primitive::Line { from: afrobim_draw::Pt2::new(a.0, a.1), to: afrobim_draw::Pt2::new(b.0, b.1), width: 10.0, colour: None }
+    }
+
+    fn arc(c: (f64, f64), r: f64, from: f64, to: f64) -> afrobim_draw::Primitive {
+        afrobim_draw::Primitive::Arc { centre: afrobim_draw::Pt2::new(c.0, c.1), radius: r, start_deg: from, end_deg: to, colour: None }
+    }
+
+    fn drawing(primitives: Vec<afrobim_draw::Primitive>) -> afrobim_draw::Drawing {
+        afrobim_draw::Drawing { primitives, extents: afrobim_draw::Extents { min: afrobim_draw::Pt2::new(0.0, 0.0), max: afrobim_draw::Pt2::new(1000.0, 1000.0) } }
+    }
+
+    fn all_modes() -> Osnap {
+        Osnap { on: true, modes: SnapMode::ALL.iter().copied().filter(|m| *m != SnapMode::Grid).collect() }
+    }
+
+    fn near_pt(c: &Cand, x: f64, y: f64) -> bool {
+        dist(c.p, pt(x, y)) < 1e-6
+    }
+
+    #[test]
+    fn an_element_with_a_drawing_is_snapped_by_its_lines_arcs_and_circles() {
+        let mut doc = Document::default();
+        let id = sign_at(&mut doc, "S1", (10_000.0, 20_000.0), (1000.0, 1000.0));
+        // In the element's own frame; the element's origin is (10000, 20000).
+        let d = drawing(vec![line((100.0, 100.0), (500.0, 100.0)), arc((700.0, 700.0), 200.0, 0.0, 90.0), arc((300.0, 700.0), 100.0, 0.0, 360.0)]);
+        let drawn = |i: ElementId| (i == id).then_some(&d);
+        let at = |x: f64, y: f64, r: f64| candidates_with(&doc, pt(x, y), r, &all_modes(), None, &[], &drawn);
+        // The ends and the middle of the line.
+        let c = at(10_100.0, 20_100.0, 50.0);
+        assert!(c.iter().any(|c| c.mode == SnapMode::Endpoint && near_pt(c, 10_100.0, 20_100.0) && c.from.starts_with("line of S1")), "{c:?}");
+        let c = at(10_300.0, 20_100.0, 50.0);
+        assert!(c.iter().any(|c| c.mode == SnapMode::Midpoint && near_pt(c, 10_300.0, 20_100.0)), "{c:?}");
+        // The bounding rectangle's corner (10000, 20000) is not offered where the drawing has lines.
+        let c = at(10_000.0, 20_000.0, 60.0);
+        assert!(c.is_empty(), "{c:?}");
+        // An arc: centre, both ends (at 0 and 90 degrees) and the middle (45 degrees).
+        let arc_at = |deg: f64| (10_700.0 + 200.0 * deg.to_radians().cos(), 20_700.0 + 200.0 * deg.to_radians().sin());
+        let c = at(10_700.0, 20_700.0, 50.0);
+        assert!(c.iter().any(|c| c.mode == SnapMode::Centre && near_pt(c, 10_700.0, 20_700.0) && c.from.starts_with("arc of S1")), "{c:?}");
+        let (x, y) = arc_at(0.0);
+        assert!(at(x, y, 20.0).iter().any(|c| c.mode == SnapMode::Endpoint && near_pt(c, x, y)));
+        let (x, y) = arc_at(90.0);
+        assert!(at(x, y, 20.0).iter().any(|c| c.mode == SnapMode::Endpoint && near_pt(c, x, y)));
+        let (x, y) = arc_at(45.0);
+        assert!(at(x, y, 20.0).iter().any(|c| c.mode == SnapMode::Midpoint && near_pt(c, x, y)));
+        // A circle (a full turn): its centre and four quadrant points, no ends.
+        let c = at(10_300.0, 20_700.0, 30.0);
+        assert!(c.iter().any(|c| c.mode == SnapMode::Centre && near_pt(c, 10_300.0, 20_700.0)));
+        for (x, y) in [(10_400.0, 20_700.0), (10_300.0, 20_800.0), (10_200.0, 20_700.0), (10_300.0, 20_600.0)] {
+            let c = at(x, y, 20.0);
+            assert!(c.iter().any(|c| c.mode == SnapMode::Quadrant && near_pt(c, x, y) && c.from.starts_with("circle of S1")), "{c:?}");
+            assert!(c.iter().all(|c| c.mode != SnapMode::Endpoint));
+        }
+        // A mode that is off gives nothing; every candidate names its element.
+        let off = Osnap { on: true, modes: vec![SnapMode::Midpoint] };
+        let c = candidates_with(&doc, pt(10_100.0, 20_100.0), 50.0, &off, None, &[], &drawn);
+        assert!(c.is_empty());
+        assert!(at(10_100.0, 20_100.0, 50.0).iter().all(|c| c.owner == Some(id)));
+    }
+
+    #[test]
+    fn an_element_whose_drawing_has_no_lines_or_arcs_keeps_its_bounding_rectangle() {
+        let mut doc = Document::default();
+        let id = sign_at(&mut doc, "S1", (0.0, 0.0), (1000.0, 500.0));
+        let fills = drawing(vec![afrobim_draw::Primitive::Fill { outline: vec![afrobim_draw::Pt2::new(0.0, 0.0), afrobim_draw::Pt2::new(100.0, 0.0), afrobim_draw::Pt2::new(0.0, 100.0)], colour: afrobim_draw::Colour::White }]);
+        let drawn = |i: ElementId| (i == id).then_some(&fills);
+        let c = candidates_with(&doc, pt(1000.0, 500.0), 50.0, &all_modes(), None, &[], &drawn);
+        assert!(c.iter().any(|c| c.mode == SnapMode::Endpoint && near_pt(c, 1000.0, 500.0) && c.from.starts_with("bounding rectangle of S1")), "{c:?}");
+        let c = candidates_with(&doc, pt(500.0, 250.0), 50.0, &all_modes(), None, &[], &drawn);
+        assert!(c.iter().any(|c| c.mode == SnapMode::Centre && near_pt(c, 500.0, 250.0)));
+        // No drawing at all: the same.
+        let c = candidates_with(&doc, pt(1000.0, 500.0), 50.0, &all_modes(), None, &[], &|_| None);
+        assert!(c.iter().any(|c| c.mode == SnapMode::Endpoint && near_pt(c, 1000.0, 500.0)));
+    }
+
+    #[test]
+    fn the_drawn_snaps_are_bounded_per_element_and_in_segments() {
+        // Budget: at most DRAWN_BUDGET lines and arcs of one drawing are read.
+        let many: Vec<afrobim_draw::Primitive> = (0..DRAWN_BUDGET * 3).map(|i| line((i as f64, 0.0), (i as f64, 10.0))).collect();
+        let (points, segments, any) = drawn_snaps(pt(0.0, 0.0), &drawing(many.clone()), (-1.0e9, -1.0e9, 1.0e9, 1.0e9), DRAWN_BUDGET);
+        assert!(any);
+        assert_eq!(segments.len(), DRAWN_BUDGET);
+        assert_eq!(points.len(), DRAWN_BUDGET * 3);
+        // A line past the budget offers nothing.
+        let mut doc = Document::default();
+        let id = sign_at(&mut doc, "S1", (0.0, 0.0), (10_000.0, 100.0));
+        let d = drawing(many);
+        let drawn = |i: ElementId| (i == id).then_some(&d);
+        let early = candidates_with(&doc, pt(5.0, 5.0), 3.0, &all_modes(), None, &[], &drawn);
+        assert!(early.iter().any(|c| c.mode == SnapMode::Midpoint && near_pt(c, 5.0, 5.0)), "{early:?}");
+        let late = candidates_with(&doc, pt((DRAWN_BUDGET + 500) as f64, 5.0), 3.0, &all_modes(), None, &[], &drawn);
+        assert!(late.is_empty(), "{late:?}");
+        // Window: lines outside it are not read into the result.
+        let (points, segments, any) = drawn_snaps(pt(0.0, 0.0), &drawing(vec![line((0.0, 0.0), (10.0, 0.0)), line((5000.0, 0.0), (5010.0, 0.0))]), (-100.0, -100.0, 100.0, 100.0), DRAWN_BUDGET);
+        assert!(any && segments.len() == 1 && points.len() == 3);
+        // The segments kept for intersections are capped over every element.
+        let mut doc = Document::default();
+        let lines: Vec<_> = (0..SEGMENT_BUDGET).map(|i| line((i as f64 * 2.0, -50.0), (i as f64 * 2.0, 50.0))).collect();
+        let a = sign_at(&mut doc, "A", (0.0, 0.0), (1000.0, 100.0));
+        let b = sign_at(&mut doc, "B", (0.0, 0.0), (1000.0, 100.0));
+        let (da, db) = (drawing(lines.clone()), drawing(vec![line((0.0, 0.0), (1000.0, 0.0))]));
+        let drawn = |i: ElementId| if i == a { Some(&da) } else if i == b { Some(&db) } else { None };
+        let only_x = Osnap { on: true, modes: vec![SnapMode::Intersection] };
+        // A's lines fill the budget, so B's line is not kept and no intersection with it is found;
+        // the call returns at once either way.
+        let c = candidates_with(&doc, pt(100.0, 0.0), 1.0e6, &only_x, None, &[], &drawn);
+        assert!(c.is_empty() || c.iter().all(|c| c.mode == SnapMode::Intersection));
+    }
+
+    #[test]
+    fn two_drawn_lines_give_their_intersection() {
+        let mut doc = Document::default();
+        let a = sign_at(&mut doc, "A", (0.0, 0.0), (1000.0, 1000.0));
+        let b = sign_at(&mut doc, "B", (0.0, 0.0), (1000.0, 1000.0));
+        let (da, db) = (drawing(vec![line((0.0, 0.0), (1000.0, 1000.0))]), drawing(vec![line((0.0, 1000.0), (1000.0, 0.0))]));
+        let drawn = |i: ElementId| if i == a { Some(&da) } else if i == b { Some(&db) } else { None };
+        let c = candidates_with(&doc, pt(510.0, 495.0), 40.0, &all_modes(), None, &[], &drawn);
+        assert!(c.iter().any(|c| c.mode == SnapMode::Intersection && near_pt(c, 500.0, 500.0) && c.from.contains("line of A") && c.from.contains("line of B")), "{c:?}");
+        // Both lines' midpoints are also at (500, 500): the endpoint/intersection ranking keeps an intersection first.
+        let winner = best(c, pt(500.0, 500.0)).unwrap();
+        assert_eq!(winner.mode, SnapMode::Intersection);
+    }
+
+    #[test]
+    fn a_moved_element_does_not_snap_to_itself_by_owner() {
+        let mut doc = Document::default();
+        let a = sign_at(&mut doc, "A", (0.0, 0.0), (1000.0, 1000.0));
+        let b = sign_at(&mut doc, "B", (1200.0, 0.0), (1000.0, 1000.0));
+        let (da, db) = (drawing(vec![line((0.0, 0.0), (1000.0, 0.0))]), drawing(vec![line((0.0, 0.0), (1000.0, 0.0))]));
+        let drawn = |i: ElementId| if i == a { Some(&da) } else if i == b { Some(&db) } else { None };
+        let mut c = candidates_with(&doc, pt(1000.0, 0.0), 300.0, &all_modes(), None, &[], &drawn);
+        assert!(c.iter().any(|c| c.owner == Some(a)) && c.iter().any(|c| c.owner == Some(b)));
+        // The caller drops the moving elements' own candidates (as `ctl_object_snap` does).
+        let moving = [a];
+        c.retain(|c| !c.owner.is_some_and(|o| moving.contains(&o)));
+        assert!(!c.is_empty() && c.iter().all(|c| c.owner == Some(b)));
+        let winner = best(c, pt(1000.0, 0.0)).unwrap();
+        assert!(near_pt(&winner, 1200.0, 0.0), "{winner:?}");
     }
 }
