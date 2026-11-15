@@ -430,6 +430,12 @@ impl AfroBimApp {
                 Err(why) => {
                     app.status = format!("Could not make a surface from {}: {why}", path.display());
                     eprintln!("AfroBIM: {}", app.status);
+                    // Nothing is saved after an import that failed: the file asked for would
+                    // lack the surface, and could replace a good one.
+                    if let Some(unsaved) = app.options.save_as.take() {
+                        eprintln!("AfroBIM: {} was not written.", unsaved.display());
+                        app.quit = true;
+                    }
                 }
             }
         }

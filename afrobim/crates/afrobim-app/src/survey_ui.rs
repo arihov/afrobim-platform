@@ -60,36 +60,41 @@ pub struct SurveyForm {
     excluded: BTreeSet<String>,
     /// The file as read in `order`, or why it cannot be.
     read: Result<SurveyPoints, String>,
+    /// The descriptions of `read` with their counts, kept so that they are not counted again
+    /// every frame.
+    codes: Vec<(String, usize)>,
     problem: Option<String>,
 }
 
 impl SurveyForm {
     fn new(path: PathBuf) -> SurveyForm {
-        let order = ColumnOrder::Pnezd;
-        SurveyForm {
+        let mut form = SurveyForm {
             name: path.file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
-            read: read_survey_points(&path, &SurveyFormat::metres(order)).map_err(|e| e.to_string()),
+            read: Err(String::new()),
+            codes: Vec::new(),
             path,
-            order,
+            order: ColumnOrder::Pnezd,
             crs: String::new(),
             max_side: String::new(),
             excluded: BTreeSet::new(),
             problem: None,
-        }
+        };
+        form.read_again();
+        form
     }
 
     fn read_again(&mut self) {
         self.read = read_survey_points(&self.path, &SurveyFormat::metres(self.order)).map_err(|e| e.to_string());
+        self.codes = self.read.as_ref().map(SurveyPoints::codes).unwrap_or_default();
         self.problem = None;
     }
 
+    /// The request of the form. The ticked descriptions go in as they are, one entry each: a
+    /// description may hold a comma (a tab-delimited file allows it), and the entry with nothing
+    /// in it stands for the points with no description.
     fn request(&self) -> Result<SurveyImportRequest, String> {
-        let exclude: Vec<&str> = self.excluded.iter().map(String::as_str).collect();
-        let mut r = request(&self.name, self.order, &self.crs, &self.max_side, &exclude.join(","))?;
-        // A description may itself hold a comma-free blank entry: the points with none.
-        if self.excluded.contains("") {
-            r.options.exclude.push(String::new());
-        }
+        let mut r = request(&self.name, self.order, &self.crs, &self.max_side, "")?;
+        r.options.exclude = self.excluded.iter().cloned().collect();
         Ok(r)
     }
 }
@@ -207,7 +212,7 @@ impl AfroBimApp {
                     }
 
                     ui.add_space(6.0);
-                    let codes = survey.codes();
+                    let codes = &form.codes;
                     ui.horizontal(|ui| {
                         ui.label(RichText::new(format!("Descriptions ({})", codes.len())).strong());
                         ui.label(RichText::new("Tick those that are not ground levels (inverts, tops of walls) to leave their points out.").small().weak());
@@ -287,6 +292,27 @@ mod tests {
         for bad in ["0", "-5", "ten", "inf"] {
             assert!(request("", ColumnOrder::Pnezd, "", bad, "").unwrap_err().contains("greater than 0"), "{bad}");
         }
+    }
+
+    #[test]
+    fn ticked_descriptions_are_passed_whole_even_with_a_comma_or_nothing_in_them() {
+        // Tab-delimited, so a description can hold a comma; the last point has none.
+        let dir = std::env::temp_dir().join(format!("afrobim-survey-form-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("tabs.txt");
+        std::fs::write(&path, "1\t0\t0\t10\tWALL, TOP\n2\t0\t10\t10\tSH\n3\t10\t0\t10\tSH\n4\t10\t10\t10\tSH\n5\t5\t5\t3\n").unwrap();
+        let mut form = SurveyForm::new(path);
+        assert_eq!(form.codes, vec![("SH".to_string(), 3), ("".to_string(), 1), ("WALL, TOP".to_string(), 1)]);
+        form.excluded.insert("WALL, TOP".to_string());
+        form.excluded.insert(String::new());
+        let r = form.request().unwrap();
+        assert_eq!(r.options.exclude, vec![String::new(), "WALL, TOP".to_string()]);
+        assert!(r.options.excludes("wall, top") && r.options.excludes("") && !r.options.excludes("SH") && !r.options.excludes("WALL"));
+        // Changing the column order reads the file again and counts again.
+        form.order = ColumnOrder::Penzd;
+        form.read_again();
+        assert_eq!(form.codes.len(), 3);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

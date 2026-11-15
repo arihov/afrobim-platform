@@ -124,7 +124,7 @@ These come from `crates/afrobim-app/src/main.rs`. An argument that is not an opt
 | `--survey-max-side M` | The longest side a triangle may have, in metres. Optional: with none, the surface fills the convex hull of the points. |
 | `--survey-exclude CODES` | Descriptions whose points are left out, separated by commas; a trailing `*` matches any ending (`CULV-*`). |
 | `--survey-name NAME` | The name of the surface; the file's name when not given. |
-| `--save-as FILE` | Saves the document to this file once the start-up imports are done, then exits. |
+| `--save-as FILE` | Saves the document to this file once the start-up imports are done, then exits. After a `--survey` import that failed nothing is written. |
 | `--layers-on NAMES` | Switches these layers on at start-up, comma separated. |
 | `--zoom-to x,y,width` | Frames the 2D view on this centre and width (millimetres). |
 | `--xer-in FILE`, `--xer-out FILE` | Imports or exports a Primavera XER file at start-up, to see the reports without a dialog. |
