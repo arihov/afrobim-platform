@@ -55,10 +55,13 @@
 
     <!-- The executable and the .afrobim file type. -->
     <DirectoryRef Id="INSTALLFOLDER">
+      <!-- The icon is installed as a file, in a component of its own: a ProgId that is not advertised
+           takes its icon from an installed file, and a component with an automatic GUID holds one file. -->
+      <Component Id="c_icon" Guid="*" Win64="yes">
+        <File Id="afrobim_ico" Name="afrobim.ico" Source="$(var.IconPath)" KeyPath="yes" />
+      </Component>
       <Component Id="c_exe" Guid="*" Win64="yes">
         <File Id="afrobim_exe" Source="$(var.StageDir)\afrobim.exe" KeyPath="yes" />
-        <!-- The icon is installed as a file because a ProgId that is not advertised takes its icon from an installed file, not from the Icon table. -->
-        <File Id="afrobim_ico" Name="afrobim.ico" Source="$(var.IconPath)" />
         <ProgId Id="AfroBIM.Document" Description="AfroBIM document" Icon="afrobim_ico">
           <Extension Id="afrobim">
             <Verb Id="open" Command="Open" TargetFile="afrobim_exe" Argument="&quot;%1&quot;" />
@@ -160,6 +163,7 @@
     <Feature Id="MainFeature" Title="AfroBIM" Description="The application, its rule packs and the Start menu shortcut."
              Level="1" Absent="disallow" ConfigurableDirectory="INSTALLFOLDER" AllowAdvertise="no">
       <ComponentRef Id="c_exe" />
+      <ComponentRef Id="c_icon" />
       <ComponentRef Id="c_uk_pack" />
       <ComponentRef Id="c_ug_arrows_xml" />
       <ComponentRef Id="c_ug_constraints_xml" />
