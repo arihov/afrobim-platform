@@ -37,6 +37,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-annotate"
+version = "0.1.0"
+dependencies = [
+ "afrobim-alignment",
+ "afrobim-draw",
+ "afrobim-dxf",
+ "afrobim-kernel",
+ "afrobim-sheets",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-app"
 version = "0.1.0"
 dependencies = [
@@ -159,6 +173,7 @@ version = "0.1.0"
 dependencies = [
  "afrobim-draw",
  "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

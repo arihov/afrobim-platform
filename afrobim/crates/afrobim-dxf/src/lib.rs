@@ -6,6 +6,8 @@
 //! outlines go on `SIGN-TEXT` and unresolved artwork on `SYMBOL`. Output is byte-identical to the
 //! C# writer for the same primitives (see `tests/golden.rs`).
 
+pub mod reader;
+
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
@@ -239,6 +241,71 @@ impl DxfDocument {
         pair(w, 62, &aci.to_string());
         point(w, 10, from);
         point(w, 11, to);
+    }
+
+    /// Adds a TEXT entity with a width factor (group 41, the X scale relative to the style).
+    /// A factor of 1 writes exactly what [`add_text`](Self::add_text) writes.
+    pub fn add_text_scaled(&mut self, t: &DxfText, width_factor: f64) {
+        if t.text.trim().is_empty() || t.height <= 0.0 || t.height.is_nan() {
+            return;
+        }
+        if (width_factor - 1.0).abs() < 1e-12 || !width_factor.is_finite() || width_factor <= 0.0 {
+            self.add_text(t);
+            return;
+        }
+        self.note_layer(&t.layer, t.aci);
+        let w = &mut self.entities;
+        pair(w, 0, "TEXT");
+        pair(w, 8, &t.layer);
+        pair(w, 62, &t.aci.to_string());
+        point(w, 10, t.at);
+        num(w, 40, t.height);
+        pair(w, 1, &dxf_text(&t.text));
+        if t.rotation_deg != 0.0 {
+            num(w, 50, t.rotation_deg);
+        }
+        num(w, 41, width_factor);
+        pair(w, 7, "STANDARD");
+        if t.align != TextAlign::Left {
+            pair(w, 72, if t.align == TextAlign::Centre { "1" } else { "2" });
+            point(w, 11, t.at);
+        }
+    }
+
+    /// Adds an ARC (group codes 10, 40, 50, 51: centre, radius, start and end angle in degrees,
+    /// anticlockwise from +X). Skipped when the radius is not positive.
+    pub fn add_arc(&mut self, layer: &str, aci: u8, centre: Pt2, radius: f64, start_deg: f64, end_deg: f64) {
+        if !(radius > 0.0) {
+            return;
+        }
+        self.note_layer(layer, aci);
+        let w = &mut self.entities;
+        pair(w, 0, "ARC");
+        pair(w, 8, layer);
+        pair(w, 62, &aci.to_string());
+        point(w, 10, centre);
+        num(w, 40, radius);
+        num(w, 50, start_deg);
+        num(w, 51, end_deg);
+    }
+
+    /// Adds a filled SOLID of three or four points given in order around the outline (a
+    /// triangle or a quadrilateral). The file stores the corners in the order a SOLID uses, which
+    /// swaps the third and fourth point of a quadrilateral.
+    pub fn add_solid(&mut self, layer: &str, aci: u8, outline: &[Pt2]) {
+        if outline.len() < 3 || outline.len() > 4 {
+            return;
+        }
+        self.note_layer(layer, aci);
+        let w = &mut self.entities;
+        let p = |i: usize| outline[i.min(outline.len() - 1)];
+        let order = if outline.len() == 4 { [0, 1, 3, 2] } else { [0, 1, 2, 2] };
+        pair(w, 0, "SOLID");
+        pair(w, 8, layer);
+        pair(w, 62, &aci.to_string());
+        for (k, i) in order.iter().enumerate() {
+            point(w, 10 + k as u32, p(*i));
+        }
     }
 
     fn note_layer(&mut self, name: &str, aci: u8) {
