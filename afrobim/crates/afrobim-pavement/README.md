@@ -20,7 +20,7 @@ interchangeable.
 | Uganda MoWT *Road Design Manual Volume 3: Pavement Design*, Part I: Flexible Pavements (January 2010) | `design::mowt` | Traffic, classes, catalogue: gives a structure |
 | UK DMRB CD 224 *Traffic assessment* and CD 226 *Design for new pavement construction* | `design::dmrb` | Design traffic in full; of the thickness design only what is an equation. **No complete structure**, and from superseded revisions (see below) |
 | *AASHTO Guide for Design of Pavement Structures* (1993), flexible | `design::aashto93` | Design equation solved for SN; layered SN check of an entered structure |
-| South Africa (SAPEM / TRH4) | none | Not built. `DesignMethod` and `DesignInput` are `#[non_exhaustive]`; a new method is one sub-module, one variant of each and an implementation of `DesignResult` |
+| South Africa: SAPEM Chapter 10 (2nd edition 2014) reproducing Draft TRH4 (1996) values | `design::sa_trh4` | Design traffic in E80, traffic classes, road categories and reliability, climatic class, subgrade action. **No structure: the TRH4 catalogue could not be read** (see below) |
 
 Every method gives the same kind of output through the `DesignResult` trait: `calculation()`
 (line by line, with references), `warnings()` and `layers()` (a stack for a
@@ -296,6 +296,114 @@ Not done for AASHTO 1993: rigid pavements, overlays, serviceability loss from sw
 frost heave, minimum layer thicknesses and rounding, CBR to MR correlations, load equivalency
 factors by axle type.
 
+## Design: `design::sa_trh4` (South Africa)
+
+Only part of what was asked is built, because the central document could not be read.
+
+### Documents obtained and not obtained (fetched 2026-11-15)
+
+| Document | Result |
+|---|---|
+| SANRAL, *South African Pavement Engineering Manual*, Chapter 10 Pavement Design, **second edition 2014** (140 pages) | **Read.** Third-party flip-book copy, `https://online.flipbuilder.com/jaru/pkqe/` (basic-html text of every page, and rendered page images for the cited pages). Title on the copy: "SAPEM-Chapter-10-2nd-edition-2014". Not an official SANRAL host, so the copy is unverified against the official file. |
+| Theyse and Muthen, PADS based on SAMDM, 2000 South African Transport Conference | **Read.** `https://repository.up.ac.za/bitstream/handle/2263/8322/75%20Theyse.pdf;sequence=1`. Used only to cross-check road category reliabilities (95, 90, 80, 50 per cent), which agree with SAPEM Table 2. |
+| Draft TRH4 (1996), *Structural design of flexible pavements for inter-urban and rural roads*, COLTO, Pretoria | **Not obtained as a readable document.** Official copy `https://www.transport.gov.za/wp-content/uploads/2023/02/TRH4-1996-Flexible-Pavement-Design.pdf`: the fetch failed certificate validation through the egress proxy, and the Internet Archive copy was refused. A third-party OCR text (Scribd) was found; its table pages, including every catalogue sheet, are illegible there and no page images could be obtained. **Nothing is taken from it.** |
+| TRH14 (1985) *Guidelines for road construction materials* | **Not obtained.** Material codes (G1 to G10, C1 to C4 and so on) are therefore not defined here. |
+| SAPEM Chapter 9 (materials) and the SANRAL / nra.co.za originals | Not obtained (`nra.co.za` content links returned 404; the official site was not reachable for the chapter). |
+
+Downloads are kept outside the repository under `/home/user/sa-sources/` and are not committed.
+
+### What is implemented (all cited in the code by table and printed page of SAPEM Chapter 10)
+
+- Road categories A to D: description, importance, level of service, approximate design
+  reliability 95, 90, 80, 50 per cent, length exceeding terminal distress 5, 10, 20, 50 per cent,
+  typical pavement class (Table 2, p. 8); structural design period guidance (section 3.2,
+  pp. 9 and 10); minimum paved shoulder width (Table 6, p. 24).
+- Design traffic in E80, the South African standard axle (80 kN dual-wheel single axle):
+  load equivalency `(P/80)^n` and its interval form (Equations 1 and 2, pp. 30 and 32);
+  damage exponent table by base and subbase (Table 10, p. 30); weighted E80 per heavy vehicle
+  (Figure 20, p. 34); lane distribution factors (Table 13, p. 39); combined growth, projection
+  to opening and cumulative equivalent traffic (Equations 13, 14, 15, pp. 44 and 45).
+- The ten traffic classes ES0.003 to ES100 with capacity ranges and approximate vehicles per day
+  (Table 11, p. 34).
+- Climatic class (wet, moderate, dry) from a Weinert N value (Table 39, p. 90, "after TRH4,
+  1996": wet N < 2, moderate 2 to 5, dry N > 5), from a Thornthwaite index (Table 5, p. 22) or
+  entered directly. No map is embedded (the chapter's Figure 16 is a map). The chapter says
+  Weinert N "is season dependent" and Thornthwaite "more accurate". A definition of N itself is
+  not in the documents held.
+- Subgrade action by design CBR (Table 4, p. 22): above 15, 7 to 15, 3 to 7, below 3.
+
+### Left as input, and why
+
+- **The TRH4 catalogue of structures** (by category, traffic class, base type, wet or dry
+  region): not readable. `layers()` is always `None`. Every sheet is listed as not done: granular
+  bases dry regions, granular bases wet regions, hot-mix asphalt bases, cemented bases,
+  waterbound macadam bases (TRH4 pp. 97 to 101), and the notes to each. The engineer reads the
+  structure from the catalogue and enters its layers where the application asks for them.
+- Material codes and their properties (TRH14); TRH4 Tables 13, 16 and 22 (subgrade classes and
+  selected layers as TRH4 gives them). Table 4 of SAPEM is shown instead, and is SAPEM's own
+  summary, not a transcription of TRH4.
+- Climatic region, design CBR, growth rates, E80 per heavy vehicle (SAPEM Tables 17 and 18 are
+  not embedded), design period.
+- **SAMDM / SAPDM** (SAPEM section 7.1): needs transfer functions and a layered elastic
+  analysis. Not implemented. Also not done: the pavement number and DCP-DSN methods, the
+  structural number method, rehabilitation, rigid and block pavements, short-term traffic
+  adjustments (Tables 14 and 15).
+
+### Standard axles are not interchangeable
+
+The traffic is E80 as SAPEM defines it. The MoWT module, the AASHTO module (18-kip ESALs, load
+equivalency factors by axle type and structural number) and the DMRB module (wear factors per
+vehicle class) define theirs differently. Nothing converts between them. A design traffic from
+one method is never passed to another unless the user enters it as an input.
+
+### Worked examples reproduced (tests in `tests/sa_trh4.rs`)
+
+- SAPEM Table 22, p. 52: ADE 1023, AADE at opening 1171, ET 18 748 635 E80 (the printed steps
+  with the example's rounded growth 0.07).
+- SAPEM Figure 20, p. 34: E80 per axle 1.0, 3.5, 4.7 per vehicle, weighted E80/HV 2.09.
+- SAPEM p. 32: a 100 kN axle is 2.4 E80 at n = 4.
+
+### Slips and readings noted in the source
+
+- Table 22: the printed ET (18 748 635) uses the AADE at opening rounded to 1171 and the growth
+  rate rounded to 0.07 (Equation 13 gives 0.0710). Carrying 1171.23 unrounded gives 18 752 360;
+  carrying 0.0710 gives about 19.0 million. All are "18 to 19 million", the printed "18 million"
+  being a truncation.
+- Figure 20: printed terms 0.63, 0.88 and 0.59 total 2.09; unrounded 0.625 + 0.875 + 0.5875 =
+  2.0875.
+- p. 32 prints 2.4 for (100/80)^4 = 2.44.
+- Table 11 does not say which end of a range belongs to the class; a traffic equal to an upper
+  value is placed in that class, with a warning. Table 5 and Table 39 ranges share end points;
+  the drier class is taken, with a warning. In Table 4 only CBR 7 is in two rows; the weaker row
+  is taken, with a warning.
+- Table 2 gives a Category C typical class of "< ES0.03 - ES3": read as ES0.003 to ES3.
+- The chapter says "TRH4 ... ten pavement classes" and Table 10 is headed "(TRH4)"; these were
+  accepted as TRH4's values without sight of TRH4. TRH4 is a 1996 draft; every calculation says
+  so.
+
+### API example
+
+```rust
+use afrobim_pavement::design::sa_trh4::*;
+use afrobim_pavement::design::{design, DesignInput, DesignResult};
+
+let input = Trh4Input {
+    category: RoadCategory::B,
+    loading: BaseLoading::HeavyVehicles { hvv_per_lane_per_day: 682.0, e80_per_hv: 1.5 },
+    hv_growth: 0.05,              // decimal fractions
+    e80_per_hv_growth: 0.02,
+    years_survey_to_opening: 2.0,
+    structural_design_period_years: 20.0,
+    climate: Climate::WeinertN(3.0), // or Climate::Region(..) / Climate::Thornthwaite(..)
+    subgrade_design_cbr_percent: Some(10.0),
+};
+let result = design(&DesignInput::SaTrh4(input))?;
+let lines = result.calculation();   // cited lines, with the draft-edition note
+let warnings = result.warnings();   // includes "catalogue not implemented"
+assert!(result.layers().is_none()); // no structure from this method
+// Typed access: sa_trh4::design(&input)? gives design_traffic_e80, traffic_class, climate.
+```
+
 ## Using it from the application
 
 ```rust
@@ -307,7 +415,8 @@ registry.register(Box::new(PavementModule::default()));
 
 // Design (ribbon: Roads > Pavement design). The engineer picks the method:
 //   DesignMethod::all()  ->  [MowtRdmVol3, DmrbCd226, Aashto1993], each with name() and reference()
-//   design::design(&DesignInput::Mowt(..) | Dmrb(..) | Aashto93(..)) -> Box<dyn DesignResult>
+//   DesignMethod::extended() -> the same plus SaTrh4 (all() is unchanged for source compatibility)
+//   design::design(&DesignInput::Mowt(..) | Dmrb(..) | Aashto93(..) | SaTrh4(..)) -> Box<dyn DesignResult>
 let result = mowt::design(&input)?;            // or the typed dmrb::design / aashto93::design
 let lines: Vec<String> = result.calculation(); // show or print
 let layers = result.layers();                  // None when the manual gives no structure
@@ -328,6 +437,7 @@ let (schedule, summary) = (layers_to_csv(&q.rows), summary_to_csv(&q));
 
 ## Not done
 
+- South Africa: the TRH4 catalogue of structures and SAMDM (see `design::sa_trh4`).
 - Rigid pavement thickness design, gravel wearing course design, overlay and rehabilitation
   design (Parts II, III and IV of Volume 3 exist on the same site and were not read).
 - Mechanistic analysis; the structural number route of Part I Table 5.2.
