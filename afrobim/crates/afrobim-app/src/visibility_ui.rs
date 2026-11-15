@@ -9,8 +9,12 @@
 //! run anything until the engineer ticks to accept it; the acceptance is stored beside the inputs
 //! (`check.visibility.accepted`) and CHECKALL reports a record without it as input needed.
 //!
-//! The UK speed band of a speed is the engineer's choice: the speed is entered with its unit as in
-//! the road restraint check, and the band is picked from the table's own rows, never derived.
+//! The UK speed band of a speed is the engineer's decision, kept as the project's speed band rule
+//! (PROJECTSETTINGS). The approach speed is entered with its unit as in the road restraint check
+//! and the band is resolved from it by `projset::resolve` against the visibility tables' bands; the
+//! form shows the band and the rule's sentence and lets the engineer override the band for the
+//! check. The override and the sentence are recorded on the sign ([`KEY_BAND`]) and the sentence
+//! heads the calculation lines. With no approach speed entered the band is picked by hand, as before.
 
 use std::collections::HashMap;
 
@@ -30,6 +34,24 @@ use crate::check_inputs;
 
 /// The property that records the driver's eye height was confirmed by the engineer.
 pub const KEY_ACCEPTED: &str = "check.visibility.accepted";
+/// The property that records how the speed band was settled: the rule's sentence, an override, an answer.
+pub const KEY_BAND: &str = "check.visibility.band";
+
+/// How a stored speed band was settled.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BandRecord {
+    pub overridden: bool,
+    pub answer: Option<bool>,
+    /// The sentence for the calculation lines.
+    pub note: String,
+}
+
+/// The line that heads the calculation of a sign whose band was settled by the project's rule or
+/// by the engineer, when one is recorded.
+pub fn band_line(doc: &Document, id: ElementId) -> Option<String> {
+    let r: BandRecord = check_inputs::load(doc, id, KEY_BAND)?;
+    (!r.note.is_empty()).then(|| format!("Speed band: {}", r.note))
+}
 const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
 const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
 const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
@@ -118,6 +140,10 @@ pub struct VisForm {
     pub speed: String,
     pub speed_mph: bool,
     pub band: Option<SpeedBandMph>,
+    /// The engineer chose the band by hand instead of taking the one the project's rule gives.
+    pub band_override: bool,
+    /// The answer to an "ask each time" rule.
+    pub band_answer: Option<bool>,
     pub large: bool,
     pub rule: u8,
     pub terminal_approach: String,
@@ -163,6 +189,8 @@ impl VisForm {
             speed: String::new(),
             speed_mph: false,
             band: None,
+            band_override: false,
+            band_answer: None,
             large: false,
             rule: 0,
             terminal_approach: String::new(),
@@ -196,6 +224,10 @@ impl VisForm {
             Some(i) => {
                 let mut f = VisForm::from_inputs(&i, Some(id));
                 f.eye_height_accepted = eye_height_accepted(doc, id);
+                if let Some(r) = check_inputs::load::<BandRecord>(doc, id, KEY_BAND) {
+                    f.band_override = r.overridden;
+                    f.band_answer = r.answer;
+                }
                 f
             }
             None => VisForm::new(Some(id)),
@@ -255,6 +287,37 @@ impl VisForm {
         f.tolerance = n(i.sweep.tolerance_m);
         f.grid = i.sweep.grid.to_string();
         f
+    }
+
+    /// The approach speed as typed, when it is a number above zero.
+    pub fn speed_value(&self) -> Option<f64> {
+        self.speed.trim().parse::<f64>().ok().filter(|v| v.is_finite() && *v > 0.0)
+    }
+
+    /// What the project's rule gives for the approach speed, for the form and for the store.
+    pub fn resolved(&self, doc: &Document) -> Option<afrobim_kernel::speed_band::Resolved> {
+        let v = self.speed_value()?;
+        Some(crate::projset::resolve_answered(doc, v, self.speed_mph, &crate::projset::visibility_thresholds(), self.band_answer))
+    }
+
+    /// Settles the band: the rule's band from the approach speed unless the engineer overrode it,
+    /// and the record to keep. Fails when the rule still has a question for the engineer.
+    pub fn settle_band(&mut self, doc: &Document) -> Result<BandRecord, String> {
+        let Some(r) = self.resolved(doc) else {
+            return Ok(BandRecord::default());
+        };
+        if r.ask.is_some() {
+            return Err(format!("The project's speed band rule asks each time: {} Answer in the form.", r.band_note));
+        }
+        let by_rule = SpeedBandMph::from_mph(r.mph_used);
+        if self.band_override {
+            let chosen = self.band.ok_or("Choose the band you are overriding with, or untick the override.")?;
+            let note = format!("{}; resolved band {}; the user overrode it for this check and used {}", r.band_note, by_rule.label(), chosen.label());
+            Ok(BandRecord { overridden: true, answer: self.band_answer, note })
+        } else {
+            self.band = Some(by_rule);
+            Ok(BandRecord { overridden: false, answer: self.band_answer, note: format!("{}; band {}", r.band_note, by_rule.label()) })
+        }
     }
 
     /// The engine's inputs, or what is wrong. The eye height must have been accepted.
@@ -341,6 +404,8 @@ impl VisForm {
 /// Stores the form's inputs on the sign (or on every placed sign when the form is for all).
 /// Returns how many signs were written.
 pub fn store_form(doc: &mut Document, form: &VisForm) -> Result<usize, String> {
+    let mut form = form.clone();
+    let record = form.settle_band(doc)?;
     let inputs = form.inputs()?;
     let ids: Vec<ElementId> = match form.element.filter(|_| !form.apply_all) {
         Some(id) => vec![id],
@@ -352,6 +417,7 @@ pub fn store_form(doc: &mut Document, form: &VisForm) -> Result<usize, String> {
     for id in &ids {
         afrobim_visibility::save(doc, *id, &inputs);
         set_accepted(doc, *id, true);
+        check_inputs::save(doc, *id, KEY_BAND, &record);
     }
     Ok(ids.len())
 }
@@ -623,14 +689,40 @@ impl AfroBimApp {
                         ui.selectable_value(&mut f.speed_mph, true, "mph");
                     });
                     ui.end_row();
-                    ui.label("UK speed band (your decision)");
+                    ui.label("UK speed band");
                     ui.vertical(|ui| {
-                        egui::ComboBox::from_id_salt("vis-band").selected_text(f.band.map(|b| b.label()).unwrap_or("not chosen")).show_ui(ui, |ui| {
-                            ui.selectable_value(&mut f.band, None, "not chosen");
-                            for b in SpeedBandMph::ALL {
-                                ui.selectable_value(&mut f.band, Some(b), b.label());
+                        let resolved = f.resolved(&self.doc);
+                        match &resolved {
+                            Some(r) => {
+                                let by_rule = SpeedBandMph::from_mph(r.mph_used);
+                                ui.label(RichText::new(format!("From the approach speed: {}", by_rule.label())).strong());
+                                ui.label(RichText::new(&r.band_note).small().weak());
+                                if let Some(ask) = r.ask {
+                                    ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).color(WARN));
+                                    ui.horizontal(|ui| {
+                                        ui.selectable_value(&mut f.band_answer, Some(true), "Yes, take the band");
+                                        ui.selectable_value(&mut f.band_answer, Some(false), "No, keep the exact value");
+                                    });
+                                }
+                                ui.checkbox(&mut f.band_override, "Override the band for this check (recorded with the inputs)");
+                                if f.band_override {
+                                    egui::ComboBox::from_id_salt("vis-band").selected_text(f.band.map(|b| b.label()).unwrap_or("choose a band")).show_ui(ui, |ui| {
+                                        for b in SpeedBandMph::ALL {
+                                            ui.selectable_value(&mut f.band, Some(b), b.label());
+                                        }
+                                    });
+                                }
                             }
-                        });
+                            None => {
+                                ui.label(RichText::new("Enter the approach speed to have the band resolved by the project's rule, or choose one:").small().weak());
+                                egui::ComboBox::from_id_salt("vis-band").selected_text(f.band.map(|b| b.label()).unwrap_or("not chosen")).show_ui(ui, |ui| {
+                                    ui.selectable_value(&mut f.band, None, "not chosen");
+                                    for b in SpeedBandMph::ALL {
+                                        ui.selectable_value(&mut f.band, Some(b), b.label());
+                                    }
+                                });
+                            }
+                        }
                         ui.checkbox(&mut f.large, "the larger figures for 70 mph dual carriageways and motorways");
                     });
                     ui.end_row();
@@ -825,6 +917,9 @@ impl AfroBimApp {
                 }
                 if let Some(d) = self.doc.find(a.element).and_then(|e| e.properties.get(crate::demo_glue::KEY_DEMO_VISIBILITY)) {
                     ui.label(RichText::new(format!("DEMO inputs: {d}")).strong().color(WARN));
+                }
+                if let Some(l) = band_line(&self.doc, a.element) {
+                    ui.label(RichText::new(l).small().strong());
                 }
                 if afrobim_visibility::load(&self.doc, a.element).is_some() && !eye_height_accepted(&self.doc, a.element) {
                     ui.label(RichText::new("The stored inputs use the engine's default eye height, which has not been confirmed for this sign. Open the inputs and accept it.").color(WARN));

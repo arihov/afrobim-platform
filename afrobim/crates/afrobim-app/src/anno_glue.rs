@@ -920,7 +920,7 @@ fn segment_intersection(a: (Pt, Pt), b: (Pt, Pt)) -> Option<Pt> {
 pub fn candidates(doc: &Document, cursor: Pt, radius: f64, osnap: &Osnap, grid: Option<f64>, extra: &[Cand]) -> Vec<Cand> {
     let mut out: Vec<Cand> = Vec::new();
     let near = |p: Pt| (p.x - cursor.x).abs() <= radius && (p.y - cursor.y).abs() <= radius && dist(p, cursor) <= radius;
-    let mut push = |out: &mut Vec<Cand>, p: Pt, mode: SnapMode, from: &str| {
+    let push = |out: &mut Vec<Cand>, p: Pt, mode: SnapMode, from: &str| {
         if osnap.has(mode) && near(p) {
             out.push(Cand { p, mode, from: from.to_string() });
         }

@@ -54,10 +54,17 @@ pub struct AfroBimApp {
     pub(crate) vis: crate::visibility_ui::VisUi,
     pub(crate) photo: crate::photometry_ui::PhotoUi,
     pub(crate) pack: crate::report_pack::PackUi,
+    /// Annotation commands, object snap, the layer manager, units and styles.
+    pub(crate) anno: crate::anno_ui::AnnoUi,
+    /// DXF underlays: what was read from the files and what is drawn.
+    pub(crate) under: crate::underlay::UnderlayState,
+    /// The sign schedule import windows.
+    pub(crate) signsched: crate::signsched::SignSchedUi,
+    pub(crate) projset: crate::projset::ProjSetUi,
     /// The name of the last IFC file exported, which BCF topics name as their model.
     pub(crate) last_ifc_name: Option<String>,
     signs_ready: bool,
-    module_status: String,
+    pub(crate) module_status: String,
     standard: String,
     pub(crate) engine: Option<std::sync::Arc<afrobim_signs::SignEngine>>,
     fonts_dir: PathBuf,
@@ -138,6 +145,9 @@ impl AfroBimApp {
         modules.register(Box::new(afrobim_progress::ProgressModule));
         crate::sheets_glue::register(&mut modules);
         afrobim_design::register(&mut modules);
+        afrobim_annotate::register(&mut modules);
+        modules.register(Box::new(crate::underlay::UnderlayModule));
+        modules.register(Box::new(afrobim_kernel::ProjectSettingsModule));
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
             Ok(l) => {
@@ -164,6 +174,10 @@ impl AfroBimApp {
             vis: Default::default(),
             photo: Default::default(),
             pack: Default::default(),
+            anno: Default::default(),
+            under: Default::default(),
+            signsched: Default::default(),
+            projset: Default::default(),
             last_ifc_name: None,
             signs_ready,
             module_status,
@@ -339,6 +353,10 @@ impl AfroBimApp {
             for problem in crate::sheets_glue::demo(&mut app.doc) {
                 app.status = problem;
             }
+            // Demo only: a few annotations with arbitrary demo values (see `anno_ui::demo`).
+            for problem in crate::anno_ui::demo(&mut app.doc) {
+                app.status = problem;
+            }
         }
         app.sync_generated();
         if app.options.demo {
@@ -365,6 +383,35 @@ impl AfroBimApp {
                 }
                 None => app.status = format!("--date: '{text}' is not a date (YYYY-MM-DD)."),
             }
+        }
+        // `--underlay path[,dx,dy[,rotation]]`: attach a DXF at start-up (offsets in mm).
+        if let Some(spec) = app.options.underlay.clone() {
+            let mut parts = spec.split(',');
+            let path = PathBuf::from(parts.next().unwrap_or_default());
+            let nums: Vec<f64> = parts.filter_map(|p| p.trim().parse().ok()).collect();
+            match app.under.attach(&mut app.doc, &path) {
+                Ok(id) => {
+                    if let Some(mut def) = app.doc.find(id).and_then(crate::underlay::def_of) {
+                        def.offset_mm = [nums.first().copied().unwrap_or(0.0), nums.get(1).copied().unwrap_or(0.0)];
+                        def.rotation_deg = nums.get(2).copied().unwrap_or(0.0);
+                        crate::underlay::set_def(&mut app.doc, id, &def);
+                    }
+                    app.under.selected = Some(id);
+                }
+                Err(e) => app.status = e,
+            }
+        }
+        if let Some(path) = app.options.signschedule.clone() {
+            app.signsched_load(&path);
+        }
+        if let Some(path) = app.options.dxf_out.clone() {
+            app.doc.clear_selection();
+            app.export_dxf(path);
+            eprintln!("AfroBIM: {}", app.status);
+            app.quit = true;
+        }
+        for name in app.options.layers_on.clone().unwrap_or_default().split(',').filter(|n| !n.is_empty()) {
+            let _ = afrobim_annotate::layers::set_visible(&mut app.doc, name, true);
         }
         app.history.reset(app.doc.snapshot());
         app.view_3d = app.options.view3d;
@@ -466,8 +513,28 @@ impl AfroBimApp {
 
     /// Regenerates geometry for elements whose definition changed and drops erased ones.
     pub(crate) fn sync_generated(&mut self) {
+        // A leader that shows a mark and a station dimension read the rest of the document:
+        // refresh them whenever an element was renamed, erased or edited (an alignment included).
+        let mut regenerated = self.sync_generated_once();
+        for _ in 0..2 {
+            if regenerated && self.anno_refresh() {
+                regenerated = self.sync_generated_once();
+            } else {
+                break;
+            }
+        }
+        if self.view_3d {
+            self.sync_corridor_surfaces();
+        }
+    }
+
+    /// Regenerates what changed; true when any element was regenerated or dropped.
+    fn sync_generated_once(&mut self) -> bool {
+        let mut any = false;
         let ids: Vec<ElementId> = self.doc.elements().iter().map(|e| e.id).collect();
+        let before = self.cache.len();
         self.cache.retain(|id, _| ids.contains(id));
+        any |= self.cache.len() != before;
         for id in ids {
             let Some(e) = self.doc.find(id) else { continue };
             let fresh = self.cache.get(&id).is_some_and(|c| c.key.0 == e.name && c.key.1 == e.data);
@@ -487,10 +554,9 @@ impl AfroBimApp {
                 }
             }
             self.cache.insert(id, Cached { key, generated, mesh });
+            any = true;
         }
-        if self.view_3d {
-            self.sync_corridor_surfaces();
-        }
+        any
     }
 
     /// Builds the 3D surfaces of corridors that have none yet or whose data changed.
@@ -514,12 +580,12 @@ impl AfroBimApp {
         self.quit = true;
     }
 
-    fn schedule_commit(&mut self, ctx: &egui::Context) {
+    pub(crate) fn schedule_commit(&mut self, ctx: &egui::Context) {
         self.commit_due = Some(ctx.input(|i| i.time) + 0.3);
         ctx.request_repaint_after(std::time::Duration::from_millis(350));
     }
 
-    fn flush_commit(&mut self) {
+    pub(crate) fn flush_commit(&mut self) {
         self.commit_due = None;
         self.sync_generated();
         self.history.commit(self.doc.snapshot());
@@ -575,6 +641,11 @@ impl AfroBimApp {
         self.design = Default::default();
         self.sheets = crate::sheets_ui::SheetsUi::default();
         self.corridor_cache.clear();
+        // Underlays are read again from their files, and a command in progress is dropped.
+        self.under.reset();
+        let osnap = self.anno.osnap.clone();
+        self.anno = Default::default();
+        self.anno.osnap = osnap;
     }
 
     /// Commits to the undo history on the next frame, for edits made outside a pointer drag.
@@ -624,6 +695,11 @@ impl AfroBimApp {
             if selected_only && !self.doc.is_selected(e.id) {
                 continue;
             }
+            // Annotation is written by its own engine (real TEXT, arrows as SOLID); underlay and
+            // settings records have no drawing.
+            if afrobim_annotate::is_annotation(e) || e.category == crate::underlay::CATEGORY || e.category == afrobim_annotate::SETTINGS_CATEGORY || e.category == afrobim_kernel::PROJECT_SETTINGS_CATEGORY {
+                continue;
+            }
             match self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()) {
                 Some(g) => {
                     dxf.add(&g.drawing, 1.0, e.origin);
@@ -632,11 +708,25 @@ impl AfroBimApp {
                 None => skipped += 1,
             }
         }
+        // With a selection only the selected annotation is written: a copy of the document
+        // without the others goes to the engine.
+        let mut ann_doc = Document::from_json(&self.doc.to_json()).unwrap_or_default();
+        if selected_only {
+            let drop: Vec<ElementId> = ann_doc.elements().iter().filter(|e| afrobim_annotate::is_annotation(e) && !self.doc.is_selected(e.id)).map(|e| e.id).collect();
+            for id in drop {
+                ann_doc.remove(id);
+            }
+        }
+        let ann_report = afrobim_annotate::export_dxf(&ann_doc, &mut dxf);
+        written += ann_report.annotations;
         match std::fs::write(&path, dxf.finish()) {
             Ok(()) => {
                 self.status = format!("Exported {written} element(s) to {}.", path.display());
                 if skipped > 0 {
                     self.status.push_str(&format!(" {skipped} without geometry were left out."));
+                }
+                for w in ann_report.warnings.iter().take(3) {
+                    self.status.push_str(&format!(" {w}"));
                 }
             }
             Err(e) => self.status = format!("Could not write {}: {e}", path.display()),
@@ -861,7 +951,7 @@ impl AfroBimApp {
             Action::Erase => self.ctl.start_erase(&mut self.doc),
             Action::SelectAll => self.doc.select_all(),
             Action::ZoomExtents if self.view_3d => self.fit_3d(),
-            Action::ZoomExtents => self.ctl.zoom_extents(&self.doc, &mut self.view),
+            Action::ZoomExtents => self.zoom_extents_visible(),
             Action::ZoomWindow => self.ctl.start_zoom_window(),
             Action::ZoomIn if self.view_3d => self.camera.zoom(1.5),
             Action::ZoomOut if self.view_3d => self.camera.zoom(1.0 / 1.5),
@@ -890,7 +980,7 @@ impl AfroBimApp {
             }
             Action::Arrange => {
                 self.doc.arrange();
-                self.ctl.zoom_extents(&self.doc, &mut self.view);
+                self.zoom_extents_visible();
                 self.schedule_commit(ctx);
             }
             Action::InsertSign(index) => {
@@ -939,7 +1029,7 @@ impl AfroBimApp {
             Action::AddMarking => match alignment_glue::alignments(&self.doc).first().map(|a| a.0) {
                 Some(first) => {
                     let (start, end) = alignment_glue::alignment_of(&self.doc, first).map(|a| (a.start_station_m, a.end_station_m())).unwrap_or((0.0, 0.0));
-                    let request = markings_glue::MarkingRequest { line: 0, start_station_m: start, end_station_m: end, distance_m: 0.0, right: false, speed_mph: 30, width_mm: None, material: String::new() };
+                    let request = markings_glue::MarkingRequest { line: 0, start_station_m: start, end_station_m: end, distance_m: 0.0, right: false, speed_mph: 30, speed_kmh: None, width_mm: None, material: String::new() };
                     self.marking_dialog = Some((Some(first), request));
                 }
                 None => self.status = "There is no alignment yet. Import one with File → Import LandXML.".into(),
@@ -1180,10 +1270,47 @@ impl AfroBimApp {
                 self.sched.ext.tl_open = true;
             }
             Action::Play4d => self.play_toggle(ctx),
+            Action::Anno(kind) => self.anno_start(kind),
+            Action::TextEdit => match self.doc.primary() {
+                Some(id) => {
+                    self.anno_open_text_edit(id);
+                }
+                None => self.status = "Select a text or a leader first, then TEXTEDIT.".into(),
+            },
+            Action::MeasureResults => self.anno.results_open = true,
+            Action::TextStyles => self.anno.text_styles_open = true,
+            Action::DimStyles => self.anno.dim_styles_open = true,
+            Action::ToggleOsnap => {
+                self.anno.osnap.on = !self.anno.osnap.on;
+                self.status = format!("Object snap {}.", if self.anno.osnap.on { "on" } else { "off" });
+            }
+            Action::OsnapSettings => self.anno.osnap_open = true,
+            Action::Layers => self.anno.layers_open = true,
+            Action::Units => self.anno.units_open = true,
+            Action::ProjectSettings => self.projset.open = true,
+            Action::Underlay => self.under.window_open = true,
+            Action::SignSchedule => self.signsched_pick(),
+            Action::SignScheduleOut => self.signsched_out(),
+            Action::SignScheduleTemplate => self.signsched_template(),
             Action::Help => self.show_help = true,
             Action::About => self.show_about = true,
             Action::Quit => self.quit = true,
         }
+    }
+
+    /// Zoom to the elements on visible layers (hidden ones, such as the alignments, which sit in
+    /// site coordinates far from the sign sheet, and the records that draw nothing, are left out).
+    pub(crate) fn zoom_extents_visible(&mut self) {
+        let ext = self
+            .doc
+            .elements()
+            .iter()
+            .filter(|e| self.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY)
+            .map(|e| e.bounds())
+            .reduce(|a, b| a.union(&b))
+            .unwrap_or(afrobim_kernel::BBox::new(0.0, 0.0, 5000.0, 3000.0));
+        let (l, t, w, h) = self.ctl.viewport;
+        self.view.fit(&ext, l, t, w, h, 60.0);
     }
 
     pub(crate) fn import_landxml(&mut self, ctx: &egui::Context, path: PathBuf) {
@@ -1270,6 +1397,12 @@ impl AfroBimApp {
             self.design_take_text(&text);
             return;
         }
+        if self.anno.session.is_some() {
+            let prompt = self.anno.session.as_ref().map(|s| s.prompt(&self.doc)).unwrap_or_default();
+            self.log(format!("{prompt} {text}"));
+            self.anno_text(&text);
+            return;
+        }
         if self.ctl.is_busy() {
             self.log(format!("{} {}", self.ctl.prompt(), text));
             self.ctl.submit_text(&mut self.doc, &mut self.view, &text);
@@ -1327,6 +1460,7 @@ impl AfroBimApp {
             (Modifiers::NONE, Key::F7, Action::ToggleGrid),
             (Modifiers::NONE, Key::F8, Action::ToggleOrtho),
             (Modifiers::NONE, Key::F9, Action::ToggleSnap),
+            (Modifiers::NONE, Key::F3, Action::ToggleOsnap),
         ];
         for (m, k, a) in table {
             if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(m, k))) {
@@ -1366,7 +1500,9 @@ impl AfroBimApp {
             // Esc in a Properties field belongs to that field; it only cancels an active command.
             if !in_field || self.ctl.is_busy() {
                 self.cmd_input.clear();
-                self.ctl.escape(&mut self.doc);
+                if !self.anno_cancel() {
+                    self.ctl.escape(&mut self.doc);
+                }
                 self.design_escape();
             }
         }
@@ -1572,7 +1708,8 @@ impl AfroBimApp {
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 let w = self.ctl.cursor_world();
-                ui.add_sized([150.0, 16.0], egui::Label::new(RichText::new(format!("{:.0} , {:.0} mm", w.x, w.y)).monospace()));
+                let units = crate::anno_ui::units_of(&self.doc);
+                ui.add_sized([210.0, 16.0], egui::Label::new(RichText::new(format!("{} , {}", units.length(w.x), units.length_u(w.y))).monospace()));
                 ui.separator();
                 if ui.selectable_label(self.grid_on, "GRID").on_hover_text("Grid display (F7)").clicked() {
                     self.grid_on = !self.grid_on;
@@ -1582,6 +1719,12 @@ impl AfroBimApp {
                 }
                 if ui.selectable_label(self.ctl.ortho_on, "ORTHO").on_hover_text("Hold moves to the X or Y axis (F8)").clicked() {
                     self.ctl.ortho_on = !self.ctl.ortho_on;
+                }
+                if ui.selectable_label(self.anno.osnap.on, "OSNAP").on_hover_text("Object snap for annotation commands (F3). OSNAPSETTINGS says which modes and what provides them").clicked() {
+                    self.anno.osnap.on = !self.anno.osnap.on;
+                }
+                if crate::anno_ui::scale_control(ui, &mut self.doc) {
+                    self.schedule_commit_now();
                 }
                 ui.separator();
                 if ui.selectable_label(!self.view_3d, "2D").on_hover_text("Model space: select, move, edit").clicked() && self.view_3d {
@@ -1604,7 +1747,7 @@ impl AfroBimApp {
                     let sel = self.doc.selection();
                     let text = match (sel.len(), self.doc.primary().and_then(|id| self.doc.find(id))) {
                         (0, _) => "No selection".to_string(),
-                        (1, Some(e)) => format!("{}  {:.0} × {:.0} mm", e.name, e.width, e.height),
+                        (1, Some(e)) => format!("{}  {} × {}", e.name, units.length(e.width), units.length_u(e.height)),
                         (n, _) => format!("{n} elements selected"),
                     };
                     ui.label(text);
@@ -1697,7 +1840,10 @@ impl AfroBimApp {
                 if selected > 1 {
                     ui.label(RichText::new(format!("{selected} elements selected. Showing the last one picked.")).weak());
                 }
-                let layers: Vec<String> = self.doc.layers().iter().map(|l| l.name.clone()).collect();
+                let layers: Vec<String> = self.doc.layers().iter().map(|l| l.name.clone()).filter(|n| !crate::anno_ui::hidden_layer(n)).collect();
+                let units = crate::anno_ui::units_of(&self.doc);
+                let ann_settings = afrobim_annotate::settings::load(&self.doc);
+                let align_names = crate::anno_ui::alignment_names(&self.doc);
                 let module_name = self.doc.find(id).and_then(|e| self.modules.get(&e.category)).map(|m| m.display_name().to_string());
                 let derived = self.cache.get(&id).and_then(|c| c.generated.as_ref().ok()).map(|g| (g.derived.clone(), g.notes.clone()));
                 let error = self.cache.get(&id).and_then(|c| c.generated.as_ref().err().cloned());
@@ -1718,13 +1864,13 @@ impl AfroBimApp {
                     });
                     ui.end_row();
                     ui.label("Position X");
-                    changed |= ui.add(egui::DragValue::new(&mut e.origin.x).speed(10.0).suffix(" mm")).changed();
+                    changed |= ui.add(egui::DragValue::new(&mut e.origin.x).speed(10.0).custom_formatter(|v, _| units.length_u(v)).custom_parser(|t| units.parse_length(t).ok())).changed();
                     ui.end_row();
                     ui.label("Position Y");
-                    changed |= ui.add(egui::DragValue::new(&mut e.origin.y).speed(10.0).suffix(" mm")).changed();
+                    changed |= ui.add(egui::DragValue::new(&mut e.origin.y).speed(10.0).custom_formatter(|v, _| units.length_u(v)).custom_parser(|t| units.parse_length(t).ok())).changed();
                     ui.end_row();
                     ui.label("Size");
-                    ui.label(format!("{:.0} × {:.0} mm", e.width, e.height));
+                    ui.label(format!("{} × {}", units.length(e.width), units.length_u(e.height)));
                     ui.end_row();
                 });
 
@@ -1732,6 +1878,8 @@ impl AfroBimApp {
                 ui.label(RichText::new("Definition").strong());
                 if e.category == signs_glue::CATEGORY {
                     changed |= signs_glue::edit_ui(ui, &mut e.data);
+                } else if afrobim_annotate::is_annotation(e) {
+                    changed |= crate::anno_ui::edit_ui(ui, e, &ann_settings, &align_names);
                 } else if supports_glue::is_support(&e.category) {
                     changed |= supports_glue::edit_ui(ui, &mut e.data);
                 } else if modules_glue::owns(&e.category) {
@@ -1807,6 +1955,8 @@ impl AfroBimApp {
                 }
             }
             if changed {
+                // A rename or an edit can change what a mark leader or a station dimension shows.
+                self.sync_generated();
                 self.schedule_commit(ctx);
             }
 
@@ -1814,7 +1964,7 @@ impl AfroBimApp {
             ui.label(RichText::new("LAYERS").small().strong().weak());
             ui.separator();
             egui::ScrollArea::vertical().id_salt("layers").show(ui, |ui| {
-                for layer in self.doc.layers_mut().iter_mut() {
+                for layer in self.doc.layers_mut().iter_mut().filter(|l| !crate::anno_ui::hidden_layer(&l.name)) {
                     ui.horizontal(|ui| {
                         ui.checkbox(&mut layer.visible, "").on_hover_text("Visible");
                         ui.toggle_value(&mut layer.locked, "Lock").on_hover_text("Locked layers cannot be selected");
@@ -1832,10 +1982,12 @@ impl AfroBimApp {
             ui.label(RichText::new(tail).monospace().small().weak());
             ui.horizontal(|ui| {
                 let design_prompt = self.design.prompt();
-                let prompt = match (&design_prompt, self.ctl.prompt().is_empty()) {
-                    (Some(p), _) => p.as_str(),
-                    (None, true) => "Command:",
-                    (None, false) => self.ctl.prompt(),
+                let anno_prompt = self.anno.session.as_ref().map(|s| s.prompt(&self.doc));
+                let prompt = match (&design_prompt, &anno_prompt, self.ctl.prompt().is_empty()) {
+                    (Some(p), _, _) => p.as_str(),
+                    (None, Some(p), _) => p.as_str(),
+                    (None, None, true) => "Command:",
+                    (None, None, false) => self.ctl.prompt(),
                 };
                 ui.label(RichText::new(prompt).monospace().strong().color(Color32::from_rgb(0x4D, 0xC0, 0x7A)));
                 let id = egui::Id::new(CMD_ID);
@@ -1875,10 +2027,21 @@ impl AfroBimApp {
             self.ctl.viewport = (rect.left() as f64, rect.top() as f64, rect.width() as f64, rect.height() as f64);
             if !self.fitted && rect.width() > 50.0 {
                 self.fitted = true;
-                self.ctl.zoom_extents(&self.doc, &mut self.view);
+                self.zoom_extents_visible();
+                // `--zoom-to x,y,width`: the centre and the width to show, millimetres.
+                if let Some(spec) = self.options.zoom_to.take() {
+                    let v: Vec<f64> = spec.split(',').filter_map(|t| t.trim().parse().ok()).collect();
+                    if let [x, y, w] = v[..] {
+                        let scale = rect.width() as f64 / w.max(1.0);
+                        self.view.scale = scale;
+                        self.view.origin_x = rect.center().x as f64 - x * scale;
+                        self.view.origin_y = rect.center().y as f64 + y * scale;
+                    }
+                }
             }
 
             let was_busy = self.ctl.is_busy();
+            let anno_active = self.anno.active();
             let over = response.contains_pointer();
             let input = ui.input(|i| {
                 (
@@ -1903,6 +2066,7 @@ impl AfroBimApp {
                         self.view.pan(delta.x as f64, delta.y as f64);
                     }
                     self.ctl.pointer_move(&mut self.doc, &self.view, s);
+                    self.anno_pointer(s);
                 }
                 if over {
                     if scroll != 0.0 {
@@ -1910,25 +2074,42 @@ impl AfroBimApp {
                         self.ctl.pointer_move(&mut self.doc, &self.view, s);
                     }
                     if mid_double {
-                        self.ctl.zoom_extents(&self.doc, &mut self.view);
+                        self.zoom_extents_visible();
                     }
                     if pressed {
-                        self.ctl.left_down(&mut self.doc, &mut self.view, s, shift, false);
-                        self.canvas_drag = true;
+                        if self.anno_press(s, shift) {
+                            // An annotation command took the click (or a grip was picked up).
+                            self.canvas_drag = self.anno.grip_drag.is_some();
+                        } else {
+                            if self.anno.grip_hover.is_some() {
+                                self.ctl.pointer_leave();
+                            }
+                            self.ctl.left_down(&mut self.doc, &mut self.view, s, shift, false);
+                            self.canvas_drag = true;
+                        }
                         ctx.memory_mut(|m| m.request_focus(egui::Id::new(CMD_ID)));
                     }
-                    if double && !was_busy {
-                        // Double-click isolates the element so Properties shows it alone.
+                    if double && !was_busy && !anno_active {
+                        // Double-click isolates the element so Properties shows it alone; a text
+                        // or leader also opens for editing.
                         if let Some(id) = self.doc.pick(self.view.to_world(s), self.ctl.pick_box_px / self.view.scale) {
                             self.doc.select(&[id], SelectMode::Replace);
+                            if self.doc.find(id).is_some_and(|e| e.category == afrobim_annotate::TEXT_CATEGORY || e.category == afrobim_annotate::LEADER_CATEGORY) {
+                                self.anno_open_text_edit(id);
+                            }
                         }
                     }
                     // During a command the right button is Enter.
                     if secondary && was_busy {
                         self.ctl.enter(&mut self.doc);
+                    } else if secondary && anno_active {
+                        self.anno_enter();
                     }
                 }
-                if released && self.canvas_drag {
+                if released && self.anno.grip_drag.is_some() {
+                    self.canvas_drag = false;
+                    self.anno_release(s);
+                } else if released && self.canvas_drag {
                     self.canvas_drag = false;
                     self.ctl.left_up(&mut self.doc, &mut self.view, s);
                 }
@@ -1944,6 +2125,7 @@ impl AfroBimApp {
             }
             self.paint_scene(&painter, rect);
             self.paint_overlay(&painter, rect, over && !mid_down);
+            self.paint_anno(&painter, over && !mid_down);
 
             if !was_busy {
                 let mut pick = None;
@@ -1977,6 +2159,10 @@ impl AfroBimApp {
         }
         self.reference_tick(ctx);
         self.reference_windows(ctx);
+        self.anno_windows(ctx);
+        self.underlay_window(ctx);
+        self.signsched_windows(ctx);
+        self.projset_window(ctx);
         self.issues_windows(ctx);
         self.visibility_windows(ctx);
         self.photometry_windows(ctx);
@@ -1999,7 +2185,7 @@ impl AfroBimApp {
                 }
             });
             ui.add_space(6.0);
-            ui.label(RichText::new("Points: x,y absolute  ·  @dx,dy relative  ·  @distance<angle polar. Millimetres.").weak());
+            ui.label(RichText::new("Points: x,y absolute  ·  @dx,dy relative  ·  @distance<angle polar. MOVE, COPY and the signs commands take millimetres; the annotation, dimension and measure commands take the document units (UNITS).").weak());
         });
         self.show_help = help;
 
@@ -2230,10 +2416,39 @@ impl AfroBimApp {
                     ui.label("Pattern");
                     ui.label(format!("{}; {}", spec.pattern.label(), spec.citation));
                     ui.end_row();
-                    ui.label("Speed limit (mph)");
-                    ui.horizontal(|ui| {
-                        ui.add(egui::DragValue::new(&mut req.speed_mph).range(5..=70));
-                        ui.label(RichText::new(afrobim_markings::speed_label(req.speed_mph)).small().weak());
+                    ui.label("Speed limit");
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            let mut kmh = req.speed_kmh.is_some();
+                            ui.selectable_value(&mut kmh, false, "mph");
+                            ui.selectable_value(&mut kmh, true, "km/h");
+                            if kmh != req.speed_kmh.is_some() {
+                                req.speed_kmh = kmh.then(|| (afrobim_markings::kmh(req.speed_mph).round(), None));
+                            }
+                            match &mut req.speed_kmh {
+                                Some((v, _)) => {
+                                    ui.add(egui::DragValue::new(v).range(5.0..=130.0).suffix(" km/h"));
+                                }
+                                None => {
+                                    ui.add(egui::DragValue::new(&mut req.speed_mph).range(5..=70));
+                                    ui.label(RichText::new(afrobim_markings::speed_label(req.speed_mph)).small().weak());
+                                }
+                            }
+                        });
+                        // A km/h limit meets the manual's mph tables through the project's rule.
+                        if let Some((v, answer)) = &mut req.speed_kmh {
+                            let r = crate::projset::resolve_answered(&self.doc, *v, false, &crate::projset::marking_thresholds(), *answer);
+                            ui.label(RichText::new(&r.band_note).small());
+                            if let Some(ask) = r.ask {
+                                ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).small().color(Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                                ui.horizontal(|ui| {
+                                    ui.selectable_value(answer, Some(true), "Yes, take the band");
+                                    ui.selectable_value(answer, Some(false), "No, keep the exact value");
+                                });
+                            } else {
+                                ui.label(RichText::new(format!("The tables are read at {} mph.", r.mph_used.round())).small().weak());
+                            }
+                        }
                     });
                     ui.end_row();
                     ui.label("Width (mm)");
@@ -2583,7 +2798,7 @@ impl AfroBimApp {
     fn screenshot_mode(&mut self, ctx: &egui::Context) {
         let Some(path) = self.options.screenshot.clone() else { return };
         // Wait for a viewpoint snapshot or a running import before the picture is taken.
-        if self.issues.snap.is_some() || self.refs.busy() {
+        if self.issues.snap.is_some() || self.refs.busy() || self.under.busy() {
             ctx.request_repaint();
             return;
         }
@@ -2629,6 +2844,13 @@ impl eframe::App for AfroBimApp {
         }
 
         self.sched_tick(ctx);
+        self.under.sync(&mut self.doc, self.view.scale);
+        if std::mem::take(&mut self.under.doc_changed) {
+            self.schedule_commit_now();
+        }
+        if self.under.busy() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(60));
+        }
         self.menu_bar(ctx);
         self.toolbar(ctx);
         self.status_bar(ctx);

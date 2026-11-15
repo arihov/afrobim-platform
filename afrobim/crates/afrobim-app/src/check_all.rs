@@ -389,6 +389,9 @@ fn visibility(doc: &Document, e: &Element, m: &mut Maker) {
     if let Some(d) = doc.find(e.id).and_then(|x| x.properties.get(crate::demo_glue::KEY_DEMO_VISIBILITY)) {
         lines.insert(0, format!("DEMO inputs: {d}"));
     }
+    if let Some(l) = vis::band_line(doc, e.id) {
+        lines.insert(0, l);
+    }
     let (ok, fail, need, differ) = (a.count(V::Ok), a.count(V::Fails), a.count(V::InputNeeded), a.count(V::Differs));
     let status = match a.overall() {
         V::Fails => Status::Fails,
@@ -817,7 +820,7 @@ mod tests {
         let id = doc.elements().iter().find(|e| e.name == mark).unwrap().id;
         let r = report(&doc);
         assert_eq!(r.rows.iter().find(|row| row.element == id).unwrap().status, Status::InputNeeded);
-        inputs::save(&mut doc, id, inputs::KEY_RESTRAINT, &road_glue::SpeedInput { value: 100.0, mph: false });
+        inputs::save(&mut doc, id, inputs::KEY_RESTRAINT, &road_glue::SpeedInput { value: 100.0, mph: false, answer: None });
         let r = report(&doc);
         let row = r.rows.iter().find(|row| row.element == id).unwrap();
         assert!(row.lines.iter().any(|l| l.contains("CD 377")), "{:?}", row.lines);

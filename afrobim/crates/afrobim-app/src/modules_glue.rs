@@ -501,9 +501,9 @@ mod tests {
         // Restraint: it needs the speed limit, and says so when there is none.
         let run = find(&doc, "VRS");
         assert!(matches!(check(&doc, run), Check::RestraintSpeed));
-        let speed = road_glue::SpeedInput { value: 0.0, mph: false };
+        let speed = road_glue::SpeedInput { value: 0.0, mph: false, answer: None };
         assert!(road_glue::check_restraint(&doc, run, speed).unwrap_err().contains("speed"));
-        let lines = road_glue::check_restraint(&doc, run, road_glue::SpeedInput { value: 100.0, mph: false }).unwrap();
+        let lines = road_glue::check_restraint(&doc, run, road_glue::SpeedInput { value: 100.0, mph: false, answer: None }).unwrap();
         assert!(lines.iter().any(|l| l.contains("CD 377")), "{lines:#?}");
         // Pavement: checked by running a design method.
         assert!(matches!(check(&doc, find(&doc, "PV")), Check::PavementDesign));

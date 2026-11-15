@@ -272,6 +272,10 @@ pub fn add_restraint(doc: &mut Document, alignment_id: ElementId, req: &Restrain
 pub struct SpeedInput {
     pub value: f64,
     pub mph: bool,
+    /// The answer to the project's "ask each time" speed band rule: whether the band the limit
+    /// is just under is taken. `None` until the engineer answers (and when the rule never asks).
+    #[serde(default)]
+    pub answer: Option<bool>,
 }
 
 /// The requirement checks of a barrier run (DMRB CD 377), which need a speed limit.
@@ -285,9 +289,16 @@ pub fn check_restraint_design(doc: &Document, id: ElementId, speed: SpeedInput) 
         return Err("Enter the speed limit.".into());
     }
     let b = restraint::barrier_run_of(doc, id).map_err(|e| e.to_string())?;
-    let limit = if speed.mph { restraint::design::SpeedLimit::Mph(speed.value) } else { restraint::design::SpeedLimit::Kmh(speed.value) };
-    let input = restraint::design::DesignInput::new(limit);
-    Ok(restraint::design::check_run(&b.run, &b.resolved, &input))
+    // The project's speed band rule decides how a limit meets the 50 mph step of the check, and
+    // its sentence is the first line of the calculation.
+    let r = crate::projset::resolve_answered(doc, speed.value, speed.mph, &crate::projset::restraint_thresholds(), speed.answer);
+    if r.ask.is_some() {
+        return Err(format!("The project's speed band rule asks each time: {} Answer in the CHECK dialog.", r.band_note));
+    }
+    let input = restraint::design::DesignInput::new(restraint::design::SpeedLimit::Mph(r.mph_used));
+    let mut design = restraint::design::check_run(&b.run, &b.resolved, &input);
+    design.lines.insert(0, restraint::design::CheckLine { reference: "Speed band".to_string(), text: r.band_note.clone(), status: restraint::design::Status::Note });
+    Ok(design)
 }
 
 // ─── pavement ───────────────────────────────────────────────────────────────────────────

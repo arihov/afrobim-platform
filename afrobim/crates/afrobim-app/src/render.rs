@@ -53,6 +53,11 @@ impl ElementMesh {
                     if len <= 0.0 {
                         continue;
                     }
+                    // A hairline (annotation, underlays) has no width to fill: it is a stroke.
+                    if *width <= 0.0 {
+                        m.outlines.push((vec![f(from), f(to)], false));
+                        continue;
+                    }
                     let (nx, ny) = (-dy / len * width / 2.0, dx / len * width / 2.0);
                     let quad = vec![
                         Pt2::new(from.x + nx, from.y + ny),
@@ -107,6 +112,11 @@ impl ElementMesh {
 
     /// Shapes for this mesh with its lower-left corner at `origin` (model mm).
     pub fn shapes(&self, view: &ViewTransform, origin: Pt, rep: Representation, ink: Color32, opacity: f32) -> Vec<Shape> {
+        self.shapes_w(view, origin, rep, ink, opacity, 1.0)
+    }
+
+    /// As [`shapes`](Self::shapes) with the stroke `width` in pixels (a layer's line weight).
+    pub fn shapes_w(&self, view: &ViewTransform, origin: Pt, rep: Representation, ink: Color32, opacity: f32, width: f32) -> Vec<Shape> {
         let place = |p: &[f32; 2]| {
             let s = view.to_screen(Pt::new(origin.x + p[0] as f64, origin.y + p[1] as f64));
             Pos2::new(s.x as f32, s.y as f32)
@@ -122,7 +132,7 @@ impl ElementMesh {
             mesh.indices = self.indices.clone();
             out.push(Shape::mesh(mesh));
         }
-        let stroke = Stroke::new(1.0_f32, ink.gamma_multiply(opacity));
+        let stroke = Stroke::new(width, ink.gamma_multiply(opacity));
         for (pts, closed) in &self.outlines {
             // In Real, only open centrelines (arcs) need a stroke; fills already show the closed ones.
             if rep == Representation::Real && *closed {

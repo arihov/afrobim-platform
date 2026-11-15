@@ -529,6 +529,9 @@ impl AfroBimApp {
             y += step;
         }
 
+        if site_mode {
+            self.under.paint_3d(&self.doc, painter, cam, rect, if dark { Color32::from_gray(200) } else { Color32::from_gray(60) });
+        }
         // Everything is gathered with its view depth, then painted farthest first.
         let eye = cam.eye();
         let plate = if dark { Color32::from_rgb(0x8C, 0x93, 0x9B) } else { Color32::from_rgb(0x9A, 0xA1, 0xA8) };
