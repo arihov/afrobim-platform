@@ -72,55 +72,55 @@
       </Component>
     </DirectoryRef>
     <DirectoryRef Id="UgPackDir">
-      <Component Id="c_ug_arrows_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_arrows_xml" Guid="*" Win64="yes">
         <File Id="ug_arrows_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\arrows.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_constraints_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_constraints_xml" Guid="*" Win64="yes">
         <File Id="ug_constraints_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\constraints.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_embedded_shapes_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_embedded_shapes_xml" Guid="*" Win64="yes">
         <File Id="ug_embedded_shapes_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\embedded-shapes.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_embedded_signs_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_embedded_signs_xml" Guid="*" Win64="yes">
         <File Id="ug_embedded_signs_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\embedded-signs.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_fonts_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_fonts_xml" Guid="*" Win64="yes">
         <File Id="ug_fonts_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\fonts.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_map_symbol_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_map_symbol_xml" Guid="*" Win64="yes">
         <File Id="ug_map_symbol_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\map-symbol.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_map_type_spacing_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_map_type_spacing_xml" Guid="*" Win64="yes">
         <File Id="ug_map_type_spacing_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\map-type-spacing.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_pack_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_pack_xml" Guid="*" Win64="yes">
         <File Id="ug_pack_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\pack.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_palettes_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_palettes_xml" Guid="*" Win64="yes">
         <File Id="ug_palettes_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\palettes.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_panel_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_panel_xml" Guid="*" Win64="yes">
         <File Id="ug_panel_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\panel.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_roundabout_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_roundabout_xml" Guid="*" Win64="yes">
         <File Id="ug_roundabout_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\roundabout.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_roundels_triangles_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_roundels_triangles_xml" Guid="*" Win64="yes">
         <File Id="ug_roundels_triangles_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\roundels-triangles.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_route_arms_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_route_arms_xml" Guid="*" Win64="yes">
         <File Id="ug_route_arms_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\route-arms.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_sign_catalog_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_sign_catalog_xml" Guid="*" Win64="yes">
         <File Id="ug_sign_catalog_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\sign-catalog.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_standard_sizes_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_standard_sizes_xml" Guid="*" Win64="yes">
         <File Id="ug_standard_sizes_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\standard-sizes.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_symbols_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_symbols_xml" Guid="*" Win64="yes">
         <File Id="ug_symbols_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\symbols.xml" KeyPath="yes" />
       </Component>
-      <Component Id="c_ug_text_sizes_xml" Guid="*" Directory="UgPackDir">
+      <Component Id="c_ug_text_sizes_xml" Guid="*" Win64="yes">
         <File Id="ug_text_sizes_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\text-sizes.xml" KeyPath="yes" />
       </Component>
     </DirectoryRef>
