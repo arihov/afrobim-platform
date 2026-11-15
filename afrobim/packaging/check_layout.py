@@ -32,6 +32,8 @@ for el in tree.iter():
         ids[key] = True
     if tag == "File":
         src = el.get("Source", "")
+        if src == "$(var.IconPath)":
+            continue  # the icon comes from packaging/icons, not from the staged tree
         prefix = "$(var.StageDir)\\"
         if not src.startswith(prefix):
             problems.append("File %s does not start with $(var.StageDir)" % el.get("Id"))

@@ -57,7 +57,9 @@
     <DirectoryRef Id="INSTALLFOLDER">
       <Component Id="c_exe" Guid="*" Win64="yes">
         <File Id="afrobim_exe" Source="$(var.StageDir)\afrobim.exe" KeyPath="yes" />
-        <ProgId Id="AfroBIM.Document" Description="AfroBIM document" Icon="AppIcon.ico">
+        <!-- The icon is installed as a file because a ProgId that is not advertised takes its icon from an installed file, not from the Icon table. -->
+        <File Id="afrobim_ico" Name="afrobim.ico" Source="$(var.IconPath)" />
+        <ProgId Id="AfroBIM.Document" Description="AfroBIM document" Icon="afrobim_ico">
           <Extension Id="afrobim">
             <Verb Id="open" Command="Open" TargetFile="afrobim_exe" Argument="&quot;%1&quot;" />
           </Extension>
