@@ -1,0 +1,5 @@
+code,kind,speed_kph,approach_class,background,destinations
+# Uganda advance direction signs — sample schedule
+ADS-001,stack,60,primary,green,Kasese:Ahead:0;Masheruka:Right:0
+ADS-002,stack,80,secondary,white,Kampala:Ahead:0;Entebbe:Right:0
+ADS-003,map-crossroads,60,primary,green,Kasese:Left:0;Masheruka:Ahead:0

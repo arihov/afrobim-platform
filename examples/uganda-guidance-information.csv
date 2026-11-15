@@ -1,0 +1,31 @@
+code,kind,speed_kph,approach_class,background,destinations,variant,scheme,symbol,info_template,info_arrow,info_distance
+# Uganda TSM Vol.2 sample schedule — guidance (App.1 §2 / App.3 §4) + information (App.3 §5).
+# Destination cell is  Name:Direction:Order[:Distance[:Symbol]]  with entries separated by ";".
+# Optional trailing columns (variant, scheme, symbol, info_template, info_arrow, info_distance)
+# may be left blank; the importer then applies the model defaults, so the legacy six-column
+# shape still parses. Rows and the "#" comment lines are ignored by the batch importer.
+
+# ── Guidance ────────────────────────────────────────────────────────────────
+ADS-001,stack,60,primary,green,Kasese:Ahead:0;Kampala:Ahead:1;Masheruka:Right:0,primary,primary
+MAP-002,map-crossroads,80,primary,green,Jinja:Ahead:0;Kampala:Left:0;Entebbe:Right:0::bus,primary,primary
+TEE-003,map-tee,60,secondary,white,Mukono:Ahead:0;Entebbe:Right:0,secondary,secondary
+RND-004,map-roundabout,50,primary,green,Kampala:Ahead:0;Nakawa:Left:0;Jinja:Right:0,primary,primary
+DIR-005,direction,100,primary,green,Kampala:Ahead:0;Mukono:Right:0,primary,primary
+CONF-006,confirmatory,100,secondary,white,Kampala:Ahead:0:12 km;Mukono:Ahead:1:48 km,secondary,secondary
+LANE-007,lane,80,primary,green,Kampala:Ahead:0;Airport:Ahead:1::aircraft,primary,primary
+PLACE-008,place-id,100,secondary,white,Kampala:Ahead:0,secondary,secondary
+DIV-009,diversion,60,secondary,yellow,Forward route:Ahead:0;Detour:Right:0,secondary,temporary
+
+# ── Information — road & traffic symbol plates (App.3 §5, I01–I10) ───────────
+INF-010,information,50,secondary,blue,,secondary,information,parking-p,symbol-plate
+INF-011,information,50,secondary,blue,,secondary,information,bus,symbol-plate
+INF-012,information,50,secondary,blue,,secondary,information,one-way,symbol-plate
+
+# ── Information — services & places panels (I21–I32) ─────────────────────────
+SVC-013,information,60,primary,green,,primary,information,hospital,service-panel,right,4 km
+SVC-014,information,60,primary,green,,primary,information,pump,service-panel,left
+SVC-015,information,60,primary,green,,primary,information,bed,service-panel,right,2 km
+SVC-016,information,60,primary,green,,primary,information,aircraft,service-panel,ahead
+
+# ── Information — tourist panel (I51) ────────────────────────────────────────
+TUR-017,tourist,60,secondary,brown,,secondary,tourist,tent,service-panel,right,2 km

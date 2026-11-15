@@ -1,0 +1,46 @@
+code,kind,speed_kph,approach_class,background,destinations,variant,scheme,symbol,info_template,info_arrow,info_distance
+# UK TSM Chapter 7 directional signs (UK-TSM-2019 pack, the default). Speeds are 85th
+# percentile approach speeds in km/h; distances are written in km.
+# Destination cell is  Name:Direction:Order[:Distance[:Symbol[:RouteNumber[:Route[:NumberStatus]]]]]
+# with entries separated by ";". Route (picks the panel) and NumberStatus (picks the patch)
+# are motorway | primary | non-primary; NumberStatus is inferred when blank (M numbers are
+# motorways, otherwise it follows Route).
+
+# Stack-type ADS (§4, Figure 4-9): one section per direction, ahead / left / right.
+UK-STK-01,stack,60,primary,green,Kampala:Ahead:0;Mukono:Ahead:1;Entebbe:Left:0;Jinja:Right:0,primary,primary
+UK-STK-02,stack,80,secondary,white,Wakiso:Ahead:0;Gayaza:Right:0,secondary,secondary
+# Route numbers, patches and panels (§3.2-3.3, Figure 4-9 layout): A11 in yellow on green,
+# (M11) on a bordered blue patch, A123 and B1991 on white non-primary panels.
+UK-STK-08,stack,80,primary,green,Biggleswick:Ahead:0:::A11:primary;Lampton:Ahead:1:::(M11):primary;Dorfield:Left:0:::A123:non-primary;Axtley:Right:0:::B1991:non-primary,primary,primary
+# White non-primary sign: primary route numbers on green patches.
+UK-STK-09,stack,60,secondary,white,Milport:Left:0:::(A112):non-primary:primary;Westfield:Right:0:::(A122):non-primary:primary;Egdon:Right:1:::(A122):non-primary:primary,secondary,secondary
+# Map-type ADS (§5).
+UK-MAP-03,map-crossroads,80,primary,green,Jinja:Ahead:0;Kampala:Left:0;Entebbe:Right:0,primary,primary
+UK-RBT-04,map-roundabout,50,primary,green,Kampala:Ahead:0;Nakawa:Left:0;Jinja:Right:0,primary,primary
+UK-TEE-05,map-tee,60,secondary,white,Mukono:Left:0;Entebbe:Right:0,secondary,secondary
+# Rectangular direction sign (§7.3) and route confirmatory sign (§8).
+UK-DIR-06,direction,60,primary,green,Kampala:Ahead:0,primary,primary
+UK-RCS-07,confirmatory,100,primary,green,Mukono:Ahead:0:21 km;Jinja:Ahead:1:80 km,primary,primary
+# Route numbers on direction and route confirmatory signs (same rules as the stack-type
+# rows above): (A109) on a green patch and a primary-route destination on a green panel on
+# white signs; M1 on a bordered blue patch on green; confirmatory signs with the route
+# number below its name (§3.9.4), (M11) on a blue patch, a white non-primary panel and the
+# distances in one column.
+UK-DIR-10,direction,60,secondary,white,Hayford:Ahead:0:::(A109):non-primary:primary;Barton:Ahead:1:::B1040:non-primary,secondary,secondary
+UK-DIR-11,direction,80,primary,green,Luton:Ahead:0:::M1:primary;Dunstable:Ahead:1:::A5:primary,primary,primary
+UK-DIR-12,direction,48,secondary,white,Stevenage:Ahead:0:::A602:primary,secondary,secondary
+UK-RCS-13,confirmatory,100,primary,green,Barton:Ahead:0:12 km::A11:primary;Cambridge:Ahead:1:64 km::(M11):primary,primary,primary
+UK-RCS-14,confirmatory,80,primary,green,Hayford:Ahead:0:27 km::A11:primary;Dorfield:Ahead:1:35 km::(B1040):non-primary,primary,primary
+# Map-type signs with route numbers (§5, the Figure 5-7 working drawing): the destination
+# blocks follow the stack-type rules, side arms are 4 sw for non-primary routes and 6 sw for
+# primary ones, and a direction without destinations gets a stub (Figure 5-5).
+UK-MAP-15,map-crossroads,80,primary,green,Biggleswick:Ahead:0:::A11:primary;Lampton:Ahead:1:::(M11):primary;Dorfield:Left:0:::A123:non-primary;Axtley:Right:0:::B1991:non-primary,primary,primary
+UK-MAP-16,map-crossroads,60,primary,green,Hayford:Ahead:0:::A11:primary;Westfield:Right:0:::B1040:non-primary,primary,primary
+UK-TEE-17,map-tee,60,secondary,white,Milport:Left:0:::(A112):non-primary:primary;Hayford:Right:0:::A109:primary;Barton:Right:1:::A109:primary,secondary,secondary
+UK-RBT-18,map-roundabout,60,primary,green,Cambridge:Ahead:0:::(M11):primary;Royston:Left:0:::A505:primary;Barton:Right:0:::B1040:non-primary,primary,primary
+# Motorway (blue) scheme (§3.5, TSRGD 2016 Schedule 12 Part 2 item 1): white legend and border on
+# blue. A stack-type sign on an exit slip road (§10.15): the primary route on a green panel with a
+# 0.5 sw white border, the non-primary route on a white panel (§3.14), and the bracketed motorway
+# number on the blue ground with no patch. A route confirmatory sign on the main carriageway.
+UK-STK-19,stack,96,primary,blue,London:Ahead:0:::(M40):motorway;Oxford:Left:0:::A34:primary;Banbury:Right:0:::A422:non-primary,primary,motorway
+UK-RCS-20,confirmatory,112,primary,blue,Luton:Ahead:0:30 km;Leicester:Ahead:1:120 km,primary,motorway

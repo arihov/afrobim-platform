@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<sign-schedule source="S11 verification">
+  <sign code="XDS-001" kind="stack" speed-kph="60" approach-class="primary" background="green">
+    <destination name="Kampala" direction="ahead" order="0"/>
+    <destination name="Mukono" direction="ahead" order="1"/>
+  </sign>
+  <sign code="XDS-002" kind="map-crossroads" speed-kph="80" approach-class="secondary" background="green">
+    <destination name="Jinja"  direction="right" order="0"/>
+    <destination name="Kampala" direction="ahead" order="0"/>
+  </sign>
+</sign-schedule>

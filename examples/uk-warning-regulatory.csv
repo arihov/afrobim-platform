@@ -1,0 +1,42 @@
+code,kind,speed_kph,approach_class,background,destinations,variant,scheme,symbol,info_template,info_arrow,info_distance
+# UK warning and regulatory signs (UK-TSM-2019 pack, the default), keyed by TSRGD 2016 diagram.
+# speed_kph is the 85th percentile approach speed in km/h; it picks the sign size from the TSM
+# tables (warning: Chapter 4 Appendix A; regulatory: Chapter 3 Appendix A and Tables 3-2, 3-3;
+# 670: Table 14-1 by the approach road's speed limit). symbol is the diagram number; for 670 add
+# the limit after a colon. info_distance is the legend of an associated plate, drawn below the
+# sign as one object ("|" starts a new line). The legend must be one the pack's plate size
+# table covers (TSM Chapter 4 Appendix B rows 572, 570, 518, 513.1; Chapter 3 Appendix A
+# row 570); any other legend is not drawn and raises PLATE_SIZE_UNSPECIFIED.
+# ── warning signs (TSRGD Schedule 2) ──────────────────────────────────────────
+UKW-504,warning,48,primary,white,,,secondary,504.1,,,
+UKW-505,warning,64,primary,white,,,secondary,505.1,,,
+UKW-506,warning,64,primary,white,,,secondary,506.1,,,
+UKW-507,warning,80,primary,white,,,secondary,507.1,,,
+UKW-508,warning,96,primary,white,,,secondary,508.1,,,
+UKW-512,warning,64,primary,white,,,secondary,512,,,
+UKW-513,warning,64,primary,white,,,secondary,513,,,
+UKW-516,warning,64,primary,white,,,secondary,516,,,
+UKW-517,warning,64,primary,white,,,secondary,517,,,
+UKW-529,warning,80,primary,white,,,secondary,529.1,,,
+UKW-544,warning,48,primary,white,,,secondary,544.1,,,
+UKW-545,warning,48,primary,white,,,secondary,545,,,
+UKW-557,warning,48,primary,white,,,secondary,557.1,,,
+UKW-562,warning,64,primary,white,,,secondary,562,,,
+UKW-545T,warning,48,primary,yellow,,,temporary,545,,,
+# ── warning signs with their plate (TSM Chapter 4 Appendix B rows 570, 572, 518) ─
+UKP-513,warning,64,primary,white,,,secondary,513,,,For 2 miles
+UKP-505,warning,32,primary,white,,,secondary,505.1,,,100 yds
+UKP-516,warning,80,primary,white,,,secondary,516,,,Single file|traffic
+# ── regulatory signs (TSRGD Schedules 3, 9 and 10) ────────────────────────────
+UKR-601,stop,48,primary,white,,,secondary,601.1,,,
+UKR-602,give-way,64,primary,white,,,secondary,602,,,
+UKR-606,regulatory-mandatory,48,primary,white,,,secondary,606,,,
+UKR-609,regulatory-mandatory,48,primary,white,,,secondary,609,,,
+UKR-610,regulatory-mandatory,64,primary,white,,,secondary,610,,,
+UKR-616,regulatory-prohibitory,48,primary,white,,,secondary,616,,,
+UKR-619,regulatory-prohibitory,48,primary,white,,,secondary,619,,,
+UKR-625,regulatory-prohibitory,48,primary,white,,,secondary,625.1,,,
+UKR-632,regulatory-prohibitory,64,primary,white,,,secondary,632,,,
+UKR-670,regulatory-prohibitory,64,primary,white,,,secondary,670:30,,,
+# ── regulatory signs with their plate (TSM Chapter 3 Appendix A row 570) ─────
+UKP-632,regulatory-prohibitory,64,primary,white,,,secondary,632,,,For 2 miles
