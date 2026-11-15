@@ -1,6 +1,7 @@
 [package]
 name = "afrobim-app"
 description = "AfroBIM desktop application"
+authors.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
