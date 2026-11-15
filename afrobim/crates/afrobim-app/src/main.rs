@@ -44,6 +44,8 @@ mod station_input;
 mod supports_glue;
 #[cfg(test)]
 mod u1_tests;
+#[cfg(test)]
+mod u2_tests;
 mod underlay;
 mod view3d;
 mod visibility_ui;

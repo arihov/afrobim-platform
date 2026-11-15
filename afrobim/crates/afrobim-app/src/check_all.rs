@@ -629,7 +629,7 @@ fn pavement_check(doc: &Document, e: &Element, m: &mut Maker) {
     let Some(form) = inputs::load::<road_glue::DesignForm>(doc, e.id, inputs::KEY_PAVEMENT) else {
         return m.push(e, check, Status::InputNeeded, "no design inputs are stored for this pavement: run PAVEDESIGN, choose this pavement to keep the inputs on, and enter the traffic and the subgrade", Vec::new());
     };
-    let method = road_glue::METHODS[form.method.min(road_glue::METHODS.len() - 1)];
+    let method = road_glue::methods()[form.method.min(road_glue::methods().len() - 1)];
     let outcome = match form.run() {
         Ok(o) => o,
         Err(why) => return m.push(e, check, Status::InputNeeded, format!("{}: {why}", method.name()), Vec::new()),

@@ -618,11 +618,11 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
     crate::win::new(ctx, "Pavement design").collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.label("Method");
-            for (i, m) in road_glue::METHODS.iter().enumerate() {
+            for (i, m) in road_glue::methods().iter().enumerate() {
                 ui.selectable_value(&mut d.form.method, i, m.name());
             }
         });
-        ui.label(RichText::new(road_glue::METHODS[d.form.method.min(2)].reference()).small().weak());
+        ui.label(RichText::new(road_glue::methods()[d.form.method.min(road_glue::SA_METHOD)].reference()).small().weak());
         ui.horizontal(|ui| {
             ui.label("Keep the inputs on pavement");
             let pavements = afrobim_pavement::pavements(doc);
@@ -639,6 +639,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
         egui::ScrollArea::vertical().max_height(480.0).show(ui, |ui| match d.form.method {
             0 => mowt_form(ui, &mut d.form.mowt),
             1 => dmrb_form(ui, &mut d.form.dmrb),
+            road_glue::SA_METHOD => trh4_form(ui, &mut d.form.trh4),
             _ => aashto_form(ui, &mut d.form.aashto),
         });
         not_a_design(ui, "Every figure is the engineer's: traffic, strength, climate and the AASHTO coefficients are not defaulted. The methods are not interchangeable. The result is a calculation for an engineer to check, not a certified design; the warnings of the method are in the calculation.");
@@ -665,6 +666,10 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
                     create = true;
                 }
             }
+        } else if d.form.method == road_glue::SA_METHOD {
+            ui.separator();
+            ui.add_enabled(false, egui::Button::new("Make a pavement from these layers")).on_disabled_hover_text(road_glue::SA_NO_LAYERS);
+            ui.label(RichText::new(road_glue::SA_NO_LAYERS).small().color(NOTE));
         }
         ui.add_space(6.0);
         ui.horizontal(|ui| {
@@ -682,7 +687,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
                 if let Some(element) = d.element {
                     crate::check_inputs::save(doc, element, crate::check_inputs::KEY_PAVEMENT, &d.form);
                 }
-                let title = road_glue::METHODS[d.form.method.min(2)].name().to_string();
+                let title = road_glue::methods()[d.form.method.min(road_glue::SA_METHOD)].name().to_string();
                 out.push(Outcome::Report(title, result.lines));
                 d.make = result.layers.as_ref().and_then(|layers| {
                     let (id, start, end) = first_alignment(doc).ok()?;
@@ -837,6 +842,75 @@ fn dmrb_form(ui: &mut Ui, f: &mut DmrbForm) {
         ui.end_row();
     });
     ui.label(RichText::new("This method gives design traffic and, over an HBGM base, the asphalt thickness. It gives no layer stack, so no pavement can be made from it.").small().weak());
+}
+
+fn trh4_form(ui: &mut Ui, f: &mut road_glue::Trh4Form) {
+    ui.label(RichText::new(road_glue::SA_E80_NOTE).strong().color(NOTE));
+    ui.add_space(4.0);
+    egui::Grid::new("trh4").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+        ui.label("Road category");
+        let shown = f.category.map(|c| road_glue::SA_ROAD_CATEGORIES[c.min(3)].to_string()).unwrap_or_else(|| "choose".to_string());
+        egui::ComboBox::from_id_salt("trh4-category").selected_text(shown).show_ui(ui, |ui| {
+            for (i, c) in road_glue::SA_ROAD_CATEGORIES.iter().enumerate() {
+                ui.selectable_value(&mut f.category, Some(i), *c);
+            }
+        });
+        ui.end_row();
+        ui.label("Traffic loading entered as");
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut f.loading_mode, 0, "daily E80 per lane");
+            ui.selectable_value(&mut f.loading_mode, 1, "heavy vehicles and E80 each");
+        });
+        ui.end_row();
+        if f.loading_mode == 0 {
+            ui.label("Daily E80 per design lane (at the survey)");
+            optional(ui, &mut f.daily_e80_per_lane, 10.0, " E80");
+        } else {
+            ui.label("Heavy vehicles per lane per day");
+            optional(ui, &mut f.hv_per_lane_per_day, 1.0, "");
+            ui.end_row();
+            ui.label("E80 per heavy vehicle");
+            optional(ui, &mut f.e80_per_hv, 0.05, " E80");
+        }
+        ui.end_row();
+        ui.label("Heavy vehicle growth per year");
+        optional(ui, &mut f.hv_growth_percent, 0.1, " %");
+        ui.end_row();
+        ui.label("E80 per heavy vehicle growth per year");
+        optional(ui, &mut f.e80_growth_percent, 0.1, " %");
+        ui.end_row();
+        ui.label("Years from the survey to opening");
+        optional(ui, &mut f.years_survey_to_opening, 0.5, " years");
+        ui.end_row();
+        ui.label("Structural design period");
+        optional(ui, &mut f.design_period_years, 1.0, " years");
+        ui.end_row();
+        ui.label("Climate entered as");
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut f.climate_mode, 0, "the class");
+            ui.selectable_value(&mut f.climate_mode, 1, "Weinert N");
+            ui.selectable_value(&mut f.climate_mode, 2, "Thornthwaite index");
+        });
+        ui.end_row();
+        if f.climate_mode == 0 {
+            ui.label("Climatic class");
+            let names = ["Wet", "Moderate", "Dry"];
+            let shown = f.climate_region.map(|c| names[c.min(2)].to_string()).unwrap_or_else(|| "choose".to_string());
+            egui::ComboBox::from_id_salt("trh4-climate").selected_text(shown).show_ui(ui, |ui| {
+                for (i, n) in names.iter().enumerate() {
+                    ui.selectable_value(&mut f.climate_region, Some(i), *n);
+                }
+            });
+        } else {
+            ui.label(if f.climate_mode == 1 { "Weinert N" } else { "Thornthwaite moisture index" });
+            optional(ui, &mut f.climate_value, 0.5, "");
+        }
+        ui.end_row();
+        ui.label("Subgrade design CBR");
+        optional(ui, &mut f.subgrade_cbr_percent, 0.5, " %");
+        ui.end_row();
+    });
+    ui.label(RichText::new("Growth rates are entered in per cent a year. The run gives the design traffic, the traffic class (ES0.003 to ES100), the climatic class and the action on the subgrade, with the engine's warnings. It gives no layers.").small().weak());
 }
 
 fn aashto_form(ui: &mut Ui, f: &mut AashtoForm) {

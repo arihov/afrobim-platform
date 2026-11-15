@@ -396,7 +396,78 @@ pub fn add_pavement(doc: &mut Document, alignment_id: ElementId, req: &PavementR
 
 // ─── pavement design methods ────────────────────────────────────────────────────────────
 
-pub const METHODS: [pavement::design::DesignMethod; 3] = [pavement::design::DesignMethod::MowtRdmVol3, pavement::design::DesignMethod::DmrbCd226, pavement::design::DesignMethod::Aashto1993];
+/// The design methods the dialog offers, in order: the three that give layers, then the South
+/// African basis (`DesignMethod::extended()`), which gives design traffic and classes only.
+pub fn methods() -> &'static [pavement::design::DesignMethod] {
+    pavement::design::DesignMethod::extended()
+}
+
+/// The index of the South African method in [`methods`].
+pub const SA_METHOD: usize = 3;
+
+pub const SA_ROAD_CATEGORIES: [&str; 4] = ["Category A", "Category B", "Category C", "Category D"];
+
+/// Inputs of the South African design basis (SAPEM Chapter 10, reproducing Draft TRH4). Every
+/// field starts empty: traffic, growth, period, climate and CBR are the engineer's.
+///
+/// Traffic here is in E80 as SAPEM defines it. It is **not** the same quantity as the standard
+/// axles of the other methods (MoWT ESA, AASHTO 18-kip ESAL, DMRB msa), and no number is copied
+/// between them.
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Trh4Form {
+    /// Index into [`SA_ROAD_CATEGORIES`].
+    pub category: Option<usize>,
+    /// 0: daily E80 per design lane entered directly; 1: heavy vehicles per lane per day and E80 per heavy vehicle.
+    pub loading_mode: usize,
+    pub daily_e80_per_lane: Option<f64>,
+    pub hv_per_lane_per_day: Option<f64>,
+    pub e80_per_hv: Option<f64>,
+    pub hv_growth_percent: Option<f64>,
+    pub e80_growth_percent: Option<f64>,
+    pub years_survey_to_opening: Option<f64>,
+    pub design_period_years: Option<f64>,
+    /// 0: the class itself; 1: Weinert N; 2: Thornthwaite moisture index.
+    pub climate_mode: usize,
+    /// Index into wet, moderate, dry.
+    pub climate_region: Option<usize>,
+    pub climate_value: Option<f64>,
+    pub subgrade_cbr_percent: Option<f64>,
+}
+
+impl Trh4Form {
+    pub fn input(&self) -> Result<pavement::design::sa_trh4::Trh4Input, String> {
+        use pavement::design::sa_trh4::{BaseLoading, ClimaticRegion, Climate, RoadCategory, Trh4Input};
+        let need = |v: Option<f64>, what: &str| v.ok_or_else(|| format!("Enter {what}."));
+        let category = RoadCategory::all()[self.category.ok_or("Choose the road category.")?.min(3)];
+        let loading = if self.loading_mode == 0 {
+            BaseLoading::DailyE80PerLane(need(self.daily_e80_per_lane, "the daily E80 per design lane")?)
+        } else {
+            BaseLoading::HeavyVehicles { hvv_per_lane_per_day: need(self.hv_per_lane_per_day, "the heavy vehicles per lane per day")?, e80_per_hv: need(self.e80_per_hv, "the E80 per heavy vehicle")? }
+        };
+        let climate = match self.climate_mode {
+            0 => Climate::Region([ClimaticRegion::Wet, ClimaticRegion::Moderate, ClimaticRegion::Dry][self.climate_region.ok_or("Choose the climatic class.")?.min(2)]),
+            1 => Climate::WeinertN(need(self.climate_value, "the Weinert N value")?),
+            _ => Climate::Thornthwaite(need(self.climate_value, "the Thornthwaite moisture index")?),
+        };
+        Ok(Trh4Input {
+            category,
+            loading,
+            hv_growth: need(self.hv_growth_percent, "the heavy vehicle growth rate")? / 100.0,
+            e80_per_hv_growth: need(self.e80_growth_percent, "the growth rate of E80 per heavy vehicle")? / 100.0,
+            years_survey_to_opening: need(self.years_survey_to_opening, "the years from the survey to opening")?,
+            structural_design_period_years: need(self.design_period_years, "the structural design period")?,
+            climate,
+            subgrade_design_cbr_percent: self.subgrade_cbr_percent,
+        })
+    }
+}
+
+/// Why the South African method gives no pavement to make.
+pub const SA_NO_LAYERS: &str = "The South African method gives design traffic, traffic class, climatic class and the subgrade action only. The TRH4 catalogue of structures was not obtainable, so it returns no layers and a pavement cannot be made from it. Choose the structure from the catalogue yourself and enter its layers under Pavement.";
+
+/// The E80 caution shown in the dialog and kept with the result.
+pub const SA_E80_NOTE: &str = "E80 is the South African standard axle (80 kN dual-wheel single axle). It is not interchangeable with the standard axles of the other methods (MoWT ESA, AASHTO 18-kip ESAL, DMRB million standard axles): do not copy a traffic figure from one method to another.";
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ClassRow {
@@ -497,6 +568,8 @@ pub struct DesignForm {
     pub mowt: MowtForm,
     pub dmrb: DmrbForm,
     pub aashto: AashtoForm,
+    /// The South African basis (added later: forms stored without it load with it empty).
+    pub trh4: Trh4Form,
 }
 
 /// What a design run gives back.
@@ -511,7 +584,7 @@ pub struct DesignOutcome {
 impl DesignForm {
     pub fn input(&self) -> Result<pavement::design::DesignInput, String> {
         use pavement::design::{aashto93, dmrb, mowt, DesignInput};
-        Ok(match METHODS[self.method.min(METHODS.len() - 1)] {
+        Ok(match methods()[self.method.min(methods().len() - 1)] {
             pavement::design::DesignMethod::MowtRdmVol3 => {
                 let f = &self.mowt;
                 let provision = |good: bool| if good { mowt::Provision::Good } else { mowt::Provision::Deficient };
@@ -553,8 +626,8 @@ impl DesignForm {
                     },
                 })
             }
-            // The last method; DesignMethod is non-exhaustive, so this arm also answers any added later,
-            // which METHODS does not list.
+            pavement::design::DesignMethod::SaTrh4 => DesignInput::SaTrh4(self.trh4.input()?),
+            // DesignMethod is non-exhaustive, so this arm answers AASHTO and any method added later.
             _ => {
                 let f = &self.aashto;
                 let list = materials();
