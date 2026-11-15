@@ -45,6 +45,52 @@ impl Default for Camera {
     }
 }
 
+/// Clips a triangle, given in view space (`[right, up, depth]`), to the half-space in front of the
+/// near plane `depth >= near`, and returns the triangles that remain: none, one or two.
+///
+/// Why the clipping is needed. Perspective projection divides by depth: `x_screen = x / depth * f`.
+/// A vertex at or behind the camera (depth <= 0) has no screen position, and one just in front of
+/// it lands thousands of pixels away. Dropping every triangle that has such a vertex removes the
+/// large triangles of a pavement or the ground as soon as the camera is close to them, because
+/// those triangles reach behind the camera while the part in view is still large. Clipping keeps
+/// the part in front.
+///
+/// Derivation. The edge from `a` to `b` is the line `p(t) = a + t (b - a)`, `t` in `[0, 1]`. Its
+/// depth is linear in `t`: `z(t) = za + t (zb - za)`. It meets the plane `z = near` where
+/// `za + t (zb - za) = near`, that is at `t = (near - za) / (zb - za)`. Because the depth is
+/// linear, so is every other coordinate along the edge, so the intersection point is
+/// `a + t (b - a)` with that `t`, and its depth is exactly `near`. Walking round the triangle
+/// edge by edge and keeping the vertices in front plus the intersection points of the edges that
+/// cross the plane gives the clipped polygon (the Sutherland-Hodgman step for one plane):
+///
+/// * all three vertices in front: the triangle is unchanged;
+/// * one vertex behind: the edges to it are cut, leaving a quadrilateral, which is split into two
+///   triangles along a diagonal;
+/// * two vertices behind: the two edges from the vertex in front are cut, leaving one triangle;
+/// * all three behind: nothing remains.
+///
+/// The winding order is kept, and the cut points lie on the original plane of the triangle, so the
+/// shading (which comes from the world-space normal) is unchanged.
+pub fn clip_triangle_near(tri: [V3; 3], near: f64) -> Vec<[V3; 3]> {
+    let mut poly: Vec<V3> = Vec::with_capacity(4);
+    for i in 0..3 {
+        let (a, b) = (tri[i], tri[(i + 1) % 3]);
+        let (a_in, b_in) = (a[2] >= near, b[2] >= near);
+        if a_in {
+            poly.push(a);
+        }
+        if a_in != b_in {
+            let t = (near - a[2]) / (b[2] - a[2]);
+            poly.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), near]);
+        }
+    }
+    match poly.len() {
+        3 => vec![[poly[0], poly[1], poly[2]]],
+        4 => vec![[poly[0], poly[1], poly[2]], [poly[0], poly[2], poly[3]]],
+        _ => Vec::new(),
+    }
+}
+
 /// Vertical field of view.
 const FOV: f64 = 0.61; // 35°
 /// The same, in degrees, for saved viewpoints.
@@ -79,6 +125,20 @@ impl Camera {
         let focal = viewport.height() as f64 / (2.0 * (FOV / 2.0).tan());
         let c = viewport.center();
         Some((pos2((c.x as f64 + dot(d, right) / z * focal) as f32, (c.y as f64 - dot(d, up) / z * focal) as f32), z))
+    }
+
+    /// A world point in view space: `[right, up, depth]`, the depth along the viewing direction.
+    pub fn to_view(&self, p: V3) -> V3 {
+        let (right, up, forward) = self.basis();
+        let d = sub(p, self.eye());
+        [dot(d, right), dot(d, up), dot(d, forward)]
+    }
+
+    /// Screen position of a view-space point (see [`Camera::to_view`]); the depth must be positive.
+    pub fn view_to_screen(&self, v: V3, viewport: Rect) -> Pos2 {
+        let focal = viewport.height() as f64 / (2.0 * (FOV / 2.0).tan());
+        let c = viewport.center();
+        pos2((c.x as f64 + v[0] / v[2] * focal) as f32, (c.y as f64 - v[1] / v[2] * focal) as f32)
     }
 
     /// The viewing direction (unit) and the up vector of the view, world axes.
@@ -321,8 +381,11 @@ impl AfroBimApp {
                     continue;
                 }
                 let normal = if facing < 0.0 { [-normal[0], -normal[1], -normal[2]] } else { normal };
-                let projected: Option<Vec<(Pos2, f64)>> = p.iter().map(|q| cam.project(*q, rect)).collect();
-                let Some(projected) = projected else { continue };
+                // Clipped to the near plane, so a slab with a vertex behind the camera still shows
+                // the part in front (one or two triangles); see `clip_triangle_near`.
+                let view = [cam.to_view(p[0]), cam.to_view(p[1]), cam.to_view(p[2])];
+                for piece in clip_triangle_near(view, NEAR) {
+                let projected: Vec<(Pos2, f64)> = piece.iter().map(|v| (cam.view_to_screen(*v, rect), v[2])).collect();
                 // The ground is a backdrop: its triangles are large, so sorting them by centre
                 // against the small things that stand on them goes wrong. They are painted
                 // first (in order among themselves) and everything else over them.
@@ -351,6 +414,7 @@ impl AfroBimApp {
                 }
                 tri.indices = vec![0, 1, 2];
                 items.push((depth, vec![Shape::mesh(tri)]));
+                }
             }
         }
     }
@@ -403,6 +467,10 @@ impl AfroBimApp {
         if !self.fitted_3d && rect.width() > 50.0 {
             self.fitted_3d = true;
             self.fit_3d();
+            // `--camera distance,yaw,pitch[,station]`: a chosen viewpoint, for screenshots.
+            if let Some(spec) = self.options.camera.take() {
+                self.apply_camera_option(&spec);
+            }
         }
 
         // Left drag orbits, middle or Shift + left drag pans, the wheel zooms, double-click fits.
@@ -441,6 +509,27 @@ impl AfroBimApp {
             self.construction.refresh_percents(self.sched.date);
         }
         self.paint_3d(&painter, rect);
+    }
+
+    /// Applies `--camera distance_mm,yaw_deg,pitch_deg[,station_m]`; a spec that does not parse is ignored.
+    fn apply_camera_option(&mut self, spec: &str) {
+        let v: Vec<f64> = spec.split(',').filter_map(|t| t.trim().parse().ok()).collect();
+        if v.len() < 3 {
+            return;
+        }
+        self.camera.distance = v[0].max(50.0);
+        self.camera.yaw = v[1].to_radians();
+        self.camera.pitch = v[2].to_radians();
+        if let Some(station) = v.get(3) {
+            let first = crate::alignment_glue::alignments(&self.doc).into_iter().next().and_then(|(id, _)| crate::alignment_glue::alignment_of(&self.doc, id));
+            if let Some(a) = first {
+                let pts = centreline_points(&a, 1.0);
+                let span = a.end_station_m() - a.start_station_m;
+                if let Some(p) = pts.get((((station - a.start_station_m) / span.max(1e-9)).clamp(0.0, 1.0) * (pts.len() - 1) as f64).round() as usize) {
+                    self.camera.target = *p;
+                }
+            }
+        }
     }
 
     pub(crate) fn fit_3d(&mut self) {
@@ -686,6 +775,63 @@ impl AfroBimApp {
 
 #[cfg(test)]
 mod tests {
+    // Hand-worked clipping, near plane at depth 1, view-space coordinates `[right, up, depth]`.
+
+    #[test]
+    fn a_triangle_wholly_in_front_is_unchanged_and_one_wholly_behind_is_dropped() {
+        let t = [[0.0, 0.0, 3.0], [4.0, 0.0, 3.0], [2.0, 6.0, 5.0]];
+        assert_eq!(clip_triangle_near(t, 1.0), vec![t]);
+        let behind = [[0.0, 0.0, -3.0], [4.0, 0.0, 0.0], [2.0, 6.0, 0.5]];
+        assert!(clip_triangle_near(behind, 1.0).is_empty());
+    }
+
+    #[test]
+    fn one_vertex_behind_the_plane_gives_two_triangles() {
+        // A (0,0,3), B (4,0,3), C (2,6,-1). Edge B to C: t = (1 - 3) / (-1 - 3) = 0.5, so the cut
+        // is (4 + 0.5 (2 - 4), 0 + 0.5 (6 - 0), 1) = (3, 3, 1). Edge C to A: t = (1 + 1) / (3 + 1)
+        // = 0.5, so the cut is (2 + 0.5 (0 - 2), 6 + 0.5 (0 - 6), 1) = (1, 3, 1).
+        let (a, b, c) = ([0.0, 0.0, 3.0], [4.0, 0.0, 3.0], [2.0, 6.0, -1.0]);
+        let out = clip_triangle_near([a, b, c], 1.0);
+        let (x1, x2) = ([3.0, 3.0, 1.0], [1.0, 3.0, 1.0]);
+        assert_eq!(out, vec![[a, b, x1], [a, x1, x2]]);
+        // The quadrilateral A B X1 X2 has area 4 * ... : the trapezoid with parallel sides 4 (at
+        // up = 0) and 2 (at up = 3), height 3, area 9. Plain area in the (right, up) plane.
+        let area = |t: &[V3; 3]| ((t[1][0] - t[0][0]) * (t[2][1] - t[0][1]) - (t[2][0] - t[0][0]) * (t[1][1] - t[0][1])).abs() / 2.0;
+        assert!((out.iter().map(area).sum::<f64>() - 9.0).abs() < 1e-12);
+        // Every vertex is at or in front of the plane, and the winding (sign of the area) is kept.
+        assert!(out.iter().flatten().all(|v| v[2] >= 1.0 - 1e-12));
+    }
+
+    #[test]
+    fn two_vertices_behind_the_plane_give_one_triangle() {
+        // A (0,0,3), B (4,0,-1), C (0,8,-5). Edge A to B: t = (1 - 3) / (-1 - 3) = 0.5, so the
+        // cut is (2, 0, 1). Edge C to A: t = (1 + 5) / (3 + 5) = 0.75, so the cut is
+        // (0 + 0.75 * 0, 8 + 0.75 * (0 - 8), 1) = (0, 2, 1).
+        let (a, b, c) = ([0.0, 0.0, 3.0], [4.0, 0.0, -1.0], [0.0, 8.0, -5.0]);
+        let out = clip_triangle_near([a, b, c], 1.0);
+        assert_eq!(out, vec![[a, [2.0, 0.0, 1.0], [0.0, 2.0, 1.0]]]);
+    }
+
+    #[test]
+    fn a_big_slab_under_a_close_camera_still_projects_its_front_part() {
+        // A camera 300 mm above the middle of a 100 m square slab, looking along the slab.
+        let cam = Camera { target: [0.0, 0.0, 0.0], distance: 300.0, yaw: 0.0, pitch: 0.0 };
+        let slab = [[-50_000.0, -50_000.0, 0.0], [50_000.0, -50_000.0, 0.0], [50_000.0, 50_000.0, 0.0]];
+        // The eye is at x = 300 looking towards -x, so the two corners at x = 50 000 are behind it.
+        let view = [cam.to_view(slab[0]), cam.to_view(slab[1]), cam.to_view(slab[2])];
+        assert!(view.iter().any(|v| v[2] < NEAR), "a vertex is behind the camera");
+        let pieces = clip_triangle_near(view, NEAR);
+        assert!(!pieces.is_empty(), "the part in front is kept");
+        let rect = Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(800.0, 600.0));
+        for t in &pieces {
+            for v in t {
+                assert!(v[2] >= NEAR - 1e-9);
+                let p = cam.view_to_screen(*v, rect);
+                assert!(p.x.is_finite() && p.y.is_finite());
+            }
+        }
+    }
+
     use super::*;
 
     fn viewport() -> Rect {

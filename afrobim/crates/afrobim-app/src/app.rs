@@ -1823,19 +1823,49 @@ impl AfroBimApp {
                 ui.selectable_value(&mut self.rep, Representation::Real, "Real");
                 ui.selectable_value(&mut self.rep, Representation::Outlined, "Outlined");
                 ui.separator();
-                ui.label(RichText::new(&self.status).weak());
+                // The message and the read-outs share what is left of the bar; see `statusbar.rs`.
+                use crate::statusbar::{fit_message, layout, Segment};
+                let sel = self.doc.selection();
+                let sel_text = match (sel.len(), self.doc.primary().and_then(|id| self.doc.find(id))) {
+                    (0, _) => "No selection".to_string(),
+                    (1, Some(e)) => format!("{}  {} × {}", e.name, units.length(e.width), units.length_u(e.height)),
+                    (n, _) => format!("{n} elements selected"),
+                };
+                let zoom_text = format!("1 px = {:.1} mm", 1.0 / self.view.scale);
+                let standard_text = self.module_status.clone();
+                let body = egui::TextStyle::Body.resolve(ui.style());
+                let mono = egui::TextStyle::Monospace.resolve(ui.style());
+                let gap = ui.spacing().item_spacing.x * 2.0 + 8.0;
+                let text_w = |ui: &egui::Ui, t: &str, f: &egui::FontId| ui.fonts(|fs| fs.layout_no_wrap(t.to_string(), f.clone(), egui::Color32::WHITE).size().x);
+                let widths = [
+                    (Segment::Selection, text_w(ui, &sel_text, &body) + gap),
+                    (Segment::Standard, text_w(ui, &standard_text, &body) + gap),
+                    (Segment::Zoom, text_w(ui, &zoom_text, &mono) + gap),
+                ];
+                let plan = layout(ui.available_width(), &widths);
+                let msg_w = plan.message_w;
+                let full = self.status.clone();
+                let shown = fit_message(&full, (msg_w - ui.spacing().item_spacing.x).max(0.0), &|t| text_w(ui, t, &body));
+                ui.allocate_ui_with_layout(egui::vec2(msg_w, ui.spacing().interact_size.y), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
+                    let r = ui.add(egui::Label::new(RichText::new(&shown).weak()).wrap_mode(egui::TextWrapMode::Extend).sense(egui::Sense::hover()));
+                    if shown != full {
+                        r.on_hover_text(&full);
+                    }
+                });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(RichText::new(&self.module_status).weak());
-                    ui.separator();
-                    ui.label(RichText::new(format!("1 px = {:.1} mm", 1.0 / self.view.scale)).monospace().weak());
-                    ui.separator();
-                    let sel = self.doc.selection();
-                    let text = match (sel.len(), self.doc.primary().and_then(|id| self.doc.find(id))) {
-                        (0, _) => "No selection".to_string(),
-                        (1, Some(e)) => format!("{}  {} × {}", e.name, units.length(e.width), units.length_u(e.height)),
-                        (n, _) => format!("{n} elements selected"),
-                    };
-                    ui.label(text);
+                    // Right to left: the standard name is the right-most, then the zoom, then the selection.
+                    if plan.shown.contains(&Segment::Standard) {
+                        ui.label(RichText::new(&standard_text).weak());
+                        ui.separator();
+                    }
+                    if plan.shown.contains(&Segment::Zoom) {
+                        ui.label(RichText::new(&zoom_text).monospace().weak());
+                        ui.separator();
+                    }
+                    if plan.shown.contains(&Segment::Selection) {
+                        ui.label(&sel_text);
+                    }
                 });
             });
         });

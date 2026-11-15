@@ -37,6 +37,7 @@ mod reference_models;
 mod report_pack;
 mod render;
 mod ribbon;
+mod statusbar;
 mod road_dialogs;
 mod road_glue;
 mod schedule_ext;
@@ -162,6 +163,11 @@ pub struct Options {
     pub layers_on: Option<String>,
     /// Frame the 2D view on `x,y,width` (millimetres: the centre and the width shown).
     pub zoom_to: Option<String>,
+    /// Window size at start-up, `WIDTHxHEIGHT` in points (for screenshots at a given width).
+    pub size: Option<String>,
+    /// 3D view camera after the first fit, `distance_mm,yaw_deg,pitch_deg[,station_m]` (the target
+    /// moves to the first alignment's centre line at that station), for close-up screenshots.
+    pub camera: Option<String>,
 }
 
 fn parse_args() -> Options {
@@ -214,6 +220,8 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--dxf-out" => o.dxf_out = args.next().map(PathBuf::from),
             "--layers-on" => o.layers_on = args.next(),
             "--zoom-to" => o.zoom_to = args.next(),
+            "--size" => o.size = args.next(),
+            "--camera" => o.camera = args.next(),
             "--export-pack" => o.export_pack = args.next().map(PathBuf::from),
             "--sheet" => o.sheet = args.next().and_then(|v| v.parse().ok()),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),
@@ -224,11 +232,21 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
     o
 }
 
+/// The window size to start with: `--size WxH` when valid, else 1440 by 860.
+fn start_size(text: Option<&str>) -> [f32; 2] {
+    text.and_then(|t| {
+        let (w, h) = t.split_once(['x', 'X'])?;
+        let (w, h) = (w.trim().parse::<f32>().ok()?, h.trim().parse::<f32>().ok()?);
+        (w >= 400.0 && h >= 300.0 && w <= 10000.0 && h <= 10000.0).then_some([w, h])
+    })
+    .unwrap_or([1440.0, 860.0])
+}
+
 fn run(options: &Options, multisampling: u16) -> eframe::Result<()> {
     let native = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("AfroBIM")
-            .with_inner_size([1440.0, 860.0])
+            .with_inner_size(start_size(options.size.as_deref()))
             .with_min_inner_size([1000.0, 600.0]),
         multisampling,
         ..Default::default()
@@ -252,6 +270,15 @@ fn main() -> eframe::Result<()> {
 #[cfg(test)]
 mod arg_tests {
     use super::*;
+
+    #[test]
+    fn the_start_size_is_read_from_width_x_height_or_falls_back() {
+        assert_eq!(start_size(Some("1600x1000")), [1600.0, 1000.0]);
+        assert_eq!(start_size(Some("1000X800")), [1000.0, 800.0]);
+        for bad in [None, Some("wide"), Some("100x100"), Some("1600"), Some("axb")] {
+            assert_eq!(start_size(bad), [1440.0, 860.0]);
+        }
+    }
 
     #[test]
     fn a_positional_argument_is_the_document_to_open() {
