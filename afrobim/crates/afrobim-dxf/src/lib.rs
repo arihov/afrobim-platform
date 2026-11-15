@@ -6,6 +6,8 @@
 //! outlines go on `SIGN-TEXT` and unresolved artwork on `SYMBOL`. Output is byte-identical to the
 //! C# writer for the same primitives (see `tests/golden.rs`).
 
+pub mod reader;
+
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
@@ -241,6 +243,71 @@ impl DxfDocument {
         point(w, 11, to);
     }
 
+    /// Adds a TEXT entity with a width factor (group 41, the X scale relative to the style).
+    /// A factor of 1 writes exactly what [`add_text`](Self::add_text) writes.
+    pub fn add_text_scaled(&mut self, t: &DxfText, width_factor: f64) {
+        if t.text.trim().is_empty() || t.height <= 0.0 || t.height.is_nan() {
+            return;
+        }
+        if (width_factor - 1.0).abs() < 1e-12 || !width_factor.is_finite() || width_factor <= 0.0 {
+            self.add_text(t);
+            return;
+        }
+        self.note_layer(&t.layer, t.aci);
+        let w = &mut self.entities;
+        pair(w, 0, "TEXT");
+        pair(w, 8, &t.layer);
+        pair(w, 62, &t.aci.to_string());
+        point(w, 10, t.at);
+        num(w, 40, t.height);
+        pair(w, 1, &dxf_text(&t.text));
+        if t.rotation_deg != 0.0 {
+            num(w, 50, t.rotation_deg);
+        }
+        num(w, 41, width_factor);
+        pair(w, 7, "STANDARD");
+        if t.align != TextAlign::Left {
+            pair(w, 72, if t.align == TextAlign::Centre { "1" } else { "2" });
+            point(w, 11, t.at);
+        }
+    }
+
+    /// Adds an ARC (group codes 10, 40, 50, 51: centre, radius, start and end angle in degrees,
+    /// anticlockwise from +X). Skipped when the radius is not positive.
+    pub fn add_arc(&mut self, layer: &str, aci: u8, centre: Pt2, radius: f64, start_deg: f64, end_deg: f64) {
+        if radius.is_nan() || radius <= 0.0 {
+            return;
+        }
+        self.note_layer(layer, aci);
+        let w = &mut self.entities;
+        pair(w, 0, "ARC");
+        pair(w, 8, layer);
+        pair(w, 62, &aci.to_string());
+        point(w, 10, centre);
+        num(w, 40, radius);
+        num(w, 50, start_deg);
+        num(w, 51, end_deg);
+    }
+
+    /// Adds a filled SOLID of three or four points given in order around the outline (a
+    /// triangle or a quadrilateral). The file stores the corners in the order a SOLID uses, which
+    /// swaps the third and fourth point of a quadrilateral.
+    pub fn add_solid(&mut self, layer: &str, aci: u8, outline: &[Pt2]) {
+        if outline.len() < 3 || outline.len() > 4 {
+            return;
+        }
+        self.note_layer(layer, aci);
+        let w = &mut self.entities;
+        let p = |i: usize| outline[i.min(outline.len() - 1)];
+        let order = if outline.len() == 4 { [0, 1, 3, 2] } else { [0, 1, 2, 2] };
+        pair(w, 0, "SOLID");
+        pair(w, 8, layer);
+        pair(w, 62, &aci.to_string());
+        for (k, i) in order.iter().enumerate() {
+            point(w, 10 + k as u32, p(*i));
+        }
+    }
+
     fn note_layer(&mut self, name: &str, aci: u8) {
         const BUILT_IN: [&str; 12] = [
             "0", "SIGN", "SIGN-WHITE", "SIGN-BLACK", "SIGN-GREEN", "SIGN-BLUE", "SIGN-BROWN", "SIGN-YELLOW", "SIGN-RED", "SIGN-GREY", "SIGN-TEXT", "SYMBOL",
@@ -334,7 +401,7 @@ fn fmt_num(v: f64) -> String {
     if int_len < 0 {
         // Pad so there is one leading zero slot before the first kept decimal.
         let pad = (-int_len) as usize;
-        digits.splice(0..0, std::iter::repeat(0).take(pad));
+        digits.splice(0..0, std::iter::repeat_n(0, pad));
         int_len = 0;
     }
     let keep = (int_len as usize) + 4; // integer digits + four decimals
@@ -459,7 +526,7 @@ mod tests {
     fn numbers_use_four_decimals_without_trailing_zeros() {
         assert_eq!(fmt_num(0.0), "0");
         assert_eq!(fmt_num(12.5), "12.5");
-        assert_eq!(fmt_num(3.14159265), "3.1416");
+        assert_eq!(fmt_num(std::f64::consts::PI), "3.1416");
         assert_eq!(fmt_num(2112.0), "2112");
         assert_eq!(fmt_num(-7.25), "-7.25");
         assert_eq!(fmt_num(100.00004), "100");
