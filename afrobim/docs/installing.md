@@ -26,22 +26,11 @@ The app loads these from disk. Nothing is compiled in.
 | File | Looked up as | Override |
 |------|--------------|----------|
 | `packs/UK-TSM-2019.json` | `packs/UK-TSM-2019.json` | `AFROBIM_PACK` (the JSON file) |
-| `packs/UG-TSM-2004/*.xml` (17 files) | `packs/UG-TSM-2004/pack.xml` | none |
+| `packs/UG-TSM-2004/*.xml` (17 files) | `packs/UG-TSM-2004/pack.xml` | `AFROBIM_PACK_UG` (the folder or its `pack.xml`) |
 | `fonts/tranh___.TTF`, `fonts/tranm___.TTF` | `fonts/` | `AFROBIM_FONTS` (the folder) |
 
-The lookup (`find` in `crates/afrobim-app/src/signs_glue.rs`) tries the environment variable, then every
-folder above the executable, then every folder above the working directory, joining the relative path.
-So `packs/` and `fonts/` **next to the executable** are found today. This is the layout of the Windows
-install (`C:\Program Files\AfroBIM\`) and the Linux archive.
-
-**macOS depends on a change in the app sources.** The bundle keeps data in `Contents/Resources`, which the
-lookup above does not search (it would find `Contents/packs`, which a signed bundle should not contain).
-Verified on Linux with the lookup as it was when the packaging was written: with the data in a sibling
-`Resources` folder the app reported no traffic-signs module; with the working directory set to `Resources`,
-or with the environment variables set, it loaded normally.
-
-The app agent is making this change in `find` in `afrobim/crates/afrobim-app/src/signs_glue.rs` (not done
-by the packaging work; the packaging does not edit `src/`). The lookup order the packaging is written for:
+The lookup (`find` in `afrobim/crates/afrobim-app/src/signs_glue.rs`) is in place. It searches the bundle's
+`Contents/Resources` on macOS, so a macOS bundle finds its data without a launcher. The lookup order is:
 
 1. the environment variable (`AFROBIM_PACK`, `AFROBIM_PACK_UG` for the Uganda pack, `AFROBIM_FONTS`);
 2. next to the executable (`exe_dir/relative`);
@@ -49,12 +38,12 @@ by the packaging work; the packaging does not edit `src/`). The lookup order the
 4. the folders above the executable and the working directory (for source checkouts).
 
 **Which macOS build is the default, and why.** The default is the plain bundle with no launcher
-(`macos_launcher` unticked in the workflow), because it is the final form and relies on the lookup above.
-The fallback is `--launcher` (the `macos_launcher` workflow input, or the flag of `build-dmg.sh`): the
-executable becomes a small script that starts the real binary with `Contents/Resources` as its working
-directory, which the older lookup also accepts. Tick it only when building a commit that does not yet contain
-the lookup change. Check which you have by unpacking the app: a file `Contents/MacOS/afrobim-bin` means the
-launcher is in use. Neither variant was run on macOS.
+(`macos_launcher` unticked in the workflow), because the app now finds `Contents/Resources` itself. The
+`--launcher` fallback is optional: it is the `macos_launcher` workflow input, or the flag of `build-dmg.sh`.
+It makes the executable a small script that starts the real binary with `Contents/Resources` as its working
+directory. Use it only for a commit that does not yet contain the lookup change. Check which you have by
+unpacking the app: a file `Contents/MacOS/afrobim-bin` means the launcher is in use. Neither variant was run
+on macOS.
 
 Two other limits, both in the app and not the packaging:
 
@@ -215,8 +204,8 @@ packages on any of the three**; it just runs `cargo build --workspace --locked` 
 4. Clone, build and run (PowerShell):
 
    ```
-   git clone <repository-url> signcore
-   cd signcore\afrobim
+   git clone https://github.com/arihov/afrobim-platform.git
+   cd afrobim-platform\afrobim
    cargo run --release -p afrobim-app            # the desktop app
    cargo run --release -p afrobim-app -- --demo  # with sample signs
    cargo test --workspace --locked               # the tests CI runs
@@ -236,8 +225,8 @@ packages on any of the three**; it just runs `cargo build --workspace --locked` 
 3. Clone, build and run:
 
    ```
-   git clone <repository-url> signcore
-   cd signcore/afrobim
+   git clone https://github.com/arihov/afrobim-platform.git
+   cd afrobim-platform/afrobim
    cargo run --release -p afrobim-app
    cargo run --release -p afrobim-app -- --demo
    cargo test --workspace --locked
