@@ -233,6 +233,19 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
     o
 }
 
+/// The application icon, embedded from `packaging/icons/afrobim-512.png`, as the window and
+/// taskbar or Dock icon (Windows and Linux windows; on macOS the Dock shows the icon of the
+/// installed `.app`, and this one is used for a run from the command line).
+fn app_icon() -> Option<egui::IconData> {
+    icon_from_png(include_bytes!("../../../packaging/icons/afrobim-512.png"))
+}
+
+fn icon_from_png(bytes: &[u8]) -> Option<egui::IconData> {
+    let img = image::load_from_memory_with_format(bytes, image::ImageFormat::Png).ok()?.to_rgba8();
+    let (width, height) = img.dimensions();
+    Some(egui::IconData { rgba: img.into_raw(), width, height })
+}
+
 /// The window size to start with: `--size WxH` when valid, else 1440 by 860.
 fn start_size(text: Option<&str>) -> [f32; 2] {
     text.and_then(|t| {
@@ -244,14 +257,14 @@ fn start_size(text: Option<&str>) -> [f32; 2] {
 }
 
 fn run(options: &Options, multisampling: u16) -> eframe::Result<()> {
-    let native = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("AfroBIM")
-            .with_inner_size(start_size(options.size.as_deref()))
-            .with_min_inner_size([1000.0, 600.0]),
-        multisampling,
-        ..Default::default()
-    };
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title("AfroBIM")
+        .with_inner_size(start_size(options.size.as_deref()))
+        .with_min_inner_size([1000.0, 600.0]);
+    if let Some(icon) = app_icon() {
+        viewport = viewport.with_icon(std::sync::Arc::new(icon));
+    }
+    let native = eframe::NativeOptions { viewport, multisampling, ..Default::default() };
     let options = options.clone();
     eframe::run_native("AfroBIM", native, Box::new(move |cc| Ok(Box::new(app::AfroBimApp::new(cc, options)))))
 }
@@ -271,6 +284,16 @@ fn main() -> eframe::Result<()> {
 #[cfg(test)]
 mod arg_tests {
     use super::*;
+
+    #[test]
+    fn the_embedded_icon_decodes_to_a_512_pixel_square_with_visible_pixels() {
+        let icon = app_icon().expect("the embedded PNG decodes");
+        assert_eq!((icon.width, icon.height), (512, 512));
+        assert_eq!(icon.rgba.len(), 512 * 512 * 4);
+        assert!(icon.rgba.chunks(4).any(|p| p[3] > 0), "not fully transparent");
+        // Bytes that are not a PNG give no icon rather than a crash.
+        assert!(icon_from_png(b"not a png").is_none());
+    }
 
     #[test]
     fn the_start_size_is_read_from_width_x_height_or_falls_back() {
