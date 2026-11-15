@@ -1,0 +1,273 @@
+name: AfroBIM installers
+
+# COST WARNING. This workflow only runs when someone asks for it: a manual run from the Actions tab
+# (workflow_dispatch) or a pushed tag named afrobim-v* . It never runs on ordinary pushes or pull
+# requests. GitHub bills hosted-runner minutes with multipliers: a Windows minute counts as 2 Linux
+# minutes and a macOS minute as 10. The macOS job is therefore the expensive one; the inputs below
+# let a run skip any platform.
+#
+# STATUS: UNTESTED. Written while GitHub Actions could not start runners on this account, so no job
+# in this file has ever run. Expect to fix small things on the first real run (see
+# afrobim/docs/installing.md, "What has and has not been tested").
+#
+# The installers are UNSIGNED. See afrobim/docs/installing.md for the warnings users will see.
+
+on:
+  workflow_dispatch:
+    inputs:
+      windows:
+        description: "Build the Windows .msi (2x minute cost)"
+        type: boolean
+        default: true
+      macos:
+        description: "Build the macOS .dmg (10x minute cost)"
+        type: boolean
+        default: true
+      linux:
+        description: "Build the Linux portable archive (1x minute cost)"
+        type: boolean
+        default: true
+      bundle_fonts:
+        description: "Include the third-party Transport fonts in the packages (licence decision pending, see docs)"
+        type: boolean
+        default: true
+  push:
+    tags: ["afrobim-v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: afrobim-installers-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  # Tag pushes build everything; manual runs follow the inputs (an empty input means a tag push).
+  BUNDLE_FONTS: ${{ github.event_name == 'push' || inputs.bundle_fonts }}
+
+jobs:
+  version:
+    # Reads the workspace version once and, for a tag, refuses a tag that does not match it.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - id: v
+        shell: bash
+        run: |
+          version="$(grep -m1 '^version' afrobim/Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
+          echo "workspace version: $version"
+          if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "afrobim-v${version}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match the workspace version afrobim-v${version}"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: version
+    if: github.event_name == 'push' || inputs.linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+
+      - uses: actions/cache@v4.2.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            afrobim/target
+          key: installers-linux-${{ hashFiles('afrobim/Cargo.lock') }}
+
+      - name: Build release binary
+        working-directory: afrobim
+        run: cargo build --release --locked -p afrobim-app
+
+      - name: Packaging layout check
+        run: |
+          rm -rf /tmp/stage && afrobim/packaging/stage.sh --bin afrobim/target/release/afrobim --dest /tmp/stage
+          python3 afrobim/packaging/check_layout.py /tmp/stage
+
+      - name: Archive
+        run: |
+          fonts=""; [ "$BUNDLE_FONTS" = true ] || fonts="--no-fonts"
+          afrobim/packaging/linux/build-archive.sh afrobim/target/release/afrobim "${{ needs.version.outputs.version }}" dist $fonts
+
+      # The archive's own test: unpack it elsewhere and start the app from there with no source tree
+      # around. The runner has no GPU; software GL under Xvfb is enough to render a screenshot.
+      - name: Run from the unpacked archive
+        if: env.BUNDLE_FONTS == 'true'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri libxkbcommon-x11-0 libxkbcommon0
+          mkdir -p "$RUNNER_TEMP/unpacked" && tar -C "$RUNNER_TEMP/unpacked" -xzf dist/*.tar.gz
+          cd "$RUNNER_TEMP"
+          xvfb-run -a "unpacked/afrobim-${{ needs.version.outputs.version }}/afrobim" --demo --screenshot "$RUNNER_TEMP/portable.png"
+          test -s "$RUNNER_TEMP/portable.png"
+
+      - name: Checksums
+        run: cd dist && sha256sum -- *.tar.gz > SHA256SUMS-linux.txt && cat SHA256SUMS-linux.txt
+
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: afrobim-linux
+          path: dist/*
+          if-no-files-found: error
+
+  windows:
+    needs: version
+    if: github.event_name == 'push' || inputs.windows
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Rust toolchain
+        shell: bash
+        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+
+      - uses: actions/cache@v4.2.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            afrobim/target
+          key: installers-windows-${{ hashFiles('afrobim/Cargo.lock') }}
+
+      - name: Build release binary
+        working-directory: afrobim
+        run: cargo build --release --locked -p afrobim-app
+
+      # The windows-2025 image lists "WiX Toolset 3.14.1.8722" (actions/runner-images, checked
+      # 2026-11-15), so this normally does nothing. If the image drops WiX v3, install it.
+      - name: Ensure WiX v3
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin\candle.exe") -and -not ($env:WIX -and (Test-Path "$env:WIX\bin\candle.exe"))) {
+            choco install wixtoolset --version=3.14.1 -y --no-progress
+          }
+
+      - name: Build the .msi
+        shell: pwsh
+        run: |
+          $fonts = @(); if ($env:BUNDLE_FONTS -ne 'true') { $fonts = @('-NoFonts') }
+          ./afrobim/packaging/windows/build-msi.ps1 -Version "${{ needs.version.outputs.version }}" -Binary afrobim/target/release/afrobim.exe -OutDir dist @fonts
+
+      # Install, look at the result, uninstall. msiexec needs the elevation the runner already has.
+      - name: Install and uninstall test
+        shell: pwsh
+        run: |
+          $msi = (Get-ChildItem dist\*.msi).FullName
+          $p = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /l*v install.log" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 60; throw "install failed: $($p.ExitCode)" }
+          $dir = "$env:ProgramFiles\AfroBIM"
+          foreach ($f in 'afrobim.exe', 'packs\UK-TSM-2019.json', 'packs\UG-TSM-2004\pack.xml') {
+            if (-not (Test-Path "$dir\$f")) { throw "missing after install: $f" }
+          }
+          if (-not (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\AfroBIM\AfroBIM.lnk")) { throw 'Start menu shortcut missing' }
+          $p = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn /l*v uninstall.log" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content uninstall.log -Tail 60; throw "uninstall failed: $($p.ExitCode)" }
+          if (Test-Path $dir) { throw "install folder still present after uninstall: $dir" }
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist\*.msi | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } | Set-Content -Encoding ascii dist\SHA256SUMS-windows.txt
+          Get-Content dist\SHA256SUMS-windows.txt
+
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: afrobim-windows
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Upload installer logs
+        if: failure()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: afrobim-windows-logs
+          path: "*.log"
+          if-no-files-found: ignore
+
+  macos:
+    needs: version
+    if: github.event_name == 'push' || inputs.macos
+    # macos-latest is an arm64 (Apple silicon) image; the x86_64 half of the universal binary is
+    # cross-compiled on it. If that ever fails, drop the second --bin below to get an arm64-only image
+    # and add a macos-26-intel job for the x86_64 one.
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      # Compile for the same floor that Info.plist declares (LSMinimumSystemVersion). Rust's own floor
+      # is macOS 10.12 on x86_64 and 11.0 on arm64 (doc.rust-lang.org/rustc/platform-support/apple-darwin.html).
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - uses: actions/cache@v4.2.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            afrobim/target
+          key: installers-macos-${{ hashFiles('afrobim/Cargo.lock') }}
+
+      - name: Build release binaries
+        working-directory: afrobim
+        run: |
+          cargo build --release --locked -p afrobim-app --target aarch64-apple-darwin
+          cargo build --release --locked -p afrobim-app --target x86_64-apple-darwin
+
+      - name: Build the .dmg
+        run: |
+          fonts=""; [ "$BUNDLE_FONTS" = true ] || fonts="--no-fonts"
+          # --launcher is the interim workaround until the app looks in Contents/Resources itself.
+          # Remove it once that change has landed (docs/installing.md, "What the app needs").
+          afrobim/packaging/macos/build-dmg.sh --version "${{ needs.version.outputs.version }}" --out dist --launcher $fonts \
+            --bin afrobim/target/aarch64-apple-darwin/release/afrobim \
+            --bin afrobim/target/x86_64-apple-darwin/release/afrobim
+
+      - name: Checksums
+        run: cd dist && shasum -a 256 -- *.dmg > SHA256SUMS-macos.txt && cat SHA256SUMS-macos.txt
+
+      - uses: actions/upload-artifact@v4.6.2
+        with:
+          name: afrobim-macos
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    # Tag pushes only: gather the artifacts and attach them to a DRAFT release for the owner to review.
+    needs: [version, linux, windows, macos]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4.3.0
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Combine checksums
+        run: cd dist && cat SHA256SUMS-*.txt > SHA256SUMS.txt && rm SHA256SUMS-*.txt && cat SHA256SUMS.txt
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --draft \
+            --title "AfroBIM ${{ needs.version.outputs.version }}" \
+            --notes "Unsigned installers (Windows .msi, macOS .dmg, Linux tar.gz). Untested draft: see afrobim/docs/installing.md before sharing."

@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AfroBIM Windows installer (WiX Toolset v3). Written by hand; built by windows/build-msi.ps1.
+
+  Variables passed by the build script (candle -d...):
+    Version    product version a.b.c, from the workspace Cargo.toml (MSI compares the first three fields)
+    StageDir   the staged tree from packaging/stage.sh: afrobim.exe, packs\, fonts\
+    IconPath   packaging/icons/afrobim.ico (a PLACEHOLDER icon)
+    WithFonts  defined only when StageDir\fonts exists
+
+  Choices and what they mean:
+    * Per-machine install to Program Files\AfroBIM (needs administrator rights, UAC prompt).
+    * UpgradeCode is fixed for the life of the product. Never change it, or a new version will
+      install beside the old one instead of replacing it.
+    * No licence dialog: the repository has no LICENSE file, and no licence text is invented here.
+      The owner must decide licensing before the app is sold. When a LICENSE exists, convert it to
+      RTF, delete the two Publish overrides at the end and pass -dWixUILicenseRtf=... to light.
+    * No bundled runtime: the app is one Rust executable; nothing else is installed.
+    * .afrobim file association: the app opens a file given as its first command-line argument.
+    * packs\ and fonts\ sit next to afrobim.exe, where the app's resource lookup finds them.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="AfroBIM"
+           Language="1033"
+           Version="$(var.Version)"
+           Manufacturer="AfroBIM"
+           UpgradeCode="0DD46886-4D75-441A-B70C-A5445285E0D7">
+
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"
+             Description="AfroBIM desktop application" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of AfroBIM is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon.ico" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="AfroBIM">
+          <Directory Id="PacksDir" Name="packs">
+            <Directory Id="UgPackDir" Name="UG-TSM-2004" />
+          </Directory>
+          <?ifdef WithFonts ?>
+          <Directory Id="FontsDir" Name="fonts" />
+          <?endif?>
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="AppMenuDir" Name="AfroBIM" />
+      </Directory>
+      <Directory Id="DesktopFolder" />
+    </Directory>
+
+    <!-- The executable and the .afrobim file type. -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="c_exe" Guid="*" Win64="yes">
+        <File Id="afrobim_exe" Source="$(var.StageDir)\afrobim.exe" KeyPath="yes" />
+        <ProgId Id="AfroBIM.Document" Description="AfroBIM document" Icon="AppIcon.ico">
+          <Extension Id="afrobim">
+            <Verb Id="open" Command="Open" TargetFile="afrobim_exe" Argument="&quot;%1&quot;" />
+          </Extension>
+        </ProgId>
+      </Component>
+    </DirectoryRef>
+
+    <!-- Rule packs: one JSON file for the UK pack, a folder of XML files for the Uganda pack. -->
+    <DirectoryRef Id="PacksDir">
+      <Component Id="c_uk_pack" Guid="*" Win64="yes">
+        <File Id="uk_pack_json" Source="$(var.StageDir)\packs\UK-TSM-2019.json" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+    <DirectoryRef Id="UgPackDir">
+      <Component Id="c_ug_arrows_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_arrows_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\arrows.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_constraints_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_constraints_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\constraints.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_embedded_shapes_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_embedded_shapes_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\embedded-shapes.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_embedded_signs_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_embedded_signs_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\embedded-signs.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_fonts_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_fonts_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\fonts.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_map_symbol_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_map_symbol_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\map-symbol.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_map_type_spacing_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_map_type_spacing_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\map-type-spacing.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_pack_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_pack_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\pack.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_palettes_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_palettes_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\palettes.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_panel_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_panel_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\panel.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_roundabout_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_roundabout_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\roundabout.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_roundels_triangles_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_roundels_triangles_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\roundels-triangles.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_route_arms_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_route_arms_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\route-arms.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_sign_catalog_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_sign_catalog_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\sign-catalog.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_standard_sizes_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_standard_sizes_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\standard-sizes.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_symbols_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_symbols_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\symbols.xml" KeyPath="yes" />
+      </Component>
+      <Component Id="c_ug_text_sizes_xml" Guid="*" Directory="UgPackDir">
+        <File Id="ug_text_sizes_xml" Source="$(var.StageDir)\packs\UG-TSM-2004\text-sizes.xml" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <?ifdef WithFonts ?>
+    <!-- The Transport fonts are third-party files: see docs/installing.md before distributing. -->
+    <DirectoryRef Id="FontsDir">
+      <Component Id="c_font_h" Guid="*" Win64="yes">
+        <File Id="font_tranh" Source="$(var.StageDir)\fonts\tranh___.TTF" KeyPath="yes" />
+      </Component>
+      <Component Id="c_font_m" Guid="*" Win64="yes">
+        <File Id="font_tranm" Source="$(var.StageDir)\fonts\tranm___.TTF" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+    <?endif?>
+
+    <!-- Shortcuts. The registry value is the component key path: the usual way to satisfy ICE38 and
+         ICE43 for a shortcut in a per-machine install. -->
+    <DirectoryRef Id="AppMenuDir">
+      <Component Id="c_startmenu" Guid="*" Win64="yes">
+        <Shortcut Id="startmenu_shortcut" Name="AfroBIM" Description="AfroBIM desktop application"
+                  Target="[INSTALLFOLDER]afrobim.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon.ico" />
+        <RemoveFolder Id="remove_appmenu" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\AfroBIM\AfroBIM" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="c_desktop" Guid="*" Win64="yes">
+        <Shortcut Id="desktop_shortcut" Name="AfroBIM" Description="AfroBIM desktop application"
+                  Target="[INSTALLFOLDER]afrobim.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon.ico" />
+        <RegistryValue Root="HKCU" Key="Software\AfroBIM\AfroBIM" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MainFeature" Title="AfroBIM" Description="The application, its rule packs and the Start menu shortcut."
+             Level="1" Absent="disallow" ConfigurableDirectory="INSTALLFOLDER" AllowAdvertise="no">
+      <ComponentRef Id="c_exe" />
+      <ComponentRef Id="c_uk_pack" />
+      <ComponentRef Id="c_ug_arrows_xml" />
+      <ComponentRef Id="c_ug_constraints_xml" />
+      <ComponentRef Id="c_ug_embedded_shapes_xml" />
+      <ComponentRef Id="c_ug_embedded_signs_xml" />
+      <ComponentRef Id="c_ug_fonts_xml" />
+      <ComponentRef Id="c_ug_map_symbol_xml" />
+      <ComponentRef Id="c_ug_map_type_spacing_xml" />
+      <ComponentRef Id="c_ug_pack_xml" />
+      <ComponentRef Id="c_ug_palettes_xml" />
+      <ComponentRef Id="c_ug_panel_xml" />
+      <ComponentRef Id="c_ug_roundabout_xml" />
+      <ComponentRef Id="c_ug_roundels_triangles_xml" />
+      <ComponentRef Id="c_ug_route_arms_xml" />
+      <ComponentRef Id="c_ug_sign_catalog_xml" />
+      <ComponentRef Id="c_ug_standard_sizes_xml" />
+      <ComponentRef Id="c_ug_symbols_xml" />
+      <ComponentRef Id="c_ug_text_sizes_xml" />
+      <?ifdef WithFonts ?>
+      <ComponentRef Id="c_font_h" />
+      <ComponentRef Id="c_font_m" />
+      <?endif?>
+      <ComponentRef Id="c_startmenu" />
+    </Feature>
+    <!-- Level 1000 is above the default install level, so this is off unless ticked on the feature page. -->
+    <Feature Id="DesktopFeature" Title="Desktop shortcut" Description="Add an AfroBIM shortcut to the desktop."
+             Level="1000" AllowAdvertise="no">
+      <ComponentRef Id="c_desktop" />
+    </Feature>
+
+    <!-- Wizard: Welcome, then the feature page (install folder and the optional desktop shortcut). The
+         licence page is skipped because there is no licence text. Order="3" outranks the stock
+         Order="2" rules, and the last NewDialog that fires wins. -->
+    <UIRef Id="WixUI_FeatureTree" />
+    <UI>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg" Order="3">NOT Installed</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="3">NOT Installed</Publish>
+    </UI>
+  </Product>
+</Wix>
