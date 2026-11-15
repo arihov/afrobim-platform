@@ -93,6 +93,38 @@ pub fn source_for(doc: &Document, solids_of: &dyn Fn(&Element) -> Vec<afrobim_dr
     VisSource { scene: scene_from_document(doc, solids_of, &SceneOptions::default()), x_heights }
 }
 
+/// What a run on a worker thread needs, taken on the UI thread: a copy of the document, the
+/// solids the modules generated for each element and the legends' x-heights. The obstruction scene
+/// is built from them inside the worker, because that is the slow part, and the engine's own
+/// types are built there too.
+pub struct VisInput {
+    pub doc: Document,
+    pub solids: HashMap<ElementId, Vec<afrobim_draw::Mesh3>>,
+    pub x_heights: HashMap<ElementId, f64>,
+    pub only: Option<Vec<ElementId>>,
+}
+
+/// What a run on a worker thread hands back.
+pub struct VisOut {
+    pub run: RoadRun,
+    pub scene: ObstacleScene,
+}
+
+impl VisInput {
+    /// Builds the scene and runs the analysis: the same two steps as [`source_for`] and [`run`].
+    pub fn compute(self) -> VisOut {
+        let solids = self.solids;
+        let src = source_for(&self.doc, &|e: &Element| solids.get(&e.id).cloned().unwrap_or_default(), self.x_heights);
+        let run = run(&self.doc, &src, self.only);
+        VisOut { run, scene: src.scene }
+    }
+}
+
+/// Starts [`VisInput::compute`] on a worker thread, to be applied only while `doc` is unchanged.
+pub fn spawn_run(doc: &Document, input: VisInput) -> crate::background::Job<VisOut> {
+    crate::background::Job::spawn("Sign visibility", crate::background::fingerprint(doc), move || input.compute())
+}
+
 /// The analysis of one sign with the inputs stored on it.
 pub fn analyse(doc: &Document, src: &VisSource, id: ElementId) -> SignAnalysis {
     let x_height_of = |e: &Element| src.x_heights.get(&e.id).copied();
@@ -110,6 +142,21 @@ pub fn run(doc: &Document, src: &VisSource, only: Option<Vec<ElementId>>) -> Roa
 /// Whether any sign has stored visibility inputs (so a model-wide check needs the scene).
 pub fn any_stored(doc: &Document) -> bool {
     doc.elements().iter().any(|e| e.properties.contains_key(KEY))
+}
+
+/// The status line of a run: the number of signs and how many are in each state.
+pub fn summary_line(run: &RoadRun) -> String {
+    let (mut ok, mut input, mut fails, mut differs) = (0, 0, 0, 0);
+    for a in &run.analyses {
+        match a.overall() {
+            Status::Ok => ok += 1,
+            Status::InputNeeded => input += 1,
+            Status::Fails => fails += 1,
+            Status::Differs => differs += 1,
+            Status::Information => {}
+        }
+    }
+    format!("{} sign(s): {ok} OK, {fails} fail, {differs} differ, {input} need input", run.analyses.len())
 }
 
 // ─── the form ───────────────────────────────────────────────────────────────────────────
@@ -575,24 +622,42 @@ impl AfroBimApp {
         });
     }
 
-    /// Runs the analysis for the signs named (all placed signs for `None`) and opens the results.
+    /// What a worker needs for a run (see [`VisInput`]): the generated solids and x-heights are
+    /// read from the cache here, the scene is built later in the worker.
+    pub(crate) fn vis_input(&mut self, only: Option<Vec<ElementId>>) -> VisInput {
+        self.sync_generated();
+        let generated = |id: &ElementId| self.cache.get(id).and_then(|c| c.generated.as_ref().ok());
+        let solids = self.doc.elements().iter().filter_map(|e| generated(&e.id).filter(|g| !g.solids.is_empty()).map(|g| (e.id, g.solids.clone()))).collect();
+        let x_heights = self.doc.elements().iter().filter_map(|e| generated(&e.id).and_then(|g| derived_x_height(&g.derived)).map(|v| (e.id, v))).collect();
+        VisInput { doc: self.doc.clone(), solids, x_heights, only }
+    }
+
+    /// Runs the analysis for the signs named (all placed signs for `None`) on the UI thread and
+    /// opens the results: for headless runs and tests.
     pub(crate) fn vis_run(&mut self, only: Option<Vec<ElementId>>) {
-        let src = self.vis_source();
-        let run = run(&self.doc, &src, only);
-        let (mut ok, mut input, mut fails, mut differs) = (0, 0, 0, 0);
-        for a in &run.analyses {
-            match a.overall() {
-                Status::Ok => ok += 1,
-                Status::InputNeeded => input += 1,
-                Status::Fails => fails += 1,
-                Status::Differs => differs += 1,
-                Status::Information => {}
-            }
+        let out = self.vis_input(only).compute();
+        self.apply_vis_out(out);
+    }
+
+    /// As [`AfroBimApp::vis_run`] on a worker thread, with a progress window and Cancel. The result
+    /// is applied only if the document has not changed since the run started.
+    pub(crate) fn vis_run_bg(&mut self, only: Option<Vec<ElementId>>) {
+        if self.bg.vis.is_some() {
+            self.status = "A sign visibility run is already in progress.".into();
+            return;
         }
-        self.status = format!("Sign visibility: {} sign(s): {ok} OK, {fails} fail, {differs} differ, {input} need input. Analysis aid only: the engineer decides.", run.analyses.len());
+        let input = self.vis_input(only);
+        self.bg.vis = Some(spawn_run(&self.doc, input));
+        self.status = "Sign visibility started on a worker thread; the model stays editable, but an edit discards the result.".into();
+    }
+
+    /// Takes a finished run in: the summary, the results window and the 3D overlay.
+    pub(crate) fn apply_vis_out(&mut self, out: VisOut) {
+        let VisOut { run, scene } = out;
+        self.status = format!("Sign visibility: {}. Analysis aid only: the engineer decides.", summary_line(&run));
         self.vis.selected = run.analyses.iter().find(|a| Some(a.element) == self.vis.selected).map(|a| a.element).or_else(|| run.analyses.first().map(|a| a.element));
         self.vis.run = Some(run);
-        self.vis.scene = Some(src.scene);
+        self.vis.scene = Some(scene);
         self.vis.results_open = true;
         self.vis.overlay = true;
         match self.options.vis_view.clone().as_deref() {
@@ -843,7 +908,7 @@ impl AfroBimApp {
                     self.schedule_commit_now();
                     if run {
                         let only = f.element.filter(|_| !f.apply_all).map(|id| vec![id]);
-                        self.vis_run(only);
+                        self.vis_run_bg(only);
                     }
                     return;
                 }

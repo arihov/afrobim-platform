@@ -108,6 +108,8 @@ pub struct AfroBimApp {
     pub(crate) road: road_dialogs::RoadDialogs,
     /// The built 3D surfaces of corridors.
     pub(crate) corridor_cache: HashMap<ElementId, CorridorSurfaces>,
+    /// Set when the engineer cancelled a corridor rebuild: no new one starts until an edit.
+    pub(crate) corridors_held: bool,
     /// The "Place on alignment" dialog: sign, alignment, station (m), offset (m), right side.
     /// Sign, alignment, displayed station, offset, right side, and the stationing region as
     /// typed (0 = not stated, else the region number counted from 1).
@@ -201,6 +203,7 @@ impl AfroBimApp {
             design_report: None,
             road: road_dialogs::RoadDialogs::default(),
             corridor_cache: HashMap::new(),
+            corridors_held: false,
             station_dialog: None,
             new_prop_key: String::new(),
             grid_on: true,
@@ -514,6 +517,9 @@ impl AfroBimApp {
         // A leader that shows a mark and a station dimension read the rest of the document:
         // refresh them whenever an element was renamed, erased or edited (an alignment included).
         let mut regenerated = self.sync_generated_once();
+        if regenerated {
+            self.corridors_held = false;
+        }
         for _ in 0..2 {
             if regenerated && self.anno_refresh() {
                 regenerated = self.sync_generated_once();
@@ -522,7 +528,7 @@ impl AfroBimApp {
             }
         }
         if self.view_3d {
-            self.sync_corridor_surfaces();
+            self.sync_corridor_surfaces_bg();
         }
     }
 
@@ -557,7 +563,9 @@ impl AfroBimApp {
         any
     }
 
-    /// Builds the 3D surfaces of corridors that have none yet or whose data changed.
+    /// Builds the 3D surfaces of corridors that have none yet or whose data changed, on the UI
+    /// thread: for a clash run's scene, headless runs and tests. The 3D view builds them with
+    /// [`AfroBimApp::sync_corridor_surfaces_bg`].
     pub(crate) fn sync_corridor_surfaces(&mut self) {
         let ids: Vec<ElementId> = self.doc.elements().iter().filter(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY).map(|e| e.id).collect();
         self.corridor_cache.retain(|id, _| ids.contains(id));
@@ -569,6 +577,28 @@ impl AfroBimApp {
             let key = e.data.clone();
             let solids = road_glue::corridor_solids(&self.doc, id);
             self.corridor_cache.insert(id, CorridorSurfaces { key, solids });
+        }
+    }
+
+    /// As [`AfroBimApp::sync_corridor_surfaces`] on a worker thread: starts one job for every
+    /// corridor that needs its surfaces (unless one is running or the engineer cancelled). Until
+    /// the job is applied the 3D view shows the corridor as it was, or not at all.
+    pub(crate) fn sync_corridor_surfaces_bg(&mut self) {
+        let ids: Vec<ElementId> = self.doc.elements().iter().filter(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY).map(|e| e.id).collect();
+        self.corridor_cache.retain(|id, _| ids.contains(id));
+        if self.bg.corridors.is_some() || self.corridors_held {
+            return;
+        }
+        let stale = crate::background::stale_corridors(&self.doc, &|id| self.corridor_cache.get(&id).map(|c| c.key.clone()));
+        if !stale.is_empty() {
+            self.bg.corridors = Some(crate::background::spawn_corridors(&self.doc, stale));
+        }
+    }
+
+    /// Takes finished corridor surfaces in.
+    pub(crate) fn apply_corridors(&mut self, built: Vec<crate::background::CorridorBuilt>) {
+        for b in built {
+            self.corridor_cache.insert(b.id, CorridorSurfaces { key: b.key, solids: b.solids });
         }
     }
 
@@ -1076,8 +1106,11 @@ impl AfroBimApp {
             }
             Action::ShowSections => match self.doc.primary().filter(|id| self.doc.find(*id).is_some_and(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY)) {
                 Some(id) => {
-                    if let Err(e) = self.road.open_sections(&self.doc, id) {
-                        self.status = format!("No sections to show: {e}");
+                    if self.bg.sections.is_some() {
+                        self.status = "A cross-section build is already in progress.".into();
+                    } else {
+                        self.bg.sections = Some(crate::road_dialogs::spawn_sections(&self.doc, id));
+                        self.status = "Building the corridor's sections on a worker thread.".into();
                     }
                 }
                 None => self.status = "Select a corridor first. Build one with CORRIDOR.".into(),
@@ -1157,7 +1190,7 @@ impl AfroBimApp {
             Action::Visibility => self.vis_open_inputs(false),
             Action::VisibilityRun => {
                 let sign = self.doc.primary().filter(|id| self.doc.find(*id).is_some_and(|e| e.category == afrobim_visibility::SIGN_CATEGORY));
-                self.vis_run(sign.map(|id| vec![id]));
+                self.vis_run_bg(sign.map(|id| vec![id]));
             }
             Action::Photometry => self.photo_open(),
             Action::ReportPack => self.pack_open(),

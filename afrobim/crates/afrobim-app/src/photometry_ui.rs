@@ -35,6 +35,42 @@ pub const LIMITS: &str = "This calculates illuminance (and luminance only when y
 /// Shown when no luminaire file is loaded, and in the demo.
 pub const NO_FILE: &str = "AfroBIM ships no luminaire file. Choose the IES (.ies) or EULUMDAT (.ldt) file for the luminaire of this installation, from the manufacturer. Only type C photometry is read. Nothing is calculated until you have looked at the file's checks and the polar diagram and confirmed the orientation.";
 
+/// What a photometry calculation needs, read from the form and the document on the UI thread.
+pub struct PhotoInput {
+    pub id: ElementId,
+    pub loaded: LoadedPhotometry,
+    pub settings: CalcSettings,
+    pub rtable: Option<RTable>,
+    pub data: LightingData,
+    pub alignment: Option<afrobim_alignment::Alignment>,
+    pub path: String,
+    pub rt_info: Option<(String, String)>,
+}
+
+/// A finished calculation, waiting to be stored on the installation and shown.
+pub struct PhotoOut {
+    pub id: ElementId,
+    pub run: PhotometryRun,
+    pub settings: CalcSettings,
+    pub loaded: LoadedPhotometry,
+    pub path: String,
+    pub rt_info: Option<(String, String)>,
+    pub data: LightingData,
+}
+
+impl PhotoInput {
+    /// The calculation itself (the part that takes the time).
+    pub fn compute(self) -> Result<PhotoOut, String> {
+        let run = run_photometry(&self.data, &self.loaded.photometry, &self.loaded.file_name, &self.loaded.sha256, &self.settings, self.rtable.as_ref(), self.alignment.as_ref()).map_err(|e| e.to_string())?;
+        Ok(PhotoOut { id: self.id, run, settings: self.settings, loaded: self.loaded, path: self.path, rt_info: self.rt_info, data: self.data })
+    }
+}
+
+/// Starts [`PhotoInput::compute`] on a worker thread, to be applied only while `doc` is unchanged.
+pub fn spawn_photometry(doc: &Document, input: PhotoInput) -> crate::background::Job<Result<PhotoOut, String>> {
+    crate::background::Job::spawn("Photometry", crate::background::fingerprint(doc), move || input.compute())
+}
+
 /// One calculation area as typed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AreaForm {
@@ -55,7 +91,7 @@ impl AreaForm {
         AreaForm { name: String::new(), kind: AreaKind::Carriageway, from_m: 0.0, to_m: 0.0, off_from: String::new(), off_to: String::new(), along_spacing: false, along: String::new(), across_spacing: false, across: String::new() }
     }
 
-    fn of(a: &CalcArea) -> AreaForm {
+    pub(crate) fn of(a: &CalcArea) -> AreaForm {
         let split = |d: Division| match d {
             Division::Count(n) => (false, n.to_string()),
             Division::Spacing(s) => (true, afrobim_sheets::trim_number(s, 6)),
@@ -487,8 +523,8 @@ impl AfroBimApp {
         }
     }
 
-    /// Runs the calculation from the form and stores the settings on the element.
-    pub(crate) fn photo_run(&mut self) -> Result<(), String> {
+    /// Reads the form and the element into what a calculation needs, or says what is missing.
+    fn photo_input(&self) -> Result<PhotoInput, String> {
         let id = self.photo.form.element.ok_or("Choose a lighting installation.")?;
         let loaded = self.photo.loaded.clone().ok_or("Choose a luminaire file first.")?;
         let (settings, rtable) = self.photo.form.settings()?;
@@ -497,7 +533,31 @@ impl AfroBimApp {
         let path = self.photo.path.clone().map(|p| p.to_string_lossy().to_string()).unwrap_or_else(|| loaded.file_name.clone());
         let rt_sha = rtable.as_ref().and_then(|_| self.photo.form.rtable.as_ref().and_then(|(p, _)| std::fs::read(p).ok().map(|b| sha256_hex(&b))));
         let rt_info = self.photo.form.rtable.as_ref().zip(rt_sha.as_ref()).map(|((p, _), h)| (p.to_string_lossy().to_string(), h.clone()));
-        let run = run_photometry(&data, &loaded.photometry, &loaded.file_name, &loaded.sha256, &settings, rtable.as_ref(), alignment.as_ref()).map_err(|e| e.to_string())?;
+        Ok(PhotoInput { id, loaded, settings, rtable, data, alignment, path, rt_info })
+    }
+
+    /// Runs the calculation from the form on the UI thread and stores the settings on the element:
+    /// for the demo run and tests.
+    pub(crate) fn photo_run(&mut self) -> Result<(), String> {
+        let out = self.photo_input()?.compute();
+        self.apply_photo_out(out)
+    }
+
+    /// As [`AfroBimApp::photo_run`] on a worker thread, with a progress window and Cancel. The
+    /// result is applied (and the settings stored) only if the document has not changed since.
+    pub(crate) fn photo_run_bg(&mut self) -> Result<(), String> {
+        if self.bg.photo.is_some() {
+            return Err("A photometry calculation is already in progress.".into());
+        }
+        let input = self.photo_input()?;
+        self.bg.photo = Some(spawn_photometry(&self.doc, input));
+        self.status = "Photometry started on a worker thread; the model stays editable, but an edit discards the result.".into();
+        Ok(())
+    }
+
+    /// Takes a finished calculation in: stores its settings on the installation and shows it.
+    pub(crate) fn apply_photo_out(&mut self, out: Result<PhotoOut, String>) -> Result<(), String> {
+        let PhotoOut { id, run, settings, loaded, path, rt_info, data } = out?;
         set_photometry(&mut self.doc, id, &path, &loaded, &settings, rt_info.as_ref().map(|(p, h)| (p.as_str(), h.as_str()))).map_err(|e| e.to_string())?;
         let class = data.definition.lighting_class().to_string();
         self.photo.area = run.primary_area_for_class(&class).map(|s| s.to_string()).or_else(|| run.result.areas.first().map(|a| a.name.clone())).unwrap_or_default();
@@ -791,7 +851,7 @@ impl AfroBimApp {
             }
         }
         if run {
-            match self.photo_run() {
+            match self.photo_run_bg() {
                 Ok(()) => self.photo.form.error.clear(),
                 Err(e) => self.photo.form.error = e,
             }
