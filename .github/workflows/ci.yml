@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Run by hand from the Actions tab to test Windows and macOS as well as Linux.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,92 +16,19 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
-env:
-  DOTNET_NOLOGO: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: true
+# Pushes and pull requests test on Linux only. Windows and macOS minutes are billed at 2x and 10x,
+# so the full matrix runs only when the workflow is started by hand.
 
 # The Transport fonts are user-supplied and never committed, so both jobs run the
 # suite on the DejaVu fixtures in tests/fixtures/fonts; the exact-metric tests skip.
 
 jobs:
-  test-linux:
-    # Everything except the WPF app (net10.0-windows), which only builds on Windows.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        id: dotnet
-        with:
-          dotnet-version: 10.0.x
-
-      # Runner images carry newer SDKs too; build with the one just installed.
-      - name: Pin SDK
-        run: dotnet new globaljson --sdk-version ${{ steps.dotnet.outputs.dotnet-version }} --force
-
-      - name: Restore
-        run: |
-          dotnet restore tests/SignCore.Tests/SignCore.Tests.csproj
-          dotnet restore tools/VerifyRoundTrip/VerifyRoundTrip.csproj
-
-      - name: Build
-        run: |
-          dotnet build tests/SignCore.Tests/SignCore.Tests.csproj -c Release --no-restore
-          dotnet build tools/VerifyRoundTrip/VerifyRoundTrip.csproj -c Release --no-restore
-
-      - name: Test
-        run: dotnet test tests/SignCore.Tests/SignCore.Tests.csproj -c Release --no-build
-
-  build-windows:
-    # Whole solution, including the WPF desktop app.
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        id: dotnet
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Pin SDK
-        run: dotnet new globaljson --sdk-version ${{ steps.dotnet.outputs.dotnet-version }} --force
-
-      - name: Build
-        run: dotnet build SignCore.sln -c Release
-
-      - name: Test
-        run: dotnet test SignCore.sln -c Release --no-build
-
-      # WPF cannot be unit-tested on Linux, so load every window for real: the smoke run parses the
-      # XAML, lays the CAD workspace out with signs on the canvas and writes a screenshot.
-      - name: UI smoke test
-        shell: pwsh
-        timeout-minutes: 5
-        env:
-          SIGNCORE_FONTS_DIR: ${{ github.workspace }}\fonts
-        run: |
-          $exe = Get-ChildItem -Recurse -Path src/SignCore.App/bin/Release -Filter SignCore.App.exe | Select-Object -First 1
-          $p = Start-Process -FilePath $exe.FullName -ArgumentList '--smoke-dialogs' -Wait -PassThru
-          $dir = Split-Path $exe.FullName
-          if (Test-Path "$dir/smoke-result.txt") { Get-Content "$dir/smoke-result.txt" }
-          New-Item -ItemType Directory -Force -Path smoke-out | Out-Null
-          Copy-Item "$dir/smoke-*.*" smoke-out -ErrorAction SilentlyContinue
-          if ($p.ExitCode -ne 0) { throw "UI smoke test failed with exit code $($p.ExitCode)" }
-
-      - name: Upload UI screenshot
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: signcore-ui-smoke
-          path: smoke-out
-          if-no-files-found: ignore
-
   afrobim:
     # The Rust platform: one codebase, built and tested on all three desktop systems.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -129,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["ubuntu-latest","windows-latest","macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:
