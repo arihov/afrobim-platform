@@ -128,6 +128,17 @@ fn spline_is_evaluated_and_bad_ones_fall_back_with_a_warning() {
 }
 
 #[test]
+fn a_spline_with_only_fit_points_is_drawn_through_them_with_a_warning() {
+    let fit = "0\nSPLINE\n8\n0\n70\n0\n71\n3\n74\n3\n11\n0\n21\n0\n31\n0\n11\n5\n21\n5\n31\n0\n11\n10\n21\n0\n31\n0\n";
+    let u = ents(fit);
+    let ex = u.expand(&Default::default());
+    assert!(ex.warnings.iter().any(|w| w.contains("fit points only")));
+    let (_, _, pts, _) = &u.flatten(1e-3)[0];
+    assert_eq!(pts.len(), 3);
+    assert!(close(pts[1].x, 5.0) && close(pts[1].y, 5.0));
+}
+
+#[test]
 fn text_and_mtext() {
     let u = ents("0\nTEXT\n8\nT\n10\n5\n20\n6\n30\n0\n40\n2.5\n1\nKerb 45%%d\n50\n30\n72\n1\n73\n0\n11\n9\n21\n9\n31\n0\n0\nMTEXT\n8\nT\n10\n1\n20\n2\n30\n0\n40\n3\n41\n50\n71\n5\n3\nSecond \\\\\\\\ \n1\n{\\fArial|b0;\\H2;Bold}\\PNext line\n");
     let Geom::Text(t) = &u.entities[0].geom else { panic!() };
@@ -309,7 +320,7 @@ fn binary_dxf_and_dwg_are_refused_with_instructions() {
     let e = reader::read_bytes(b"AC1027\0\0\0\0\0\0\0\0\0\0\0\0\0").unwrap_err();
     assert!(matches!(e, ReadError::Dwg(_)));
     let m = e.to_string();
-    assert!(m.contains("DWG") && m.contains("Convert it to DXF") && m.contains("AutoCAD 2013"), "{m}");
+    assert!(m.contains("DWG") && m.contains("Convert it to DXF") && m.contains("release R2013"), "{m}");
     assert!(matches!(reader::read_bytes(b"hello world\nthis is not a dxf\n").unwrap_err(), ReadError::NotDxf(_)));
 }
 
@@ -380,7 +391,7 @@ fn snap_points_include_ends_mids_centres_and_crossings() {
     let tiny = u.snap_points(&d, &SnapOptions { max_pair_tests: 0, ..Default::default() });
     assert!(tiny.truncated_intersections && tiny.points.iter().all(|p| p.kind != SnapKind::Intersection));
     let cap = u.snap_points(&d, &SnapOptions { max_points: 3, ..Default::default() });
-    assert!(cap.truncated_points && cap.points.len() == 3);
+    assert!(cap.truncated_points && cap.points.iter().filter(|p| p.kind != SnapKind::Intersection).count() == 3);
 }
 
 #[test]

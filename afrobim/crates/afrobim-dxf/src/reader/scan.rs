@@ -4,8 +4,8 @@
 //! *record* here is a group code 0 pair (`0`, TYPE) and every pair up to the next 0. Everything
 //! in the file, section markers, table entries, blocks and entities, is such a record, which
 //! lets one loop read the whole file with memory proportional to one record.
-//! (Structure per the Autodesk DXF Reference, "DXF format" and "Group codes in numerical order";
-//! cross-checked against `ezdxf` 1.4.5, `ezdxf.lldxf.tagger`.)
+//! (Structure as read by `ezdxf` 1.4.5, `ezdxf.lldxf.tagger`; the Autodesk DXF Reference pages were
+//! not available here and are not cited.)
 //!
 //! Group 999 is a comment and is skipped wherever it appears.
 

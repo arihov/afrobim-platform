@@ -53,9 +53,9 @@ pub use units::insunits;
 pub enum ReadError {
     #[error("{0}")]
     Io(#[from] std::io::Error),
-    #[error("This is a binary DXF file. Save it as an ASCII DXF (in AutoCAD: SAVEAS, DXF, and choose the ASCII option) and attach that.")]
+    #[error("This is a binary DXF file, which this program cannot read. Save it as an ASCII DXF from the CAD program and attach that.")]
     Binary,
-    #[error("This is a DWG file ({0}), which this program cannot read. Convert it to DXF first (in AutoCAD or Civil 3D: SAVEAS, then choose a DXF type; or use the ODA File Converter), then attach the DXF.")]
+    #[error("This is a DWG file ({0}), which this program cannot read. Convert it to DXF first (save as DXF from AutoCAD or Civil 3D, or use a converter), then attach the DXF.")]
     Dwg(String),
     #[error("{0}")]
     NotDxf(String),
@@ -116,18 +116,20 @@ pub fn read_from<R: Read>(r: R) -> Result<Underlay, ReadError> {
 }
 
 fn dwg_name(code: &str) -> &'static str {
-    // The DWG version tags (the same strings `$ACADVER` uses).
+    // Release names as `ezdxf.lldxf.const.acad_release` gives them for these version tags.
     match code {
-        "AC1009" => "AutoCAD R11/R12",
-        "AC1012" => "AutoCAD R13",
-        "AC1014" => "AutoCAD R14",
-        "AC1015" => "AutoCAD 2000",
-        "AC1018" => "AutoCAD 2004",
-        "AC1021" => "AutoCAD 2007",
-        "AC1024" => "AutoCAD 2010",
-        "AC1027" => "AutoCAD 2013",
-        "AC1032" => "AutoCAD 2018",
-        _ => "a DWG release",
+        "AC1004" => "release R9",
+        "AC1006" => "release R10",
+        "AC1009" => "release R12",
+        "AC1012" => "release R13",
+        "AC1014" => "release R14",
+        "AC1015" => "release R2000",
+        "AC1018" => "release R2004",
+        "AC1021" => "release R2007",
+        "AC1024" => "release R2010",
+        "AC1027" => "release R2013",
+        "AC1032" => "release R2018",
+        _ => "an unrecognised release",
     }
 }
 
@@ -138,7 +140,8 @@ pub struct DisplayOptions {
     pub unit_scale_mm: Option<f64>,
     /// Added to every point after scaling, millimetres (places the underlay in the model).
     pub offset_mm: Pt2,
-    /// Greatest distance between a drawn chord and the true curve, millimetres. Default 0.5.
+    /// Greatest distance between a drawn chord and the true curve, millimetres. Default 5, which
+    /// is far below a pixel at site scales; a front end should pass a value from its zoom.
     pub tolerance_mm: f64,
     /// Nesting limit for blocks. Default 16.
     pub max_depth: usize,
@@ -152,7 +155,7 @@ pub struct DisplayOptions {
 
 impl Default for DisplayOptions {
     fn default() -> Self {
-        DisplayOptions { unit_scale_mm: None, offset_mm: Pt2::new(0.0, 0.0), tolerance_mm: 0.5, max_depth: 16, hidden_layers: Vec::new(), show_file_hidden_layers: false, max_items: 5_000_000 }
+        DisplayOptions { unit_scale_mm: None, offset_mm: Pt2::new(0.0, 0.0), tolerance_mm: 5.0, max_depth: 16, hidden_layers: Vec::new(), show_file_hidden_layers: false, max_items: 5_000_000 }
     }
 }
 
@@ -210,7 +213,7 @@ impl Underlay {
         let ex = self.expand(&ExpandOptions { tol, ..ExpandOptions::default() });
         ex.items
             .iter()
-            .filter_map(|it| {
+            .map(|it| {
                 let (pts, closed) = match &it.shape {
                     Shape::Line(a, b) => (vec![*a, *b], false),
                     Shape::Arc { c, r, a0, a1 } => (geom::arc_points(*c, *r, *a0, geom::sweep(*a0, *a1), tol), false),
@@ -220,7 +223,7 @@ impl Underlay {
                     Shape::Point(p) => (vec![*p], false),
                     Shape::Text(t) => (vec![t.at], false),
                 };
-                Some((it.kind.to_string(), self.layers[it.layer as usize].name.clone(), pts, closed))
+                (it.kind.to_string(), self.layers[it.layer as usize].name.clone(), pts, closed)
             })
             .collect()
     }
@@ -320,7 +323,7 @@ fn ink_colour(rgb: [u8; 3]) -> Option<Colour> {
     let best = ALL.into_iter().min_by_key(|c| d(*c)).unwrap_or(Colour::Black);
     // Plain white, black and the very dark and very light greys are the front end's ink.
     let lum = rgb.iter().map(|c| *c as u32).sum::<u32>() / 3;
-    if matches!(best, Colour::White | Colour::Black) || lum < 40 || lum > 235 {
+    if matches!(best, Colour::White | Colour::Black) || !(40..=235).contains(&lum) {
         None
     } else {
         Some(best)

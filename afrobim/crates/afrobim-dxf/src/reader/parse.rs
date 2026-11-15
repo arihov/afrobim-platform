@@ -2,9 +2,8 @@
 //!
 //! Group codes below were checked against `ezdxf` 1.4.5 (`DXFATTRIBS` of each entity class, the
 //! loaders in `ezdxf/entities/boundary_paths.py` and `lwpolyline.py`, and the constants in
-//! `ezdxf/lldxf/const.py`). Where this file says "ezdxf" it names that source; the Autodesk DXF
-//! Reference pages (help.autodesk.com) could not be fetched here because they are rendered by
-//! script, so they are not cited as verified.
+//! `ezdxf/lldxf/const.py`). The Autodesk DXF Reference pages on help.autodesk.com are rendered by
+//! script and could not be fetched here, so they are not cited as verified.
 //!
 //! | entity | groups read |
 //! |---|---|
@@ -190,7 +189,7 @@ pub fn read_records<R: BufRead>(reader: R) -> Result<Underlay, ReadError> {
     }
     units_from_header(&mut units);
     let header_extents = match (extmin, extmax) {
-        // AutoCAD writes +/-1e20 for an empty drawing.
+        // An empty drawing has EXTMIN above EXTMAX (ezdxf's default header is 1e20 and -1e20).
         (Some(a), Some(c)) if a.0.abs() < 1e19 && c.0.abs() < 1e19 && a.0 <= c.0 && a.1 <= c.1 => Some((pt(a.0, a.1), pt(c.0, c.1))),
         _ => None,
     };

@@ -3,7 +3,8 @@
 //! INSERT places a block with `T(insert) * R(rotation) * S(sx, sy) * T(-base)`. A MINSERT array
 //! (`70` columns, `71` rows) offsets each copy by `(col * dx, row * dy)` turned by the rotation and
 //! not scaled, as `ezdxf` `Insert.multi_insert` does. Entities inside a block on layer `0` take the
-//! layer of the INSERT, and a colour *by block* takes the INSERT's colour (AutoCAD's rule).
+//! layer of the INSERT, and a colour *by block* takes the INSERT's colour (the usual CAD rule; ezdxf's
+//! `virtual_entities` does not apply it, so only this crate's own tests cover it).
 //! Nesting is followed to `max_depth`.
 
 use std::collections::BTreeSet;

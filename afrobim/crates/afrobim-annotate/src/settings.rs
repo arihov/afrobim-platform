@@ -243,6 +243,36 @@ mod tests {
     }
 
     #[test]
+    fn restyle_applies_a_changed_style_to_the_annotations_that_use_it() {
+        use crate::dim::{DimData, DimKind, LinearOrient};
+        use crate::geometry::pt;
+        use crate::text::TextData;
+        let mut doc = Document::default();
+        let mut s = AnnotationSettings { annotation_scale: 100.0, ..Default::default() };
+        store(&mut doc, &s);
+        let d = DimData::new(DimKind::Linear { p1: pt(0.0, 0.0), p2: pt(5000.0, 0.0), line_pt: pt(0.0, 800.0), orient: LinearOrient::Horizontal }, &s.current_dim());
+        let dim = element::add_dimension(&mut doc, d, "DIMS").unwrap();
+        let text = element::add_text(&mut doc, TextData::new("note", pt(0.0, 2000.0), &s.current_text(), 100.0), "NOTES").unwrap();
+        let height = |doc: &Document, id| doc.find(id).unwrap().height;
+        let before = (height(&doc, dim), height(&doc, text));
+        // Make the text taller and the dimension text taller; nothing changes until restyle runs.
+        let mut ts = s.current_text();
+        ts.height_paper_mm = 5.0;
+        s.set_text_style(ts);
+        let mut ds = s.dim_styles[0].clone();
+        ds.text_height_mm = 5.0;
+        ds.length_decimals = 1;
+        s.set_dim_style(ds);
+        store(&mut doc, &s);
+        assert_eq!((height(&doc, dim), height(&doc, text)), before);
+        assert_eq!(restyle(&mut doc), 2);
+        assert!((doc.find(text).unwrap().height - 500.0).abs() < 1e-9); // 5 mm paper at 1:100
+        let r = element::AnnotationModule::DIMENSION.generate(doc.find(dim).unwrap()).unwrap();
+        assert_eq!(r.derived["text"], "5.0"); // one decimal now
+        assert_eq!(restyle(&mut doc), 0); // idempotent
+    }
+
+    #[test]
     fn current_dim_takes_the_annotation_scale() {
         let s = AnnotationSettings { annotation_scale: 250.0, ..Default::default() };
         assert_eq!(s.current_dim().scale, 250.0);

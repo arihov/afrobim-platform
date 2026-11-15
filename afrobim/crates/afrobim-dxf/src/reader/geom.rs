@@ -158,11 +158,11 @@ impl Nurbs {
         if knots.windows(2).any(|w| w[1] < w[0]) {
             return Err("the knots decrease".into());
         }
-        if !(knots[n] > knots[degree]) {
+        if knots[n] <= knots[degree] || knots[n].is_nan() || knots[degree].is_nan() {
             return Err("the knot domain is empty".into());
         }
         let weights = if weights.len() == n { weights } else { vec![1.0; n] };
-        if weights.iter().any(|w| !(*w > 0.0)) {
+        if weights.iter().any(|w| w.is_nan() || *w <= 0.0) {
             return Err("a weight is not positive".into());
         }
         Ok(Nurbs { degree, knots, ctrl, weights })

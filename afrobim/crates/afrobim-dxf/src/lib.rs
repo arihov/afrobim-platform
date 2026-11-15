@@ -275,7 +275,7 @@ impl DxfDocument {
     /// Adds an ARC (group codes 10, 40, 50, 51: centre, radius, start and end angle in degrees,
     /// anticlockwise from +X). Skipped when the radius is not positive.
     pub fn add_arc(&mut self, layer: &str, aci: u8, centre: Pt2, radius: f64, start_deg: f64, end_deg: f64) {
-        if !(radius > 0.0) {
+        if radius.is_nan() || radius <= 0.0 {
             return;
         }
         self.note_layer(layer, aci);
@@ -401,7 +401,7 @@ fn fmt_num(v: f64) -> String {
     if int_len < 0 {
         // Pad so there is one leading zero slot before the first kept decimal.
         let pad = (-int_len) as usize;
-        digits.splice(0..0, std::iter::repeat(0).take(pad));
+        digits.splice(0..0, std::iter::repeat_n(0, pad));
         int_len = 0;
     }
     let keep = (int_len as usize) + 4; // integer digits + four decimals
@@ -526,7 +526,7 @@ mod tests {
     fn numbers_use_four_decimals_without_trailing_zeros() {
         assert_eq!(fmt_num(0.0), "0");
         assert_eq!(fmt_num(12.5), "12.5");
-        assert_eq!(fmt_num(3.14159265), "3.1416");
+        assert_eq!(fmt_num(std::f64::consts::PI), "3.1416");
         assert_eq!(fmt_num(2112.0), "2112");
         assert_eq!(fmt_num(-7.25), "-7.25");
         assert_eq!(fmt_num(100.00004), "100");

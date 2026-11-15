@@ -239,7 +239,7 @@ impl DimData {
                 (vec![sw], vec![t])
             }
             DimKind::Radius { centre, radius, at } => {
-                if !(*radius > 0.0) {
+                if radius.is_nan() || *radius <= 0.0 {
                     return Err("The radius must be positive.".into());
                 }
                 let d = unit(sub(*at, *centre)).unwrap_or(pt(1.0, 0.0));
@@ -248,7 +248,7 @@ impl DimData {
                 (vec![*radius], vec![t])
             }
             DimKind::Diameter { centre, radius, at } => {
-                if !(*radius > 0.0) {
+                if radius.is_nan() || *radius <= 0.0 {
                     return Err("The radius must be positive.".into());
                 }
                 let d = unit(sub(*at, *centre)).unwrap_or(pt(1.0, 0.0));
@@ -257,7 +257,7 @@ impl DimData {
                 (vec![2.0 * radius], vec![t])
             }
             DimKind::ArcLength { centre, radius, start_deg, end_deg, offset } => {
-                if !(*radius > 0.0) {
+                if radius.is_nan() || *radius <= 0.0 {
                     return Err("The radius must be positive.".into());
                 }
                 let sweep = (end_deg - start_deg).rem_euclid(360.0);
@@ -489,6 +489,7 @@ fn angular_dim(g: &mut AnnGeometry, st: &DimStyle, v: Pt, a0: f64, sweep: f64, r
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn arc_length_dim(g: &mut AnnGeometry, st: &DimStyle, c: Pt, r: f64, a0: f64, sweep: f64, offset: f64, text: &str) {
     // The dimension arc, its terminators, text and radial extension lines are those of an angular
     // dimension on the larger radius, with the arc's own end points as the arm points.
