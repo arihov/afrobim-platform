@@ -753,6 +753,7 @@ fn totals(doc: &Document, id: ElementId) -> Option<(f64, f64)> {
 
 /// The corridor surfaces for the 3D site view: the meshes (top, cut slopes, fill slopes) and the
 /// site position of their origin, in millimetres.
+#[derive(Clone)]
 pub struct CorridorSolids {
     pub origin: [f64; 3],
     pub meshes: Vec<Mesh3>,

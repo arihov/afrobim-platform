@@ -781,6 +781,27 @@ fn paint_preview(ui: &mut Ui, p: &Preview, zoom: f32, pan: Vec2) -> egui::Respon
 
 // ─── the app side ───────────────────────────────────────────────────────────────────────
 
+/// What to do with a set when its composition finishes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ComposeThen {
+    Preview,
+    Pdf,
+    Dxf { one_file: bool },
+}
+
+/// What a composition on a worker thread hands back.
+pub struct ComposeOut {
+    pub then: ComposeThen,
+    pub result: Result<Composed, String>,
+}
+
+/// Composes the stored set `id` on a worker thread from a copy of the document, to be applied only
+/// while the document is unchanged.
+pub fn spawn_compose(doc: &Document, id: ElementId, engine: Option<std::sync::Arc<afrobim_signs::SignEngine>>, then: ComposeThen) -> crate::background::Job<ComposeOut> {
+    let copy = doc.clone();
+    crate::background::Job::spawn("Sheet set", crate::background::fingerprint(doc), move || ComposeOut { then, result: glue::compose_off_thread(&copy, id, engine) })
+}
+
 impl AfroBimApp {
     /// Composes the selected set (or the one called `name`) from the live model.
     pub(crate) fn compose_sheets(&mut self, name: Option<&str>) -> Result<Composed, String> {
@@ -794,9 +815,39 @@ impl AfroBimApp {
         glue::compose_stored(&self.doc, &self.modules, id, &live)
     }
 
+    /// What to do with a set composed on a worker thread.
     fn compose_into_preview(&mut self) {
-        match self.compose_sheets(None) {
-            Ok(c) => {
+        self.start_compose(ComposeThen::Preview);
+    }
+
+    /// Composes the selected set on a worker thread, with a progress indicator and Cancel (a set
+    /// with cross-section sheets builds its corridor, which can take a while). When it arrives it
+    /// is previewed or exported as `then` says, if the document has not changed since.
+    pub(crate) fn start_compose(&mut self, then: ComposeThen) {
+        if self.bg.sheets.is_some() {
+            self.status = "A sheet set is already being composed.".into();
+            return;
+        }
+        self.sheets.sync(&self.doc);
+        let Some(id) = self.sheets.set_id else {
+            self.status = "There is no sheet set yet. Open Sheet sets and make one.".into();
+            return;
+        };
+        self.bg.sheets = Some(spawn_compose(&self.doc, id, self.engine.clone(), then));
+        self.status = "Composing the sheet set on a worker thread; the model stays editable, but an edit discards the result.".into();
+    }
+
+    /// Takes a set composed on a worker thread in.
+    pub(crate) fn apply_composed(&mut self, out: ComposeOut) {
+        let c = match out.result {
+            Ok(c) => c,
+            Err(e) => {
+                self.status = e;
+                return;
+            }
+        };
+        match out.then {
+            ComposeThen::Preview => {
                 let n = c.composed.sheets.len();
                 self.status = format!("Composed {n} sheet(s) of '{}' at {}.", c.set_name, c.at);
                 self.sheets.page = self.sheets.page.min(n.saturating_sub(1));
@@ -804,7 +855,8 @@ impl AfroBimApp {
                 self.sheets.cache = None;
                 self.sheets.fit = true;
             }
-            Err(e) => self.status = e,
+            ComposeThen::Pdf => self.finish_sheet_pdf(c),
+            ComposeThen::Dxf { one_file } => self.finish_sheet_dxf(c, one_file),
         }
     }
 
@@ -834,13 +886,11 @@ impl AfroBimApp {
     }
 
     pub(crate) fn export_sheet_pdf(&mut self) {
-        let c = match self.compose_sheets(None) {
-            Ok(c) => c,
-            Err(e) => {
-                self.status = e;
-                return;
-            }
-        };
+        self.start_compose(ComposeThen::Pdf);
+    }
+
+    /// Asks where to write a composed set and writes it as a PDF.
+    fn finish_sheet_pdf(&mut self, c: Composed) {
         let name = format!("{}.pdf", glue::file_stem(&c.set_name));
         let Some(mut path) = rfd::FileDialog::new().add_filter("PDF", &["pdf"]).set_file_name(&name).save_file() else { return };
         if path.extension().is_none() {
@@ -856,13 +906,10 @@ impl AfroBimApp {
 
     /// `one_file`: every sheet side by side in one DXF; otherwise one DXF per sheet in a folder.
     pub(crate) fn export_sheet_dxf(&mut self, one_file: bool) {
-        let c = match self.compose_sheets(None) {
-            Ok(c) => c,
-            Err(e) => {
-                self.status = e;
-                return;
-            }
-        };
+        self.start_compose(ComposeThen::Dxf { one_file });
+    }
+
+    fn finish_sheet_dxf(&mut self, c: Composed, one_file: bool) {
         if one_file {
             let name = format!("{}.dxf", glue::file_stem(&c.set_name));
             let Some(mut path) = rfd::FileDialog::new().add_filter("AutoCAD DXF (R12)", &["dxf"]).set_file_name(&name).save_file() else { return };

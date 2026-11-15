@@ -131,6 +131,10 @@ pub struct Background {
     pub corridors: Option<Job<Vec<CorridorBuilt>>>,
     /// The built corridor of the sections window.
     pub sections: Option<Job<Result<crate::road_dialogs::SectionsView, String>>>,
+    /// The model-wide check (CHECKALL), with its visibility scene.
+    pub check_all: Option<Job<crate::check_all::Report>>,
+    /// A sheet set composed for the preview or an export.
+    pub sheets: Option<Job<crate::sheets_ui::ComposeOut>>,
 }
 
 /// The kinds of job, in the order the progress window lists them.
@@ -142,11 +146,13 @@ pub enum Kind {
     Photo,
     Corridors,
     Sections,
+    CheckAll,
+    Sheets,
 }
 
 impl Background {
     pub fn busy(&self) -> bool {
-        self.clash.is_some() || self.pack.is_some() || self.vis.is_some() || self.photo.is_some() || self.corridors.is_some() || self.sections.is_some()
+        self.clash.is_some() || self.pack.is_some() || self.vis.is_some() || self.photo.is_some() || self.corridors.is_some() || self.sections.is_some() || self.check_all.is_some() || self.sheets.is_some()
     }
 
     /// The running jobs: kind, label and seconds so far.
@@ -154,7 +160,7 @@ impl Background {
         fn row<T: Send + 'static>(kind: Kind, job: &Option<Job<T>>) -> Option<(Kind, String, f64)> {
             job.as_ref().map(|j| (kind, j.label.clone(), j.elapsed_s()))
         }
-        [row(Kind::Clash, &self.clash), row(Kind::Pack, &self.pack), row(Kind::Vis, &self.vis), row(Kind::Photo, &self.photo), row(Kind::Corridors, &self.corridors), row(Kind::Sections, &self.sections)].into_iter().flatten().collect()
+        [row(Kind::Clash, &self.clash), row(Kind::Pack, &self.pack), row(Kind::Vis, &self.vis), row(Kind::Photo, &self.photo), row(Kind::Corridors, &self.corridors), row(Kind::Sections, &self.sections), row(Kind::CheckAll, &self.check_all), row(Kind::Sheets, &self.sheets)].into_iter().flatten().collect()
     }
 
     pub fn cancel(&self, kind: Kind) {
@@ -170,6 +176,8 @@ impl Background {
             Kind::Photo => go(&self.photo),
             Kind::Corridors => go(&self.corridors),
             Kind::Sections => go(&self.sections),
+            Kind::CheckAll => go(&self.check_all),
+            Kind::Sheets => go(&self.sheets),
         }
     }
 }
@@ -239,6 +247,18 @@ impl crate::app::AfroBimApp {
                 Poll::Done(Ok(view)) => self.road.show_sections(view),
                 Poll::Done(Err(e)) => self.status = format!("No sections to show: {e}"),
                 other => self.status = discard_message("Cross-section build", &other),
+            }
+        }
+        if let Some(polled) = take(&mut self.bg.check_all, &self.doc) {
+            match polled {
+                Poll::Done(report) => self.apply_check_all(report),
+                other => self.status = discard_message("Model check", &other),
+            }
+        }
+        if let Some(polled) = take(&mut self.bg.sheets, &self.doc) {
+            match polled {
+                Poll::Done(out) => self.apply_composed(out),
+                other => self.status = discard_message("Sheet set composition", &other),
             }
         }
         // A corridor edited since its surfaces were last built, or cancelled or discarded
@@ -493,6 +513,124 @@ mod tests {
         let job = crate::photometry_ui::spawn_photometry(&doc, input(&doc));
         changed(&mut doc);
         assert!(matches!(wait(&job, &doc), Poll::Stale));
+    }
+
+    fn clash_input(doc: &Document, prebuilt: bool) -> crate::coordination_ui::ClashInput {
+        use afrobim_coordination::{ClashTest, Selection};
+        let mut co = afrobim_coordination::Coordination::default();
+        co.tests.push(ClashTest::hard("t", Selection::all(), Selection::all()));
+        let id = corridor_id(doc);
+        let mut corridors = std::collections::HashMap::new();
+        let mut stale = vec![id];
+        if prebuilt {
+            corridors.insert(id, crate::road_glue::corridor_solids(doc, id));
+            stale.clear();
+        }
+        crate::coordination_ui::ClashInput { doc: doc.clone(), co, solids: Default::default(), corridors, stale, site_mode: crate::view3d::site_mode_of(doc), refs: Vec::new() }
+    }
+
+    #[test]
+    fn the_clash_run_builds_its_corridors_in_the_worker_and_is_discarded_on_a_changed_document() {
+        let mut doc = demo_doc();
+        let id = corridor_id(&doc);
+        // The corridor is stale: the worker builds it, and the scene has its body.
+        let job = crate::coordination_ui::spawn_clash(clash_input(&doc, false));
+        let built = match wait(&job, &doc) {
+            Poll::Done(out) => {
+                assert_eq!(out.corridors.len(), 1, "the worker built the corridor");
+                assert_eq!((out.corridors[0].id, &out.corridors[0].key), (id, &doc.find(id).unwrap().data));
+                assert!(out.corridors[0].solids.is_ok());
+                assert!(out.bodies >= 1, "the corridor is a body of the scene");
+                out
+            }
+            other => panic!("{}", name(&other)),
+        };
+        // With the surfaces already cached nothing is built, and the run is the same.
+        let job = crate::coordination_ui::spawn_clash(clash_input(&doc, true));
+        match wait(&job, &doc) {
+            Poll::Done(out) => {
+                assert!(out.corridors.is_empty());
+                assert_eq!(out.bodies, built.bodies);
+                assert_eq!(out.stats.iter().map(|s| s.clashes).collect::<Vec<_>>(), built.stats.iter().map(|s| s.clashes).collect::<Vec<_>>());
+            }
+            other => panic!("{}", name(&other)),
+        }
+        // Changed while it ran: discarded.
+        let job = crate::coordination_ui::spawn_clash(clash_input(&doc, false));
+        changed(&mut doc);
+        assert!(matches!(wait(&job, &doc), Poll::Stale));
+        // Cancelled: discarded.
+        let job = crate::coordination_ui::spawn_clash(clash_input(&doc, false));
+        job.cancel();
+        assert!(matches!(wait(&job, &doc), Poll::Cancelled));
+    }
+
+    fn check_input(doc: &Document, vis: bool) -> crate::check_ui::CheckAllInput {
+        let registry = crate::sheets_glue::test_support::registry();
+        let notes = doc.elements().iter().filter(|e| registry.get(&e.category).is_some()).map(|e| (e.id, registry.generate(e).map(|g| g.notes))).collect();
+        let labels = registry.categories().map(|(c, n)| (c.to_string(), n.to_string())).collect();
+        crate::check_ui::CheckAllInput { doc: doc.clone(), notes, labels, vis: vis.then(|| vis_input(doc, None)) }
+    }
+
+    #[test]
+    fn the_model_check_applies_on_an_unchanged_document_and_is_discarded_on_a_changed_one() {
+        let mut doc = demo_doc();
+        // The report is the one the synchronous check gives.
+        let sync = crate::sheets_glue::check_report(&doc, &crate::sheets_glue::test_support::registry());
+        let job = crate::check_ui::spawn_check_all(check_input(&doc, false));
+        match wait(&job, &doc) {
+            Poll::Done(report) => {
+                assert!(!report.rows.is_empty());
+                assert_eq!(report, sync);
+            }
+            other => panic!("{}", name(&other)),
+        }
+        // With a sign that has visibility inputs the obstruction scene is built in the worker.
+        let (mut vdoc, _) = doc_with_sign_inputs();
+        let job = crate::check_ui::spawn_check_all(check_input(&vdoc, true));
+        match wait(&job, &vdoc) {
+            Poll::Done(report) => {
+                assert!(report.rows.iter().any(|r| r.category.to_lowercase().contains("sign") || r.check.to_lowercase().contains("visib")), "{:?}", report.rows.iter().map(|r| (&r.mark, &r.check)).collect::<Vec<_>>());
+            }
+            other => panic!("{}", name(&other)),
+        }
+        let job = crate::check_ui::spawn_check_all(check_input(&vdoc, true));
+        changed(&mut vdoc);
+        assert!(matches!(wait(&job, &vdoc), Poll::Stale));
+        let job = crate::check_ui::spawn_check_all(check_input(&doc, false));
+        changed(&mut doc);
+        assert!(matches!(wait(&job, &doc), Poll::Stale));
+    }
+
+    #[test]
+    fn a_sheet_set_with_cross_sections_composes_in_the_worker_and_is_discarded_on_a_changed_document() {
+        use crate::sheets_ui::{spawn_compose, ComposeThen};
+        let mut doc = demo_doc();
+        let (set, _) = crate::sheets_glue::sets(&doc).remove(0);
+        let job = spawn_compose(&doc, set, None, ComposeThen::Pdf);
+        match wait(&job, &doc) {
+            Poll::Done(out) => {
+                assert_eq!(out.then, ComposeThen::Pdf);
+                let c = out.result.expect("the demo set composes");
+                // The demo set has six sheets, the last of them cross-sections (DEMO-SC-001).
+                let numbers: Vec<&str> = c.composed.sheets.iter().map(|s| s.number.as_str()).collect();
+                assert_eq!(numbers.len(), 6, "{numbers:?}");
+                assert!(numbers.contains(&"DEMO-SC-001"), "{numbers:?}");
+                assert!(c.composed.warnings.is_empty(), "{:?}", c.composed.warnings);
+                // The same sheets as the synchronous compose.
+                let registry = crate::sheets_glue::test_support::registry();
+                let sync = crate::sheets_glue::compose_stored(&doc, &registry, set, &crate::sheets_glue::Live::from_doc(&doc, &registry, None)).unwrap();
+                let sync_numbers: Vec<&str> = sync.composed.sheets.iter().map(|s| s.number.as_str()).collect();
+                assert_eq!(numbers, sync_numbers);
+            }
+            other => panic!("{}", name(&other)),
+        }
+        let job = spawn_compose(&doc, set, None, ComposeThen::Preview);
+        changed(&mut doc);
+        assert!(matches!(wait(&job, &doc), Poll::Stale));
+        let job = spawn_compose(&doc, set, None, ComposeThen::Dxf { one_file: true });
+        job.cancel();
+        assert!(matches!(wait(&job, &doc), Poll::Cancelled));
     }
 
     #[test]

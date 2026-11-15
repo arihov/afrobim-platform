@@ -29,6 +29,13 @@ pub(crate) struct CorridorSurfaces {
     pub solids: Result<road_glue::CorridorSolids, String>,
 }
 
+impl CorridorSurfaces {
+    /// The element data the surfaces were built from.
+    pub(crate) fn key(&self) -> &serde_json::Value {
+        &self.key
+    }
+}
+
 pub struct AfroBimApp {
     pub(crate) doc: Document,
     pub(crate) view: ViewTransform,
@@ -565,26 +572,9 @@ impl AfroBimApp {
         any
     }
 
-    /// Builds the 3D surfaces of corridors that have none yet or whose data changed, on the UI
-    /// thread: for a clash run's scene, headless runs and tests. The 3D view builds them with
-    /// [`AfroBimApp::sync_corridor_surfaces_bg`].
-    pub(crate) fn sync_corridor_surfaces(&mut self) {
-        let ids: Vec<ElementId> = self.doc.elements().iter().filter(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY).map(|e| e.id).collect();
-        self.corridor_cache.retain(|id, _| ids.contains(id));
-        for id in ids {
-            let Some(e) = self.doc.find(id) else { continue };
-            if self.corridor_cache.get(&id).is_some_and(|c| c.key == e.data) {
-                continue;
-            }
-            let key = e.data.clone();
-            let solids = road_glue::corridor_solids(&self.doc, id);
-            self.corridor_cache.insert(id, CorridorSurfaces { key, solids });
-        }
-    }
-
-    /// As [`AfroBimApp::sync_corridor_surfaces`] on a worker thread: starts one job for every
-    /// corridor that needs its surfaces (unless one is running or the engineer cancelled). Until
-    /// the job is applied the 3D view shows the corridor as it was, or not at all.
+    /// Starts one worker job for every corridor that needs its surfaces, unless one is running or
+    /// the engineer cancelled. Until the job is applied the 3D view shows the corridor as it was,
+    /// or not at all. (A clash run builds the corridors it needs in its own job.)
     pub(crate) fn sync_corridor_surfaces_bg(&mut self) {
         let ids: Vec<ElementId> = self.doc.elements().iter().filter(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY).map(|e| e.id).collect();
         self.corridor_cache.retain(|id, _| ids.contains(id));
