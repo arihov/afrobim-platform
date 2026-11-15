@@ -55,6 +55,7 @@ name = "afrobim-app"
 version = "0.1.0"
 dependencies = [
  "afrobim-alignment",
+ "afrobim-annotate",
  "afrobim-coordination",
  "afrobim-corridor",
  "afrobim-cost",

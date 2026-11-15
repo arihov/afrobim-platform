@@ -33,6 +33,7 @@ afrobim-progress = { path = "../afrobim-progress" }
 afrobim-sheets = { path = "../afrobim-sheets" }
 afrobim-design = { path = "../afrobim-design" }
 afrobim-visibility = { path = "../afrobim-visibility" }
+afrobim-annotate = { path = "../afrobim-annotate" }
 serde.workspace = true
 serde_json.workspace = true
 eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }

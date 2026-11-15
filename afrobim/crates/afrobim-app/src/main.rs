@@ -1,6 +1,7 @@
 //! AfroBIM desktop application.
 
 mod alignment_glue;
+mod anno_glue;
 mod app;
 mod canvas;
 mod check_all;
