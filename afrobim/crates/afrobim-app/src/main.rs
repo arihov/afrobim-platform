@@ -147,8 +147,14 @@ pub struct Options {
 }
 
 fn parse_args() -> Options {
+    parse_args_from(std::env::args().skip(1))
+}
+
+/// The options from an argument list. An argument that is not an option is the document to
+/// open (the Windows file association passes the file that way).
+fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
     let mut o = Options::default();
-    let mut args = std::env::args().skip(1);
+    let mut args = args;
     while let Some(a) = args.next() {
         match a.as_str() {
             "--screenshot" => o.screenshot = args.next().map(PathBuf::from),
@@ -221,5 +227,22 @@ fn main() -> eframe::Result<()> {
             eprintln!("AfroBIM: starting without multisampling ({first})");
             run(&options, 0)
         }
+    }
+}
+
+#[cfg(test)]
+mod arg_tests {
+    use super::*;
+
+    #[test]
+    fn a_positional_argument_is_the_document_to_open() {
+        let o = parse_args_from(["road.afrobim".to_string()].into_iter());
+        assert_eq!(o.open, Some(PathBuf::from("road.afrobim")));
+        let o = parse_args_from(["road.afrobim", "--demo", "--tab", "Roads"].map(String::from).into_iter());
+        assert_eq!(o.open, Some(PathBuf::from("road.afrobim")));
+        assert!(o.demo && o.tab.as_deref() == Some("Roads"));
+        // An option's value is not mistaken for a document.
+        let o = parse_args_from(["--landxml", "a.xml"].map(String::from).into_iter());
+        assert_eq!(o.open, None);
     }
 }
