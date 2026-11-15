@@ -171,11 +171,15 @@ added to `packs/` or `fonts/`, add it to `stage.sh` (if it is a new kind of file
 
 Paths to the workspace, `packs/` and `fonts/` are set in two places only:
 
-- `afrobim/packaging/layout.env`: `REPO_ROOT_REL` (from the packaging folder up to the folder holding `packs/`
-  and `fonts/`; today `../..`, in a repository whose root is the old `afrobim/` contents plus `packs/` and
-  `fonts/` it is `..`), `PACKS_REL` and `FONTS_REL`.
-- the top-level `env:` block of `.github/workflows/installers.yml`: `WORKSPACE` (today `afrobim`, later `.`) and
-  `PACKAGING` (today `afrobim/packaging`, later `packaging`).
+- `afrobim/packaging/layout.env`: three values, all relative paths. The repository root holds the three folders
+  `afrobim/` (the Cargo workspace), `packs/` and `fonts/`, so the packaging folder `afrobim/packaging` is two
+  levels below the root and **`REPO_ROOT_REL` is `../..`** (from the packaging folder up to the folder that holds
+  `packs/` and `fonts/`). `PACKS_REL` is `packs` and `FONTS_REL` is `fonts`, both relative to that root. If the
+  workspace is ever moved to the repository root, `packaging` would sit one level below it and `REPO_ROOT_REL`
+  would become `..`.
+- the top-level `env:` block of `.github/workflows/installers.yml`: `WORKSPACE` (`afrobim`, the workspace folder
+  relative to the repository root) and `PACKAGING` (`afrobim/packaging`). They would become `.` and `packaging`
+  if the workspace moved to the root.
 
 The `afrobim-v*` tag pattern is a name, not a path; change it only if the tag naming changes. Paths in this
 document that begin `afrobim/` need the same edit.

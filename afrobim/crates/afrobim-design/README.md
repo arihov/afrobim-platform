@@ -76,7 +76,7 @@ let z = s.level_at(350.0)?;                    // 106.75
 let high = s.high_points();                    // [(400.0, 107.0)]
 ```
 
-### Edit operations for the sketching UI
+### Edit operations for the interactive tools
 
 Each takes `&mut` design, applies the change to a copy, and returns the recomputed solution, or
 a `DesignError::Impossible` whose `problems()` hold plain-words messages with the PI or PVI
@@ -96,7 +96,7 @@ and show the message while the cursor is somewhere impossible.
 | `v.delete_pvi(index)` | delete a PVI |
 | `v.set_curve_length(index, l)`, `v.set_curve_k(index, k)`, `v.set_curve(index, CurveSpec)` | change or remove a curve |
 
-`plan_labels(&design)` gives text labels with plan positions (PI number and station, curve data,
+`plan_labels(&design)` (or `plan_labels_with(&design, station, length)` for a front end's own units) gives text labels with plan positions (PI number and station, curve data,
 TS/SC/CS/ST points) for a front end that can draw text: the draw crate has glyph outlines only
 and the module's drawing therefore has no text.
 
@@ -454,7 +454,7 @@ for s in mowt::known_slips() { println!("{} {}: {}", s.id, s.place, s.what); }
 ```
 
 The app's `NO_LIMITS_TEXT` in `afrobim-app/src/design_glue.rs` ("The Uganda MoWT ... could not be obtained")
-and the README text it mirrors are out of date once this basis is offered; this crate does not touch the app.
+now reads "Choose the built-in Uganda MoWT Road Design Manual Vol. I ... or load a limits table", as this README does.
 
 #### Limits of this work
 
@@ -503,6 +503,6 @@ page in `#source`.
 - Crossings are plan intersections with the supplied line features; no levels, no skew, no
   structure sizing.
 - The plan drawing has no text (draw crate limitation); use `plan_labels`.
-- The app has no interactive sketching UI yet; the edit operations above are what it should call.
+- The interactive tools exist in `afrobim-app`: `ALIGNDESIGN` (new alignment from PIs), `ALIGNEDIT` (plan editor with PI grips, insert and delete, curve labels), `PITABLE`, `PROFILEDESIGN` (profile editor with the PVI table and fit to ground), `ALIGNCHECK`, `OPTIONS` and `LANDXMLOUT`. They call the edit operations above, and their lengths, levels and stations follow the document's display units (the engine itself works in metres; `plan_labels_with` takes the front end's station and length formatting). Pointer interaction was exercised only through the functions the pointer events call.
 - LandXML export is checked against the schema and the AfroBIM importer, not against a file
   read by Civil 3D or another third-party program.

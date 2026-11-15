@@ -181,8 +181,9 @@ fn limits_tables_load_from_json_and_csv() {
 }
 
 #[test]
-fn no_standard_is_shipped() {
-    // The crate offers no constructor of a named standard.
+fn a_default_basis_has_no_rows_and_no_source() {
+    // `DesignBasis::default()` is empty. The one built-in basis is a separate constructor,
+    // `DesignBasis::mowt_2010()`, and carries its sources.
     let b = DesignBasis::default();
     assert!(b.rows.is_empty() && b.source.is_empty());
 }

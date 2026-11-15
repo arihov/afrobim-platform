@@ -141,9 +141,10 @@ pub struct SideDrainDefinition {
     /// Thickness of the lining, mm, measured square to the faces. None or zero for an unlined drain.
     #[serde(default)]
     pub lining_thickness_mm: Option<f64>,
-    /// Longitudinal gradient of the bed, m/m, entered as a positive fall per unit length. The
-    /// alignment has no vertical geometry yet, so it cannot be derived; which way the drain
-    /// falls is not modelled.
+    /// Longitudinal gradient of the bed, m/m, entered as a positive fall per unit length. It is
+    /// used for hydraulics only: it is not derived from the alignment's profile, and which way the
+    /// drain falls is not modelled. The 3D solid does not use it either: its top edges follow the
+    /// alignment's profile level (see [`RoutePoint::level_m`]).
     pub gradient_m_per_m: f64,
     /// Manning's n for the hydraulic checks, entered. None leaves the capacity unreported.
     #[serde(default)]

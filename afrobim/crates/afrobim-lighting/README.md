@@ -589,9 +589,6 @@ directly drops this key; use `refresh_layout`.
 - `E_v,min` and `E_sc,min` take the minimum over the directions calculated; the facing directions
   are the user's.
 - The luxpy comparison reads the same documents; it checks the implementation, not the documents.
-- The app's text "AfroBIM computes no photometry" (`afrobim-app/src/lighting_inputs.rs`) and the
-  matching sentence in `docs/user-manual.md` are out of date once this is wired; they were not
-  touched here.
 
 ## Limits
 
