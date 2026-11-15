@@ -844,8 +844,8 @@ fn tl_ranges_table(
                     Some(l) => TlForm { from: l.range.from_m, to: l.range.to_m, dir: if l.derived { None } else { Some(l.range.direction) }, dwell: l.range.dwell_days.map(|d| d.to_string()).unwrap_or_default() },
                     None => TlForm { from: alignment.as_ref().map(|x| x.start_station_m).unwrap_or(0.0), to: alignment.as_ref().map(|x| x.start_station_m).unwrap_or(0.0), dir: None, dwell: String::new() },
                 });
-                crate::station_input::station_field(ui, doc, alignment_id, &format!("tl-from-{}", a.id), &mut form.from);
-                crate::station_input::station_field(ui, doc, alignment_id, &format!("tl-to-{}", a.id), &mut form.to);
+                crate::station_input::station_field_units(ui, doc, alignment_id, &format!("tl-from-{}", a.id), &mut form.from);
+                crate::station_input::station_field_units(ui, doc, alignment_id, &format!("tl-to-{}", a.id), &mut form.to);
                 egui::ComboBox::from_id_salt(("tl-dir", &a.id)).width(190.0).selected_text(form.dir.map(direction_text).unwrap_or("choose")).show_ui(ui, |ui| {
                     for d in [WorkDirection::Increasing, WorkDirection::Decreasing, WorkDirection::Fixed] {
                         ui.selectable_value(&mut form.dir, Some(d), direction_text(d));
@@ -899,19 +899,30 @@ pub fn time_location_for_sheet(p: &Programme, s: &Schedule, doc: &afrobim_kernel
     Ok((chart.drawing, chart.labels.into_iter().map(|l| (l.at, l.text)).collect()))
 }
 
+/// A tick of the station scale as the document shows stations: `k+mmm`. Ticks are at whole metres
+/// in practice, so no decimals are shown for a whole number; a tick that is not whole gets the
+/// document's station decimals.
+pub fn tick_station_text(u: &afrobim_annotate::DisplayUnits, station_m: f64) -> String {
+    if (station_m - station_m.round()).abs() < 1e-9 {
+        afrobim_alignment::format_station(station_m, 0)
+    } else {
+        crate::disp::station(u, station_m)
+    }
+}
+
 /// The station scale of the chart is in internal stations (the engine knows nothing of station
-/// equations). Where the alignment has equations, each station label is rewritten as the station
-/// shown on the drawings (app-side labelling: the engine cannot do it). Without equations the labels
-/// are left as the engine wrote them.
+/// equations or display units). Each station label is rewritten as the station shown on the
+/// drawings (through the alignment's station equations where it has them) in the document's
+/// station format. The engine's CSV keeps its own text.
 pub fn relabel_stations(doc: &afrobim_kernel::Document, chart: &mut TimeLocationChart) {
     let Some(a) = crate::alignment_glue::alignments(doc).into_iter().find(|a| a.1 == chart.alignment).and_then(|a| crate::alignment_glue::alignment_of(doc, a.0)) else { return };
-    if a.station_equations.region_count() <= 1 {
-        return;
-    }
+    let units = crate::anno_ui::units_of(doc);
+    let equations = a.station_equations.region_count() > 1;
     for l in chart.labels.iter_mut().filter(|l| l.kind == TlLabelKind::Station) {
-        if let Some(internal) = l.text.trim().parse::<f64>().ok() {
-            if let Some(d) = a.displayed_station(internal) {
-                l.text = afrobim_alignment::format_station(d.station_m, 0);
+        if let Ok(internal) = l.text.trim().parse::<f64>() {
+            let shown = if equations { a.displayed_station(internal).map(|d| d.station_m) } else { Some(internal) };
+            if let Some(m) = shown {
+                l.text = tick_station_text(&units, m);
             }
         }
     }
@@ -930,5 +941,34 @@ mod relabel_tests {
         assert!(crate::alignment_glue::alignment_of(&doc, aid).unwrap().station_equations.region_count() > 1);
         let (_, labels) = time_location_for_sheet(&p, &s, &doc).unwrap();
         assert!(labels.iter().any(|(_, t)| t.contains('+')), "station labels read as chainage, e.g. 1+500: {:?}", labels.iter().map(|l| l.1.clone()).take(12).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn a_tick_is_a_station_in_the_documents_format() {
+        let mut u = afrobim_annotate::DisplayUnits::default();
+        assert_eq!(tick_station_text(&u, 1500.0), "1+500");
+        assert_eq!(tick_station_text(&u, 0.0), "0+000");
+        assert_eq!(tick_station_text(&u, 12345.0), "12+345");
+        // A tick that is not a whole number of metres takes the document's station decimals.
+        assert_eq!(tick_station_text(&u, 1500.5), "1+500.500");
+        u.station_decimals = 1;
+        assert_eq!(tick_station_text(&u, 1500.5), "1+500.5");
+    }
+
+    #[test]
+    fn the_scale_of_an_alignment_without_station_equations_reads_as_stations_too() {
+        let mut doc = crate::sheets_glue::test_support::demo_doc();
+        let (aid, _) = crate::alignment_glue::alignments(&doc).remove(0);
+        let mut a = crate::alignment_glue::alignment_of(&doc, aid).unwrap();
+        a.station_equations.equations.clear();
+        assert!(a.station_equations.region_count() <= 1);
+        doc.find_mut(aid).unwrap().data = serde_json::to_value(&a).unwrap();
+        let (_, p) = crate::schedule_glue::load(&doc).unwrap();
+        let s = afrobim_schedule::schedule_with(&p, &afrobim_schedule::ScheduleOptions { critical: crate::schedule_glue::critical_basis_of(&doc) }).unwrap();
+        let (_, labels) = time_location_for_sheet(&p, &s, &doc).unwrap();
+        // Station labels are k+mmm; the engine's own text for them was a plain number of metres.
+        let stations: Vec<&String> = labels.iter().map(|l| &l.1).filter(|t| t.contains('+') && t.chars().next().is_some_and(|c| c.is_ascii_digit())).collect();
+        assert!(!stations.is_empty(), "{:?}", labels.iter().map(|l| l.1.clone()).take(12).collect::<Vec<_>>());
+        assert!(stations.iter().all(|t| t.split('+').nth(1).is_some_and(|m| m.len() == 3 && m.chars().all(|c| c.is_ascii_digit()))), "{stations:?}");
     }
 }

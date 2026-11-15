@@ -64,7 +64,30 @@ pub fn station_row(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>, sa
 /// `station_row`, with the station shown on the drawings converted to the internal one. True when
 /// the internal station changed.
 pub fn station_field(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>, salt: &str, internal: &mut f64) -> bool {
+    station_field_with(ui, doc, alignment, salt, internal, false)
+}
+
+/// As [`station_field`], shown and typed as the document's stations (`1+250.500`, with the
+/// document's station decimals) instead of plain metres. Used by the programme windows.
+pub fn station_field_units(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>, salt: &str, internal: &mut f64) -> bool {
+    station_field_with(ui, doc, alignment, salt, internal, true)
+}
+
+/// A drag value for a station in metres, as plain metres or as `k+mmm`.
+fn station_drag<'a>(value: &'a mut f64, units: Option<&'a afrobim_annotate::DisplayUnits>) -> egui::DragValue<'a> {
+    let drag = egui::DragValue::new(value).speed(1.0);
+    match units {
+        Some(u) => drag
+            .custom_formatter(move |v, _| crate::disp::station(u, v))
+            .custom_parser(move |text| crate::disp::parse_station(u, text)),
+        None => drag.suffix(" m"),
+    }
+}
+
+fn station_field_with(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>, salt: &str, internal: &mut f64, document_units: bool) -> bool {
     let before = *internal;
+    let units = crate::anno_ui::units_of(doc);
+    let units = document_units.then_some(&units);
     let parsed = alignment.and_then(|a| alignment_glue::alignment_of(doc, a));
     match parsed {
         Some(a) if a.station_equations.region_count() > 1 => {
@@ -78,7 +101,7 @@ pub fn station_field(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>, 
             let mut problem: Option<String> = None;
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    let c1 = ui.add(egui::DragValue::new(&mut st.displayed).speed(1.0).suffix(" m")).changed();
+                    let c1 = ui.add(station_drag(&mut st.displayed, units)).changed();
                     ui.label("region");
                     let c2 = ui.add(egui::DragValue::new(&mut st.region).range(0..=regions)).on_hover_text(format!("1 to {regions}; 0 if the station occurs once")).changed();
                     if c1 || c2 {
@@ -103,7 +126,7 @@ pub fn station_field(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>, 
             ui.data_mut(|d| d.insert_temp(id, st));
         }
         _ => {
-            ui.add(egui::DragValue::new(internal).speed(1.0).suffix(" m"));
+            ui.add(station_drag(internal, units));
         }
     }
     (*internal - before).abs() > 1e-12
@@ -113,6 +136,35 @@ pub fn station_field(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>, 
 mod tests {
     use super::*;
     use afrobim_alignment::StationEquation;
+
+    #[test]
+    fn a_station_field_in_the_documents_units_shows_k_plus_mmm_and_reads_it_back() {
+        let mut u = afrobim_annotate::DisplayUnits::default();
+        for decimals in [0u8, 1, 3] {
+            u.station_decimals = decimals;
+            for metres in [0.0, 12.5, 1250.5, 12345.678] {
+                let shown = crate::disp::station(&u, metres);
+                let back = crate::disp::parse_station(&u, &shown).expect("what is shown can be typed back");
+                assert!((back - metres).abs() <= 0.5 * 10f64.powi(-i32::from(decimals)) + 1e-9, "{metres} shown as {shown} read as {back}");
+            }
+        }
+        u.station_decimals = 3;
+        assert_eq!(crate::disp::station(&u, 1250.5), "1+250.500");
+        // A plain number of metres is accepted too.
+        assert_eq!(crate::disp::parse_station(&u, "1250.5"), Some(1250.5));
+        assert_eq!(crate::disp::parse_station(&u, "1+250.5"), Some(1250.5));
+    }
+
+    #[test]
+    fn the_drag_value_of_a_unit_field_formats_and_parses_through_the_same_functions() {
+        // The widget itself needs a window; this checks its two functions are the display helpers.
+        let u = afrobim_annotate::DisplayUnits::default();
+        let mut v = 1250.5;
+        let units = station_drag(&mut v, Some(&u));
+        drop(units);
+        let text = crate::disp::station(&u, v);
+        assert_eq!(crate::disp::parse_station(&u, &text), Some(v));
+    }
 
     fn with_equation() -> Alignment {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../afrobim-alignment/tests/landxml/corridor.xml");

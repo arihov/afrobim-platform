@@ -68,9 +68,33 @@ fn status_text(s: CheckStatus) -> &'static str {
     }
 }
 
-/// A figure's value as text: counts as whole numbers, everything else to three decimals.
-fn figure_text(value: f64, unit: &str) -> String {
-    if unit == "nr" { format!("{value:.0}") } else { format!("{value:.3}") }
+/// A figure's value as text: counts as whole numbers, lengths (metres) in the document's display
+/// unit, everything else to three decimals.
+fn figure_text(u: &afrobim_annotate::DisplayUnits, value: f64, unit: &str) -> String {
+    match unit {
+        "nr" => format!("{value:.0}"),
+        "m" => crate::disp::len(u, value),
+        _ => format!("{value:.3}"),
+    }
+}
+
+/// The unit column of the comparison: a length (metres) follows the document's length unit; areas,
+/// volumes, percentages, degrees and counts have their own.
+fn figure_unit(u: &afrobim_annotate::DisplayUnits, unit: &str) -> String {
+    if unit == "m" { crate::disp::suffix(u).to_string() } else { unit.to_string() }
+}
+
+/// The value and the limit of a check row for the results table. A length (metres) is shown in the
+/// document's display unit, with the unit; a grade (percent) is not a length and stays as it is.
+/// The row's own message (the engine's calculation text) and the limit's source citation, which
+/// keeps the unit the limits table printed, are not touched.
+fn check_cells(u: &afrobim_annotate::DisplayUnits, i: &afrobim_design::CheckItem) -> (String, String) {
+    let shown = |v: Option<f64>| match (v, i.unit.as_str()) {
+        (None, _) => "none".to_string(),
+        (Some(v), "m") => crate::disp::len_u(u, v),
+        (Some(v), unit) => format!("{v:.3} {unit}"),
+    };
+    (shown(i.value), shown(i.limit))
 }
 
 /// The class, terrain, design speed and emax pickers, fed from the engine's list of built-in bases.
@@ -162,10 +186,6 @@ fn mowt_panels(ui: &mut egui::Ui) {
     });
 }
 
-fn number(v: Option<f64>) -> String {
-    v.map(|v| format!("{v:.3}")).unwrap_or_else(|| "none".into())
-}
-
 impl AfroBimApp {
     pub(crate) fn design_open_check(&mut self) {
         match self.design_target() {
@@ -218,6 +238,7 @@ impl AfroBimApp {
         let mut load: Option<PathBuf> = None;
         let mut template = false;
         let mut csv = false;
+        let units = crate::anno_ui::units_of(&self.doc);
         crate::win::new(ctx, "ALIGNCHECK: design checks").open(&mut open).default_width(860.0).default_height(560.0).vscroll(true).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Alignment");
@@ -356,6 +377,7 @@ impl AfroBimApp {
                         });
                         ui.add_space(6.0);
                         ui.label(RichText::new("Every check").strong());
+                        ui.label(RichText::new("Values and limits are shown in the document's units. The source of a limit keeps the unit the limits table prints, and the message is the engine's own text.").small().weak());
                         egui::Grid::new("chk-items").num_columns(7).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                             for h in ["Element", "Check", "Value", "Limit", "Status", "Source of the limit", "Message"] {
                                 ui.label(RichText::new(h).strong());
@@ -364,8 +386,9 @@ impl AfroBimApp {
                             for i in &r.items {
                                 ui.label(&i.location);
                                 ui.label(&i.description);
-                                ui.label(format!("{} {}", number(i.value), i.unit));
-                                ui.label(format!("{} {}", number(i.limit), if i.limit.is_some() { i.unit.as_str() } else { "" }));
+                                let (value, limit) = check_cells(&units, i);
+                                ui.label(value);
+                                ui.label(limit);
                                 ui.label(RichText::new(status_text(i.status)).color(status_colour(i.status)));
                                 ui.label(RichText::new(format!("{} ({})", i.limit_basis, r.source)).small());
                                 ui.label(RichText::new(&i.message).small()).on_hover_text(&i.message);
@@ -618,6 +641,7 @@ impl AfroBimApp {
                 ui.label(RichText::new("Comparison: the figures of each option, unweighted").strong());
                 match o.cmp.as_ref().map(|(_, c)| c) {
                     Some(Ok(cmp)) if !cmp.options.is_empty() => {
+                        let units = crate::anno_ui::units_of(&self.doc);
                         egui::Grid::new("opt-cmp").num_columns(cmp.options.len() + 2).striped(true).spacing([14.0, 3.0]).show(ui, |ui| {
                             ui.label(RichText::new("Figure").strong());
                             ui.label(RichText::new("Unit").strong());
@@ -627,11 +651,11 @@ impl AfroBimApp {
                             ui.end_row();
                             for (key, label, unit) in figure_keys() {
                                 ui.label(label);
-                                ui.label(RichText::new(unit).weak());
+                                ui.label(RichText::new(figure_unit(&units, unit)).weak());
                                 for r in &cmp.options {
                                     match r.figure(key) {
                                         Some(f) if f.value.is_some() => {
-                                            let shown = f.exact.clone().unwrap_or_else(|| figure_text(f.value.unwrap_or_default(), &f.unit));
+                                            let shown = f.exact.clone().unwrap_or_else(|| figure_text(&units, f.value.unwrap_or_default(), &f.unit));
                                             ui.label(shown).on_hover_text(&f.how);
                                         }
                                         Some(f) => {
@@ -805,6 +829,76 @@ impl AfroBimApp {
                 }
                 Err(e) => self.design.options.message = e,
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+    use afrobim_annotate::{DisplayUnits, LengthUnit};
+    use afrobim_design::{Bound, CheckItem};
+
+    fn item(value: Option<f64>, limit: Option<f64>, unit: &str) -> CheckItem {
+        CheckItem {
+            id: "H.radius".into(),
+            location: "PI 1".into(),
+            description: "Curve radius".into(),
+            value,
+            limit,
+            bound: Bound::AtLeast,
+            unit: unit.into(),
+            status: CheckStatus::Pass,
+            limit_basis: "from the table: minimum radius 100 m".into(),
+            message: "Curve radius: 250.000 m, limit at least 100.000 m.".into(),
+        }
+    }
+
+    fn mm() -> DisplayUnits {
+        DisplayUnits { length: LengthUnit::Millimetre, length_decimals: 0, ..DisplayUnits::default() }
+    }
+
+    #[test]
+    fn the_check_table_shows_lengths_in_the_documents_unit_with_the_unit() {
+        let metres = DisplayUnits::default();
+        let (v, l) = check_cells(&metres, &item(Some(250.0), Some(100.0), "m"));
+        assert_eq!((v.as_str(), l.as_str()), ("250.000 m", "100.000 m"));
+        // The same row in a millimetre document: 250 m is 250 000 mm.
+        let (v, l) = check_cells(&mm(), &item(Some(250.0), Some(100.0), "m"));
+        assert_eq!((v.as_str(), l.as_str()), ("250000 mm", "100000 mm"));
+    }
+
+    #[test]
+    fn a_grade_is_not_a_length_and_a_missing_limit_says_none() {
+        let (v, l) = check_cells(&mm(), &item(Some(6.5), Some(8.0), "%"));
+        assert_eq!((v.as_str(), l.as_str()), ("6.500 %", "8.000 %"));
+        let (v, l) = check_cells(&mm(), &item(Some(250.0), None, "m"));
+        assert_eq!((v.as_str(), l.as_str()), ("250000 mm", "none"));
+        let (v, _) = check_cells(&mm(), &item(None, None, "m"));
+        assert_eq!(v, "none");
+    }
+
+    #[test]
+    fn the_rows_message_and_the_limits_source_keep_the_tables_unit() {
+        // The cells change; the item itself, with the unit its table printed, does not.
+        let i = item(Some(250.0), Some(100.0), "m");
+        let _ = check_cells(&mm(), &i);
+        assert!(i.limit_basis.contains("100 m") && i.message.contains("250.000 m"));
+    }
+
+    #[test]
+    fn the_option_comparison_converts_lengths_only() {
+        let metres = DisplayUnits::default();
+        assert_eq!(figure_text(&metres, 1234.5, "m"), "1234.500");
+        assert_eq!(figure_text(&mm(), 1234.5, "m"), "1234500");
+        assert_eq!(figure_unit(&metres, "m"), "m");
+        assert_eq!(figure_unit(&mm(), "m"), "mm");
+        // Areas, volumes, percentages and counts are not lengths.
+        assert_eq!(figure_text(&mm(), 12000.0, "m3"), "12000.000");
+        assert_eq!(figure_text(&mm(), 4.25, "%"), "4.250");
+        assert_eq!(figure_text(&mm(), 3.0, "nr"), "3");
+        for unit in ["m2", "m3", "%", "nr", "deg/km", ""] {
+            assert_eq!(figure_unit(&mm(), unit), unit);
         }
     }
 }
