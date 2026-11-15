@@ -23,6 +23,7 @@ mod design_profile;
 mod design_ui;
 mod design_windows;
 mod icons;
+mod ifc_options;
 mod issues_ui;
 mod lighting_inputs;
 mod markings_glue;
@@ -50,6 +51,8 @@ mod u1_tests;
 mod u2_align_tests;
 #[cfg(test)]
 mod u2_drain_tests;
+#[cfg(test)]
+mod u2_ifc_tests;
 #[cfg(test)]
 mod u2_tests;
 mod underlay;

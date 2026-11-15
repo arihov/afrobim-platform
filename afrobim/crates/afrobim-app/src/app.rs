@@ -92,6 +92,8 @@ pub struct AfroBimApp {
     marking_dialog: Option<(Option<ElementId>, markings_glue::MarkingRequest)>,
     /// The second-set marking dialog.
     pub(crate) ext_marking_dialog: Option<crate::ext_markings_ui::ExtDialog>,
+    /// The IFC export options dialog is open.
+    pub(crate) ifc_options_open: bool,
     /// The "add a road element" dialog: kind, alignment, start and end station, distance, right side.
     road_dialog: Option<(usize, Option<ElementId>, f64, f64, f64, bool)>,
     /// The "hang a sign on a gantry" dialog: sign, gantry, over a lane, lane number, offset, and
@@ -204,6 +206,7 @@ impl AfroBimApp {
             design_dialog: None,
             marking_dialog: None,
             ext_marking_dialog: None,
+            ifc_options_open: false,
             road_dialog: None,
             hang_dialog: None,
             design_report: None,
@@ -739,7 +742,7 @@ impl AfroBimApp {
     /// Writes the whole model as IFC 4.3: signs with their artwork, posts and foundations as
     /// solids aggregated with their sign, elements at their site positions, and alignments.
     /// Elements not placed on site stand upright as on the sheet (see the afrobim-ifc README).
-    fn export_ifc(&mut self, path: PathBuf) {
+    pub(crate) fn export_ifc(&mut self, path: PathBuf) {
         self.sync_generated();
         let inputs: Vec<afrobim_ifc::IfcElementInput> = self
             .doc
@@ -754,6 +757,7 @@ impl AfroBimApp {
         let options = afrobim_ifc::IfcOptions {
             project_name: project,
             application: format!("AfroBIM {}", env!("CARGO_PKG_VERSION")),
+            alignment: crate::ifc_options::mode_of(&self.doc),
             ..afrobim_ifc::IfcOptions::default()
         };
         let export = afrobim_ifc::export_ifc_model(&self.doc, &inputs, &options);
@@ -899,11 +903,9 @@ impl AfroBimApp {
             Action::ExportIfc => {
                 if self.doc.elements().is_empty() {
                     self.status = "Nothing to export.".into();
-                } else if let Some(mut path) = rfd::FileDialog::new().add_filter("IFC 4.3 (STEP)", &["ifc"]).set_file_name("model.ifc").save_file() {
-                    if path.extension().is_none() {
-                        path.set_extension("ifc");
-                    }
-                    self.export_ifc(path);
+                } else {
+                    // The options come first (how alignments are written); the file is chosen from there.
+                    self.ifc_options_open = true;
                 }
             }
             Action::ExportQuantities => {
@@ -2441,6 +2443,7 @@ impl AfroBimApp {
         }
 
         self.ext_marking_window(ctx);
+        self.ifc_options_window(ctx);
 
         if let Some((mut alignment, mut req)) = self.marking_dialog.take() {
             let choices = alignment_glue::alignments(&self.doc);
