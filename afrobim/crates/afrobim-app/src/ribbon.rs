@@ -114,20 +114,42 @@ fn panels(tab: Tab) -> &'static [Panel] {
     ];
     const INSERT: &[Panel] = &[
         Panel { title: "Signs", items: &[Big(Icon::Library, "Standard signs", "LIBRARY")] },
-        Panel { title: "Import", items: &[Big(Icon::Alignment, "LandXML alignments", "LANDXML"), Big(Icon::Open, "AfroBIM document", "OPEN"), Planned(Icon::Schedule, "Sign schedule", "Import a sign schedule from CSV or XML")] },
-        Panel { title: "Reference", items: &[Planned(Icon::Dxf, "DXF underlay", "Attach a DXF drawing as a background reference"), Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::RefModel, "IFC reference model", "IFCREF"), Big(Icon::RefList, "Reference models", "REFMODELS")] },
+        Panel { title: "Import", items: &[Big(Icon::Alignment, "LandXML alignments", "LANDXML"), Big(Icon::Open, "AfroBIM document", "OPEN"), Big(Icon::Schedule, "Sign schedule", "SIGNSCHEDULE")] },
+        Panel { title: "Reference", items: &[Big(Icon::Dxf, "DXF underlay", "UNDERLAY"), Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::RefModel, "IFC reference model", "IFCREF"), Big(Icon::RefList, "Reference models", "REFMODELS")] },
     ];
     const ANNOTATE: &[Panel] = &[
         Panel { title: "Marks", items: &[Big(Icon::Marks, "Element marks", "MARKS")] },
+        Panel { title: "Text", items: &[Big(Icon::Text, "Text", "TEXT"), Big(Icon::MText, "Multiline", "MTEXT"), Big(Icon::TextEdit, "Edit text", "TEXTEDIT")] },
         Panel {
-            title: "Annotation",
+            title: "Dimensions",
             items: &[
-                Planned(Icon::Text, "Text", "Place a note in model space"),
-                Planned(Icon::Dimension, "Dimension", "Dimension between two points"),
-                Planned(Icon::Leader, "Leader", "A note with an arrow to a point"),
-                Planned(Icon::Measure, "Measure", "Read the distance between two points"),
+                Big(Icon::Dimension, "Dimension", "DIM"),
+                Small(Icon::Dimension, "Linear", "DIMLINEAR"),
+                Small(Icon::DimAligned, "Aligned", "DIMALIGNED"),
+                Small(Icon::DimAngular, "Angular", "DIMANGULAR"),
+                Small(Icon::DimRadius, "Radius", "DIMRADIUS"),
+                Small(Icon::DimDiameter, "Diameter", "DIMDIAMETER"),
+                Small(Icon::DimArc, "Arc length", "DIMARC"),
+                Small(Icon::DimContinue, "Continue", "DIMCONTINUE"),
+                Small(Icon::DimBaseline, "Baseline", "DIMBASELINE"),
+                Big(Icon::DimStation, "Station", "DIMSTATION"),
+                Big(Icon::DimLevel, "Level", "DIMLEVEL"),
             ],
         },
+        Panel { title: "Leaders", items: &[Big(Icon::Leader, "Leader", "LEADER"), Big(Icon::MLeader, "Mark leader", "MLEADER")] },
+        Panel {
+            title: "Measure",
+            items: &[
+                Big(Icon::Measure, "Distance", "DIST"),
+                Small(Icon::MeasureAngle, "Angle", "MEASUREANGLE"),
+                Small(Icon::MeasureRadius, "Radius", "MEASURERADIUS"),
+                Small(Icon::Area, "Area", "AREA"),
+                Big(Icon::IdPoint, "ID point", "ID"),
+                Big(Icon::ResultsList, "Results", "MEASURERESULTS"),
+            ],
+        },
+        Panel { title: "Styles", items: &[Big(Icon::StyleText, "Text styles", "STYLE"), Big(Icon::StyleDim, "Dimension styles", "DIMSTYLE")] },
+        Panel { title: "Snap", items: &[Big(Icon::Osnap, "Object snap", "OSNAP"), Big(Icon::Options, "Snap settings", "OSNAPSETTINGS")] },
     ];
     const MODIFY_TAB: &[Panel] = &[MODIFY, SUPPORTS, Panel { title: "Alignment", items: &[Big(Icon::Station, "Place by station", "STATION")] }, DRAFTING];
     const ROADS: &[Panel] = &[
@@ -194,6 +216,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
             items: &[Big(Icon::SheetSet, "Sheet sets", "SHEETSET"), Big(Icon::Real, "Preview", "SHEETPREVIEW"), Big(Icon::TitleBlock, "Title block", "TITLEBLOCK"), Big(Icon::Pdf, "Sheets PDF", "SHEETPDF"), Big(Icon::Dxf, "Sheets DXF", "SHEETDXF")],
         },
         Panel { title: "Reports", items: &[Big(Icon::ReportPack, "Report pack", "REPORTPACK")] },
+        Panel { title: "Sign schedule", items: &[Big(Icon::ScheduleOut, "Schedule out", "SIGNSCHEDULEOUT"), Big(Icon::Template, "Blank template", "SIGNSCHEDULETEMPLATE")] },
         Panel { title: "Document", items: &[Big(Icon::Save, "Save", "SAVE"), Big(Icon::SaveAs, "Save as", "SAVEAS"), Big(Icon::Quit, "Quit", "QUIT")] }];
     const MANAGE: &[Panel] = &[
         STANDARD,
@@ -202,8 +225,9 @@ fn panels(tab: Tab) -> &'static [Panel] {
             title: "Project",
             items: &[
                 Big(Icon::Project, "Project information", "PROJECTINFO"),
-                Planned(Icon::Layers, "Layer manager", "Create, rename and colour layers (layers can be shown and locked in the Layers panel today)"),
-                Planned(Icon::Units, "Units", "Display units and precision"),
+                Big(Icon::Layers, "Layer manager", "LAYER"),
+                Big(Icon::Units, "Units", "UNITS"),
+                Big(Icon::ProjectSettings, "Project settings", "PROJECTSETTINGS"),
             ],
         },
         Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS")] },
@@ -258,6 +282,7 @@ pub fn shortcut(action: Action) -> &'static str {
         Action::ToggleGrid => "F7",
         Action::ToggleOrtho => "F8",
         Action::ToggleSnap => "F9",
+        Action::ToggleOsnap => "F3",
         _ => "",
     }
 }
@@ -471,6 +496,19 @@ mod tests {
         }
         for command in ["LIBRARY", "QUANTITIES", "SHEETS", "SHEETSET", "SHEETPDF", "SHEETDXF", "SHEETPREVIEW", "TITLEBLOCK", "PROJECTINFO"] {
             assert!(commands::resolve(command).is_some());
+        }
+    }
+
+    #[test]
+    fn the_cad_basics_are_live_commands_not_planned_items() {
+        // Text, dimension, leader, measure, sign schedule, DXF underlay, layer manager and units
+        // are all buttons that run a command; what is still planned is listed here by label.
+        let planned: Vec<&str> = TABS.iter().flat_map(|(tab, _)| panels(*tab)).flat_map(|p| p.items).filter_map(|i| if let Planned(_, label, _) = *i { Some(label) } else { None }).collect();
+        for label in ["Text", "Dimension", "Leader", "Measure", "Sign schedule", "DXF underlay", "Layer manager", "Units"] {
+            assert!(!planned.contains(&label), "{label} is still planned");
+        }
+        for command in ["TEXT", "MTEXT", "TEXTEDIT", "DIM", "DIMLINEAR", "DIMALIGNED", "DIMANGULAR", "DIMRADIUS", "DIMDIAMETER", "DIMARC", "DIMCONTINUE", "DIMBASELINE", "DIMSTATION", "DIMLEVEL", "LEADER", "MLEADER", "DIST", "AREA", "ID", "STYLE", "DIMSTYLE", "OSNAP", "LAYER", "UNITS", "PROJECTSETTINGS", "UNDERLAY", "SIGNSCHEDULE", "SIGNSCHEDULEOUT", "XREF", "MEASURE"] {
+            assert!(commands::resolve(command).is_some(), "{command} is not a command");
         }
     }
 

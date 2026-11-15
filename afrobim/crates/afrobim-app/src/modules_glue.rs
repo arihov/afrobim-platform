@@ -501,14 +501,40 @@ mod tests {
         // Restraint: it needs the speed limit, and says so when there is none.
         let run = find(&doc, "VRS");
         assert!(matches!(check(&doc, run), Check::RestraintSpeed));
-        let speed = road_glue::SpeedInput { value: 0.0, mph: false };
+        let speed = road_glue::SpeedInput { value: 0.0, mph: false, answer: None };
         assert!(road_glue::check_restraint(&doc, run, speed).unwrap_err().contains("speed"));
-        let lines = road_glue::check_restraint(&doc, run, road_glue::SpeedInput { value: 100.0, mph: false }).unwrap();
+        let lines = road_glue::check_restraint(&doc, run, road_glue::SpeedInput { value: 100.0, mph: false, answer: None }).unwrap();
         assert!(lines.iter().any(|l| l.contains("CD 377")), "{lines:#?}");
         // Pavement: checked by running a design method.
         assert!(matches!(check(&doc, find(&doc, "PV")), Check::PavementDesign));
         // The alignment is not something this glue checks.
         assert!(matches!(check(&doc, a), Check::None));
+    }
+
+    #[test]
+    fn the_speed_band_note_heads_the_restraint_check_and_follows_the_project_rule() {
+        let (mut doc, a) = doc_with_profile();
+        road_glue::add_restraint(&mut doc, a, &restraint_request()).unwrap();
+        let run = doc.elements().iter().find(|e| e.name.starts_with("VRS")).unwrap().id;
+        let kmh80 = road_glue::SpeedInput { value: 80.0, mph: false, answer: None };
+        // The default rule (round up within conversion rounding): 80 km/h is treated as 50 mph.
+        let lines = road_glue::check_restraint(&doc, run, kmh80).unwrap();
+        let note = lines.iter().find(|l| l.starts_with("Speed band")).expect("the note is in the calculation lines");
+        assert!(note.contains("80 km/h = 49.71 mph") && note.contains("treats it as 50 mph"), "{note}");
+        // The check then reads 50 mph: the band of 50 mph or more applies.
+        assert!(lines.iter().any(|l| l.contains("50 mph or more")), "{lines:#?}");
+        // The exact rule: 49.71 mph stays below the step, and the note says so.
+        afrobim_kernel::set_speed_band_rule(&mut doc, &afrobim_kernel::SpeedBandRule::Exact);
+        let lines = road_glue::check_restraint(&doc, run, kmh80).unwrap();
+        let note = lines.iter().find(|l| l.starts_with("Speed band")).unwrap();
+        assert!(note.contains("exact conversion"), "{note}");
+        assert!(lines.iter().any(|l| l.contains("less than 50 mph")), "{lines:#?}");
+        // Ask each time: not checked until the engineer answers.
+        afrobim_kernel::set_speed_band_rule(&mut doc, &afrobim_kernel::SpeedBandRule::AskEachTime);
+        assert!(road_glue::check_restraint(&doc, run, kmh80).unwrap_err().contains("asks each time"));
+        let yes = road_glue::SpeedInput { answer: Some(true), ..kmh80 };
+        let lines = road_glue::check_restraint(&doc, run, yes).unwrap();
+        assert!(lines.iter().any(|l| l.starts_with("Speed band") && l.contains("the user chose to treat it as 50 mph")), "{lines:#?}");
     }
 
     #[test]

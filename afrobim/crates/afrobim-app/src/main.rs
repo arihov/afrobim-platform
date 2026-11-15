@@ -1,6 +1,8 @@
 //! AfroBIM desktop application.
 
 mod alignment_glue;
+mod anno_glue;
+mod anno_ui;
 mod app;
 mod canvas;
 mod check_all;
@@ -24,6 +26,7 @@ mod lighting_inputs;
 mod markings_glue;
 mod modules_glue;
 mod photometry_ui;
+mod projset;
 mod reference_models;
 mod report_pack;
 mod render;
@@ -36,8 +39,12 @@ mod schedule_ui;
 mod sheets_glue;
 mod sheets_ui;
 mod signs_glue;
+mod signsched;
 mod station_input;
 mod supports_glue;
+#[cfg(test)]
+mod u1_tests;
+mod underlay;
 mod view3d;
 mod visibility_ui;
 mod win;
@@ -123,6 +130,16 @@ pub struct Options {
     /// With `--photometry`: fill the window with arbitrary demo settings (80 percent maintenance factor, 60 m
     /// contribution distance, 3 m by 1 m cells, orientation accepted) and run, for a screenshot.
     pub photometry_run: bool,
+    /// Attach this DXF as an underlay at start-up: `path` or `path,dx,dy,rotation` (mm, degrees).
+    pub underlay: Option<String>,
+    /// Read this sign schedule CSV at start-up and open its mapping and plan windows.
+    pub signschedule: Option<PathBuf>,
+    /// Write the model as DXF to this file, then exit.
+    pub dxf_out: Option<PathBuf>,
+    /// Layers to switch on at start-up, comma separated.
+    pub layers_on: Option<String>,
+    /// Frame the 2D view on `x,y,width` (millimetres: the centre and the width shown).
+    pub zoom_to: Option<String>,
 }
 
 fn parse_args() -> Options {
@@ -163,6 +180,11 @@ fn parse_args() -> Options {
             "--capture-viewpoint" => o.capture_viewpoint = true,
             "--ifcref" => o.ifcref = args.next(),
             "--photometry" => o.photometry = args.next().map(PathBuf::from),
+            "--underlay" => o.underlay = args.next(),
+            "--signschedule" => o.signschedule = args.next().map(PathBuf::from),
+            "--dxf-out" => o.dxf_out = args.next().map(PathBuf::from),
+            "--layers-on" => o.layers_on = args.next(),
+            "--zoom-to" => o.zoom_to = args.next(),
             "--export-pack" => o.export_pack = args.next().map(PathBuf::from),
             "--sheet" => o.sheet = args.next().and_then(|v| v.parse().ok()),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),

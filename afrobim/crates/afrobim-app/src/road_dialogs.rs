@@ -102,7 +102,7 @@ impl RoadDialogs {
     /// The speed limit dialog of a barrier run, with the entry kept on it when there is one.
     pub fn open_speed(&mut self, doc: &Document, id: ElementId) {
         let stored: Option<SpeedInput> = crate::check_inputs::load(doc, id, crate::check_inputs::KEY_RESTRAINT);
-        self.speed = Some((id, stored.unwrap_or(SpeedInput { value: 0.0, mph: false })));
+        self.speed = Some((id, stored.unwrap_or(SpeedInput { value: 0.0, mph: false, answer: None })));
     }
 
     /// The pavement design dialog. With a pavement element the entries are kept on it and the
@@ -511,6 +511,18 @@ fn speed_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Elem
             });
             ui.end_row();
         });
+        // How the limit meets the 50 mph step is the project's rule (PROJECTSETTINGS).
+        if speed.value > 0.0 {
+            let r = crate::projset::resolve_answered(doc, speed.value, speed.mph, &crate::projset::restraint_thresholds(), speed.answer);
+            ui.label(egui::RichText::new(format!("Speed band: {}", r.band_note)).small());
+            if let Some(ask) = r.ask {
+                ui.label(egui::RichText::new(format!("The project rule asks each time. Treat {:.2} mph as the {} mph band?", ask.exact_mph, ask.band_mph)).color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut speed.answer, Some(true), format!("Yes, treat it as {} mph", ask.band_mph));
+                    ui.selectable_value(&mut speed.answer, Some(false), "No, keep the exact value");
+                });
+            }
+        }
         not_a_design(ui, "The checks need the speed limit. Every other input is left not entered, and the report says which checks it stops.");
         buttons(ui, "Check", true, &mut run, &mut keep);
     });

@@ -188,7 +188,7 @@ fn add_check_inputs(doc: &mut Document) {
     use crate::check_inputs::{save, KEY_LIGHTING, KEY_RESTRAINT};
     let find = |doc: &Document, category: &str| doc.elements().iter().find(|e| e.category == category).map(|e| e.id);
     if let Some(id) = find(doc, afrobim_restraint::CATEGORY) {
-        save(doc, id, KEY_RESTRAINT, &crate::road_glue::SpeedInput { value: 100.0, mph: false });
+        save(doc, id, KEY_RESTRAINT, &crate::road_glue::SpeedInput { value: 100.0, mph: false, answer: None });
     }
     if let Some(id) = find(doc, afrobim_lighting::CATEGORY) {
         save(doc, id, KEY_LIGHTING, &crate::lighting_inputs::Form::default());

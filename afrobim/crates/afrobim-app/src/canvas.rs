@@ -75,17 +75,32 @@ impl AfroBimApp {
         painter.line_segment([pos2(rect.left(), oy), pos2(rect.right(), oy)], Stroke::new(1.0_f32, AXIS_X.gamma_multiply(0.7)));
         painter.line_segment([pos2(ox, rect.top()), pos2(ox, rect.bottom())], Stroke::new(1.0_f32, AXIS_Y.gamma_multiply(0.7)));
 
+        // DXF underlays sit behind the model.
+        self.under.paint(&self.doc, painter, &self.view, rect, ink);
+
         let label = if dark { Color32::from_rgb(0xA8, 0xB0, 0xBA) } else { Color32::from_rgb(0x50, 0x55, 0x5C) };
+        // Layer colour and line weight: black is "automatic" (the canvas ink); the weight is drawn
+        // as a pen width in pixels (about 4 px per millimetre, between 1 and 6).
+        let layer_props = afrobim_annotate::settings::load(&self.doc).layers;
         for e in self.doc.elements() {
             if !self.doc.layer_visible(&e.layer) {
                 continue;
             }
+            if e.category == crate::underlay::CATEGORY || e.category == afrobim_annotate::SETTINGS_CATEGORY {
+                continue;
+            }
+            let (ink, width) = match layer_props.get(&e.layer) {
+                Some(p) => (if p.colour == [0, 0, 0] { ink } else { Color32::from_rgb(p.colour[0], p.colour[1], p.colour[2]) }, if p.lineweight_mm > 0.0 { (1.0 + p.lineweight_mm * 4.0).min(6.0) as f32 } else { 1.0 }),
+                None => (ink, 1.0),
+            };
+            // Annotation is drawn as outlines so that arrow heads show on a dark canvas too.
+            let rep = if afrobim_annotate::is_annotation(e) { Representation::Outlined } else { self.rep };
             let r = self.screen_rect(&e.bounds());
             if !r.intersects(rect) {
                 continue;
             }
             match self.cache.get(&e.id) {
-                Some(c) if c.generated.is_ok() => painter.extend(c.mesh.shapes(&self.view, e.origin, self.rep, ink, 1.0)),
+                Some(c) if c.generated.is_ok() => painter.extend(c.mesh.shapes_w(&self.view, e.origin, rep, ink, 1.0, width)),
                 _ => {
                     // No geometry (module missing or the definition is invalid): keep it visible and pickable.
                     dashed(painter, r, Stroke::new(1.0_f32, label));
@@ -114,6 +129,10 @@ impl AfroBimApp {
         for id in self.doc.selection() {
             let Some(e) = self.doc.find(*id) else { continue };
             dashed(painter, self.screen_rect(&e.bounds()).expand(2.0), Stroke::new(1.5_f32, SELECT_BLUE));
+            if afrobim_annotate::is_annotation(e) {
+                // An annotation's grips are its definition points (see `paint_anno_grips`).
+                continue;
+            }
             for (i, g) in e.grips().iter().enumerate() {
                 let s = p(self.view.to_screen(*g));
                 let hot = c.hover_grip() == Some((*id, i));
@@ -122,6 +141,8 @@ impl AfroBimApp {
                 painter.add(outline(r, Stroke::new(1.0_f32, Color32::WHITE)));
             }
         }
+
+        self.paint_anno_grips(painter);
 
         // Ghosts: what is being moved, copied or placed, at its previewed position.
         if matches!(c.tool(), CanvasTool::DragMove | CanvasTool::GripDrag | CanvasTool::SecondPoint | CanvasTool::Place) {
@@ -140,7 +161,8 @@ impl AfroBimApp {
             if let (Some(base), true) = (c.base_point(), c.tool() != CanvasTool::Place) {
                 let (a, b) = (p(self.view.to_screen(base)), p(self.view.to_screen(base + d)));
                 painter.extend(Shape::dashed_line(&[a, b], Stroke::new(1.0_f32, RUBBER), 5.0, 3.0));
-                tip(painter, b + Vec2::new(16.0, 18.0), &format!("Δ {:.0} , {:.0}   {:.0} mm", d.x, d.y, (d.x * d.x + d.y * d.y).sqrt()));
+                let u = crate::anno_ui::units_of(&self.doc);
+                tip(painter, b + Vec2::new(16.0, 18.0), &format!("Δ {} , {}   {}", u.length(d.x), u.length(d.y), u.length_u((d.x * d.x + d.y * d.y).sqrt())));
             }
         }
 

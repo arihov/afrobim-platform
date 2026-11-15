@@ -96,7 +96,7 @@ pub fn station_field(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>, 
                         ui.label(RichText::new(e).small().color(Color32::from_rgb(0xEF, 0x6C, 0x63)));
                     }
                     None => {
-                        ui.label(RichText::new(format!("{}, internal station {:.3} m", afrobim_alignment::format_station(st.displayed, 3), *internal)).small().weak());
+                        ui.label(RichText::new(format!("{}, internal station {:.3} m", crate::anno_ui::units_of(doc).station(st.displayed), *internal)).small().weak());
                     }
                 }
             });
