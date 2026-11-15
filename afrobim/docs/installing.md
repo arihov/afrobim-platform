@@ -7,17 +7,20 @@ Linux portable archive (`.tar.gz`). A GitHub Actions workflow builds them on req
 
 Read this first.
 
-- **The installer workflow has never run.** It was written while GitHub Actions could not start runners on
-  this account (a billing or usage problem), so no job in `.github/workflows/installers.yml` has executed.
-  Expect to fix small things on the first real run.
-- **Nothing here was built or run on Windows or macOS.** The `.msi` and `.dmg` scripts are untested.
-- **Checked on Linux only:** the staged file layout (the Linux archive is built with the same staging script
-  the other two use, unpacked outside the repository and started headless with `--demo --screenshot`, and it
-  found its rule packs and fonts); the workflow YAML (`actionlint`); the shell scripts (`bash -n`,
-  `shellcheck`); that `main.wxs` is well-formed XML and lists exactly the files the staging script produces;
-  that `Info.plist.in` parses as a property list.
-- **Not checked:** `main.wxs` against the WiX schema or by compiling it, any macOS tool (`lipo`, `codesign`,
-  `hdiutil`), the PowerShell script, the install wizard, the file association.
+- **The workflow has run once.** On 2026-11-15 the **AfroBIM installers** workflow built, from `main`, the
+  macOS `.dmg` (a universal binary) and the Windows `.msi`.
+- **Windows.** The Windows job installed the `.msi` and uninstalled it again on the build machine. The `.msi`
+  has **not** yet been run on a real Windows desktop: nobody has started the installed app there, seen the
+  wizard, the shortcuts or the file association work, or looked at the window.
+- **macOS.** The owner installed the `.dmg` on an Apple silicon Mac. The app started and the traffic signs
+  module loaded (so the bundle found its rule packs and fonts). Only that Mac has been tried: not an Intel
+  Mac, and not any other macOS version.
+- **Both installers are unsigned and carry a placeholder icon.** Expect the warnings described below.
+- **The Linux archive** was built with the same staging script and started headless under Xvfb with
+  `--demo --screenshot`; it found its rule packs and fonts. It has not been run on a desktop either.
+- **Windows executable icon and version information** are new in the code (`afrobim-app/build.rs`, see
+  "Icons" below) and **unverified**: nothing was built for Windows where they were written. They are checked
+  only when the workflow is next run by hand.
 
 ## What the app needs at run time
 
@@ -37,22 +40,47 @@ The lookup (`find` in `afrobim/crates/afrobim-app/src/signs_glue.rs`) is in plac
 3. the platform resource directory: on macOS `exe_dir/../Resources/relative`;
 4. the folders above the executable and the working directory (for source checkouts).
 
-**Which macOS build is the default, and why.** The default is the plain bundle with no launcher
-(`macos_launcher` unticked in the workflow), because the app now finds `Contents/Resources` itself. The
-`--launcher` fallback is optional: it is the `macos_launcher` workflow input, or the flag of `build-dmg.sh`.
-It makes the executable a small script that starts the real binary with `Contents/Resources` as its working
-directory. Use it only for a commit that does not yet contain the lookup change. Check which you have by
-unpacking the app: a file `Contents/MacOS/afrobim-bin` means the launcher is in use. Neither variant was run
-on macOS.
+**The macOS bundle needs no launcher.** The app finds `Contents/Resources` itself, and the installed bundle
+found its packs and fonts on the owner's Mac. The `macos_launcher` input of the workflow and the `--launcher`
+flag of `build-dmg.sh` remain for a commit from before that lookup existed; they are not needed now.
 
-Two other limits, both in the app and not the packaging:
+### Opening documents: double-click and drop
 
-- The bundle declares the `.afrobim` document type, but double-clicking a file in Finder delivers an
-  open-document event, not a command-line argument. The app reads only arguments, so Finder would start
-  AfroBIM without loading the file. (On Windows the association passes the file as an argument, which works.)
-- The window title bar and Dock use the icon from the bundle, but the Windows `.exe` itself has no embedded
-  icon (no `build.rs` was added). On Windows, shortcuts and the file type show the icon; the file in Explorer
-  does not.
+On Windows the `.afrobim` file association passes the file as the first command-line argument, which the app
+opens. **On macOS that does not work from Finder.** Double-clicking an `.afrobim` file, or dropping one on the
+Dock icon, sends the application an open-document event (`application:openURLs:`), not an argument. The
+framework versions the app is built on do not pass that event on: winit 0.30.13 registers its own
+application delegate, which handles only `applicationDidFinishLaunching:` and `applicationWillTerminate:`
+(`winit/src/platform_impl/macos/app_state.rs`), and eframe 0.31.1 has no open-file API. Catching the event
+would need a custom Objective-C delegate, which was not written. So Finder starts AfroBIM **without**
+the file.
+
+What works instead, on every platform: **drop the file onto the AfroBIM window**. The app asks to confirm
+before it does anything, saying what will happen (and naming unsaved changes in the open document):
+
+| Dropped file | What happens on confirmation |
+|---|---|
+| `.afrobim` | Replaces the open document with it. |
+| `.xml` | Reads it as LandXML and adds its alignments to the open document. |
+| `.dxf` | Attaches it as a read-only underlay. |
+| `.ifc` | Imports it as a reference model. |
+
+Anything else is refused with a message. **File, Open** works as before, and from a terminal
+`AfroBIM.app/Contents/MacOS/afrobim file.afrobim` passes the file as an argument. Dropping onto the window was
+tested on Linux only as the function that sorts files by extension; the drop itself was not driven (no pointer
+here), and nothing was run on macOS or Windows for it.
+
+### Icons
+
+- The window and taskbar or Dock icon of every platform is set from the embedded
+  `afrobim/packaging/icons/afrobim-512.png` (a test checks that it decodes). On macOS the Dock shows the
+  bundle's own icon when the app is started from the `.app`.
+- The Windows `.exe` embeds `afrobim/packaging/icons/afrobim.ico` and version information (product name,
+  file description, version from `Cargo.toml`) through `afrobim/crates/afrobim-app/build.rs`, which uses the
+  `embed-resource` crate (a build dependency only on a Windows build machine) to compile a generated resource
+  script with `rc.exe` from the Windows SDK. **Unverified** until the workflow runs on `windows-latest` with
+  this change: check the icon in Explorer and the Details tab of the file's Properties. On Linux and macOS
+  the script does nothing.
 
 ## Making the installers
 
@@ -86,7 +114,8 @@ Uninstall: **Settings, Apps, Installed apps, AfroBIM, Uninstall** (or `msiexec /
 `.afrobim` documents are not touched.
 
 System requirements: 64-bit Windows. The exact minimum version is **not verified**: it depends on the Rust
-standard library and the graphics stack the app uses, and nothing was run on Windows.
+standard library and the graphics stack the app uses, and the installed app has not been run on a Windows
+desktop.
 
 ## Installing on macOS
 
@@ -107,7 +136,7 @@ System requirements: the image is built with a deployment target of macOS 11.0 a
 `Info.plist` (`LSMinimumSystemVersion`). Verified against the Rust platform-support page: Rust's own minimum is
 macOS 10.12 on Intel and macOS 11.0 on Apple silicon, so 11.0 is the lowest value that covers both halves of
 the universal binary. Not verified: that the app's windowing and graphics crates (eframe 0.31, winit 0.30)
-work on every version from 11.0 up, and nothing was run on macOS.
+work on every version from 11.0 up: the only Mac it was run on is an Apple silicon one.
 
 Why "ad hoc": Apple silicon Macs are generally documented to require every arm64 program to carry some code
 signature, and ad hoc signing (`codesign -s -`) supplies a signature with no identity. This statement was not
@@ -138,7 +167,8 @@ machine's own distribution, headless under Xvfb.
   before any installer leaves the owner's hands. The UK rule pack also states it carries Open Government
   Licence material (see the repository README), which may require an attribution notice.
 - **Icon.** `afrobim/packaging/icons/` holds a generated **placeholder** (a blue square with a triangle),
-  made by `make_icons.py`. Replace the three files with the real logo.
+  made by `make_icons.py`. Replace the `.ico`, the `.icns` and the 512 px PNG with the real logo (the PNG is
+  compiled into the app as the window icon).
 - **Bundle identifier.** `com.afrobim.AfroBIM` is a placeholder. Choose a reverse-domain identifier for a
   domain the owner controls (pass `--bundle-id`, or edit the default in `build-dmg.sh`). Changing it later
   makes macOS treat the app as a different one.
@@ -246,4 +276,5 @@ packages on any of the three**; it just runs `cargo build --workspace --locked` 
 - The exact-metric sign tests use the Transport fonts in `fonts/`; CI notes the fonts are user-supplied, so the
   exact-metric tests skip when they are absent. In a clone that includes `fonts/` they run.
 - To build an installer locally instead of in CI you need the platform tools (WiX v3 on Windows; Xcode
-  command line tools on macOS) and the scripts in `afrobim/packaging/`; that route is untested.
+  command line tools on macOS) and the scripts in `afrobim/packaging/`. The scripts ran in the workflow on
+  2026-11-15; running them by hand on your own machine has not been tried.
