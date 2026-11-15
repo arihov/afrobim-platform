@@ -10,6 +10,8 @@ publish.workspace = true
 afrobim-draw = { path = "../afrobim-draw" }
 afrobim-signs = { path = "../afrobim-signs" }
 afrobim-dxf = { path = "../afrobim-dxf" }
+afrobim-alignment = { path = "../afrobim-alignment" }
+afrobim-kernel = { path = "../afrobim-kernel" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

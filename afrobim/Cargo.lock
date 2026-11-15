@@ -165,8 +165,10 @@ dependencies = [
 name = "afrobim-fabrication"
 version = "0.1.0"
 dependencies = [
+ "afrobim-alignment",
  "afrobim-draw",
  "afrobim-dxf",
+ "afrobim-kernel",
  "afrobim-signs",
  "flate2",
  "serde",

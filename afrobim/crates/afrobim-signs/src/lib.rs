@@ -83,7 +83,7 @@ pub use model::{
     SignLocation, SignMirror, SignSide, SignVariant,
 };
 
-pub use std_catalog::{CatalogEntry, SignSizing};
+pub use std_catalog::{definition_from_entry, CatalogEntry, SignSizing};
 
 pub use embedded::{EmbeddedRules, EmbeddedShapeRules, EmbeddedSignRules, EmbeddedSupport};
 

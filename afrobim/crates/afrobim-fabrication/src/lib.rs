@@ -6,6 +6,7 @@
 //!   sign data, colour schedule, title block) as a renderer-neutral [`FabricationSheet`].
 //! - [`sheet_dxf`]: the sheet as an R12 DXF.
 //! - [`pdf`]: the sheet as a one-page A3 PDF and the A4 sign-schedule report.
+//! - [`sign_schedule`]: the sign schedule CSV (template, export, column mapping, import plan, apply).
 //! - [`batch`]: writes all of the above for a list of signs into a folder.
 //!
 //! The CSVs and DXFs are byte-identical to the C# output for the same signs. The PDFs are the
@@ -41,6 +42,7 @@ pub mod pdf;
 pub mod quantities;
 pub mod sheet;
 pub mod sheet_dxf;
+pub mod sign_schedule;
 
 pub use batch::{run, safe_file_name, FabricationOptions, FabricationResult, SheetSign, SCHEDULE_FILE_NAME};
 pub use composer::compose;

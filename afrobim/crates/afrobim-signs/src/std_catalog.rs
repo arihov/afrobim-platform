@@ -154,6 +154,14 @@ impl SignEngine {
     }
 }
 
+/// The sign a catalog entry seeds, without an engine: the same definition as
+/// [`SignEngine::definition_for`] (at the family's default design speed) or
+/// [`SignEngine::definition_for_speed`] (when `speed_kph` is given). It needs only the entry, so
+/// code that plans signs before any fonts are loaded can build the definition.
+pub fn definition_from_entry(entry: &CatalogEntry, speed_kph: Option<u32>) -> SignDefinition {
+    build(entry, speed_kph)
+}
+
 /// C# `CatalogSign.Build`.
 pub(crate) fn build(entry: &CatalogEntry, speed_kph: Option<u32>) -> SignDefinition {
     let kind = kind_of_family(&entry.family);
