@@ -34,31 +34,36 @@ folder above the executable, then every folder above the working directory, join
 So `packs/` and `fonts/` **next to the executable** are found today. This is the layout of the Windows
 install (`C:\Program Files\AfroBIM\`) and the Linux archive.
 
-**macOS needs one change in the app sources.** The bundle keeps data in `Contents/Resources`, which that
-lookup does not search (it would find `Contents/packs`, which a signed bundle should not contain). Verified
-on Linux by staging the same layout and starting the app: with the data in a sibling `Resources` folder the
-app reports no traffic-signs module; with the working directory set to `Resources`, or with the
-environment variables set, it loads normally.
+**macOS depends on a change in the app sources.** The bundle keeps data in `Contents/Resources`, which the
+lookup above does not search (it would find `Contents/packs`, which a signed bundle should not contain).
+Verified on Linux with the lookup as it was when the packaging was written: with the data in a sibling
+`Resources` folder the app reported no traffic-signs module; with the working directory set to `Resources`,
+or with the environment variables set, it loaded normally.
 
-The change, in `find` in `afrobim/crates/afrobim-app/src/signs_glue.rs`, is a lookup order:
+The app agent is making this change in `find` in `afrobim/crates/afrobim-app/src/signs_glue.rs` (not done
+by the packaging work; the packaging does not edit `src/`). The lookup order the packaging is written for:
 
-1. the environment variable (as now);
-2. next to the executable (`exe_dir/relative`, as now);
+1. the environment variable (`AFROBIM_PACK`, `AFROBIM_PACK_UG` for the Uganda pack, `AFROBIM_FONTS`);
+2. next to the executable (`exe_dir/relative`);
 3. the platform resource directory: on macOS `exe_dir/../Resources/relative`;
-4. the folders above the executable and the working directory (as now, for source checkouts).
+4. the folders above the executable and the working directory (for source checkouts).
 
-Also give the Uganda pack its own override variable (today it has none; the code passes a variable name
-that is never set). Until that change lands, the workflow builds the `.dmg` with `--launcher`: the app's
-executable is a small script that starts the real binary with `Contents/Resources` as its working directory,
-which the existing lookup accepts. When the lookup change is in, remove `--launcher` from the workflow.
+**Which macOS build is the default, and why.** The default is the plain bundle with no launcher
+(`macos_launcher` unticked in the workflow), because it is the final form and relies on the lookup above.
+The fallback is `--launcher` (the `macos_launcher` workflow input, or the flag of `build-dmg.sh`): the
+executable becomes a small script that starts the real binary with `Contents/Resources` as its working
+directory, which the older lookup also accepts. Tick it only when building a commit that does not yet contain
+the lookup change. Check which you have by unpacking the app: a file `Contents/MacOS/afrobim-bin` means the
+launcher is in use. Neither variant was run on macOS.
 
-Two other limits of the macOS image, both in the app and not the packaging:
+Two other limits, both in the app and not the packaging:
 
 - The bundle declares the `.afrobim` document type, but double-clicking a file in Finder delivers an
   open-document event, not a command-line argument. The app reads only arguments, so Finder would start
   AfroBIM without loading the file. (On Windows the association passes the file as an argument, which works.)
 - The window title bar and Dock use the icon from the bundle, but the Windows `.exe` itself has no embedded
-  icon (no `build.rs` was added). Shortcuts and the file type show the icon; the file in Explorer does not.
+  icon (no `build.rs` was added). On Windows, shortcuts and the file type show the icon; the file in Explorer
+  does not.
 
 ## Making the installers
 
@@ -156,6 +161,7 @@ machine's own distribution, headless under Xvfb.
 
 ```
 afrobim/packaging/
+  layout.env                where packs/, fonts/ and the workspace are (edit when the repository moves)
   stage.sh                  stages binary + packs + fonts (all platforms use this)
   check_layout.py           checks main.wxs and Info.plist.in against a staged tree
   linux/build-archive.sh    the portable .tar.gz
@@ -171,3 +177,80 @@ Toolset 3.14.1.8722" in its software list (`actions/runner-images`, `images/wind
 checked 2026-11-15), and the workflow installs WiX 3.14 from Chocolatey if it is ever missing. When a file is
 added to `packs/` or `fonts/`, add it to `stage.sh` (if it is a new kind of file) and to `main.wxs`;
 `check_layout.py`, run by the Linux job, fails if the two disagree.
+
+### If the repository layout changes
+
+Paths to the workspace, `packs/` and `fonts/` are set in two places only:
+
+- `afrobim/packaging/layout.env`: `REPO_ROOT_REL` (from the packaging folder up to the folder holding `packs/`
+  and `fonts/`; today `../..`, in a repository whose root is the old `afrobim/` contents plus `packs/` and
+  `fonts/` it is `..`), `PACKS_REL` and `FONTS_REL`.
+- the top-level `env:` block of `.github/workflows/installers.yml`: `WORKSPACE` (today `afrobim`, later `.`) and
+  `PACKAGING` (today `afrobim/packaging`, later `packaging`).
+
+The `afrobim-v*` tag pattern is a name, not a path; change it only if the tag naming changes. Paths in this
+document that begin `afrobim/` need the same edit.
+
+## Build and run from source
+
+Only what the repository itself states, plus the official pages named below (checked 2026-11-15), is given.
+
+What the repository requires: Rust 1.85 or later (`rust-version` in `afrobim/Cargo.toml`, and
+`afrobim/README.md`). The CI workflow (`.github/workflows/ci.yml`) installs the `stable` toolchain with
+`rustup toolchain install stable --profile minimal` on Windows and macOS (and Linux) and **installs no system
+packages on any of the three**; it just runs `cargo build --workspace --locked` and `cargo test --workspace
+--locked` from `afrobim/`. The Python extension in `afrobim/python` is outside the workspace and is not needed.
+
+### Windows
+
+1. **Git.** Git for Windows from git-scm.com/download/win (per the Git book's install page). Needed to clone.
+2. **A C++ linker and Windows SDK.** Rust for Windows needs "a linker, libraries and Windows API import
+   libraries", which the rustup book says come from Visual Studio: the easiest route is the **Desktop
+   development with C++** workload (plus the English language pack); the minimal set is the MSVC v143 build
+   tools and a Windows 11 SDK. "Build Tools for Visual Studio" is the version without the IDE. Licence note
+   from the same page: the automatic route installs Visual Studio Community, which Microsoft's terms limit to
+   individual, academic and open-source use; a company needs an appropriate Visual Studio licence. (Source:
+   rust-lang.github.io/rustup/installation/windows-msvc.html.)
+3. **Rust.** Install rustup from rust-lang.org/tools/install, then check `rustc --version` reports 1.85 or later.
+4. Clone, build and run (PowerShell):
+
+   ```
+   git clone <repository-url> signcore
+   cd signcore\afrobim
+   cargo run --release -p afrobim-app            # the desktop app
+   cargo run --release -p afrobim-app -- --demo  # with sample signs
+   cargo test --workspace --locked               # the tests CI runs
+   ```
+
+   The app finds `packs/` and `fonts/` by searching the folders above the executable and the working
+   directory, so run it from inside the checkout (or set `AFROBIM_PACK`, `AFROBIM_FONTS`).
+5. Not verified: the minimum Windows version, how long a first build takes, and whether a GPU driver with
+   OpenGL is enough on every machine (CI only builds and tests; it never starts the window).
+
+### macOS
+
+1. **Command line tools (C compiler, linker, Git).** `xcode-select --install` (the Rust book gives this for
+   the C compiler; the Git book says running `git` the first time offers the same install).
+2. **Rust.** `curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh` (the Rust book's command), then
+   check `rustc --version` reports 1.85 or later.
+3. Clone, build and run:
+
+   ```
+   git clone <repository-url> signcore
+   cd signcore/afrobim
+   cargo run --release -p afrobim-app
+   cargo run --release -p afrobim-app -- --demo
+   cargo test --workspace --locked
+   ```
+
+4. Not verified: the macOS version needed to build, and that the window starts on every Mac (CI builds and
+   tests on `macos-latest`, an Apple silicon image, but never opens the window).
+
+### Both
+
+- `Manuals/` is stored with Git LFS (`.gitattributes`). Building and testing do not need it; a clone without
+  Git LFS simply holds small pointer files there.
+- The exact-metric sign tests use the Transport fonts in `fonts/`; CI notes the fonts are user-supplied, so the
+  exact-metric tests skip when they are absent. In a clone that includes `fonts/` they run.
+- To build an installer locally instead of in CI you need the platform tools (WiX v3 on Windows; Xcode
+  command line tools on macOS) and the scripts in `afrobim/packaging/`; that route is untested.

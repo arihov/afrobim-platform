@@ -16,7 +16,11 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo="$(cd "$here/../.." && pwd)"
+# shellcheck source=layout.env
+. "$here/layout.env"
+repo="$(cd "$here/$REPO_ROOT_REL" && pwd)"
+packs="$repo/$PACKS_REL"
+fontsdir="$repo/$FONTS_REL"
 
 bin="" dest="" res="" fonts=1
 while [ $# -gt 0 ]; do
@@ -36,13 +40,13 @@ mkdir -p "$dest" "$res/packs/UG-TSM-2004"
 install -m 0755 "$bin" "$dest/$(basename "$bin")"
 
 # Rule packs: the UK pack is one JSON file, the Uganda pack a folder of XML files. The XSD files in
-# packs/Schema are only for authoring; the app does not read them.
-install -m 0644 "$repo/packs/UK-TSM-2019.json" "$res/packs/"
-install -m 0644 "$repo"/packs/UG-TSM-2004/*.xml "$res/packs/UG-TSM-2004/"
+# $PACKS_REL/Schema are only for authoring; the app does not read them.
+install -m 0644 "$packs/UK-TSM-2019.json" "$res/packs/"
+install -m 0644 "$packs"/UG-TSM-2004/*.xml "$res/packs/UG-TSM-2004/"
 
 if [ "$fonts" = 1 ]; then
   mkdir -p "$res/fonts"
-  install -m 0644 "$repo/fonts/tranh___.TTF" "$repo/fonts/tranm___.TTF" "$res/fonts/"
+  install -m 0644 "$fontsdir/tranh___.TTF" "$fontsdir/tranm___.TTF" "$res/fonts/"
 else
   echo "stage.sh: fonts left out; the app will report 'Traffic signs unavailable' until AFROBIM_FONTS points at them" >&2
 fi

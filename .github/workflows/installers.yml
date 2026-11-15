@@ -27,6 +27,10 @@ on:
         description: "Build the Linux portable archive (1x minute cost)"
         type: boolean
         default: true
+      macos_launcher:
+        description: "macOS: wrap the binary in a launcher script (only for commits before the app finds Contents/Resources itself)"
+        type: boolean
+        default: false
       bundle_fonts:
         description: "Include the third-party Transport fonts in the packages (licence decision pending, see docs)"
         type: boolean
@@ -43,6 +47,14 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # ---- Repository layout: the only lines to change when the app moves to its own repository. ----
+  # WORKSPACE  the Cargo workspace folder (holds Cargo.toml and Cargo.lock), relative to the repository root.
+  #            Today "afrobim"; in a repository whose root is the workspace, ".".
+  # PACKAGING  the packaging folder (holds stage.sh etc.). Today "afrobim/packaging"; later "packaging".
+  # packs/ and fonts/ are located by packaging/layout.env, not here.
+  WORKSPACE: afrobim
+  PACKAGING: afrobim/packaging
+  # -------------------------------------------------------------------------------------------------
   # Tag pushes build everything; manual runs follow the inputs (an empty input means a tag push).
   BUNDLE_FONTS: ${{ github.event_name == 'push' || inputs.bundle_fonts }}
 
@@ -58,7 +70,7 @@ jobs:
       - id: v
         shell: bash
         run: |
-          version="$(grep -m1 '^version' afrobim/Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
+          version="$(grep -m1 '^version' "${WORKSPACE}/Cargo.toml" | sed -E 's/.*"([^"]+)".*/\1/')"
           echo "workspace version: $version"
           if [ "${GITHUB_REF_TYPE}" = tag ] && [ "${GITHUB_REF_NAME}" != "afrobim-v${version}" ]; then
             echo "::error::tag ${GITHUB_REF_NAME} does not match the workspace version afrobim-v${version}"
@@ -82,22 +94,22 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            afrobim/target
-          key: installers-linux-${{ hashFiles('afrobim/Cargo.lock') }}
+            ${{ env.WORKSPACE }}/target
+          key: installers-linux-${{ hashFiles(format('{0}/Cargo.lock', env.WORKSPACE)) }}
 
       - name: Build release binary
-        working-directory: afrobim
+        working-directory: ${{ env.WORKSPACE }}
         run: cargo build --release --locked -p afrobim-app
 
       - name: Packaging layout check
         run: |
-          rm -rf /tmp/stage && afrobim/packaging/stage.sh --bin afrobim/target/release/afrobim --dest /tmp/stage
-          python3 afrobim/packaging/check_layout.py /tmp/stage
+          rm -rf /tmp/stage && "$PACKAGING/stage.sh" --bin "$WORKSPACE/target/release/afrobim" --dest /tmp/stage
+          python3 "$PACKAGING/check_layout.py" /tmp/stage
 
       - name: Archive
         run: |
           fonts=""; [ "$BUNDLE_FONTS" = true ] || fonts="--no-fonts"
-          afrobim/packaging/linux/build-archive.sh afrobim/target/release/afrobim "${{ needs.version.outputs.version }}" dist $fonts
+          "$PACKAGING/linux/build-archive.sh" "$WORKSPACE/target/release/afrobim" "${{ needs.version.outputs.version }}" dist $fonts
 
       # The archive's own test: unpack it elsewhere and start the app from there with no source tree
       # around. The runner has no GPU; software GL under Xvfb is enough to render a screenshot.
@@ -136,11 +148,11 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            afrobim/target
-          key: installers-windows-${{ hashFiles('afrobim/Cargo.lock') }}
+            ${{ env.WORKSPACE }}/target
+          key: installers-windows-${{ hashFiles(format('{0}/Cargo.lock', env.WORKSPACE)) }}
 
       - name: Build release binary
-        working-directory: afrobim
+        working-directory: ${{ env.WORKSPACE }}
         run: cargo build --release --locked -p afrobim-app
 
       # The windows-2025 image lists "WiX Toolset 3.14.1.8722" (actions/runner-images, checked
@@ -156,7 +168,7 @@ jobs:
         shell: pwsh
         run: |
           $fonts = @(); if ($env:BUNDLE_FONTS -ne 'true') { $fonts = @('-NoFonts') }
-          ./afrobim/packaging/windows/build-msi.ps1 -Version "${{ needs.version.outputs.version }}" -Binary afrobim/target/release/afrobim.exe -OutDir dist @fonts
+          & "$env:PACKAGING/windows/build-msi.ps1" -Version "${{ needs.version.outputs.version }}" -Binary "$env:WORKSPACE/target/release/afrobim.exe" -OutDir dist @fonts
 
       # Install, look at the result, uninstall. msiexec needs the elevation the runner already has.
       - name: Install and uninstall test
@@ -206,6 +218,7 @@ jobs:
       # Compile for the same floor that Info.plist declares (LSMinimumSystemVersion). Rust's own floor
       # is macOS 10.12 on x86_64 and 11.0 on arm64 (doc.rust-lang.org/rustc/platform-support/apple-darwin.html).
       MACOSX_DEPLOYMENT_TARGET: "11.0"
+      MACOS_LAUNCHER: ${{ inputs.macos_launcher }}
     steps:
       - uses: actions/checkout@v4.2.2
 
@@ -220,11 +233,11 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            afrobim/target
-          key: installers-macos-${{ hashFiles('afrobim/Cargo.lock') }}
+            ${{ env.WORKSPACE }}/target
+          key: installers-macos-${{ hashFiles(format('{0}/Cargo.lock', env.WORKSPACE)) }}
 
       - name: Build release binaries
-        working-directory: afrobim
+        working-directory: ${{ env.WORKSPACE }}
         run: |
           cargo build --release --locked -p afrobim-app --target aarch64-apple-darwin
           cargo build --release --locked -p afrobim-app --target x86_64-apple-darwin
@@ -232,11 +245,12 @@ jobs:
       - name: Build the .dmg
         run: |
           fonts=""; [ "$BUNDLE_FONTS" = true ] || fonts="--no-fonts"
-          # --launcher is the interim workaround until the app looks in Contents/Resources itself.
-          # Remove it once that change has landed (docs/installing.md, "What the app needs").
-          afrobim/packaging/macos/build-dmg.sh --version "${{ needs.version.outputs.version }}" --out dist --launcher $fonts \
-            --bin afrobim/target/aarch64-apple-darwin/release/afrobim \
-            --bin afrobim/target/x86_64-apple-darwin/release/afrobim
+          # Default: no launcher, because the app now finds Contents/Resources itself. Tick macos_launcher
+          # for a build from a commit that predates that lookup change (docs/installing.md).
+          launcher=""; [ "$MACOS_LAUNCHER" = true ] && launcher="--launcher"
+          "$PACKAGING/macos/build-dmg.sh" --version "${{ needs.version.outputs.version }}" --out dist $launcher $fonts \
+            --bin "$WORKSPACE/target/aarch64-apple-darwin/release/afrobim" \
+            --bin "$WORKSPACE/target/x86_64-apple-darwin/release/afrobim"
 
       - name: Checksums
         run: cd dist && shasum -a 256 -- *.dmg > SHA256SUMS-macos.txt && cat SHA256SUMS-macos.txt
