@@ -9,8 +9,8 @@
 //! stored. Elevation-at-point looks in one cell; a section cut visits only the cells the line
 //! passes through.
 //!
-//! This type does not triangulate. It takes triangles from a file or from the caller; building a
-//! surface from scattered survey points (Delaunay) is not done here.
+//! This type does not triangulate. It takes triangles from a file or from the caller; a surface
+//! from scattered survey points is built in the `survey` module (`build_survey_surface`).
 
 use std::collections::HashMap;
 use std::sync::OnceLock;

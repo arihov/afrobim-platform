@@ -142,7 +142,7 @@ impl RoadDialogs {
         let (id, _, _) = first_alignment(doc)?;
         let surface = afrobim_corridor::surfaces(doc).first().map(|s| s.0);
         if surface.is_none() {
-            return Err("There is no ground surface yet. Import one with SURFACE.".into());
+            return Err("There is no ground surface yet. Import one with SURFACE or make one with SURVEY.".into());
         }
         let mut req = CorridorRequest::empty(&doc.unique_name("Corridor"));
         req.surface = surface;

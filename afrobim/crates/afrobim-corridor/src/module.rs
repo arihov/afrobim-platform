@@ -9,7 +9,7 @@
 //!   [`refresh_corridor`]; after the alignment, the surface or the definition changes it is stale
 //!   until `refresh_corridor` is called again. Nothing detects that for you.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 
 use afrobim_alignment::Alignment;
@@ -17,9 +17,11 @@ use afrobim_draw::{Colour, Drawing, Extents, Mesh3, Primitive, Pt2};
 use afrobim_kernel::{Document, Element, ElementId, Generated, Module, Note, Pt, Severity, SitePlacement};
 use serde::{Deserialize, Serialize};
 
+use crate::crs::CoordinateSystem;
 use crate::landxml::read_landxml_surfaces;
 use crate::output::{plan_lines, PlanLines};
 use crate::section::{Corridor, CorridorError};
+use crate::survey::{build_survey_surface, read_survey_points, SurfaceOptions, SurveyFormat};
 use crate::template::CorridorDefinition;
 use crate::tin::Tin;
 use crate::volumes::earthworks;
@@ -51,6 +53,10 @@ pub struct SurfaceDefinition {
     /// Where the surface came from (a file name), for the record. Not read back.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// The projected coordinate system the plan coordinates are in, when it is known. A record:
+    /// nothing is reprojected, and a surface with none is in whatever system its file was in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crs: Option<CoordinateSystem>,
 }
 
 /// The `data` of a corridor element.
@@ -101,9 +107,14 @@ fn note(severity: Severity, code: &str, message: String) -> Note {
 ///   surface with no thickness. With no more triangles than the cap it is the TIN itself.
 ///   Above the cap it is a **resampling**: the TIN's elevation at the nodes of a regular grid
 ///   over its bounds, sized to stay under the cap, two triangles per grid square whose four
-///   corners are all on the surface. That mesh is for looking at only; an Info note says so;
+///   corners are all on the surface. When those squares cover less than half of the surface (a
+///   strip of survey along a road, lying across its bounds) it is instead the TIN **thinned**:
+///   the points of each square cell of plan merged into one of them, the cell grown until the
+///   triangles are under the cap. Either mesh is for looking at only; an Info note says so;
 /// - derived values: `points`, `triangles`, `plan_area_m2`, `min_level_m`, `max_level_m`,
-///   `plan_origin_x_m`, `plan_origin_y_m`, `width_m`, `height_m`, `display_triangles`.
+///   `plan_origin_x_m`, `plan_origin_y_m`, `width_m`, `height_m`, `display_triangles`; and, when
+///   the surface states its coordinate system, `coordinate_system` and the latitude and longitude
+///   of the middle of its extent, `centre_latitude_deg` and `centre_longitude_deg`.
 #[derive(Debug, Clone, Copy)]
 pub struct SurfaceModule {
     display_cap: usize,
@@ -122,9 +133,80 @@ impl SurfaceModule {
     }
 }
 
+/// How the mesh a surface is shown with was made.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Shown {
+    /// The TIN itself.
+    Whole,
+    /// Elevations sampled at the nodes of a regular grid.
+    Grid,
+    /// The TIN with nearby points merged.
+    Thinned,
+}
+
 /// The mesh a surface is shown with; see [`SurfaceModule`]. The flag is true when it is a
-/// resampling and not the TIN itself.
+/// resampling or a thinning and not the TIN itself.
 pub fn surface_display_mesh(tin: &Tin, triangle_cap: usize) -> (Mesh3, bool) {
+    let (mesh, shown) = display_mesh(tin, triangle_cap);
+    (mesh, shown != Shown::Whole)
+}
+
+/// The TIN with its points merged cell by cell: every point in a square cell of plan becomes the
+/// first point met in that cell, and a triangle is kept when its corners are in three different
+/// cells. The cell grows until no more than `triangle_cap` triangles are left. The vertices are
+/// surveyed points, so levels are real ones; the triangles are for looking at only.
+fn thinned_mesh(tin: &Tin, triangle_cap: usize, mm: impl Fn([f64; 3]) -> [f64; 3]) -> (Vec<[f64; 3]>, Vec<[u32; 3]>) {
+    let b = tin.bounds();
+    let mut cell = (tin.plan_area() / triangle_cap.max(1) as f64).sqrt().max(1e-6);
+    loop {
+        let mut cluster_of_cell: HashMap<(i64, i64), u32> = HashMap::new();
+        let mut vertices: Vec<[f64; 3]> = Vec::new();
+        let cluster: Vec<u32> = tin
+            .points()
+            .iter()
+            .map(|p| {
+                let key = (((p[0] - b.min_x) / cell).floor() as i64, ((p[1] - b.min_y) / cell).floor() as i64);
+                *cluster_of_cell.entry(key).or_insert_with(|| {
+                    vertices.push(*p);
+                    vertices.len() as u32 - 1
+                })
+            })
+            .collect();
+        let mut seen: HashSet<[u32; 3]> = HashSet::new();
+        let mut triangles: Vec<[u32; 3]> = Vec::new();
+        for t in tin.triangles() {
+            let [i, j, k] = t.map(|v| cluster[v as usize]);
+            if i == j || j == k || k == i {
+                continue;
+            }
+            let mut key = [i, j, k];
+            key.sort_unstable();
+            if !seen.insert(key) {
+                continue;
+            }
+            let [p, q, r] = [vertices[i as usize], vertices[j as usize], vertices[k as usize]];
+            let turn = (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+            if turn != 0.0 {
+                triangles.push(if turn > 0.0 { [i, j, k] } else { [i, k, j] });
+            }
+        }
+        if triangles.len() <= triangle_cap {
+            // Only the vertices in use, in millimetres.
+            let mut renumbered: HashMap<u32, u32> = HashMap::new();
+            let mut used: Vec<[f64; 3]> = Vec::new();
+            for corner in triangles.iter_mut().flatten() {
+                *corner = *renumbered.entry(*corner).or_insert_with(|| {
+                    used.push(mm(vertices[*corner as usize]));
+                    used.len() as u32 - 1
+                });
+            }
+            return (used, triangles);
+        }
+        cell *= 1.25;
+    }
+}
+
+fn display_mesh(tin: &Tin, triangle_cap: usize) -> (Mesh3, Shown) {
     let b = tin.bounds();
     let mm = |p: [f64; 3]| [(p[0] - b.min_x) * 1000.0, (p[1] - b.min_y) * 1000.0, p[2] * 1000.0];
     let mut mesh = Mesh3 { name: "Ground surface".to_string(), vertices: Vec::new(), triangles: Vec::new(), colour: GROUND_RGB };
@@ -143,7 +225,7 @@ pub fn surface_display_mesh(tin: &Tin, triangle_cap: usize) -> (Mesh3, bool) {
                 }
             })
             .collect();
-        return (mesh, false);
+        return (mesh, Shown::Whole);
     }
     let (w, h) = ((b.max_x - b.min_x).max(1e-9), (b.max_y - b.min_y).max(1e-9));
     let squares = (triangle_cap / 2).max(1) as f64;
@@ -167,7 +249,17 @@ pub fn surface_display_mesh(tin: &Tin, triangle_cap: usize) -> (Mesh3, bool) {
             }
         }
     }
-    (mesh, true)
+    // A grid suits a surface that fills its bounds. A survey along a road is a narrow strip
+    // across them: hardly a grid square has all four corners on it, and the grid would show
+    // little or nothing. When the squares cover less than half of the surface, thin the TIN.
+    let covered = (mesh.triangles.len() / 2) as f64 * (w / nx as f64) * (h / ny as f64);
+    if covered < 0.5 * tin.plan_area() {
+        let (vertices, triangles) = thinned_mesh(tin, triangle_cap, mm);
+        mesh.vertices = vertices;
+        mesh.triangles = triangles;
+        return (mesh, Shown::Thinned);
+    }
+    (mesh, Shown::Grid)
 }
 
 impl Module for SurfaceModule {
@@ -204,7 +296,7 @@ impl Module for SurfaceModule {
             }
         }
         primitives.extend(boundary.iter().map(|e| Primitive::Line { from: pt(e[0]), to: pt(e[1]), width: 0.0, colour: None }));
-        let (mesh, resampled) = surface_display_mesh(tin, self.display_cap);
+        let (mesh, shown) = display_mesh(tin, self.display_cap);
 
         let mut derived = BTreeMap::new();
         let mut put = |k: &str, v: String| {
@@ -220,15 +312,27 @@ impl Module for SurfaceModule {
         put("width_m", format!("{:.3}", b.max_x - b.min_x));
         put("height_m", format!("{:.3}", b.max_y - b.min_y));
         put("display_triangles", mesh.triangles.len().to_string());
+        if let Some(crs) = &def.crs {
+            put("coordinate_system", crs.label());
+            if let Some((lat, lon)) = crs.to_geographic((b.min_x + b.max_x) / 2.0, (b.min_y + b.max_y) / 2.0) {
+                put("centre_latitude_deg", format!("{lat:.6}"));
+                put("centre_longitude_deg", format!("{lon:.6}"));
+            }
+        }
         let mut notes = Vec::new();
-        if resampled {
+        if shown != Shown::Whole {
+            let how = match shown {
+                Shown::Thinned => "with nearby points merged, as",
+                _ => "as a regular grid of",
+            };
             notes.push(note(
                 Severity::Info,
                 "surface.display_resampled",
                 format!(
-                    "The surface has {} triangles and is shown as a regular grid of {} triangles sampled from it, with its boundary only in plan. Calculations use the whole surface.",
+                    "The surface has {} triangles and is shown {how} {} triangles {}, with its boundary only in plan. Calculations use the whole surface.",
                     tin.triangles().len(),
-                    mesh.triangles.len()
+                    mesh.triangles.len(),
+                    if shown == Shown::Thinned { "made from it" } else { "sampled from it" }
                 ),
             ));
         }
@@ -322,9 +426,14 @@ impl Module for CorridorModule {
 /// mesh sit in site coordinates. Like alignments, the layer is hidden on the design sheet: a
 /// surface is kilometres from where sign faces are laid out. `source` is recorded only.
 pub fn add_surface(doc: &mut Document, name: &str, tin: &Tin, source: Option<&str>) -> Result<ElementId, CorridorError> {
+    add_surface_in(doc, name, tin, source, None)
+}
+
+/// [`add_surface`] with the coordinate system the surface is in, kept with it.
+pub fn add_surface_in(doc: &mut Document, name: &str, tin: &Tin, source: Option<&str>, crs: Option<&CoordinateSystem>) -> Result<ElementId, CorridorError> {
     let b = tin.bounds();
     let name = doc.unique_name(if name.trim().is_empty() { "Surface" } else { name.trim() });
-    let data = serde_json::to_value(SurfaceDefinition { tin: tin.clone(), source: source.map(str::to_string) })
+    let data = serde_json::to_value(SurfaceDefinition { tin: tin.clone(), source: source.map(str::to_string), crs: crs.cloned() })
         .map_err(|e| CorridorError::Document(format!("the surface cannot be stored: {e}")))?;
     let (w, h) = ((b.max_x - b.min_x) * 1000.0, (b.max_y - b.min_y) * 1000.0);
     let id = doc.add(SURFACE_CATEGORY, &name, Pt::new(0.0, 0.0), w.max(1.0), h.max(1.0), SURFACES_LAYER, data);
@@ -351,6 +460,73 @@ pub fn import_landxml_surfaces(doc: &mut Document, path: &Path) -> Result<(Vec<E
         ids.push(add_surface(doc, &s.name, &s.tin, source.as_deref()).map_err(|e| e.to_string())?);
     }
     Ok((ids, import.notes))
+}
+
+/// What [`import_survey_surface`] is told.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SurveyImportRequest {
+    /// The element name; the file's name without its extension when empty.
+    pub name: String,
+    pub format: SurveyFormat,
+    pub options: SurfaceOptions,
+    pub crs: Option<CoordinateSystem>,
+}
+
+/// Imports a file of survey points as one surface element: reads the points, triangulates them
+/// and adds the surface. Returns the id and the account of the import, a sentence a line: the
+/// counts, the extent, where the survey is when the coordinate system is given, and every note of
+/// the reader and the triangulation.
+///
+/// When a coordinate system is given and the coordinates cannot be in it (see
+/// [`CoordinateSystem::doubts`]) nothing is imported and the doubts are the error: the usual cause
+/// is the wrong column order, and a surface mirrored about the diagonal is worse than none.
+pub fn import_survey_surface(doc: &mut Document, path: &Path, request: &SurveyImportRequest) -> Result<(ElementId, Vec<String>), String> {
+    let survey = read_survey_points(path, &request.format).map_err(|e| e.to_string())?;
+    let mut report = Vec::new();
+    if let (Some(crs), Some((min, max))) = (&request.crs, survey.plan_extent()) {
+        let doubts = crs.doubts(min, max);
+        if !doubts.is_empty() {
+            return Err(doubts.join(" "));
+        }
+    }
+    let built = build_survey_surface(&survey, &request.options).map_err(|e| e.to_string())?;
+    let file = path.file_name().map(|n| n.to_string_lossy().to_string());
+    let name = match request.name.trim() {
+        "" => path.file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
+        given => given.to_string(),
+    };
+    let id = add_surface_in(doc, &name, &built.tin, file.as_deref(), request.crs.as_ref()).map_err(|e| e.to_string())?;
+
+    let b = built.tin.bounds();
+    report.push(format!(
+        "{} point(s) read in the order {}; {} are in the surface, as {} triangle(s) over {:.1} m2 in plan.",
+        built.points_read,
+        request.format.order.code(),
+        built.tin.points().len(),
+        built.tin.triangles().len(),
+        built.tin.plan_area()
+    ));
+    report.push(format!(
+        "Eastings {:.3} to {:.3} m, northings {:.3} to {:.3} m, levels {:.3} to {:.3} m.",
+        b.min_x, b.max_x, b.min_y, b.max_y, b.min_z, b.max_z
+    ));
+    match &request.crs {
+        Some(crs) => {
+            let centre = crs.to_geographic((b.min_x + b.max_x) / 2.0, (b.min_y + b.max_y) / 2.0);
+            let place = centre.map(|(lat, lon)| format!(" The middle of the extent is at latitude {lat:.5}, longitude {lon:.5}.")).unwrap_or_default();
+            report.push(format!("Coordinate system: {}. Nothing was reprojected.{place}", crs.label()));
+        }
+        None => report.push("No coordinate system was given; the coordinates are kept as the file has them.".to_string()),
+    }
+    report.extend(survey.notes.iter().cloned());
+    report.extend(built.notes.iter().cloned());
+    Ok((id, report))
+}
+
+/// The coordinate system a surface element states, if any.
+pub fn surface_crs(doc: &Document, id: ElementId) -> Option<CoordinateSystem> {
+    let e = doc.find(id).filter(|e| e.category == SURFACE_CATEGORY)?;
+    serde_json::from_value::<SurfaceDefinition>(e.data.clone()).ok().and_then(|d| d.crs)
 }
 
 /// The surfaces in a document: element id and name.

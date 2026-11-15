@@ -737,7 +737,7 @@ impl CorridorRequest {
 /// Builds a corridor on an alignment and a surface and adds it. Returns its mark and a line on
 /// what was computed.
 pub fn add_corridor(doc: &mut Document, alignment_id: ElementId, req: &CorridorRequest) -> Result<(String, String), String> {
-    let surface = req.surface.ok_or("Choose a ground surface. Import one with SURFACE.")?;
+    let surface = req.surface.ok_or("Choose a ground surface. Import one with SURFACE or make one with SURVEY.")?;
     let def = req.definition();
     def.check()?;
     let (id, built) = corridor::add_corridor(doc, alignment_id, surface, def).map_err(|e| e.to_string())?;

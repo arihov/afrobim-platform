@@ -7,8 +7,9 @@ use std::path::PathBuf;
 use afrobim_alignment::{AlignmentBuilder, Profile, Pvi};
 use afrobim_corridor::{
     add_corridor, add_surface, build_corridor, corridor_element, corridor_meshes, corridor_of, earthworks, earthworks_csv, import_landxml_surfaces,
-    refresh_corridor, set_corridor_definition, surface_display_mesh, surface_of, surfaces, Corridor, CorridorDefinition, CorridorError, CorridorModule,
-    Daylight, Link, Slope, SurfaceModule, Template, Tin, VolumeOptions, CORRIDORS_LAYER, CORRIDOR_CATEGORY, SURFACES_LAYER, SURFACE_CATEGORY,
+    import_survey_surface, refresh_corridor, set_corridor_definition, surface_crs, surface_display_mesh, surface_of, surfaces, ColumnOrder,
+    CoordinateSystem, Corridor, CorridorDefinition, CorridorError, CorridorModule, Daylight, Link, Slope, SurfaceModule, SurfaceOptions, SurveyFormat,
+    SurveyImportRequest, Template, Tin, VolumeOptions, CORRIDORS_LAYER, CORRIDOR_CATEGORY, SURFACES_LAYER, SURFACE_CATEGORY,
 };
 use afrobim_kernel::{Document, ElementId, Module, ModuleRegistry, Pt, Severity};
 
@@ -200,6 +201,112 @@ fn landxml_surfaces_become_elements() {
     assert_eq!(e.data["source"], "surface.xml");
     assert_eq!(surface_of(&doc, ids[0]).unwrap().elevation_at(5010.0, 1010.0), Some(1205.0));
     assert!(import_landxml_surfaces(&mut doc, &path.with_file_name("missing.xml")).is_err());
+}
+
+/// A strip of survey along a road lies across its bounds, and a grid over the bounds misses it.
+#[test]
+fn a_narrow_strip_above_the_display_cap_is_shown_thinned_not_empty() {
+    // Two rows of 401 points, 1 m apart along a diagonal 400 m long and 1 m wide: 800 triangles.
+    let mut points = Vec::new();
+    for i in 0..=400 {
+        let t = i as f64;
+        points.push([1000.0 + t, 2000.0 + t, 100.0 + 0.01 * t]);
+        points.push([1000.7 + t, 1999.3 + t, 100.0 + 0.01 * t]);
+    }
+    let mut triangles = Vec::new();
+    for i in 0..400u32 {
+        let (a, b, c, d) = (2 * i, 2 * i + 1, 2 * i + 2, 2 * i + 3);
+        triangles.push([a, b, c]);
+        triangles.push([b, d, c]);
+    }
+    let strip = Tin::new(points, triangles).unwrap();
+    let (mesh, resampled) = surface_display_mesh(&strip, 200);
+    assert!(resampled);
+    assert!(!mesh.triangles.is_empty() && mesh.triangles.len() <= 200, "{}", mesh.triangles.len());
+    // It still runs the length of the strip, and every vertex is a surveyed point (millimetres
+    // from the south-west corner, the level itself).
+    let (lo, hi) = mesh.vertices.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |m, v| (m.0.min(v[0]), m.1.max(v[0])));
+    assert!(lo < 20_000.0 && hi > 380_000.0, "{lo} {hi}");
+    for v in &mesh.vertices {
+        let (x, y, z) = (1000.0 + v[0] / 1000.0, 1999.3 + v[1] / 1000.0, v[2] / 1000.0);
+        assert!(strip.points().iter().any(|p| (p[0] - x).abs() < 1e-6 && (p[1] - y).abs() < 1e-6 && (p[2] - z).abs() < 1e-6), "{x} {y} {z}");
+    }
+    // Counter-clockwise from above, like the whole TIN.
+    for t in &mesh.triangles {
+        let [p, q, r] = t.map(|i| mesh.vertices[i as usize]);
+        assert!((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]) > 0.0);
+    }
+    // The element says how it is shown.
+    let mut doc = Document::default();
+    let id = add_surface(&mut doc, "Strip", &strip, None).unwrap();
+    let generated = SurfaceModule::with_display_cap(200).generate(doc.find(id).unwrap()).unwrap();
+    assert!(generated.notes.iter().any(|n| n.code == "surface.display_resampled" && n.message.contains("with nearby points merged")), "{:?}", generated.notes);
+    // A surface that fills its bounds is still shown as a grid.
+    let broad = Tin::from_grid(0.0, 0.0, 1.0, 1.0, 41, 41, |x, y| 0.1 * x + 0.05 * y).unwrap();
+    let broad_id = add_surface(&mut doc, "Broad", &broad, None).unwrap();
+    let generated = SurfaceModule::with_display_cap(200).generate(doc.find(broad_id).unwrap()).unwrap();
+    assert!(generated.notes.iter().any(|n| n.message.contains("as a regular grid of")), "{:?}", generated.notes);
+}
+
+/// `tests/survey/points.csv` is made up: a 5 by 5 grid 10 m apart on the plane
+/// 1300 + 0.01 (E - 213 000) + 0.02 (N - 9 887 000), PNEZD with a heading, and one culvert invert.
+#[test]
+fn a_survey_point_file_becomes_a_surface_in_its_coordinate_system() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("survey").join("points.csv");
+    let utm36s = CoordinateSystem::parse("WGS 84 / UTM zone 36S").unwrap();
+    let request = |order, exclude: &[&str], crs: Option<&CoordinateSystem>| SurveyImportRequest {
+        name: String::new(),
+        format: SurveyFormat::metres(order),
+        options: SurfaceOptions { exclude: exclude.iter().map(|c| c.to_string()).collect(), max_side_m: Some(25.0) },
+        crs: crs.cloned(),
+    };
+
+    let mut doc = Document::default();
+    let (id, report) = import_survey_surface(&mut doc, &path, &request(ColumnOrder::Pnezd, &["CULV-*"], Some(&utm36s))).unwrap();
+    let e = doc.find(id).unwrap();
+    assert_eq!((e.name.as_str(), e.category.as_str(), e.layer.as_str()), ("points", SURFACE_CATEGORY, SURFACES_LAYER));
+    assert_eq!(e.data["source"], "points.csv");
+    assert_eq!(e.data["crs"]["epsg"], 32736);
+    assert_eq!(surface_crs(&doc, id), Some(utm36s.clone()));
+    // Placed at its south-west corner, in millimetres.
+    let site = e.site.as_ref().unwrap();
+    assert_eq!((site.x, site.y), (213_000_000.0, 9_887_000_000.0));
+
+    let tin = surface_of(&doc, id).unwrap();
+    // 25 points, 16 on the hull: 2 n - 2 - h = 32 triangles over 40 m by 40 m.
+    assert_eq!((tin.points().len(), tin.triangles().len()), (25, 32));
+    close(tin.plan_area(), 1600.0, "plan area");
+    // The plane, also where the invert was shot.
+    close(tin.elevation_at(213_016.0, 9_887_015.0).unwrap(), 1300.0 + 0.16 + 0.30, "level at the invert's position");
+    assert!(report[0].starts_with("26 point(s) read in the order PNEZD; 25 are in the surface, as 32 triangle(s)"), "{report:?}");
+    assert!(report.iter().any(|l| l.starts_with("Coordinate system: WGS 84 / UTM zone 36S (EPSG:32736). Nothing was reprojected. The middle of the extent is at latitude -1.02")), "{report:?}");
+    assert!(report.iter().any(|l| l.starts_with("Line 1 was taken as a heading")), "{report:?}");
+    assert!(report.iter().any(|l| l.starts_with("1 point(s) were left out by description: CULV-INV (1).")), "{report:?}");
+
+    // What the element says of itself.
+    let derived = SurfaceModule::default().generate(doc.find(id).unwrap()).unwrap().derived;
+    assert_eq!(derived["coordinate_system"], "WGS 84 / UTM zone 36S (EPSG:32736)");
+    let (lat, lon): (f64, f64) = (derived["centre_latitude_deg"].parse().unwrap(), derived["centre_longitude_deg"].parse().unwrap());
+    // 113 km south of the equator and 287 km west of 33 degrees east.
+    assert!((-1.03..-1.01).contains(&lat) && (30.41..30.43).contains(&lon), "{lat} {lon}");
+
+    // With nothing left out the invert is in the surface: 2 m down at its position.
+    let (all, _) = import_survey_surface(&mut doc, &path, &request(ColumnOrder::Pnezd, &[], Some(&utm36s))).unwrap();
+    close(surface_of(&doc, all).unwrap().elevation_at(213_016.0, 9_887_015.0).unwrap(), 1298.46, "the invert");
+    assert_eq!(doc.find(all).unwrap().name, "points-2");
+
+    // Read as easting first, the northings land in the easting column: refused, nothing added.
+    let before = doc.elements().len();
+    let refused = import_survey_surface(&mut doc, &path, &request(ColumnOrder::Penzd, &[], Some(&utm36s))).unwrap_err();
+    assert!(refused.contains("check the column order"), "{refused}");
+    assert_eq!(doc.elements().len(), before);
+    // With no coordinate system there is nothing to test the order against: it imports, mirrored.
+    let (mirrored, report) = import_survey_surface(&mut doc, &path, &request(ColumnOrder::Penzd, &[], None)).unwrap();
+    assert!(surface_crs(&doc, mirrored).is_none());
+    assert!(report.iter().any(|l| l.starts_with("No coordinate system was given")), "{report:?}");
+    assert!(doc.find(mirrored).unwrap().data.get("crs").is_none());
+
+    assert!(import_survey_surface(&mut doc, &path.with_file_name("missing.csv"), &request(ColumnOrder::Pnezd, &[], None)).is_err());
 }
 
 /// Timing on a synthetic survey: 200 000 triangles and 500 sections. Not run by default:

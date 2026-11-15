@@ -47,6 +47,7 @@ mod schedule_ui;
 mod sheets_glue;
 mod sheets_ui;
 mod signs_glue;
+mod survey_ui;
 mod signsched;
 mod station_input;
 mod supports_glue;
@@ -160,6 +161,19 @@ pub struct Options {
     pub signschedule: Option<PathBuf>,
     /// Write the model as DXF to this file, then exit.
     pub dxf_out: Option<PathBuf>,
+    /// Make a ground surface from this file of survey points at start-up. `survey_order` is the
+    /// column order (PNEZD, PENZD, NEZD or ENZD) and must be given: it is not guessed.
+    /// `survey_crs` is the coordinate system (`EPSG:32736`, `WGS 84 / UTM zone 36S`),
+    /// `survey_max_side` the longest triangle side in metres, `survey_exclude` the descriptions
+    /// to leave out, separated by commas, and `survey_name` the name of the surface.
+    pub survey: Option<PathBuf>,
+    pub survey_order: Option<String>,
+    pub survey_crs: Option<String>,
+    pub survey_max_side: Option<String>,
+    pub survey_exclude: Option<String>,
+    pub survey_name: Option<String>,
+    /// Save the document to this file once the start-up imports are done, then exit.
+    pub save_as: Option<PathBuf>,
     /// Layers to switch on at start-up, comma separated.
     pub layers_on: Option<String>,
     /// Frame the 2D view on `x,y,width` (millimetres: the centre and the width shown).
@@ -219,6 +233,13 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--underlay" => o.underlay = args.next(),
             "--signschedule" => o.signschedule = args.next().map(PathBuf::from),
             "--dxf-out" => o.dxf_out = args.next().map(PathBuf::from),
+            "--survey" => o.survey = args.next().map(PathBuf::from),
+            "--survey-order" => o.survey_order = args.next(),
+            "--survey-crs" => o.survey_crs = args.next(),
+            "--survey-max-side" => o.survey_max_side = args.next(),
+            "--survey-exclude" => o.survey_exclude = args.next(),
+            "--survey-name" => o.survey_name = args.next(),
+            "--save-as" => o.save_as = args.next().map(PathBuf::from),
             "--layers-on" => o.layers_on = args.next(),
             "--zoom-to" => o.zoom_to = args.next(),
             "--size" => o.size = args.next(),
@@ -313,6 +334,18 @@ mod arg_tests {
         assert!(o.demo && o.tab.as_deref() == Some("Roads"));
         // An option's value is not mistaken for a document.
         let o = parse_args_from(["--landxml", "a.xml"].map(String::from).into_iter());
+        assert_eq!(o.open, None);
+    }
+
+    #[test]
+    fn the_survey_options_are_read_with_their_values() {
+        let args = ["--survey", "topo.csv", "--survey-order", "PNEZD", "--survey-crs", "WGS 84 / UTM zone 36S", "--survey-max-side", "50", "--survey-exclude", "CULV-*,WW", "--survey-name", "EG", "--save-as", "out.afrobim"];
+        let o = parse_args_from(args.map(String::from).into_iter());
+        assert_eq!(o.survey, Some(PathBuf::from("topo.csv")));
+        assert_eq!((o.survey_order.as_deref(), o.survey_crs.as_deref()), (Some("PNEZD"), Some("WGS 84 / UTM zone 36S")));
+        assert_eq!((o.survey_max_side.as_deref(), o.survey_exclude.as_deref(), o.survey_name.as_deref()), (Some("50"), Some("CULV-*,WW"), Some("EG")));
+        assert_eq!(o.save_as, Some(PathBuf::from("out.afrobim")));
+        // None of the values is taken for the document to open.
         assert_eq!(o.open, None);
     }
 }
