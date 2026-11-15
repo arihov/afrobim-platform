@@ -29,6 +29,13 @@ pub(crate) struct CorridorSurfaces {
     pub solids: Result<road_glue::CorridorSolids, String>,
 }
 
+impl CorridorSurfaces {
+    /// The element data the surfaces were built from.
+    pub(crate) fn key(&self) -> &serde_json::Value {
+        &self.key
+    }
+}
+
 pub struct AfroBimApp {
     pub(crate) doc: Document,
     pub(crate) view: ViewTransform,
@@ -124,6 +131,7 @@ pub struct AfroBimApp {
     pub(crate) show_labels: bool,
 
     path: Option<PathBuf>,
+    pub(crate) drops: crate::dropped::DropUi,
     pub(crate) status: String,
     fitted: bool,
     pub(crate) view_3d: bool,
@@ -213,6 +221,7 @@ impl AfroBimApp {
             rep: Representation::Real,
             show_labels: true,
             path: None,
+            drops: Default::default(),
             status: "Ready.".into(),
             fitted: false,
             view_3d: false,
@@ -563,26 +572,9 @@ impl AfroBimApp {
         any
     }
 
-    /// Builds the 3D surfaces of corridors that have none yet or whose data changed, on the UI
-    /// thread: for a clash run's scene, headless runs and tests. The 3D view builds them with
-    /// [`AfroBimApp::sync_corridor_surfaces_bg`].
-    pub(crate) fn sync_corridor_surfaces(&mut self) {
-        let ids: Vec<ElementId> = self.doc.elements().iter().filter(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY).map(|e| e.id).collect();
-        self.corridor_cache.retain(|id, _| ids.contains(id));
-        for id in ids {
-            let Some(e) = self.doc.find(id) else { continue };
-            if self.corridor_cache.get(&id).is_some_and(|c| c.key == e.data) {
-                continue;
-            }
-            let key = e.data.clone();
-            let solids = road_glue::corridor_solids(&self.doc, id);
-            self.corridor_cache.insert(id, CorridorSurfaces { key, solids });
-        }
-    }
-
-    /// As [`AfroBimApp::sync_corridor_surfaces`] on a worker thread: starts one job for every
-    /// corridor that needs its surfaces (unless one is running or the engineer cancelled). Until
-    /// the job is applied the 3D view shows the corridor as it was, or not at all.
+    /// Starts one worker job for every corridor that needs its surfaces, unless one is running or
+    /// the engineer cancelled. Until the job is applied the 3D view shows the corridor as it was,
+    /// or not at all. (A clash run builds the corridors it needs in its own job.)
     pub(crate) fn sync_corridor_surfaces_bg(&mut self) {
         let ids: Vec<ElementId> = self.doc.elements().iter().filter(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY).map(|e| e.id).collect();
         self.corridor_cache.retain(|id, _| ids.contains(id));
@@ -681,7 +673,7 @@ impl AfroBimApp {
         self.commit_due = Some(0.0);
     }
 
-    fn open_path(&mut self, path: PathBuf) {
+    pub(crate) fn open_path(&mut self, path: PathBuf) {
         match Document::load(&path) {
             Ok(doc) => {
                 self.doc = doc;
@@ -693,6 +685,7 @@ impl AfroBimApp {
                 }
                 self.sync_generated();
                 self.history.reset(self.doc.snapshot());
+                self.drops.saved = Some(crate::background::fingerprint(&self.doc));
                 self.status = format!("Opened {} ({} elements).", path.display(), self.doc.elements().len());
                 self.path = Some(path);
                 self.fitted = false;
@@ -706,6 +699,7 @@ impl AfroBimApp {
         match self.doc.save(&path) {
             Ok(()) => {
                 self.status = format!("Saved {}.", path.display());
+                self.drops.saved = Some(crate::background::fingerprint(&self.doc));
                 self.path = Some(path);
             }
             Err(e) => self.status = format!("Could not save {}: {e}", path.display()),
@@ -892,6 +886,7 @@ impl AfroBimApp {
                 self.reset_records();
                 self.history.reset(Vec::new());
                 self.path = None;
+                self.drops.saved = Some(crate::background::fingerprint(&self.doc));
                 self.fitted = false;
                 self.status = "New document.".into();
             }
@@ -1823,19 +1818,49 @@ impl AfroBimApp {
                 ui.selectable_value(&mut self.rep, Representation::Real, "Real");
                 ui.selectable_value(&mut self.rep, Representation::Outlined, "Outlined");
                 ui.separator();
-                ui.label(RichText::new(&self.status).weak());
+                // The message and the read-outs share what is left of the bar; see `statusbar.rs`.
+                use crate::statusbar::{fit_message, layout, Segment};
+                let sel = self.doc.selection();
+                let sel_text = match (sel.len(), self.doc.primary().and_then(|id| self.doc.find(id))) {
+                    (0, _) => "No selection".to_string(),
+                    (1, Some(e)) => format!("{}  {} × {}", e.name, units.length(e.width), units.length_u(e.height)),
+                    (n, _) => format!("{n} elements selected"),
+                };
+                let zoom_text = format!("1 px = {:.1} mm", 1.0 / self.view.scale);
+                let standard_text = self.module_status.clone();
+                let body = egui::TextStyle::Body.resolve(ui.style());
+                let mono = egui::TextStyle::Monospace.resolve(ui.style());
+                let gap = ui.spacing().item_spacing.x * 2.0 + 8.0;
+                let text_w = |ui: &egui::Ui, t: &str, f: &egui::FontId| ui.fonts(|fs| fs.layout_no_wrap(t.to_string(), f.clone(), egui::Color32::WHITE).size().x);
+                let widths = [
+                    (Segment::Selection, text_w(ui, &sel_text, &body) + gap),
+                    (Segment::Standard, text_w(ui, &standard_text, &body) + gap),
+                    (Segment::Zoom, text_w(ui, &zoom_text, &mono) + gap),
+                ];
+                let plan = layout(ui.available_width(), &widths);
+                let msg_w = plan.message_w;
+                let full = self.status.clone();
+                let shown = fit_message(&full, (msg_w - ui.spacing().item_spacing.x).max(0.0), &|t| text_w(ui, t, &body));
+                ui.allocate_ui_with_layout(egui::vec2(msg_w, ui.spacing().interact_size.y), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
+                    let r = ui.add(egui::Label::new(RichText::new(&shown).weak()).wrap_mode(egui::TextWrapMode::Extend).sense(egui::Sense::hover()));
+                    if shown != full {
+                        r.on_hover_text(&full);
+                    }
+                });
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(RichText::new(&self.module_status).weak());
-                    ui.separator();
-                    ui.label(RichText::new(format!("1 px = {:.1} mm", 1.0 / self.view.scale)).monospace().weak());
-                    ui.separator();
-                    let sel = self.doc.selection();
-                    let text = match (sel.len(), self.doc.primary().and_then(|id| self.doc.find(id))) {
-                        (0, _) => "No selection".to_string(),
-                        (1, Some(e)) => format!("{}  {} × {}", e.name, units.length(e.width), units.length_u(e.height)),
-                        (n, _) => format!("{n} elements selected"),
-                    };
-                    ui.label(text);
+                    // Right to left: the standard name is the right-most, then the zoom, then the selection.
+                    if plan.shown.contains(&Segment::Standard) {
+                        ui.label(RichText::new(&standard_text).weak());
+                        ui.separator();
+                    }
+                    if plan.shown.contains(&Segment::Zoom) {
+                        ui.label(RichText::new(&zoom_text).monospace().weak());
+                        ui.separator();
+                    }
+                    if plan.shown.contains(&Segment::Selection) {
+                        ui.label(&sel_text);
+                    }
                 });
             });
         });
@@ -2956,6 +2981,7 @@ impl eframe::App for AfroBimApp {
             }
         }
 
+        self.drop_tick(ctx);
         self.sched_tick(ctx);
         self.under.sync(&mut self.doc, self.view.scale);
         if std::mem::take(&mut self.under.doc_changed) {

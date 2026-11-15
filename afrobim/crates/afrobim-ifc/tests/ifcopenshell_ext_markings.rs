@@ -90,6 +90,28 @@ fn fixture(with_pavement: bool) -> Fixture {
     Fixture { document: doc, generated }
 }
 
+/// `Pset_MarkingLinesCommon` as worked out by hand from the catalogue entries (see
+/// `ifc/src/model/road.rs`, `ext_line_pset`), or null where it is left out because the dash pattern
+/// is not one pattern for the whole element. Widths are in mm, the file's length unit.
+///
+/// * 1017: continuous, width 75. 1018.1: two continuous lines of 100 with a 75 gap, 100 + 100 + 75 = 275.
+/// * 1002.1: one row of continuous line, 400 deep. 1003A: two rows of 200 with a 300 gap,
+///   200 + 300 + 200 = 700, mark 600 and gap 300.
+/// * M01: continuous, 100. M03 (urban): 100 wide, 3.0 m mark and 6.0 m gap.
+/// * M05 (zig-zag) and M34 (crossing side lines): left out.
+fn lines_expected(name: &str) -> Value {
+    let continuous = |w: u32| json!({ "dashed": false, "pattern": "continuous", "width_mm": w });
+    match name {
+        "X-1017" => continuous(75),
+        "X-1018" => continuous(275),
+        "X-1002" => continuous(400),
+        "X-1003A" => json!({ "dashed": true, "pattern": "600 mm mark, 300 mm gap", "width_mm": 700 }),
+        "X-M01" => continuous(100),
+        "X-M03" => json!({ "dashed": true, "pattern": "3000 mm mark, 6000 mm gap", "width_mm": 100 }),
+        _ => Value::Null,
+    }
+}
+
 fn expectations() -> Value {
     let mut markings = Vec::new();
     for (name, def, predefined) in definitions() {
@@ -105,12 +127,13 @@ fn expectations() -> Value {
             "adheres_to": "PV-001",
             "placeholder": placeholder,
             "common": !user_defined,
+            "lines": lines_expected(name),
         }));
     }
     let (name, def) = uncarried();
     markings.push(json!({
         "name": name, "type_id": def.type_id, "class": "IfcBuildingElementProxy", "predefined": "USERDEFINED", "object_type": "marking",
-        "adheres_to": Value::Null, "placeholder": false, "common": false,
+        "adheres_to": Value::Null, "placeholder": false, "common": false, "lines": Value::Null,
     }));
     json!({ "pavement": "PV-001", "markings": markings })
 }
@@ -191,4 +214,17 @@ fn every_catalogue_entry_has_a_feature_type() {
     }
     assert_eq!(ext_feature_type("STUD").unwrap().object_type, Some("ROAD_STUD"));
     assert!(ext_feature_type("no-such-type").is_none());
+}
+
+#[test]
+fn a_line_marking_without_one_dash_pattern_is_left_out_of_the_lines_set_with_a_note() {
+    let f = fixture(true);
+    let export = afrobim_ifc::export_ifc_model(&f.document, &f.inputs(), &options());
+    let note = |name: &str| export.notes.iter().find(|n| n.starts_with(&format!("{name}: Pset_MarkingLinesCommon not written"))).cloned();
+    assert!(note("X-M05").is_some_and(|n| n.contains("zig-zag")), "{:?}", export.notes);
+    assert!(note("X-M34").is_some_and(|n| n.contains("crossing")), "{:?}", export.notes);
+    for written in ["X-1017", "X-1018", "X-1002", "X-1003A", "X-M01", "X-M03"] {
+        assert!(note(written).is_none(), "{written} has one pattern");
+    }
+    assert_eq!(export.text.matches("Pset_MarkingLinesCommon").count(), 6);
 }

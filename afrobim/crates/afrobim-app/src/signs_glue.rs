@@ -24,6 +24,11 @@ struct SignsModule {
     engine: Arc<SignEngine>,
 }
 
+/// A sign module over a loaded engine: a worker thread builds its own, as modules are not `Send`.
+pub fn module_for(engine: Arc<SignEngine>) -> Box<dyn Module> {
+    Box::new(SignsModule { engine })
+}
+
 impl Module for SignsModule {
     fn category(&self) -> &str {
         CATEGORY

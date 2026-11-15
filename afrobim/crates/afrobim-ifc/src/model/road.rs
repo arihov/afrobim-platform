@@ -13,7 +13,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use afrobim_draw::Mesh3;
 use afrobim_kernel::{Element, ElementId, Generated, Module, Severity};
-use afrobim_markings::{ext_spec, ExtDefinition, Family, ExtMarkingModule, ExtQuantities, GeometryStatus, Kind, MarkingDefinition, MarkingModule, MarkingQuantities, Pattern, STUD_ID};
+use afrobim_markings::{ext_spec, ExtDefinition, Family, ExtMarkingModule, ExtQuantities, GeometryStatus, Kind, MarkingDefinition, MarkingModule, MarkingQuantities, Pattern, Setting, STUD_ID};
 use afrobim_pavement::{measure_definition, Material, PavementDefinition, PavementModule};
 use afrobim_restraint::{BarrierElement, EndTreatment, RestraintModule, RunQuantities};
 
@@ -696,6 +696,16 @@ impl Model<'_> {
                     common.push(("MaterialType".to_string(), text(&q.material)));
                 }
                 self.w.property_set(product, e.id, "Pset_RoadMarkingCommon", &common);
+            }
+            // Pset_MarkingLinesCommon (IfcSurfaceFeature LINEMARKING in the IFC4X3 property set
+            // templates: DashedLine IfcBoolean, DashedLinePattern IfcLabel, NominalWidth
+            // IfcNonNegativeLengthMeasure). Written only where the dash pattern holds for the whole
+            // element; otherwise left out, with a note saying why.
+            if host.is_some() && feature.is_some_and(|f| f.predefined == "LINEMARKING") {
+                match ext_line_pset(def.as_ref(), &r.id) {
+                    Ok(lines) => self.w.property_set(product, e.id, "Pset_MarkingLinesCommon", &lines),
+                    Err(why) => notes.push(format!("{}: Pset_MarkingLinesCommon not written: {why}", e.name)),
+                }
             }
             if host.is_some() {
                 // A placeholder block has no painted area and a stud has none: only what is known.
@@ -1628,6 +1638,69 @@ fn culvert_properties(p: &mut Vec<(String, Value)>, d: &afrobim_drainage::PipeCu
 /// The pattern of a line type: both lines of a double line.
 fn entity_label(feature: bool) -> &'static str {
     if feature { "IfcSurfaceFeature" } else { "IfcBuildingElementProxy (no pavement carries it);" }
+}
+
+/// A width from the element, or the only one the catalogue allows; `None` when neither (an
+/// element that cannot be laid out has no width to give).
+fn chosen_mm(given: Option<u32>, allowed: &[u32]) -> Option<u32> {
+    match given {
+        Some(v) if allowed.contains(&v) => Some(v),
+        None if allowed.len() == 1 => Some(allowed[0]),
+        _ => None,
+    }
+}
+
+/// The properties of `Pset_MarkingLinesCommon` for a second-set line marking, or the reason it is
+/// left out. The dash pattern must be the same for the whole element: a continuous line, or one
+/// mark and gap module. So:
+///
+/// * a longitudinal line (or a double line whose two lines have the same pattern) qualifies, with
+///   the pattern of its urban or rural setting;
+/// * a transverse line qualifies, its pattern being the one catalogued for the line;
+/// * a zig-zag line (its marks follow the zig-zag, not a straight dash module), a pedestrian
+///   crossing with side lines (the side-line mark lengths are chosen within a range), a double line
+///   of two different patterns and a catalogue entry with no layout are left out.
+///
+/// `NominalWidth` is the overall width as in the first set: every line and the gap between lines.
+fn ext_line_pset(def: Option<&ExtDefinition>, type_id: &str) -> Result<Vec<(String, Value)>, String> {
+    let (Some(d), Some(spec)) = (def, ext_spec(type_id)) else { return Err("the definition has no catalogue entry".into()) };
+    let (pattern, overall_mm) = match spec.kind {
+        Kind::Lines(l) => {
+            let urban = match (l.by_setting, d.setting) {
+                (true, None) => return Err("it has different marks in an urban and a rural setting and none is set".into()),
+                (true, Some(s)) => s == Setting::Urban,
+                (false, _) => true,
+            };
+            let patterns: Vec<Pattern> = l.strands.iter().map(|s| if urban { s.urban } else { s.rural }).collect();
+            let Some(first) = patterns.first().copied() else { return Err("it has no lines".into()) };
+            if patterns.iter().any(|p| *p != first) {
+                return Err("its two lines have different dash patterns, so there is no single pattern for the element".into());
+            }
+            let Some(w) = chosen_mm(d.width_mm, l.widths_mm) else { return Err("its line width is not set".into()) };
+            let sep = if l.strands.len() == 2 {
+                match chosen_mm(d.separation_mm, l.separations_mm) {
+                    Some(s) => s,
+                    None => return Err("the gap between its lines is not set".into()),
+                }
+            } else {
+                0
+            };
+            (first, w * l.strands.len() as u32 + sep)
+        }
+        Kind::Transverse(t) => {
+            let Some(w) = chosen_mm(d.width_mm, t.widths_mm) else { return Err("its line width is not set".into()) };
+            (t.pattern, w * t.rows + t.row_gap_mm * t.rows.saturating_sub(1))
+        }
+        Kind::ZigZag(_) => return Err("the marks of a zig-zag line follow the zig-zag, not one straight mark and gap module".into()),
+        Kind::Crossing(_) => return Err("the side lines of a crossing have mark lengths chosen within a range, not one module".into()),
+        _ => return Err("the catalogue entry has no line layout to take a pattern from".into()),
+    };
+    let dashed = matches!(pattern, Pattern::Broken { .. });
+    Ok(vec![
+        ("DashedLine".to_string(), Value::Boolean(dashed)),
+        ("DashedLinePattern".to_string(), text(&pattern.label())),
+        ("NominalWidth".to_string(), length_non_negative(f64::from(overall_mm))),
+    ])
 }
 
 fn pattern_label(spec: &afrobim_markings::LineSpec) -> String {

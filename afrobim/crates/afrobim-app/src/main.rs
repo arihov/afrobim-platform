@@ -24,6 +24,7 @@ mod design_glue;
 mod design_profile;
 mod design_ui;
 mod disp;
+mod dropped;
 mod design_windows;
 mod icons;
 mod ifc_options;
@@ -37,6 +38,7 @@ mod reference_models;
 mod report_pack;
 mod render;
 mod ribbon;
+mod statusbar;
 mod road_dialogs;
 mod road_glue;
 mod schedule_ext;
@@ -162,6 +164,11 @@ pub struct Options {
     pub layers_on: Option<String>,
     /// Frame the 2D view on `x,y,width` (millimetres: the centre and the width shown).
     pub zoom_to: Option<String>,
+    /// Window size at start-up, `WIDTHxHEIGHT` in points (for screenshots at a given width).
+    pub size: Option<String>,
+    /// 3D view camera after the first fit, `distance_mm,yaw_deg,pitch_deg[,station_m]` (the target
+    /// moves to the first alignment's centre line at that station), for close-up screenshots.
+    pub camera: Option<String>,
 }
 
 fn parse_args() -> Options {
@@ -214,6 +221,8 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--dxf-out" => o.dxf_out = args.next().map(PathBuf::from),
             "--layers-on" => o.layers_on = args.next(),
             "--zoom-to" => o.zoom_to = args.next(),
+            "--size" => o.size = args.next(),
+            "--camera" => o.camera = args.next(),
             "--export-pack" => o.export_pack = args.next().map(PathBuf::from),
             "--sheet" => o.sheet = args.next().and_then(|v| v.parse().ok()),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),
@@ -224,15 +233,38 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
     o
 }
 
+/// The application icon, embedded from `packaging/icons/afrobim-512.png`, as the window and
+/// taskbar or Dock icon (Windows and Linux windows; on macOS the Dock shows the icon of the
+/// installed `.app`, and this one is used for a run from the command line).
+fn app_icon() -> Option<egui::IconData> {
+    icon_from_png(include_bytes!("../../../packaging/icons/afrobim-512.png"))
+}
+
+fn icon_from_png(bytes: &[u8]) -> Option<egui::IconData> {
+    let img = image::load_from_memory_with_format(bytes, image::ImageFormat::Png).ok()?.to_rgba8();
+    let (width, height) = img.dimensions();
+    Some(egui::IconData { rgba: img.into_raw(), width, height })
+}
+
+/// The window size to start with: `--size WxH` when valid, else 1440 by 860.
+fn start_size(text: Option<&str>) -> [f32; 2] {
+    text.and_then(|t| {
+        let (w, h) = t.split_once(['x', 'X'])?;
+        let (w, h) = (w.trim().parse::<f32>().ok()?, h.trim().parse::<f32>().ok()?);
+        (w >= 400.0 && h >= 300.0 && w <= 10000.0 && h <= 10000.0).then_some([w, h])
+    })
+    .unwrap_or([1440.0, 860.0])
+}
+
 fn run(options: &Options, multisampling: u16) -> eframe::Result<()> {
-    let native = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("AfroBIM")
-            .with_inner_size([1440.0, 860.0])
-            .with_min_inner_size([1000.0, 600.0]),
-        multisampling,
-        ..Default::default()
-    };
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title("AfroBIM")
+        .with_inner_size(start_size(options.size.as_deref()))
+        .with_min_inner_size([1000.0, 600.0]);
+    if let Some(icon) = app_icon() {
+        viewport = viewport.with_icon(std::sync::Arc::new(icon));
+    }
+    let native = eframe::NativeOptions { viewport, multisampling, ..Default::default() };
     let options = options.clone();
     eframe::run_native("AfroBIM", native, Box::new(move |cc| Ok(Box::new(app::AfroBimApp::new(cc, options)))))
 }
@@ -252,6 +284,25 @@ fn main() -> eframe::Result<()> {
 #[cfg(test)]
 mod arg_tests {
     use super::*;
+
+    #[test]
+    fn the_embedded_icon_decodes_to_a_512_pixel_square_with_visible_pixels() {
+        let icon = app_icon().expect("the embedded PNG decodes");
+        assert_eq!((icon.width, icon.height), (512, 512));
+        assert_eq!(icon.rgba.len(), 512 * 512 * 4);
+        assert!(icon.rgba.chunks(4).any(|p| p[3] > 0), "not fully transparent");
+        // Bytes that are not a PNG give no icon rather than a crash.
+        assert!(icon_from_png(b"not a png").is_none());
+    }
+
+    #[test]
+    fn the_start_size_is_read_from_width_x_height_or_falls_back() {
+        assert_eq!(start_size(Some("1600x1000")), [1600.0, 1000.0]);
+        assert_eq!(start_size(Some("1000X800")), [1000.0, 800.0]);
+        for bad in [None, Some("wide"), Some("100x100"), Some("1600"), Some("axb")] {
+            assert_eq!(start_size(bad), [1440.0, 860.0]);
+        }
+    }
 
     #[test]
     fn a_positional_argument_is_the_document_to_open() {

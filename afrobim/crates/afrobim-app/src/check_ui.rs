@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 use afrobim_drainage::design::mowt::{PipeEntrance, PipeWall};
 use afrobim_drainage::design::DesignBasis;
-use afrobim_kernel::{Document, ElementId, Note, SelectMode};
+use afrobim_kernel::{Document, Element, ElementId, Note, SelectMode};
 use egui::{Color32, RichText, Ui};
 
 use crate::app::AfroBimApp;
@@ -311,6 +311,38 @@ fn flow_rows(ui: &mut Ui, flow: &mut String, from_rational: &mut bool, has_ratio
 
 // ─── the app side ───────────────────────────────────────────────────────────────────────
 
+/// What the model-wide check needs: a copy of the document, each element's module messages (or why
+/// it could not be generated), the category names, and for the sign visibility check the solids and
+/// x-heights its obstruction scene is built from (when some sign has stored visibility inputs).
+pub struct CheckAllInput {
+    pub doc: Document,
+    pub notes: std::collections::HashMap<ElementId, Result<Vec<Note>, String>>,
+    pub labels: std::collections::HashMap<String, String>,
+    pub vis: Option<crate::visibility_ui::VisInput>,
+}
+
+impl CheckAllInput {
+    /// Builds the obstruction scene (the slow part) and runs every check: the same two steps the
+    /// synchronous path took.
+    pub fn compute(self) -> check_all::Report {
+        let CheckAllInput { doc, notes, labels, vis } = self;
+        let src = vis.map(|v| {
+            let solids = v.solids;
+            crate::visibility_ui::source_for(&doc, &|e: &Element| solids.get(&e.id).cloned().unwrap_or_default(), v.x_heights)
+        });
+        let notes_of = |id: ElementId| notes.get(&id).cloned();
+        let label_of = |category: &str| labels.get(category).cloned().unwrap_or_else(|| category.to_string());
+        check_all::run_all(&doc, &Sources { notes_of: &notes_of, label_of: &label_of, vis: src.as_ref() })
+    }
+}
+
+/// Starts [`CheckAllInput::compute`] on a worker thread, to be applied only while the document is
+/// unchanged.
+pub fn spawn_check_all(input: CheckAllInput) -> crate::background::Job<check_all::Report> {
+    let fp = crate::background::fingerprint(&input.doc);
+    crate::background::Job::spawn("Model check", fp, move || input.compute())
+}
+
 impl AfroBimApp {
     /// What the report needs from the app: each element's module messages and category names.
     fn with_sources<T>(&mut self, f: impl FnOnce(&Document, &Sources) -> T) -> T {
@@ -323,9 +355,30 @@ impl AfroBimApp {
         f(&self.doc, &Sources { notes_of: &notes_of, label_of: &label_of, vis: vis.as_ref() })
     }
 
-    /// CHECKALL: runs every check on every element and opens the report.
+    /// CHECKALL: runs every check on every element on a worker thread, with a progress indicator
+    /// and Cancel, and opens the report when it arrives. The obstruction scene of the sign
+    /// visibility check is built there too. The report is applied only if the document has not
+    /// changed since the run started.
     pub(crate) fn run_check_all(&mut self) {
-        let report = self.with_sources(check_all::run_all);
+        if self.bg.check_all.is_some() {
+            self.status = "The model check is already running.".into();
+            return;
+        }
+        let input = self.check_all_input();
+        self.bg.check_all = Some(spawn_check_all(input));
+        self.status = "Model check started on a worker thread; the model stays editable, but an edit discards the result.".into();
+    }
+
+    /// What the model-wide check needs, taken on the UI thread (see [`CheckAllInput`]).
+    pub(crate) fn check_all_input(&mut self) -> CheckAllInput {
+        self.sync_generated();
+        let notes = self.doc.elements().iter().filter_map(|e| self.cache.get(&e.id).map(|c| (e.id, c.generated.as_ref().map(|g| g.notes.clone()).map_err(|e| e.clone())))).collect();
+        let vis = crate::visibility_ui::any_stored(&self.doc).then(|| self.vis_input(None));
+        CheckAllInput { doc: self.doc.clone(), notes, labels: self.module_labels(), vis }
+    }
+
+    /// Takes the finished model check in.
+    pub(crate) fn apply_check_all(&mut self, report: check_all::Report) {
         self.status = format!(
             "Checked the model: {} check(s), {} pass, {} fail, {} differ, {} need input, {} not checked.",
             report.rows.len(),

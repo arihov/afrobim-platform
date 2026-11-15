@@ -445,6 +445,18 @@ pub fn compose_stored(doc: &Document, registry: &ModuleRegistry, id: ElementId, 
     Ok(Composed { set_name: name, set, composed, feed_notes, at: now_text() })
 }
 
+/// Feeds and composes the stored set `id` the way a worker thread does: with its own module
+/// registry (every module the app has; the sign module over the shared engine when it is loaded),
+/// reading the live data from `doc` and building any corridor the set's cross-section sheets show.
+pub fn compose_off_thread(doc: &Document, id: ElementId, engine: Option<std::sync::Arc<afrobim_signs::SignEngine>>) -> Result<Composed, String> {
+    let mut registry = crate::background::worker_registry();
+    if let Some(e) = &engine {
+        registry.register(signs_glue::module_for(e.clone()));
+    }
+    let live = Live::from_doc(doc, &registry, engine.as_deref());
+    compose_stored(doc, &registry, id, &live)
+}
+
 /// The set composed by the sheets crate, with the document's annotation drawn on each plan view.
 ///
 /// Annotation lives in model millimetres. A plan view maps model metres to paper by

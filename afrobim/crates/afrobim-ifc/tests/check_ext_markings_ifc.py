@@ -59,12 +59,32 @@ def check_markings(f, expected):
             if m["placeholder"]:
                 check("placeholder" in (p.Description or "").lower(), f"{name}: the description does not say it is a placeholder")
         check(("Pset_RoadMarkingCommon" in psets) == m["common"], f"{name}: Pset_RoadMarkingCommon present is {'Pset_RoadMarkingCommon' in psets}, expected {m['common']}")
+        # Pset_MarkingLinesCommon: only where the dash pattern holds for the whole element. The
+        # property names and value types are those of the IFC4X3 template (DashedLine IfcBoolean,
+        # DashedLinePattern IfcLabel, NominalWidth IfcNonNegativeLengthMeasure), checked against the
+        # bundled template by `check_generic`; here the values are checked against what was worked
+        # out by hand from the catalogue.
+        lines = psets.get("Pset_MarkingLinesCommon")
+        want = m.get("lines", None)
+        if want is None:
+            check(lines is None, f"{name}: Pset_MarkingLinesCommon written where its pattern is not unambiguous: {lines}")
+        elif lines is None:
+            check(False, f"{name}: no Pset_MarkingLinesCommon")
+        else:
+            check(lines.get("DashedLine") is want["dashed"], f"{name}: DashedLine {lines.get('DashedLine')!r}, expected {want['dashed']}")
+            check(lines.get("DashedLinePattern") == want["pattern"], f"{name}: DashedLinePattern {lines.get('DashedLinePattern')!r}, expected {want['pattern']!r}")
+            width = lines.get("NominalWidth")
+            check(isinstance(width, (int, float)) and abs(width - want["width_mm"]) < 1e-6, f"{name}: NominalWidth {width!r}, expected {want['width_mm']}")
         if m["adheres_to"] and "Qto_SurfaceFeatureBaseQuantities" in psets:
             check(set(psets["Qto_SurfaceFeatureBaseQuantities"]) - {"id"} <= {"Area", "Length"}, f"{name}: unexpected quantities")
     if pavement is not None:
         features = sorted(sf.Name for rel in f.by_type("IfcRelAdheresToElement") if rel.RelatingElement == pavement for sf in rel.RelatedSurfaceFeatures)
         want = sorted(m["name"] for m in expected["markings"] if m["adheres_to"])
         check(features == want, f"pavement {expected['pavement']}: features {features}, expected {want}")
+    # Wherever the set is written it is on a LINEMARKING surface feature, and nowhere else.
+    for p in f.by_type("IfcProduct"):
+        if "Pset_MarkingLinesCommon" in ifcopenshell.util.element.get_psets(p):
+            check(p.is_a() == "IfcSurfaceFeature" and roads.predefined(p) == "LINEMARKING", f"{p.Name}: Pset_MarkingLinesCommon on {p.is_a()} {roads.predefined(p)}")
     kinds = {}
     for p in f.by_type("IfcSurfaceFeature"):
         kinds[p.PredefinedType] = kinds.get(p.PredefinedType, 0) + 1

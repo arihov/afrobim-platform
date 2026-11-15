@@ -42,3 +42,8 @@ egui = "0.31"
 lyon_tessellation = "1"
 rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
+
+# Windows only: puts the icon and version information into afrobim.exe (see build.rs). Selected by
+# the host the build runs on, so Linux and macOS builds never compile it.
+[target.'cfg(windows)'.build-dependencies]
+embed-resource = "3.0.12"

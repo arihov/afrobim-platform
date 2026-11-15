@@ -639,9 +639,18 @@ Property sets. `Pset_RoadMarkingCommon` applies, in the IFC4X3 template, to
 `IfcSurfaceFeature/HATCHMARKING`, `/LINEMARKING`, `/PAVEMENTSURFACEMARKING` and `/SYMBOLMARKING`;
 it is written (`DiagramNumber`, `MaterialColour`, `MaterialType` when a material is entered) for
 every adhering marking of those types, and not for a stud or a proxy. `Pset_MarkingLinesCommon`
-applies to `LINEMARKING` only and is **not** written for this set: its `DashedLine` and
-`DashedLinePattern` would have to be derived from the pattern of each strand and the setting, which
-the export does not yet do. `Qto_SurfaceFeatureBaseQuantities` (`Area` painted, `Length` painted)
+applies to `LINEMARKING` only (template: `DashedLine` IfcBoolean, `DashedLinePattern` IfcLabel,
+`NominalWidth` IfcNonNegativeLengthMeasure, read from the IFC4X3 templates bundled with IfcOpenShell
+0.9.0.post1) and is written for an adhering `LINEMARKING` only where the dash pattern holds for the
+whole element: a longitudinal line, or a double line whose two lines have the same pattern (with the
+pattern of the urban or rural setting the element states), and a stop or give way line. The pattern
+is the continuous line (`DashedLine` false, pattern `continuous`) or the one mark and gap module
+(`DashedLine` true, pattern as `3000 mm mark, 6000 mm gap`, as the first set writes it), and
+`NominalWidth` is every line plus the gap between lines (rows and the gap between rows for a transverse
+line), in the file's unit. It is **left out**, with a note in the export notes, for the zig-zag line
+(its marks follow the zig-zag), a crossing with side lines (the mark lengths are chosen within a
+range), a double line of two different patterns, a line whose width or setting is not set, and a
+type with no layout. `Qto_SurfaceFeatureBaseQuantities` (`Area` painted, `Length` painted)
 is written for an adhering marking, with `Area` only where the module reports a painted area (not
 for a placeholder block, not for studs) and `Length` only when it is above zero. The element's own
 `AfroBIM_RoadMarkingExt` carries the type identifier, basis, diagram, TSRGD reference (UK types),
@@ -745,7 +754,7 @@ written for them.
 | Element | Standard sets (names, applicable entity and property names checked) | `AfroBIM_` sets |
 | --- | --- | --- |
 | Marking | `Pset_RoadMarkingCommon` (`DiagramNumber`, `MaterialColour`, `MaterialType` when the material is entered), `Pset_MarkingLinesCommon` (`DashedLine`, `DashedLinePattern`, `NominalWidth`, the overall width of a double line), `Qto_SurfaceFeatureBaseQuantities` (`Area` painted, `Length` painted) | `AfroBIM_RoadMarking` (line type, diagram, TSRGD reference, pattern, width, colour, speed limit, material, source citation), `AfroBIM_Quantities` (overall and painted length, painted area, marks, part marks) |
-| Second-set marking | `Pset_RoadMarkingCommon` (`DiagramNumber`, `MaterialColour`, `MaterialType`), on every adhering marking but a stud; `Qto_SurfaceFeatureBaseQuantities` (`Area` where painted, `Length`) | `AfroBIM_RoadMarkingExt` (see "Second marking set"), `AfroBIM_Quantities` |
+| Second-set marking | `Pset_RoadMarkingCommon` (`DiagramNumber`, `MaterialColour`, `MaterialType`), on every adhering marking but a stud; `Pset_MarkingLinesCommon` (`DashedLine`, `DashedLinePattern`, `NominalWidth`) on an adhering line marking with one dash pattern (see "Second marking set"); `Qto_SurfaceFeatureBaseQuantities` (`Area` where painted, `Length`) | `AfroBIM_RoadMarkingExt` (see "Second marking set"), `AfroBIM_Quantities` |
 | Side drain | `Pset_PipeSegmentTypeGutter` (`IsCovered` false), `Pset_PipeSegmentOccurrence` (`Gradient`), `Qto_PipeSegmentBaseQuantities` (`Length` of the drain's own centreline) | `AfroBIM_SideDrain` (section, lining, gradient, Manning's n, placeholder flag), `AfroBIM_Quantities` (excavation, lining and areas) |
 | Culvert barrel | `Pset_PipeSegmentTypeCommon` (`InnerDiameter`, `OuterDiameter`, `Length`), `Pset_PipeSegmentTypeCulvert` (`InternalWidth`, `ClearDepth`, both the diameter of a circular barrel), `Pset_PipeSegmentOccurrence` (`Gradient`, fall over plan length), `Qto_PipeSegmentBaseQuantities` (`Length` of one barrel); `IfcMaterial` when the material text is entered | `AfroBIM_PipeCulvert` (barrels, diameter, wall, inverts, skew, road level, material), `AfroBIM_Quantities` |
 | Gantry | `Pset_ElementAssemblyCommon` (`Reference`); legs `Qto_ColumnBaseQuantities` (`Length`), boom `Qto_BeamBaseQuantities` (`Length`), foundations `Qto_FootingBaseQuantities` (`Length`, `Width`, `Height`, `GrossVolume`) | `AfroBIM_Gantry`, `AfroBIM_GantryMember` (envelope, offset, levels, mass per metre where entered), `AfroBIM_GantryMount` on each hung sign (lane or offset, bottom above the boom, traffic served), `AfroBIM_Quantities` (span or outreach, boom, signs, sign area, foundation concrete); steel mass only where every member has a mass per metre |

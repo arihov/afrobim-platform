@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 
 use afrobim_coordination::{Clash, ClashKind, ClashTest, Coordination, Scene, Selection, Status};
-use afrobim_kernel::ElementId;
+use afrobim_kernel::{Document, ElementId};
 use egui::{Color32, RichText};
 
 use crate::app::AfroBimApp;
@@ -178,66 +178,108 @@ fn pick_set(ui: &mut egui::Ui, title: &str, options: &[String], chosen: &mut BTr
 }
 
 /// What a clash run on a worker thread hands back: the coordination state with its results, the
-/// per-test statistics and the number of bodies tested.
+/// per-test statistics, the number of bodies tested and the corridor surfaces the run had to
+/// build (kept by the app, so the 3D view does not build them again).
 pub struct ClashOut {
     pub co: afrobim_coordination::Coordination,
     pub stats: Vec<afrobim_coordination::RunStats>,
     pub bodies: usize,
+    pub corridors: Vec<crate::background::CorridorBuilt>,
+}
+
+/// What a clash run needs, taken on the UI thread: a copy of the document, the generated solids of
+/// every element but the corridors, the corridor surfaces that are up to date in the app's cache
+/// and the corridors that are not. The stale corridors are built in the worker (decoding a ground
+/// surface and cutting every section is the slow part), then the scene is built and run.
+pub struct ClashInput {
+    pub doc: Document,
+    pub co: afrobim_coordination::Coordination,
+    pub solids: std::collections::HashMap<ElementId, Vec<afrobim_draw::Mesh3>>,
+    pub corridors: std::collections::HashMap<ElementId, Result<crate::road_glue::CorridorSolids, String>>,
+    pub stale: Vec<ElementId>,
+    pub site_mode: bool,
+    /// Bodies of reference models, already placed.
+    pub refs: Vec<afrobim_coordination::Body>,
+}
+
+impl ClashInput {
+    /// Builds the stale corridors, the bodies of the scene exactly as the 3D view places them, and
+    /// runs every test.
+    pub fn compute(self) -> ClashOut {
+        let ClashInput { doc, mut co, solids, mut corridors, stale, site_mode, refs } = self;
+        let mut built = Vec::new();
+        for id in stale {
+            let Some(key) = doc.find(id).map(|e| e.data.clone()) else { continue };
+            let result = crate::road_glue::corridor_solids(&doc, id);
+            corridors.insert(id, result.clone());
+            built.push(crate::background::CorridorBuilt { id, key, solids: result });
+        }
+        let mut bodies = {
+            let solids_of = |id: ElementId| corridors.get(&id).and_then(|r| r.as_ref().ok()).map(|s| s.meshes.as_slice()).or_else(|| solids.get(&id).map(|v| v.as_slice()));
+            let origin = |id: ElementId| corridors.get(&id)?.as_ref().ok().map(|s| s.origin);
+            glue::bodies(&WorldCtx { doc: &doc, solids_of: &solids_of, corridor_origin: &origin }, site_mode)
+        };
+        bodies.extend(refs);
+        let n = bodies.len();
+        let scene = Scene::new(bodies);
+        let stats = co.run(&scene);
+        ClashOut { co, stats, bodies: n, corridors: built }
+    }
+}
+
+/// Starts [`ClashInput::compute`] on a worker thread, to be applied only while the document is
+/// unchanged from the copy the input holds.
+pub fn spawn_clash(input: ClashInput) -> crate::background::Job<ClashOut> {
+    let fp = crate::background::fingerprint(&input.doc);
+    crate::background::Job::spawn("Clash run", fp, move || input.compute())
 }
 
 impl AfroBimApp {
-    /// The bodies of the scene, built from the document exactly as the 3D view places it; None
-    /// (with the reason in the status line) when there is no test to run.
-    fn clash_bodies(&mut self) -> Option<Vec<afrobim_coordination::Body>> {
+    /// What a clash run needs (see [`ClashInput`]); None (with the reason in the status line) when
+    /// there is no test to run.
+    pub(crate) fn clash_input(&mut self) -> Option<ClashInput> {
         self.sync_generated();
-        self.sync_corridor_surfaces();
         self.coord.sync(&self.doc);
         if self.coord.co.tests.is_empty() {
             self.status = "There are no clash tests yet. Add one in CLASHTESTS, then run.".into();
             self.coord.tests_open = true;
             return None;
         }
-        let site_mode = self.site_mode();
-        let mut bodies = {
-            let solids = |id: ElementId| self.meshes_by_id(id);
-            let origin = |id: ElementId| self.corridor_cache.get(&id)?.solids.as_ref().ok().map(|s| s.origin);
-            glue::bodies(&WorldCtx { doc: &self.doc, solids_of: &solids, corridor_origin: &origin }, site_mode)
-        };
-        // Reference models read from IFC take part as bodies of category `reference:<model>`.
-        bodies.extend(self.refs.bodies());
-        Some(bodies)
+        let is_corridor = |id: ElementId| self.doc.find(id).is_some_and(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY);
+        let solids = self.doc.elements().iter().filter(|e| e.category != afrobim_corridor::CORRIDOR_CATEGORY).filter_map(|e| self.meshes_by_id(e.id).filter(|m| !m.is_empty()).map(|m| (e.id, m.to_vec()))).collect();
+        let stale = crate::background::stale_corridors(&self.doc, &|id| self.corridor_cache.get(&id).map(|c| c.key().clone()));
+        let corridors = self
+            .corridor_cache
+            .iter()
+            .filter(|(id, _)| is_corridor(**id) && !stale.contains(id))
+            .map(|(id, c)| (*id, c.solids.clone()))
+            .collect();
+        Some(ClashInput { doc: self.doc.clone(), co: self.coord.co.clone(), solids, corridors, stale, site_mode: self.site_mode(), refs: self.refs.bodies() })
     }
 
     /// Runs every test on the UI thread (headless runs and tests).
     pub(crate) fn run_clash_tests(&mut self) {
-        let Some(bodies) = self.clash_bodies() else { return };
-        let n = bodies.len();
-        let scene = Scene::new(bodies);
-        let stats = self.coord.co.run(&scene);
-        self.apply_clash_run(stats, n);
+        let Some(input) = self.clash_input() else { return };
+        let out = input.compute();
+        self.apply_clash_out(out);
     }
 
-    /// Runs every test on a worker thread, with a progress indicator and Cancel. The results are
-    /// applied only if the document has not changed since the run started.
+    /// Runs every test on a worker thread, with a progress indicator and Cancel. The corridor
+    /// surfaces the scene needs are built there too. The results are applied only if the document
+    /// has not changed since the run started.
     pub(crate) fn run_clash_tests_bg(&mut self) {
         if self.bg.clash.is_some() {
             self.status = "A clash run is already in progress.".into();
             return;
         }
-        let Some(bodies) = self.clash_bodies() else { return };
-        let mut co = self.coord.co.clone();
-        let fp = crate::background::fingerprint(&self.doc);
-        self.bg.clash = Some(crate::background::Job::spawn("Clash run", fp, move || {
-            let n = bodies.len();
-            let scene = Scene::new(bodies);
-            let stats = co.run(&scene);
-            ClashOut { co, stats, bodies: n }
-        }));
+        let Some(input) = self.clash_input() else { return };
+        self.bg.clash = Some(spawn_clash(input));
         self.status = "Clash run started on a worker thread; the model stays editable, but an edit discards the result.".into();
     }
 
     /// Takes the finished worker's results in.
     pub(crate) fn apply_clash_out(&mut self, out: ClashOut) {
+        self.apply_corridors(out.corridors);
         self.coord.co = out.co;
         self.apply_clash_run(out.stats, out.bodies);
     }
