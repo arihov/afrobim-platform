@@ -205,29 +205,43 @@ pub enum PlanLabelKind {
 }
 
 /// The labels for the plan of a design: PI number and station, the curve data, and the TS/SC/CS/ST points.
+/// Stations are `k+mmm.mmm` and lengths metres to two or three decimals, as the engine writes them;
+/// a front end with display units uses [`plan_labels_with`].
 pub fn plan_labels(design: &AlignmentDesign) -> Result<Vec<PlanLabel>, DesignError> {
+    plan_labels_with(design, &|s| format_station(s, 3), None)
+}
+
+/// As [`plan_labels`] with the front end's own formatting: `station` writes a station in metres,
+/// and `length`, when given, writes every length of the curve data (radius, tangent, length,
+/// external, spirals; metres in, text with its unit out). With `length` `None` the lengths are
+/// written as [`plan_labels`] writes them. Angles are degrees either way.
+pub fn plan_labels_with(design: &AlignmentDesign, station: &dyn Fn(f64) -> String, length: Option<&dyn Fn(f64) -> String>) -> Result<Vec<PlanLabel>, DesignError> {
     let h = design.horizontal.solve()?;
     let mut out = Vec::new();
     for (i, p) in design.horizontal.pis.iter().enumerate() {
-        let station = h.curve_at_pi(i).map(|c| c.pi_station_m);
-        out.push(PlanLabel { x_m: p.x, y_m: p.y, text: match station { Some(s) => format!("PI {i}  {}", format_station(s, 3)), None => format!("PI {i}") }, kind: PlanLabelKind::Pi });
+        let at = h.curve_at_pi(i).map(|c| c.pi_station_m);
+        out.push(PlanLabel { x_m: p.x, y_m: p.y, text: match at { Some(s) => format!("PI {i}  {}", station(s)), None => format!("PI {i}") }, kind: PlanLabelKind::Pi });
     }
     for c in &h.curves {
         let p = design.horizontal.pis[c.pi_index];
         let dir = if matches!(c.turn, afrobim_alignment::Turn::Left) { "LT" } else { "RT" };
-        let mut text = format!("D={:.4} deg {dir}  R={:.2}  T={:.3}  L={:.3}  E={:.3}", c.deflection_rad.to_degrees(), c.radius_m, c.tangent_in_m, c.total_length_m, c.external_m);
+        let l = |metres: f64, decimals: usize| match length {
+            Some(f) => f(metres),
+            None => format!("{metres:.decimals$}"),
+        };
+        let mut text = format!("D={:.4} deg {dir}  R={}  T={}  L={}  E={}", c.deflection_rad.to_degrees(), l(c.radius_m, 2), l(c.tangent_in_m, 3), l(c.total_length_m, 3), l(c.external_m, 3));
         if c.spiral_in_m > 0.0 || c.spiral_out_m > 0.0 {
-            text.push_str(&format!("  Ls={:.2}/{:.2}", c.spiral_in_m, c.spiral_out_m));
+            text.push_str(&format!("  Ls={}/{}", l(c.spiral_in_m, 2), l(c.spiral_out_m, 2)));
         }
         out.push(PlanLabel { x_m: (p.x + c.centre.0) / 2.0, y_m: (p.y + c.centre.1) / 2.0, text, kind: PlanLabelKind::CurveData });
         let spirals = c.spiral_in_m > 0.0 || c.spiral_out_m > 0.0;
         let (a, b) = if spirals { ("TS", "ST") } else { ("PC", "PT") };
-        out.push(PlanLabel { x_m: c.ts.0, y_m: c.ts.1, text: format!("{a} {}", format_station(c.ts_station_m, 3)), kind: PlanLabelKind::CurvePoint });
+        out.push(PlanLabel { x_m: c.ts.0, y_m: c.ts.1, text: format!("{a} {}", station(c.ts_station_m)), kind: PlanLabelKind::CurvePoint });
         if spirals {
-            out.push(PlanLabel { x_m: c.sc.0, y_m: c.sc.1, text: format!("SC {}", format_station(c.sc_station_m, 3)), kind: PlanLabelKind::CurvePoint });
-            out.push(PlanLabel { x_m: c.cs.0, y_m: c.cs.1, text: format!("CS {}", format_station(c.cs_station_m, 3)), kind: PlanLabelKind::CurvePoint });
+            out.push(PlanLabel { x_m: c.sc.0, y_m: c.sc.1, text: format!("SC {}", station(c.sc_station_m)), kind: PlanLabelKind::CurvePoint });
+            out.push(PlanLabel { x_m: c.cs.0, y_m: c.cs.1, text: format!("CS {}", station(c.cs_station_m)), kind: PlanLabelKind::CurvePoint });
         }
-        out.push(PlanLabel { x_m: c.st.0, y_m: c.st.1, text: format!("{b} {}", format_station(c.st_station_m, 3)), kind: PlanLabelKind::CurvePoint });
+        out.push(PlanLabel { x_m: c.st.0, y_m: c.st.1, text: format!("{b} {}", station(c.st_station_m)), kind: PlanLabelKind::CurvePoint });
     }
     Ok(out)
 }

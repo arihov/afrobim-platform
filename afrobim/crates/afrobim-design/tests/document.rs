@@ -78,6 +78,17 @@ fn the_module_draws_the_plan_and_reports_in_plain_words() {
     assert!(labels.iter().any(|l| l.kind == PlanLabelKind::Pi && l.text.starts_with("PI 1  ")));
     assert!(labels.iter().any(|l| l.text.starts_with("TS ")) && labels.iter().any(|l| l.text.starts_with("SC ")) && labels.iter().any(|l| l.text.starts_with("ST ")));
     assert!(labels.iter().any(|l| l.kind == PlanLabelKind::CurveData && l.text.contains("R=300.00")));
+    // With the front end's own formatting the same labels are written in its stations and lengths.
+    let d = load_design(&doc, did).unwrap();
+    assert_eq!(afrobim_design::plan_labels_with(&d, &|s| format!("{s:.3}"), None).unwrap().iter().filter(|l| l.kind != PlanLabelKind::CurveData).map(|l| l.text.replace("PI ", "")).count(), labels.iter().filter(|l| l.kind != PlanLabelKind::CurveData).count());
+    let metres: &dyn Fn(f64) -> String = &|m| format!("{:.1} mm", m * 1000.0);
+    let shown = afrobim_design::plan_labels_with(&d, &|s| format!("S{s:.0}"), Some(metres)).unwrap();
+    assert!(shown.iter().any(|l| l.kind == PlanLabelKind::Pi && l.text.starts_with("PI 1  S")));
+    assert!(shown.iter().any(|l| l.kind == PlanLabelKind::CurvePoint && l.text.starts_with("TS S")));
+    assert!(shown.iter().any(|l| l.kind == PlanLabelKind::CurveData && l.text.contains("R=300000.0 mm") && l.text.contains("Ls=80000.0 mm/80000.0 mm") && !l.text.contains("R=300.00")));
+    // Without a length formatter the text is the engine's.
+    let same = afrobim_design::plan_labels_with(&d, &|s| afrobim_alignment::format_station(s, 3), None).unwrap();
+    assert_eq!(same, labels);
     // A design made impossible in the data (as by editing the file) is shown with Error notes.
     let mut broken = load_design(&doc, did).unwrap();
     broken.horizontal.pis[1].radius = 20_000.0;

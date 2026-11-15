@@ -38,7 +38,7 @@ pub use fit::{fit_to_ground, FitInputs, FitResult, FIT_LABEL};
 pub use horizontal::{CurveData, HorizontalDesign, HorizontalSolution, TangentData};
 pub use landxml::{write_landxml, LandXmlOptions};
 pub use module::{
-    add_design, add_option_set, compare_in_document, crossing_features_from_alignments, designs, load_design, load_option_set, plan_labels, register,
+    add_design, add_option_set, compare_in_document, crossing_features_from_alignments, designs, load_design, load_option_set, plan_labels, plan_labels_with, register,
     store_design, store_option_set, DesignElement, DesignModule, OptionSetModule, PlanLabel, PlanLabelKind, ALIGNMENTS_LAYER, DESIGN_CATEGORY, DESIGN_LAYER,
     OPTIONS_CATEGORY,
 };

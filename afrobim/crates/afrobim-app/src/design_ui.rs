@@ -10,13 +10,15 @@
 
 use std::collections::HashMap;
 
-use afrobim_alignment::{format_station, Pi};
-use afrobim_design::{plan_labels, AlignmentDesign, HorizontalSolution, PlanLabel, PlanLabelKind};
-use afrobim_kernel::{display_spacing, ortho, parse_point, snap, ElementId, Pt, SelectMode, ViewTransform};
+use afrobim_alignment::Pi;
+use afrobim_annotate::DisplayUnits;
+use afrobim_design::{plan_labels_with, AlignmentDesign, HorizontalSolution, PlanLabel, PlanLabelKind};
+use afrobim_kernel::{display_spacing, ortho, snap, ElementId, Pt, SelectMode, ViewTransform};
 use egui::{pos2, Align2, Color32, FontId, PointerButton, Rect, RichText, Sense, Shape, Stroke, Ui, Vec2};
 
 use crate::app::AfroBimApp;
 use crate::design_glue::{self as glue, HEdit};
+use crate::disp::{cell_changed, cell_text, parse_cell, Cell};
 
 pub const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
 pub const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
@@ -70,11 +72,20 @@ pub struct PlanData {
     pub labels: Vec<PlanLabel>,
 }
 
-pub fn plan_data(design: &AlignmentDesign) -> Result<PlanData, String> {
+/// The plan of a design with its labels written in the document's display units (stations as
+/// `k+mmm`, lengths in the display length unit).
+pub fn plan_data(design: &AlignmentDesign, units: &DisplayUnits) -> Result<PlanData, String> {
     let solution = design.horizontal.solve().map_err(|e| e.to_string())?;
     let polyline = solution.alignment.polyline(1.5);
-    let labels = plan_labels(design).unwrap_or_default();
+    let labels = labels_in(design, units);
     Ok(PlanData { polyline, pis: design.horizontal.pis.clone(), solution, labels })
+}
+
+/// The labels of a design in the document's display units.
+pub fn labels_in(design: &AlignmentDesign, units: &DisplayUnits) -> Vec<PlanLabel> {
+    let station = |s: f64| crate::disp::station(units, s);
+    let length = |m: f64| crate::disp::len_u(units, m);
+    plan_labels_with(design, &station, Some(&length)).unwrap_or_default()
 }
 
 pub struct DesignUi {
@@ -100,6 +111,8 @@ pub struct DesignUi {
     cache_rev: u64,
     pub cache: Vec<PlanAlignment>,
     active_plan: Option<(ElementId, Result<PlanData, String>, AlignmentDesign)>,
+    /// The display units the drawn labels were written in.
+    plan_units: Option<DisplayUnits>,
     pub profile: crate::design_profile::ProfileUi,
     pub check: crate::design_windows::AlignCheckUi,
     pub options: crate::design_windows::OptionsUi,
@@ -128,6 +141,7 @@ impl Default for DesignUi {
             cache_rev: 0,
             cache: Vec::new(),
             active_plan: None,
+            plan_units: None,
             profile: Default::default(),
             check: Default::default(),
             options: Default::default(),
@@ -236,6 +250,7 @@ impl AfroBimApp {
 
     /// A text typed on the command line while a design tool is waiting for a point. True when used.
     pub(crate) fn design_take_text(&mut self, text: &str) -> bool {
+        let units = crate::anno_ui::units_of(&self.doc);
         let Some(create) = self.design.create.as_mut() else { return false };
         let t = text.trim();
         if t.is_empty() || t.eq_ignore_ascii_case("c") || t.eq_ignore_ascii_case("done") {
@@ -247,13 +262,12 @@ impl AfroBimApp {
             self.status = "Last PI removed.".into();
             return true;
         }
-        let last = create.points.last().map(|p| Pt::new(p.0, p.1));
-        match parse_point(t, last) {
+        match crate::disp::parse_point(&units, t, create.points.last().copied()) {
             Some(p) => {
-                create.points.push((p.x, p.y));
-                self.status = format!("PI {} at E {:.3} N {:.3}.", create.points.len(), p.x, p.y);
+                create.points.push(p);
+                self.status = format!("PI {} at E {} N {}.", create.points.len(), crate::disp::len_u(&units, p.0), crate::disp::len_u(&units, p.1));
             }
-            None => self.status = format!("'{t}' is not a point. Type x,y or @dx,dy or @distance<angle, in metres."),
+            None => self.status = format!("'{t}' is not a point. Type x,y or @dx,dy or @distance<angle, in {} (a trailing m or mm overrides).", if crate::disp::suffix(&units) == "m" { "metres" } else { "millimetres" }),
         }
         true
     }
@@ -341,13 +355,19 @@ impl AfroBimApp {
             self.design.active_plan = None;
             self.design.cache_rev = self.design.revision;
         }
+        let units = crate::anno_ui::units_of(&self.doc);
+        if self.design.plan_units.as_ref() != Some(&units) {
+            // The labels are written in the display units: write them again when those change.
+            self.design.active_plan = None;
+            self.design.plan_units = Some(units.clone());
+        }
         let Some(active) = self.design.active else {
             self.design.active_plan = None;
             return;
         };
         if self.design.active_plan.as_ref().is_none_or(|(id, _, _)| *id != active) {
             self.design.active_plan = match glue::load(&self.doc, active) {
-                Ok(d) => Some((active, plan_data(&d), d)),
+                Ok(d) => Some((active, plan_data(&d, &units), d)),
                 Err(_) => None,
             };
         }
@@ -440,6 +460,7 @@ impl AfroBimApp {
             self.plan_fit(rect);
         }
         let view = self.design.view.clone();
+        let units = crate::anno_ui::units_of(&self.doc);
         let to_screen = |p: (f64, f64)| {
             let s = view.to_screen(Pt::new(p.0, p.1));
             pos2(s.x as f32, s.y as f32)
@@ -497,7 +518,7 @@ impl AfroBimApp {
                     let y = to_screen((0.0, i as f64 * step)).y.round() + 0.5;
                     painter.line_segment([pos2(rect.left(), y), pos2(rect.right(), y)], Stroke::new(1.0_f32, if i % 5 == 0 { major } else { minor }));
                 }
-                painter.text(rect.right_bottom() + Vec2::new(-10.0, -8.0), Align2::RIGHT_BOTTOM, format!("grid {step} m"), FontId::proportional(10.0), weak);
+                painter.text(rect.right_bottom() + Vec2::new(-10.0, -8.0), Align2::RIGHT_BOTTOM, format!("grid {}", crate::disp::len_u(&units, step)), FontId::proportional(10.0), weak);
             }
         }
         let active_name = self.design.active.and_then(|d| glue::alignment_of_design(&self.doc, d)).and_then(|a| self.doc.find(a)).map(|e| e.name.clone());
@@ -511,7 +532,7 @@ impl AfroBimApp {
         }
 
         // The active design: from the drag's working copy while dragging.
-        let live: Option<PlanData> = self.design.drag.as_ref().and_then(|d| plan_data(&d.working).ok());
+        let live: Option<PlanData> = self.design.drag.as_ref().and_then(|d| plan_data(&d.working, &units).ok());
         let shown: Option<&PlanData> = live.as_ref().or(match &self.design.active_plan {
             Some((_, Ok(p), _)) => Some(p),
             _ => None,
@@ -610,13 +631,13 @@ impl AfroBimApp {
             }
             if let (Some(last), true) = (c.points.last(), hover.is_some()) {
                 let (dx, dy) = (self.design.cursor.0 - last.0, self.design.cursor.1 - last.1);
-                plan_text(&painter, to_screen(self.design.cursor) + Vec2::new(14.0, 18.0), Align2::LEFT_TOP, &format!("{:.3} m  bearing {:.3} deg", dx.hypot(dy), (90.0 - dy.atan2(dx).to_degrees()).rem_euclid(360.0)), 11.0, ink, dark);
+                plan_text(&painter, to_screen(self.design.cursor) + Vec2::new(14.0, 18.0), Align2::LEFT_TOP, &format!("{}  bearing {:.3} deg", crate::disp::len_u(&units, dx.hypot(dy)), (90.0 - dy.atan2(dx).to_degrees()).rem_euclid(360.0)), 11.0, ink, dark);
             }
         }
 
         // The cursor position, as the status bar of a CAD plan view would give it.
         if hover.is_some() {
-            plan_text(&painter, rect.left_bottom() + Vec2::new(12.0, -10.0), Align2::LEFT_BOTTOM, &format!("E {:.3}   N {:.3}", self.design.cursor.0, self.design.cursor.1), 11.0, ink, dark);
+            plan_text(&painter, rect.left_bottom() + Vec2::new(12.0, -10.0), Align2::LEFT_BOTTOM, &format!("E {}   N {}", crate::disp::len(&units, self.design.cursor.0), crate::disp::len(&units, self.design.cursor.1)), 11.0, ink, dark);
         }
 
         // What was resynchronised by the last edit.
@@ -821,18 +842,19 @@ impl AfroBimApp {
         let mut open = true;
         let mut go = false;
         let mut cancel = false;
+        let units = crate::anno_ui::units_of(&self.doc);
         let nd = self.design.new_dialog.as_mut().expect("checked above");
         crate::win::new(ctx, "ALIGNDESIGN: new alignment").open(&mut open).default_width(420.0).show(ctx, |ui| {
-            ui.label("Name the alignment and give the station at its first PI. Then pick the PIs on the plan: click, or type x,y on the command line (metres; @dx,dy is relative to the last PI). Curves start with no radius: you enter each one afterwards in the PI table.");
+            ui.label("Name the alignment and give the station at its first PI. Then pick the PIs on the plan: click, or type x,y on the command line (in the document's length unit; @dx,dy is relative to the last PI). Curves start with no radius: you enter each one afterwards in the PI table.");
             egui::Grid::new("new-align").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                 ui.label("Name");
                 ui.add_sized([240.0, 20.0], egui::TextEdit::singleline(&mut nd.name));
                 ui.end_row();
-                ui.label("Start station (m)");
-                ui.add_sized([120.0, 20.0], egui::TextEdit::singleline(&mut nd.start).hint_text("for example 1000"));
+                ui.label("Start station");
+                ui.add_sized([120.0, 20.0], egui::TextEdit::singleline(&mut nd.start).hint_text("for example 1+000.000"));
                 ui.end_row();
             });
-            ui.label(RichText::new("The start station is the station at the first PI. Enter it in metres, so 1+250.000 is 1250.").small().weak());
+            ui.label(RichText::new("The start station is the station at the first PI. Enter it as 1+250.000 or as a number of metres (1250).").small().weak());
             if !nd.problem.is_empty() {
                 ui.label(RichText::new(&nd.problem).color(BAD));
             }
@@ -848,9 +870,9 @@ impl AfroBimApp {
         if go {
             let nd = self.design.new_dialog.as_mut().expect("checked above");
             let name = nd.name.trim().to_string();
-            match (name.is_empty(), nd.start.trim().parse::<f64>().ok().filter(|v| v.is_finite())) {
+            match (name.is_empty(), crate::disp::parse_station(&units, &nd.start)) {
                 (true, _) => nd.problem = "Give the alignment a name.".into(),
-                (_, None) => nd.problem = "Enter the start station as a number of metres.".into(),
+                (_, None) => nd.problem = "Enter the start station as 1+250.000 or as a number of metres.".into(),
                 (false, Some(start)) => {
                     self.design.create = Some(Create { name, start_m: start, points: Vec::new() });
                     self.design.new_dialog = None;
@@ -893,16 +915,18 @@ impl AfroBimApp {
         let last = self.design.last.clone();
         let mut bad_input = String::new();
         let units = crate::anno_ui::units_of(&self.doc);
+        let u = &units;
         let work = crate::win::work_rect(ctx);
         crate::win::new(ctx, "PI table").default_pos(egui::pos2(work.min.x + 16.0, (work.max.y - 250.0).max(work.min.y + 40.0))).open(&mut open).default_width(900.0).default_height(230.0).show(ctx, |ui| {
             ui.label(RichText::new(format!("{name}: start station {}", units.station(design.horizontal.start_station_m))).strong());
-            ui.label(RichText::new("Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.").small().weak());
+            ui.label(RichText::new("Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.").small().weak());
             if let Err(e) = &solution {
                 ui.label(RichText::new(format!("The design cannot be solved: {e}")).color(BAD));
             }
             egui::ScrollArea::both().auto_shrink([false, true]).max_height(260.0).show(ui, |ui| {
                 egui::Grid::new("pi-table").num_columns(12).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
-                    for h in ["PI", "Station", "East (m)", "North (m)", "Deflection", "Radius (m)", "Feasible R (m)", "Spiral in", "Spiral out", "T (m)", "L (m)", ""] {
+                    let heads = ["PI".to_string(), "Station".to_string(), crate::disp::head(u, "East"), crate::disp::head(u, "North"), "Deflection".to_string(), crate::disp::head(u, "Radius"), crate::disp::head(u, "Feasible R"), crate::disp::head(u, "Spiral in"), crate::disp::head(u, "Spiral out"), crate::disp::head(u, "T"), crate::disp::head(u, "L"), String::new()];
+                    for h in heads {
                         ui.label(RichText::new(h).strong());
                     }
                     ui.end_row();
@@ -919,16 +943,18 @@ impl AfroBimApp {
                         }
                         ui.label(station.map(|s| units.station(s)).unwrap_or_default());
                         for (k, value) in [(0u8, pi.x), (1u8, pi.y)] {
-                            let text = bufs.entry((i, k)).or_insert_with(|| format!("{value:.3}"));
-                            let r = ui.add_sized([74.0, 20.0], egui::TextEdit::singleline(text));
+                            let cell = if k == 0 { Cell::East } else { Cell::North };
+                            let text = bufs.entry((i, k)).or_insert_with(|| cell_text(u, cell, value));
+                            let r = ui.add_sized([100.0, 20.0], egui::TextEdit::singleline(text));
                             if r.lost_focus() {
-                                match (bufs.get(&(i, 0)).and_then(|t| t.trim().parse::<f64>().ok()), bufs.get(&(i, 1)).and_then(|t| t.trim().parse::<f64>().ok())) {
+                                let typed = |k: u8, c: Cell| bufs.get(&(i, k)).and_then(|t| parse_cell(u, c, t).ok().flatten());
+                                match (typed(0, Cell::East), typed(1, Cell::North)) {
                                     (Some(x), Some(y)) => {
-                                        if (x - pi.x).abs() > 1e-9 || (y - pi.y).abs() > 1e-9 {
+                                        if cell_changed(u, Cell::East, pi.x, Some(x)) || cell_changed(u, Cell::North, pi.y, Some(y)) {
                                             edit = Some(HEdit::MovePi(i, x, y));
                                         }
                                     }
-                                    _ => bad_input = format!("PI {i}: the coordinates must be numbers."),
+                                    _ => bad_input = format!("PI {i}: the coordinates must be lengths (a number in {}, or with m or mm).", crate::disp::suffix(u)),
                                 }
                             }
                         }
@@ -940,7 +966,7 @@ impl AfroBimApp {
                         });
                         let interior = i > 0 && i + 1 < pis.len();
                         if interior && defl.is_some_and(|d| d.abs() > 1e-6) {
-                            let mut radius_text = bufs.entry((i, 2)).or_insert_with(|| if pi.radius > 0.0 { format!("{}", pi.radius) } else { String::new() }).clone();
+                            let mut radius_text = bufs.entry((i, 2)).or_insert_with(|| cell_text(u, Cell::Radius, pi.radius)).clone();
                             ui.horizontal(|ui| {
                                 let r = ui.add_sized([62.0, 20.0], egui::TextEdit::singleline(&mut radius_text).hint_text("needed"));
                                 if pi.radius == 0.0 {
@@ -948,44 +974,43 @@ impl AfroBimApp {
                                 }
                                 if r.lost_focus() {
                                     let t = radius_text.clone();
-                                    if t.trim().is_empty() {
-                                        if pi.radius != 0.0 {
-                                            edit = Some(HEdit::SetRadius(i, 0.0));
-                                        }
-                                    } else {
-                                        match t.trim().parse::<f64>() {
-                                            Ok(v) if v.is_finite() && v > 0.0 => {
-                                                if (v - pi.radius).abs() > 1e-9 {
-                                                    edit = Some(HEdit::SetRadius(i, v));
-                                                }
+                                    match parse_cell(u, Cell::Radius, &t) {
+                                        Ok(None) => {
+                                            if pi.radius != 0.0 {
+                                                edit = Some(HEdit::SetRadius(i, 0.0));
                                             }
-                                            _ => bad_input = format!("PI {i}: the radius must be a number greater than zero."),
                                         }
+                                        Ok(Some(v)) => {
+                                            if cell_changed(u, Cell::Radius, pi.radius, Some(v)) {
+                                                edit = Some(HEdit::SetRadius(i, v));
+                                            }
+                                        }
+                                        Err(()) => bad_input = format!("PI {i}: the radius must be a length greater than zero."),
                                     }
                                 }
                             });
                             bufs.insert((i, 2), radius_text);
                             ui.label(match ranges.get(i).copied().flatten() {
-                                Some((lo, hi)) if hi >= 1.0e7 - 1.0 => format!("{lo:.2} to no upper limit"),
-                                Some((lo, hi)) if lo < 0.01 => format!("up to {hi:.2}"),
-                                Some((lo, hi)) => format!("{lo:.2} to {hi:.2}"),
+                                Some((lo, hi)) if hi >= 1.0e7 - 1.0 => format!("{} to no upper limit", crate::disp::len(u, lo)),
+                                Some((lo, hi)) if lo < 0.01 => format!("up to {}", crate::disp::len(u, hi)),
+                                Some((lo, hi)) => format!("{} to {}", crate::disp::len(u, lo), crate::disp::len(u, hi)),
                                 None => "none fits".to_string(),
                             });
                             for k in [3u8, 4u8] {
                                 let value = if k == 3 { pi.spiral_in } else { pi.spiral_out };
-                                let text = bufs.entry((i, k)).or_insert_with(|| if value > 0.0 { format!("{value}") } else { String::new() });
+                                let text = bufs.entry((i, k)).or_insert_with(|| cell_text(u, if k == 3 { Cell::SpiralIn } else { Cell::SpiralOut }, value));
                                 let r = ui.add_enabled(pi.radius > 0.0, egui::TextEdit::singleline(text).desired_width(56.0).hint_text("none"));
                                 if r.lost_focus() {
                                     let a = bufs.get(&(i, 3)).cloned().unwrap_or_default();
                                     let b = bufs.get(&(i, 4)).cloned().unwrap_or_default();
-                                    let parse = |t: &str| if t.trim().is_empty() { Some(0.0) } else { t.trim().parse::<f64>().ok().filter(|v| v.is_finite() && *v >= 0.0) };
-                                    match (parse(&a), parse(&b)) {
+                                    let parse = |t: &str, c: Cell| parse_cell(u, c, t).ok().map(|v| v.unwrap_or(0.0));
+                                    match (parse(&a, Cell::SpiralIn), parse(&b, Cell::SpiralOut)) {
                                         (Some(x), Some(y)) => {
-                                            if (x - pi.spiral_in).abs() > 1e-9 || (y - pi.spiral_out).abs() > 1e-9 {
+                                            if cell_changed(u, Cell::SpiralIn, pi.spiral_in, Some(x)) || cell_changed(u, Cell::SpiralOut, pi.spiral_out, Some(y)) {
                                                 edit = Some(HEdit::SetSpirals(i, x, y));
                                             }
                                         }
-                                        _ => bad_input = format!("PI {i}: a spiral length must be a number, zero or more; blank is none."),
+                                        _ => bad_input = format!("PI {i}: a spiral length must be a length, zero or more; blank is none."),
                                     }
                                 }
                             }
@@ -994,8 +1019,8 @@ impl AfroBimApp {
                                 ui.label("");
                             }
                         }
-                        ui.label(curve.map(|c| format!("{:.3}", c.tangent_in_m)).unwrap_or_default());
-                        ui.label(curve.map(|c| format!("{:.3}", c.total_length_m)).unwrap_or_default());
+                        ui.label(curve.map(|c| crate::disp::len(u, c.tangent_in_m)).unwrap_or_default());
+                        ui.label(curve.map(|c| crate::disp::len(u, c.total_length_m)).unwrap_or_default());
                         ui.horizontal(|ui| {
                             if i + 1 < pis.len() && ui.small_button("Ins").on_hover_text("Adds a PI on the tangent to the next PI. The alignment does not change.").clicked() {
                                 let (a, b) = (pis[i], pis[i + 1]);
@@ -1013,7 +1038,7 @@ impl AfroBimApp {
                 for w in &s.warnings {
                     ui.label(RichText::new(w).small().color(WARN));
                 }
-                ui.label(RichText::new(format!("Length {:.3} m, end station {}.", s.alignment.length(), format_station(s.alignment.end_station_m(), 3))).small());
+                ui.label(RichText::new(format!("Length {}, end station {}.", crate::disp::len_u(u, s.alignment.length()), crate::disp::station(u, s.alignment.end_station_m()))).small());
             }
             if let Some(r) = &last {
                 ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD } else { WARN }));
