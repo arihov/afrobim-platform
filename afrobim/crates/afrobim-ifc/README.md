@@ -35,7 +35,8 @@ for note in &export.notes {
 
 | Item | Purpose |
 | --- | --- |
-| `IfcOptions` | Project name, header author / organization / application, time stamp (`None` = now), plate thickness (3 mm), artwork offset (0.1 mm). |
+| `IfcOptions` | Project name, header author / organization / application, time stamp (`None` = now), plate thickness (3 mm), artwork offset (0.1 mm), and `alignment`: what is written for alignments and how what stands on them is placed. |
+| `AlignmentExport` | `Simple` (the default: a polyline, absolute placements, byte for byte what earlier versions wrote), `Geometry` (layouts, curves, referents) or `Linear` (and `IfcLinearPlacement` for elements with a station). See "Alignments, complete". |
 | `IfcElementInput` | An element and, optionally, the `Generated` its module produced for it (drawing, derived values, solids). |
 | `export_ifc_model(document, elements, options) -> IfcExport` | The model file (`text`) plus `notes`. `write_ifc_model` returns the text only. |
 | `export_ifc(document, elements, options) -> IfcExport` | The sign-sheet file plus `notes`. `write_ifc` returns the text only. |
@@ -246,9 +247,10 @@ The convention is the 3D view's (`afrobim-app/src/view3d.rs`) and `afrobim-suppo
 - Site coordinates are written as they are. There is no `IfcMapConversion` or coordinate
   reference system, because the document has none.
 
-### Alignments
+### Alignments (the default, `AlignmentExport::Simple`)
 
-An alignment is exported as business logic plus a simple curve:
+By default an alignment is exported as business logic plus a simple curve (`AlignmentExport::Geometry`
+and `AlignmentExport::Linear` write the complete alignment: see "Alignments, complete" below):
 
 - `IfcAlignment` nests (`IfcRelNests`) one `IfcAlignmentHorizontal`, which nests one
   `IfcAlignmentSegment` per element, each with an `IfcAlignmentHorizontalSegment`: start point
@@ -269,7 +271,283 @@ An alignment is exported as business logic plus a simple curve:
 - An alignment that cannot be read, has no elements, has a non-finite or non-positive number, or
   has a spiral whose curvature changes sign is **not exported at all**, with a note saying why.
   Joints that are not continuous are exported as given, with a note.
-- Only the horizontal geometry is exported. There is no `IfcAlignmentVertical` or cant.
+- In this mode only the horizontal geometry is exported: no `IfcAlignmentVertical`, and no cant
+  (`Geometry` and `Linear` write the vertical layout; cant is never written, see below).
+
+### Alignments, complete (`AlignmentExport::Geometry` and `AlignmentExport::Linear`)
+
+`IfcOptions::alignment` selects what is written for an alignment and for what stands on it. The
+default, `AlignmentExport::Simple`, is the behaviour described above and writes the files earlier
+versions wrote, byte for byte (`tests/linear.rs` holds the length and a checksum of four such
+files, taken from the previous commit). To switch the new behaviour on:
+
+```rust
+let options = IfcOptions {
+    project_name: "A104 signs".into(),
+    alignment: AlignmentExport::Linear, // or AlignmentExport::Geometry
+    ..IfcOptions::default()
+};
+```
+
+* `Geometry`: the horizontal and vertical layouts as business logic and as curves, the stationing
+  and superelevation referents. Elements keep absolute placements.
+* `Linear`: as `Geometry`, and every element whose site placement names an exported alignment
+  with a station **and** an offset is placed by an `IfcLinearPlacement`. Elements without a
+  station, with a station off the alignment, or with an alignment that was not exported keep the
+  absolute placement (each case is a note).
+
+Sources, besides those of "What was checked, and where": the IFC4.3.x-development documentation
+at commit `c6928569550b24373bf4c6b4beb14aa303e2b468` (14 November 2026; paths below are under
+`docs/`), the IFC4X3_ADD2 schema and IFC4X3 property templates of **IfcOpenShell 0.9.0.post1**, its
+`ifcopenshell.api.alignment`, the buildingSMART sample `linear-placement-of-signal.ifc`
+(IFC4.3.x-sample-models, commit `ef22440ec501551ccc9689309560bbc7e26aa9d7`,
+`models/alignment-geometries-and-linear-positioning/`), and the alignment rules (features `ALB`,
+`ALS`) of `ifc-gherkin-rules` at commit `893f8275049b8960c3ce0c7379b4b57aefeaa8f9`, which are the
+rules the buildingSMART validation service runs.
+
+#### What is written, and the rule each part follows
+
+| Written | Rule, and where it is stated |
+| --- | --- |
+| `IfcAlignment` aggregated by the project, in no spatial element; referenced by the road with `IfcRelReferencedInSpatialStructure` | `schemas/core/IfcProductExtension/Entities/IfcAlignment.md` ("Alignment Aggregation To Project"); `templates/Object Connectivity/Alignment Spatial Reference` |
+| `IfcAlignment.ObjectPlacement` an `IfcLocalPlacement` at the file's origin | rule ALB030 |
+| One `IfcRelNests` from the alignment to `IfcAlignmentHorizontal` and, with a profile, `IfcAlignmentVertical`, in that order | `templates/Object Composition/Nesting/Alignment Layouts/` (both pages); rules ALB003, ALB031 |
+| One `IfcRelNests` from each layout to its `IfcAlignmentSegment`s, one per element, `DesignParameters` an `IfcAlignmentHorizontalSegment` or `IfcAlignmentVerticalSegment`, and a **last segment of length 0** | the same pages ("A zero-length segment shall be added, at the end of the list of segments"); rules ALB002, ALB015 |
+| Each `IfcAlignmentSegment` has `Representation` 'Axis' / 'Segment' holding its `IfcCurveSegment` (the one the curve also holds), and `ObjectPlacement` the alignment's placement (as `ifcopenshell.api.alignment` and the sample do; the template names only the representation) | `templates/Product Shape/Product Geometric Representation/Alignment Geometry/Alignment Geometry - Segments`; rules ALS004, ALB023 |
+| Horizontal only: one representation 'Axis' / 'Curve2D' of an `IfcCompositeCurve`. Horizontal and vertical: 'Axis' / 'Curve3D' of an `IfcGradientCurve` whose `BaseCurve` is the `IfcCompositeCurve`, and 'FootPrint' / 'Curve2D' of that composite curve | `.../Alignment Geometry - Horizontal`, `... - Horizontal and Vertical`; rules ALS005, ALB021 |
+| Sub-contexts 'Axis' and 'FootPrint' of the 'Model' context, `MODEL_VIEW` | `schemas/resource/IfcRepresentationResource/Entities/IfcGeometricRepresentationSubContext.md` ("The applicable values for the inherited ContextIdentifier attribute shall be identical to the RepresentationIdentifier") |
+| Every curve's `Segments` are `IfcCurveSegment`s, as many as the layout has segments, **the last of length 0 and `DISCONTINUOUS`, no other `DISCONTINUOUS`** | `schemas/resource/IfcGeometryResource/Entities/IfcCompositeCurve.md` ("Segments must be a LIST[2:?] where the last segment is a zero-length segment", `CurveContinuous`); rules ALS015, ALB022 |
+| `Transition` between segments worked out from the joint: `CONTSAMEGRADIENTSAMECURVATURE`, `CONTSAMEGRADIENT`, `CONTINUOUS`, or `DISCONTINUOUS` for a gap over 1 mm | `schemas/resource/IfcGeometryResource/Types/IfcTransitionCode.md` |
+| `SegmentStart` and `SegmentLength` typed `IfcLengthMeasure` | `IfcCurveSegment.md` (informal proposition 1); rule ALS012 |
+| Start station referent first, one referent per station equation, `Pset_Stationing` on each | `schemas/core/IfcProductExtension/Entities/IfcReferent.md` ("the first nested referent is the starting station"), `Types/IfcReferentTypeEnum.md` (`STATION`: "establishing the station origin or recording a station equation"), `schemas/shared/IfcSharedInfrastructureElements/PropertySets/Pset_Stationing.md` and the IFC4X3 template (`Station`, `IncomingStation`, `HasIncreasingStation`, all as in the template's value types); rule ALB010 |
+| One `IfcReferent` `SUPERELEVATIONEVENT` per stated cross-fall and side, `Pset_Superelevation` | `Types/IfcReferentTypeEnum.md`, `schemas/domain/IfcRoadDomain/PropertySets/Pset_Superelevation.md` and its template (`Side`, `Superelevation`, `TransitionSuperelevation`, with `PEnum_SideType` and `PEnum_TransitionSuperelevationType`) |
+| `IfcRelPositions` from the alignment to what is placed on it, as before | `schemas/core/IfcProductExtension/Entities/IfcRelPositions.md` ("does not affect the geometric representation of a product nor its geometrical placement") |
+
+#### The curve segments
+
+Everything is in millimetres and radians; the curve parameter is the length along the
+curve in millimetres from its start (the distance along).
+
+* **Line**: `IfcLine` through (0, 0) along +X, `SegmentStart` 0, `SegmentLength` the length;
+  `IfcAxis2Placement2D` at the element's start point with its X axis along the start heading
+  (`templates/Partial Templates/Geometry/Curve Segment Geometry/Linear Segment`).
+* **Arc**: `IfcCircle` of the radius at the origin, `SegmentStart` 0, `SegmentLength` **negative
+  for a right-hand arc** ("The sign of this value defines the sense agreement", `IfcCurveSegment.md`);
+  `.../Arc Segment`.
+* **Spiral**: `IfcClothoid`. `IfcClothoid.md` gives the curvature `kappa = A s / |A|^3` at the
+  arc length `s` from the inflection point, and `Clothoid Transition Segment` the constant
+  `A = sqrt(L R)`. For a spiral from curvature k0 to k1 over L, A = sign(k1 - k0) sqrt(L / |k1 - k0|)
+  and the segment starts at s0 = k0 L / (k1 - k0) on the parent: 0 for a spiral from a tangent,
+  -L for a spiral back to it (as in the buildingSMART sample: `A = 200`, start 0 and `A = -200`,
+  start -40 for a left spiral in and a left spiral out of R = 1000 m, L = 40 m, and the same
+  with the signs the other way for a right-hand curve). A compound spiral (both ends curved)
+  has a start that is neither 0 nor -L. A spiral that changes hand is still refused.
+* **Vertical**: in (distance along, level) coordinates, `IfcAxis2Placement2D` at the start
+  point with its X axis along the start tangent. A straight is an `IfcLine`; a parabola an
+  `IfcPolynomialCurve` with `CoefficientsX` (0, 1) and `CoefficientsY` (0, g0, c), c = (g1 - g0) /
+  (2 H) (`Parabolic Transition Segment`; the documented template populates only the quadratic term,
+  which is exact only when the start gradient is 0, so the linear term carries the start
+  gradient as IfcOpenShell's mapping does); a circular curve an `IfcCircle` placed so that
+  its start point is the origin, with `SegmentStart` R times the start angle and `SegmentLength`
+  R times the angle swept, negative for a crest (as in the sample, `Arc Segment`). **`SegmentLength`
+  of a vertical segment is the length along the curve, not the horizontal length**: IfcOpenShell
+  reads it so (a 200 m parabola given its horizontal length evaluates 0.7 mm low after the
+  curve), and the business logic carries the horizontal length (`HorizontalLength`).
+* **Business logic**, `IfcAlignmentHorizontalSegment`: start point, `StartDirection` in
+  (-pi, pi] (`IfcAlignmentHorizontalSegment.md`: "Values larger then a full circle shall not be
+  used"), start and end radius (0 is infinite, positive turns left, negative right), length,
+  `LINE`, `CIRCULARARC` or `CLOTHOID`. `IfcAlignmentVerticalSegment`: `StartDistAlong` (distance
+  along the horizontal alignment from its start, so a station minus the start station),
+  `HorizontalLength`, `StartHeight`, start and end gradient (ratios), `RadiusOfCurvature` and
+  `CONSTANTGRADIENT`, `PARABOLICARC` or `CIRCULARARC` (`IfcAlignmentVerticalSegment.md`,
+  `Types/IfcAlignmentVerticalSegmentTypeEnum.md`). The radius of a parabola is
+  `HorizontalLength / (EndGradient - StartGradient)`, positive for a sag (rule ALB012, tolerance
+  1e-3), worked out from the numbers as written; it is empty on a straight.
+* **The profile** is cut at the ends of its vertical curves: straight, curve, straight, ...
+  A symmetric parabola is one `PARABOLICARC`; an asymmetric one (`AsymmetricParabola`) is two,
+  meeting at the PVI with the common gradient ("Unsymmetric parabolas can be created by defining two
+  symmetric parabolas segments"); a `Circular` curve is a `CIRCULARARC`. A profile longer than the
+  alignment is cut at its ends. A profile shorter than the alignment gives a gradient curve that
+  covers only part of the alignment (a note says which part); an element outside it is placed on
+  the 2D curve.
+* **Station equations**: one `STATION` referent per equation, at its distance along, with `Station`
+  the station ahead (what a referent's station is), `IncomingStation` the station arriving, and
+  `HasIncreasingStation` false from a decreasing equation until an increasing one sets it true.
+  The displayed station of every point can be recovered from these alone (a test does it, by
+  its own reading of the referents, for gaps, overlaps and a decreasing run).
+
+#### Superelevation: `IfcAlignmentCant` is not used
+
+`IfcAlignmentCant` and `IfcAlignmentCantSegment` describe rail cant: `RailHeadDistance`, and the
+height of the left and right rail relative to the vertical alignment (`IfcAlignmentCant.md`:
+"Cant as a railway specificity", with the geometry on an `IfcSegmentedReferenceCurve`). A road's
+stored cross-fall is a slope in percent on each side of the centreline at stated stations, with
+no rail head distance, possibly stated for one side only and with gaps; mapping it to a cant with an
+invented distance would state a value the document does not have. The documentation has a road
+concept for it: `IfcReferent` `SUPERELEVATIONEVENT` ("a kind of event that specifies the
+superelevation (cross slope) at a specific location along a road alignment, and the type of
+transition from the previous location", placed on the axis curve) with `Pset_Superelevation`. That is
+what is written, nested by the alignment in its own `IfcRelNests`, after the stationing referents.
+
+* One referent per stated station and side. When both sides give the same value it is one referent
+  with `Side` `BOTH`. A side with no stated value has none.
+* `Superelevation` (an `IfcRatioMeasure`) has the sign of the documentation: "Positive superelevation
+  is used for curves to the right and negative for curves to the left. This is consistent with
+  IfcProfileDef coordinate system" (`properties/s/Superelevation.md`), whose X axis points to the
+  left of the curve (`IfcOpenCrossProfileDef.md`). So the value is the slope in that frame: a left side
+  rising away from the centre is positive, a right side rising away from the centre is negative, and
+  a surface falling towards the right is positive on both sides. **That is this crate's reading of
+  two pages; the sign has no worked example in the documentation.** The stored values, in the
+  document's own convention (percent, positive rising away from the centreline), are written beside
+  it in `AfroBIM_Superelevation` (`LeftCrossFallPct`, `RightCrossFallPct`, `StationM`, `Section`,
+  `CriticalStation`).
+* `TransitionSuperelevation` `LINEAR` is written on every event except the first of a stored
+  section, which has nothing before it to transition from; between sections the document says
+  nothing is known.
+* The documentation proposes containing such an event in a lateral breakdown element of the road
+  (a lane). This crate writes no `IfcRoadPart`, so the event is nested by the alignment only.
+
+#### Linear placement
+
+The documentation (`schemas/resource/IfcGeometricConstraintResource/Entities/IfcLinearPlacement.md`,
+`IfcAxis2PlacementLinear.md`, `IfcPointByDistanceExpression.md`, and `templates/Product Shape/Product
+Placement/Product Linear Placement`):
+`IfcProduct.ObjectPlacement` an `IfcLinearPlacement`, `PlacementRelTo` the placement of the
+alignment, `RelativePlacement` an `IfcAxis2PlacementLinear` whose `Location` is an
+`IfcPointByDistanceExpression` (`DistanceAlong`, `OffsetLateral` positive **to the left**,
+`OffsetVertical` perpendicular to the tangent in the vertical plane, `OffsetLongitudinal`, and the
+`BasisCurve`). The same shape is in the buildingSMART sample.
+
+* **Basis curve.** The `IfcGradientCurve` where the profile covers the station, otherwise the
+  `IfcCompositeCurve` (whose level is 0, so the vertical offset is then the level).
+* **Offsets.** The distance along is the station minus the start station (internal stations, so
+  station equations do not enter). The offsets are the components of the element's position along
+  the three axes of the curve at that point (tangent, left, normal), so the placement reaches the
+  position exactly. The recorded station and offset are used when they reproduce the position to
+  a micrometre; otherwise the nearest point of the alignment decides (a test has an element that
+  says 2+500 and stands at 2+560). The lateral offset is minus the recorded offset (the document's
+  offsets are positive to the right). On a gradient the vertical offset is measured along the
+  normal and a longitudinal offset of (level difference x sin(gradient)) restores the point;
+  both are zero for an element at the profile's level.
+* **Orientation, and why the geometry is turned.** Axis and RefDirection are **left out**. The
+  documentation says they are relative to the curve ("maintaining the relationship to the tangent
+  of the curve"); IfcOpenShell 0.9.0.post1 reads them as absolute directions (an `Axis` (0, 0, 1)
+  and `RefDirection` (1, 0, 0) gave a world X axis on a curve at 30 degrees). With both left out the
+  documentation and IfcOpenShell agree: X along the tangent (in 3D on a gradient curve), Y to the
+  left, Z perpendicular to the tangent in the vertical plane, upwards. The element's own frame
+  (its rotation about +Z, which for a sign is the tangent minus 90 degrees) is then not the
+  placement's, so **the element's geometry is written in the placement's frame**: the turn Q from the
+  curve frame to the element's old frame is applied to the points of its tessellations, to the
+  position and axes of its extruded solids, and, for what is aggregated into it (the parts of a
+  sign assembly, a gantry, a lighting column, a barrier run, a pavement), to the placement of each part,
+  which is written as an `IfcLocalPlacement` relative to the whole with Q composed with its own pose.
+  Everything lands where it did; nothing else about the parts changes.
+* **`CartesianPosition`**: `IfcLinearPlacement.md` documents it as the "optional fallback for the
+  `RelativePlacement` attribute, which may be used by importing applications that do not support
+  linear placement", and it is written on every linear placement. It stands for the
+  `RelativePlacement`: it is the frame of the curve at the point (origin the element's position,
+  X the tangent, Z the normal), which is the frame the geometry is written in, so a tool that
+  takes the fallback instead of evaluating the curve puts the element in the same place (a test does
+  exactly that with IfcOpenShell). It is **not** the old absolute frame.
+* **Referents** (stationing and superelevation) are placed the same way, with no offsets, on the
+  2D curve for stations and on the gradient curve where it covers a superelevation event.
+* **What stays absolute**: elements without an alignment, a station or an offset in the site
+  placement, an alignment that was not exported (it could not be read), and a station off the
+  alignment. `IfcRelPositions` is written as before in `Geometry` and `Linear`.
+
+#### The importer
+
+`import_ifc` resolves `IfcLinearPlacement` (`src/import/reader/linear.rs`): the basis curve an
+`IfcCompositeCurve` of `IfcLine`, `IfcCircle` and `IfcClothoid` segments, or an `IfcGradientCurve`
+on one whose segments are `IfcLine`, `IfcPolynomialCurve` (a polynomial in the distance along
+from the segment's start) and `IfcCircle`, a distance along typed `IfcLengthMeasure`, and no `Axis`
+or `RefDirection`; the frame is the one described above. Horizontal segments are evaluated with
+`afrobim_alignment::AlignmentElement` (Gauss-Legendre quadrature for the clothoid). When a placement
+cannot be evaluated (another curve, `Axis` or `RefDirection` given, a parameter value, a distance
+beyond the curve) its `CartesianPosition` is used if there is one (`report.linear_placements_fallback`
+and a warning), otherwise the product is `PlacementUnresolved` as before. `report.linear_placements_resolved`
+counts the placements evaluated.
+
+#### Verification (IfcOpenShell 0.9.0.post1)
+
+`tests/check_alignment_ifc.py`, run by `tests/ifcopenshell_linear.rs`, on two documents: the
+model of `tests/common/linear.rs` (two alignments: LN01 of 11 elements with spirals both ways, a
+compound spiral, a profile of every vertical curve kind, a gap, an overlap and a decreasing run in
+the stationing, eight superelevation events; LN02 horizontal only with a gap and an overlap; seven elements
+placed linearly, three kept absolute) and the road-module model of `tests/common/roads.rs` with
+every root element given a station (18 linear placements: markings, drain, culverts, gantries,
+lighting columns, barrier run, pavement, corridor).
+
+* Schema and EXPRESS rules: **0 issues** on all four files (the two models, each exported with `Linear`
+  and with `Geometry`).
+* The service's alignment rules (ALB003, ALB010, ALB012, ALB015, ALB021 to ALB023, ALB030, ALB031,
+  ALS004, ALS005, ALS012, ALS015): re-implemented in the script from the text of the
+  feature files, **not run by the service** (see below), all hold. ALS016 and ALS017
+  (continuity, "a warning"): IfcOpenShell's kernel puts the end of each segment within
+  **0.33 micrometre** and 1.3e-10 in tangent of the start of the next; the contexts' precision is 1e-5 mm, so a
+  checker evaluating clothoids as coarsely as IfcOpenShell can warn.
+* Curve evaluation by the kernel (`function_item_evaluator` on the written `IfcCompositeCurve` and
+  `IfcGradientCurve`) at 162 plan points (every element at ten fractions of its length, so
+  every spiral at several points) and 148 vertical points (every 5 m and in the middle and
+  at both ends of every curve) against `afrobim-alignment`'s own coordinates and levels: plan **0.33
+  micrometre at worst** (line 0.21, spiral 0.31, arc 0.33), direction **7.5e-13 rad**, level
+  **1.6e-5 mm**. The same curves built by IfcOpenShell's own mapping of each `IfcAlignmentSegment` to a
+  curve segment differ from the written ones by 0.33 micrometre and 1.6e-5 mm.
+* Displayed stations, 66 of them, taken at and either side of every equation: all recovered from the
+  referents alone by the script's reading. `ifcopenshell.api.alignment.distance_along_from_station`
+  agrees on every station of the alignment without a decreasing run, except that
+  it extrapolates a station that is only in an earlier region of an overlap beyond the end of the
+  alignment (it does not know where the alignment ends), and returns `None` for stations before a
+  decreasing run when the stationing has one (its search takes the last referent whose test holds).
+  The data is the same; that function's limit is recorded in `figures["displayed_stations"]`.
+* Linear placements: `ifcopenshell.util.placement` (the kernel evaluates `IfcAxis2PlacementLinear`)
+  resolves the world position of every product in the `Linear` file; against the `Geometry`
+  file the worst difference is **6.9e-6 mm** on the first model and **9.7e-7 mm** on the road
+  model, the world rotations of the 15 and 37 products that keep their frame **7.6e-11**
+  and **2.9e-13**; the bounding box of every shaped product (41 and 46) by the geometry
+  iterator **6.8e-6 mm** and **1.3e-6 mm**, equal triangle counts; and the same boxes after every linear
+  placement is replaced by a local placement at its `CartesianPosition` (the fallback)
+  **4.8e-7 mm** and **1.0e-6 mm**. A separate rebuilding of each placement from the kernel's
+  curve evaluation and this script's own reading of the three offsets differs by the same
+  figures. "World placement" of a linearly placed product is the frame of the curve (the
+  geometry is turned to compensate), so the rotations are compared where the frame is kept
+  and the geometry where it is not.
+* Round trip through this crate's importer (`tests/linear.rs`, no toolkit): export with `Linear`,
+  import, and the world bounds of every product with geometry against the same export with
+  `Geometry`: **9.8e-7 mm** on the first model, **1.3e-6 mm** on the road model, every placement evaluated and none by
+  the fallback; with the clothoids made unreadable (all placements by the fallback), 4.8e-7 mm.
+* The importer on a file this crate did not write: the buildingSMART sample
+  `linear-placement-of-signal.ifc` (25 linear placements on lines, clothoids, circles and a
+  gradient curve of circular vertical curves; `tests/import_linear.rs`, which needs the file
+  and prints why it is skipped when it has none): all 25 evaluated, none by the fallback, and
+  the world bounding boxes of its 25 shaped products differ from IfcOpenShell's by
+  **3.6e-3 mm** at worst (the sample's coordinates are of the order of 4.5e6 m).
+
+#### Limits
+
+* No `IfcAlignmentCant`, `IfcSegmentedReferenceCurve` or `IfcOffsetCurveByDistances`, no child
+  alignments sharing one horizontal layout, no Helmert, Bloss, cosine, sine, cubic or Viennese
+  curves (the alignment crate has only straights, arcs and clothoids), no vertical `CLOTHOID`.
+* The sign of `Pset_Superelevation.Superelevation` is a reading, not a documented example.
+* `SegmentLength` of a vertical segment as the curve length, and a polynomial parent with a linear
+  term, follow IfcOpenShell's evaluation; the documentation's `IfcCurveSegment` page does not
+  define the parametrisation of every parent curve ("until implementer agreements have resulted in a
+  defined parametric space ... SegmentStart and SegmentLength shall be of type IfcLengthMeasure"). A
+  tool that reads them differently will place the vertical curves differently.
+* Axis and RefDirection are never written on an `IfcAxis2PlacementLinear`, so an element's
+  rotation relative to the road is in its geometry and in the frames of its parts, not in the
+  placement.
+* An element placed linearly has the frame of the curve as its placement frame; a tool that reads
+  the placement of a product (a sign assembly, a post) sees a frame tilted by the gradient on a
+  gradient curve.
+* Referents are not nested by lanes or `IfcRoadPart`s.
+* An element with a station and offset that does not stand where the station says is placed where
+  it stands (the alignment's nearest point), with the station it has; nothing records that they
+  disagreed.
+* The buildingSMART validation service **was not run**: it asks for a signed-in account before it
+  takes a file (its page says "Sign in to start validating"). The rules above were read and
+  re-implemented, not executed by its harness (`behave`), which was not installed here.
+* No file has been opened in a commercial BIM viewer, or in any viewer.
 
 ## The road modules
 
@@ -381,11 +659,12 @@ Choices the documentation settled, and what it ruled out:
   GlobalId, name and properties and no position.
 - `IfcRelPositions`: the alignment to every root whose site placement names it (and to every
   lighting column, which names the alignment its layout was computed on).
-- **Placement is absolute.** Each root has an `IfcLocalPlacement` relative to the road at its
+- **Placement is absolute by default.** Each root has an `IfcLocalPlacement` relative to the road at its
   `SitePlacement`; station and offset are properties (`AfroBIM_SitePlacement`: `Alignment`,
-  `StationM`, `OffsetM`; and the range in the element's own set). **No `IfcLinearPlacement` is
-  written**: it needs a curve geometry (`IfcGradientCurve` or `IfcCompositeCurve`) on the
-  alignment, which this crate does not write.
+  `StationM`, `OffsetM`; and the range in the element's own set). With
+  `IfcOptions::alignment = AlignmentExport::Linear` a root whose site placement names an exported
+  alignment, a station and an offset is placed by an `IfcLinearPlacement` on the alignment's curve
+  (see "Alignments, complete"); the properties are still written.
 
 ### Per category
 
@@ -465,9 +744,10 @@ placement.
 
 ## What is not exported
 
-- Linear placement (`IfcLinearPlacement`), alignment curve geometry (`IfcCompositeCurve`,
-  `IfcGradientCurve`), vertical profiles and cant. Road-module elements are placed absolutely,
-  with station and offset as properties.
+- By default (`AlignmentExport::Simple`): linear placement, alignment curve geometry, vertical
+  profiles. Never: `IfcAlignmentCant` and `IfcSegmentedReferenceCurve` (rail cant is not road
+  superelevation; superelevation is written as `SUPERELEVATIONEVENT` referents in the other modes),
+  `IfcOffsetCurveByDistances`, child alignments, transition curves other than the clothoid.
 - Georeferencing: no map conversion or coordinate reference system; no `IfcRoadPart` breakdown.
 - Fixings, clamps, base plates, reinforcement, the socket as a void, excavation and backfill.
 - Material grades, categories, layers or profile sets (`IfcMaterialProfileSet`); sheeting classes
@@ -539,8 +819,16 @@ them (limit 0.05 mm), placements read back through the chain (0.001 mm), the rel
 (adhesion, groups, aggregation, positioning), entity counts, and the quantities against kernel
 volumes where they can be compared.
 
-`cargo test -p afrobim-ifc` runs all three: `tests/ifcopenshell.rs`, `tests/ifcopenshell_model.rs`
-and `tests/ifcopenshell_roads.rs` export their fixtures to `target/tmp`, write the expectations and run the scripts. When `python3`
+`check_alignment_ifc.py linear.ifc absolute.ifc expectations.json` checks the complete alignment
+export (`AlignmentExport::Linear` against `Geometry`) as described under "Alignments, complete":
+validation, the structure the documentation and the service's alignment rules ask for, the curves
+evaluated by the kernel against the alignment crate, displayed stations recovered from the
+referents, the world placement and bounding box of every product in both files, and the
+`CartesianPosition` fallback. `check_import_linear.py` writes the kernel's world bounding boxes of a file as
+JSON for `tests/import_linear.rs`.
+
+`cargo test -p afrobim-ifc` runs all of them: `tests/ifcopenshell.rs`, `tests/ifcopenshell_model.rs`,
+`tests/ifcopenshell_roads.rs` and `tests/ifcopenshell_linear.rs` export their fixtures to `target/tmp`, write the expectations and run the scripts. When `python3`
 or `ifcopenshell` is missing these tests print `SKIPPED: IfcOpenShell validation not run ...` and
 pass; set `AFROBIM_REQUIRE_IFCOPENSHELL=1` to make that a failure instead. `tests/export.rs` and
 `tests/model.rs` hold the checks that need no toolkit, and so does `tests/roads.rs`, which builds a
@@ -591,8 +879,10 @@ Not validated:
   where named above (SPS007, OJP001, ALB004, ALB015, ALS005, the spatial composition table), but
   IfcOpenShell's validator checks the schema, not those rules, and not any model view definition.
   Rule ALB010 (industry practice: an alignment nests a referent) is met with one start-station
-  referent whose placement is an `IfcLocalPlacement`, not the `IfcLinearPlacement` a stationing
-  referent would normally have.
+  referent, whose placement is an `IfcLocalPlacement` in the default mode and an
+  `IfcLinearPlacement` in `Geometry` and `Linear`. The alignment rules of the service were
+  re-implemented and checked for the complete modes (see "Alignments, complete"); the service
+  itself needs a signed-in account and was not run.
 - No **viewer** has opened these files. That an assembly "shows as one object" follows from the
   aggregation relationship; it was not looked at.
 - Alignments read from **LandXML**, and alignments with discontinuous joints, were not exported
@@ -683,7 +973,7 @@ let bodies: Vec<Body> = model
 | Spatial tree | `IfcRelAggregates` (any object to its parts) and `IfcRelContainedInSpatialStructure`; `tree`, `roots` and per product `container` and `parent`. |
 | Properties | `IfcRelDefinesByProperties` to `IfcPropertySet` (single, enumerated and list values) and `IfcElementQuantity` (the `IfcQuantity*` values), as set name, name, value text and IFC value type. Other property kinds (bounded values, tables, complex properties, ...) are counted in `properties_not_read`. Type objects' property sets (`IfcRelDefinesByType`) are not followed. |
 | Units | `IfcProject.UnitsInContext` to the `LENGTHUNIT`: an `IfcSIUnit` metre with any SI prefix, or an `IfcConversionBasedUnit` through its `IfcMeasureWithUnit` (inch, foot, ...). Everything is converted to mm at the end. No length unit: metres assumed, with a warning. |
-| Placement | `IfcLocalPlacement` chains with `IfcAxis2Placement3D` (axis, reference direction orthogonalised, defaults, a parallel pair repaired) resolved iteratively (cycles and chains over 4096 are errors). Anything else (`IfcLinearPlacement`, `IfcGridPlacement`) is **not resolved**: the product gets `PlacementUnresolved`, no geometry, and `report.placements_unresolved` counts it. The site's placement is just part of the chain. |
+| Placement | `IfcLocalPlacement` chains with `IfcAxis2Placement3D` (axis, reference direction orthogonalised, defaults, a parallel pair repaired) resolved iteratively (cycles and chains over 4096 are errors). `IfcLinearPlacement` is evaluated on its basis curve (`IfcCompositeCurve` of lines, circles and clothoids, `IfcGradientCurve` with lines, parabolas and circles; see "Alignments, complete"), or taken from its `CartesianPosition` when the curve is not understood (`report.linear_placements_resolved` and `_fallback` count them). Anything else (`IfcGridPlacement`, a linear placement on another curve without a fallback) is **not resolved**: the product gets `PlacementUnresolved`, no geometry, and `report.placements_unresolved` counts it. The site's placement is just part of the chain. |
 | Map conversion | `IfcMapConversion` (and `IfcProjectedCRS.MapUnit`) is read into `map_conversion`. With `ImportOptions::apply_map_conversion` the world coordinates are `E + scale * R(x, y)`, `N + ...`, `H + scale * z`, with `R` the rotation of `(XAxisAbscissa, XAxisOrdinate)`. Default off: the coordinates are then the engineering coordinates, as IfcOpenShell's iterator returns them. The map applied result was compared with IfcOpenShell's `util.geolocation` helmert transformation on the three Bonsai `geolocation-mapconversion*.ifc` files (map unit equal to the project unit). |
 | Geometry | `IfcTriangulatedFaceSet`, `IfcPolygonalFaceSet` (with `IfcIndexedPolygonalFaceWithVoids`; `PnIndex`), `IfcFacetedBrep` (faces with inner bounds, bound orientation), `IfcShellBasedSurfaceModel`, `IfcFaceBasedSurfaceModel`, `IfcExtrudedAreaSolid` over `IfcRectangleProfileDef`, `IfcCircleProfileDef`, `IfcArbitraryClosedProfileDef` and `IfcArbitraryProfileDefWithVoids` whose curves are `IfcPolyline` or straight-segment `IfcIndexedPolyCurve`, and `IfcMappedItem` through `IfcCartesianTransformationOperator3D` (and non uniform), recursively. |
 
@@ -733,7 +1023,7 @@ Of the 869 products that have a body representation, 837 (96.3 %) were read. The
 are mostly `IfcAnnotation` (2D annotation without a body), `IfcElementAssembly` (their parts carry
 the geometry), `IfcAlignment` with its segments and parts, and `IfcDistributionPort`; they have no
 body representation to read. (Alignments have curve geometry in IfcOpenShell's eyes; the importer
-does not read curves.) By body representation type (products read or
+does not read alignment curves as geometry. It evaluates them only to place products linearly.) By body representation type (products read or
 partly read / not read): `Tessellation` 475/0, `Brep` 132/0, `SurfaceModel` 60/0,
 `MappedRepresentation` 101/3, `SweptSolid` 69/5, `Clipping` 0/14, `AdvancedSweptSolid` 0/9,
 `AdvancedSurface` 0/1. The items not read in these files: `IfcBooleanClippingResult` 14,
@@ -779,8 +1069,9 @@ and IfcOpenShell's geometry fixtures (IFC4X3_ADD2). The sample files are not in 
 volume ratio of 1.71 on five FZK windows, now covered by unit tests and 300 random multi-hole
 cases) and the mapped item origin (see above). **Not verified:** no file was opened in a
 commercial BIM tool or any viewer; nothing was tested with the importer's output in the AfroBIM
-app (this crate has no app code); the 3D positions of IFC4X3 linear placements were not tested
-because they are not read.
+app (this crate has no app code). The 3D positions of IFC4X3 linear placements are verified on one
+foreign file only (the buildingSMART sample in "Alignments, complete"), and on this crate's own
+exports.
 
 ### Performance
 

@@ -14,6 +14,12 @@
 //! sets and quantities the README tabulates. For a document with none of those it writes the same
 //! bytes as [`export_ifc`], which stays as it was: signs on the upright sheet.
 //!
+//! `IfcOptions::alignment` (see [`AlignmentExport`]) switches how alignments are written: the
+//! default is the polyline and absolute placements above; `AlignmentExport::Geometry` writes the
+//! horizontal and vertical layouts with `IfcCompositeCurve` / `IfcGradientCurve` geometry and the
+//! stationing and superelevation referents; `AlignmentExport::Linear` also places the elements
+//! that have a station and offset with `IfcLinearPlacement`.
+//!
 //! The `import` module reads IFC files (IFC2X3, IFC4, IFC4X3) as a reference model for display and
 //! clash checking: [`import::import_ifc`]. The writer above does not change. See the crate README
 //! for the entity mapping, the placement convention, how to validate a file and what the importer
@@ -34,6 +40,7 @@ mod guid;
 pub mod import;
 mod mesh;
 mod model;
+mod rot;
 mod step;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -79,6 +86,42 @@ pub struct IfcOptions {
     pub plate_thickness_mm: f64,
     /// Distance between the plate face and the first artwork layer, and between artwork layers, mm.
     pub artwork_offset_mm: f64,
+    /// How [`export_ifc_model`] writes alignments and what it places along them. The default is
+    /// the first behaviour: a 2D polyline as the geometry, absolute placements. See
+    /// [`AlignmentExport`].
+    pub alignment: AlignmentExport,
+}
+
+/// What [`export_ifc_model`] writes for an alignment, and how it places the elements that carry
+/// an alignment, a station and an offset.
+///
+/// [`AlignmentExport::Simple`] (the default) is what the exporter always did: the horizontal
+/// layout as business logic, a 2D `IfcIndexedPolyCurve` as the geometry, one start-station
+/// referent, and every element at an absolute `IfcLocalPlacement`. A file exported with it is
+/// byte for byte what earlier versions wrote.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AlignmentExport {
+    /// Horizontal layout and a polyline; absolute placements.
+    #[default]
+    Simple,
+    /// The complete alignment: horizontal and vertical layouts as business logic and as
+    /// `IfcCompositeCurve` / `IfcGradientCurve` geometry made of `IfcCurveSegment`s, stationing
+    /// referents at the start and at every station equation, superelevation events. Elements
+    /// keep absolute placements.
+    Geometry,
+    /// As [`AlignmentExport::Geometry`], and an element whose site placement names an exported
+    /// alignment with a station and an offset is placed by an `IfcLinearPlacement` on that
+    /// alignment's curve, with the absolute placement as its `CartesianPosition` fallback.
+    /// Elements without a station keep absolute placements. The element ends up in the same
+    /// place in the world.
+    Linear,
+}
+
+impl AlignmentExport {
+    /// True when the alignment geometry and layouts are written in full.
+    pub fn is_full(self) -> bool {
+        self != AlignmentExport::Simple
+    }
 }
 
 impl Default for IfcOptions {
@@ -91,6 +134,7 @@ impl Default for IfcOptions {
             timestamp: None,
             plate_thickness_mm: 3.0,
             artwork_offset_mm: 0.1,
+            alignment: AlignmentExport::Simple,
         }
     }
 }
@@ -220,6 +264,13 @@ struct Writer<'a> {
     site_placement: u32,
     /// `IfcSurfaceStyle` per style name, created on first use.
     styles: BTreeMap<String, u32>,
+    /// While the geometry a product owns is written: the turn that carries the geometry from the
+    /// frame the product had when placed absolutely to the frame of its linear placement. `None`
+    /// everywhere else, and always when the alignment export is [`AlignmentExport::Simple`].
+    frame: Option<rot::Rot>,
+    /// Placements whose frame is the frame of a linear placement, with that turn: what is
+    /// placed relative to one of them is placed by the turn composed with its own pose.
+    reframed: BTreeMap<u32, rot::Rot>,
     thickness: f64,
     offset: f64,
 }
@@ -240,6 +291,8 @@ impl<'a> Writer<'a> {
             site: 0,
             site_placement: 0,
             styles: BTreeMap::new(),
+            frame: None,
+            reframed: BTreeMap::new(),
             thickness: positive(options.plate_thickness_mm, 3.0),
             offset: positive(options.artwork_offset_mm, 0.1),
         };
@@ -317,6 +370,14 @@ impl<'a> Writer<'a> {
 
     /// A styled `IfcTriangulatedFaceSet`; returns the face set.
     fn face_set(&mut self, points: &[[f64; 3]], triangles: &[[u32; 3]], closed: bool, style: u32) -> u32 {
+        let turned: Vec<[f64; 3]>;
+        let points = match &self.frame {
+            Some(q) => {
+                turned = points.iter().map(|p| rot::apply(q, *p)).collect();
+                &turned[..]
+            }
+            None => points,
+        };
         let coords = self.data.add("IFCCARTESIANPOINTLIST3D", &format!("{},$", list(points.iter().map(|p| reals(p)))));
         let index = list(triangles.iter().map(|t| format!("({},{},{})", t[0] + 1, t[1] + 1, t[2] + 1)));
         let set = self.data.add("IFCTRIANGULATEDFACESET", &format!("#{coords},$,{},{index},$", if closed { ".T." } else { ".F." }));

@@ -206,6 +206,11 @@ pub struct ImportReport {
     pub items_not_read: BTreeMap<String, usize>,
     /// Placement entities that were not resolved, by entity type.
     pub placements_unresolved: BTreeMap<String, usize>,
+    /// `IfcLinearPlacement`s evaluated on their basis curve (each placement once).
+    pub linear_placements_resolved: usize,
+    /// `IfcLinearPlacement`s whose basis curve was not understood and whose `CartesianPosition`
+    /// fallback was used instead.
+    pub linear_placements_fallback: usize,
     /// Property types not read, by entity type.
     pub properties_not_read: BTreeMap<String, usize>,
     pub triangles: usize,

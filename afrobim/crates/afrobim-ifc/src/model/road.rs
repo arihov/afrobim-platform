@@ -216,7 +216,7 @@ impl Model<'_> {
         let e = input.element;
         let g = generated(input);
         let g = g.as_deref();
-        match e.category.as_str() {
+        let out = match e.category.as_str() {
             c if c == MARKING_CATEGORY => self.marking(input, g, notes),
             c if c == DRAIN_CATEGORY => self.side_drain(input, g, notes),
             c if c == CULVERT_CATEGORY => self.culvert(input, g, notes),
@@ -226,7 +226,9 @@ impl Model<'_> {
             c if c == PAVEMENT_CATEGORY => self.pavement(input, g, notes),
             c if c == CORRIDOR_CATEGORY => self.corridor(input, g, notes),
             _ => self.surface(input, g, notes),
-        }
+        };
+        self.w.frame = None;
+        out
     }
 
     /// Reads the pavements of the document before anything is written: a road marking is an
@@ -421,7 +423,7 @@ impl Model<'_> {
             ));
         }
         let pose = Self::road_pose(e, notes);
-        let placement = self.w.placement(self.w.container_placement, pose);
+        let placement = self.root_placement(e, pose);
         let meshes: Vec<(&str, Cow<Mesh3>)> = g.iter().flat_map(|g| g.solids.iter()).map(|m| ("Road marking", Cow::Borrowed(m))).collect();
         let shape = self.body_of(&meshes, &e.name, notes);
         if shape.is_none() {
@@ -526,7 +528,7 @@ impl Model<'_> {
         let e = input.element;
         let def = afrobim_drainage::SideDrainDefinition::from_value(&e.data).ok();
         let pose = Self::road_pose(e, notes);
-        let placement = self.w.placement(self.w.container_placement, pose);
+        let placement = self.root_placement(e, pose);
         let meshes: Vec<(&str, Cow<Mesh3>)> = g.iter().flat_map(|g| g.solids.iter()).map(|m| ("Side drain", Cow::Borrowed(m))).collect();
         let shape = self.body_of(&meshes, &e.name, notes);
         if shape.is_none() {
@@ -603,7 +605,7 @@ impl Model<'_> {
         let count = barrels.len().max(1);
         let mut products = Vec::new();
         for i in 0..count {
-            let placement = self.w.placement(self.w.container_placement, pose);
+            let placement = self.root_placement(e, pose);
             let meshes: Vec<(&str, Cow<Mesh3>)> = barrels.get(i).map(|m| ("Culvert barrel", Cow::Borrowed(*m))).into_iter().collect();
             let shape = self.body_of(&meshes, &e.name, notes);
             if shape.is_none() {
@@ -676,7 +678,7 @@ impl Model<'_> {
         let e = input.element;
         let def = afrobim_gantry::GantryDefinition::from_value(&e.data).ok();
         let pose = Self::road_pose(e, notes);
-        let placement = self.w.placement(self.w.container_placement, pose);
+        let placement = self.root_placement(e, pose);
         let quantities = def.as_ref().and_then(|d| afrobim_gantry::GantryQuantities::measure(&e.name, d).ok());
         let description = def.as_ref().map(|d| format!("{} gantry carrying {} sign(s)", d.gantry_type.label(), d.signs.len()));
         let assembly = self.make(
@@ -850,7 +852,8 @@ impl Model<'_> {
         let mut columns = Vec::new();
         for (index, c) in data.layout.columns.iter().enumerate() {
             let base = Pose { x: c.easting_m * 1000.0, y: c.northing_m * 1000.0, z: c.level_m.unwrap_or(0.0) * 1000.0, rotation_deg: 0.0 };
-            let placement = self.w.placement(self.w.container_placement, base);
+            let link = (!alignment.is_empty()).then(|| super::alignment::Link { alignment: alignment.clone(), station_m: c.station_m, offset_m: c.offset_m });
+            let placement = self.root_placement_on(link, base);
             let owner = format!("element/{}/column/{}", e.id.0, index + 1);
             let assembly = self.make("IFCELEMENTASSEMBLY", &self.w.guid(&owner), &c.mark, Some(&format!("Lighting column, {}", c.side.label())), None, placement, None, &format!("{}.{}", e.id.0, index + 1), true, "MAST");
             let luminaires = c.bracket_directions_rad.len();
@@ -992,7 +995,7 @@ impl Model<'_> {
         let e = input.element;
         let barrier = BarrierElement::from_value(&e.data).ok();
         let pose = Self::road_pose(e, notes);
-        let placement = self.w.placement(self.w.container_placement, pose);
+        let placement = self.root_placement(e, pose);
         let meshes: Vec<(&str, Cow<Mesh3>)> = g
             .iter()
             .flat_map(|g| g.solids.iter())
@@ -1159,7 +1162,7 @@ impl Model<'_> {
         let e = input.element;
         let def = PavementDefinition::from_value(&e.data).ok();
         let pose = Self::road_pose(e, notes);
-        let placement = self.w.placement(self.w.container_placement, pose);
+        let placement = self.root_placement(e, pose);
         let rows = def.as_ref().and_then(|d| measure_definition(&e.name, d).ok()).unwrap_or_default();
         // FLEXIBLE is "pavement with a bituminous surfacing": claimed only when the top layer of
         // the carriageway is one of the two bituminous surfacings the model names.
@@ -1302,7 +1305,7 @@ impl Model<'_> {
                 (Self::road_pose(e, notes), Vec::new())
             }
         };
-        let placement = self.w.placement(self.w.container_placement, pose);
+        let placement = self.root_placement(e, pose);
         let items: Vec<(&str, Cow<Mesh3>)> = meshes.iter().map(|(k, m)| (*k, Cow::Borrowed(m))).collect();
         let shape = self.body_of(&items, &e.name, notes);
         let description = data.as_ref().and_then(|d| d.computed.as_ref().map(|c| format!("Corridor '{}': finished surface and side slopes, stations {} to {} m", d.definition.name, mm(c.start_station_m), mm(c.end_station_m))));
