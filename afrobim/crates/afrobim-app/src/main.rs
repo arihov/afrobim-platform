@@ -55,6 +55,8 @@ mod u2_drain_tests;
 #[cfg(test)]
 mod u2_pack_tests;
 #[cfg(test)]
+mod u2_units_tests;
+#[cfg(test)]
 mod u2_ifc_tests;
 #[cfg(test)]
 mod u2_tests;

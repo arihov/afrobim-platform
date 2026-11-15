@@ -1406,6 +1406,13 @@ impl AfroBimApp {
         }
         if self.ctl.is_busy() {
             self.log(format!("{} {}", self.ctl.prompt(), text));
+            // A typed point or offset is read in the document's length unit (a bare number is in
+            // that unit); the controller works in millimetres, so it is handed the millimetres.
+            let units = crate::anno_ui::units_of(&self.doc);
+            let text = match crate::anno_glue::parse_point(&text, self.ctl.base_point(), &units) {
+                Some(p) if text.chars().any(|c| c.is_ascii_digit()) => format!("{},{}", p.x, p.y),
+                _ => text,
+            };
             self.ctl.submit_text(&mut self.doc, &mut self.view, &text);
             return;
         }
