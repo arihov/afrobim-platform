@@ -285,13 +285,106 @@ pub fn resync(doc: &mut Document, alignment_id: ElementId) -> Resync {
 
 // ─── checks against a limits table ──────────────────────────────────────────────────────
 
-/// What `ALIGNCHECK` stores on the alignment, and `CHECKALL` reads back.
+/// Where the limits of an alignment check come from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum LimitSource {
+    /// The user's own limits file (the only source before the built-in basis existed, so a stored
+    /// selection without a source reads as this).
+    #[default]
+    UserFile,
+    /// The built-in Uganda MoWT Road Design Manual Vol. I, January 2010.
+    Builtin,
+    /// The built-in row with the limits the user's file states laid over it (`StandardRow::overlay`).
+    BuiltinWithOverlay,
+}
+
+impl LimitSource {
+    pub const ALL: [LimitSource; 3] = [LimitSource::Builtin, LimitSource::UserFile, LimitSource::BuiltinWithOverlay];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            LimitSource::Builtin => "Built-in: MoWT Road Design Manual Vol. I, January 2010",
+            LimitSource::UserFile => "My limits file",
+            LimitSource::BuiltinWithOverlay => "Built-in with my file laid over it",
+        }
+    }
+}
+
+/// The selection made from `builtin_bases()`. Every field starts empty: class, terrain, design
+/// speed and emax are the engineer's choice.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct BuiltinChoice {
+    pub class: Option<design::mowt::RoadClass>,
+    pub terrain: Option<design::mowt::Terrain>,
+    pub speed_kmh: Option<f64>,
+    pub emax_percent: Option<f64>,
+    /// False: the desirable maximum gradient; true: the absolute maximum.
+    pub absolute_grade: bool,
+    /// The manual's 0.5 % minimum gradient in cuttings, applied to the whole alignment.
+    pub minimum_grade_in_cut: bool,
+}
+
+impl BuiltinChoice {
+    /// The engine's selection, or what is still to be chosen.
+    pub fn selection(&self) -> Result<design::BuiltinSelection, String> {
+        Ok(design::BuiltinSelection {
+            class: self.class.ok_or("choose the road class")?,
+            terrain: self.terrain.ok_or("choose the terrain")?,
+            design_speed_kmh: self.speed_kmh.ok_or("choose the design speed")?,
+            emax_percent: self.emax_percent.ok_or("choose the maximum superelevation emax")?,
+            options: design::MowtOptions {
+                grade: if self.absolute_grade { design::mowt::GradeLimit::Absolute } else { design::mowt::GradeLimit::Desirable },
+                minimum_grade_in_cut: self.minimum_grade_in_cut,
+            },
+        })
+    }
+}
+
+/// What `ALIGNCHECK` stores on the alignment (`check.alignment`), and `CHECKALL` reads back.
+/// Selections stored before the built-in basis was offered have only the two first fields and
+/// read as "my limits file".
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct AlignCheckInputs {
     /// Path of the limits file (CSV or JSON).
     pub limits_path: String,
     /// The label of the design speed row chosen.
     pub row_label: String,
+    #[serde(default)]
+    pub source: LimitSource,
+    #[serde(default)]
+    pub builtin: BuiltinChoice,
+}
+
+/// The id of the one built-in basis.
+pub const BUILTIN_ID: &str = "mowt_2010";
+
+/// The limits an `AlignCheckInputs` asks for: the basis and the label of the row to check.
+pub fn resolve_basis(inputs: &AlignCheckInputs) -> Result<(DesignBasis, String), String> {
+    match inputs.source {
+        LimitSource::UserFile => {
+            if inputs.limits_path.trim().is_empty() {
+                return Err("no limits table is loaded".into());
+            }
+            Ok((load_basis(Path::new(inputs.limits_path.trim()))?, inputs.row_label.clone()))
+        }
+        LimitSource::Builtin => {
+            let built = DesignBasis::from_builtin(BUILTIN_ID, &inputs.builtin.selection()?).map_err(message)?;
+            let label = built.rows[0].label.clone();
+            Ok((built, label))
+        }
+        LimitSource::BuiltinWithOverlay => {
+            let mut built = DesignBasis::from_builtin(BUILTIN_ID, &inputs.builtin.selection()?).map_err(message)?;
+            let user = load_basis(Path::new(inputs.limits_path.trim()))?;
+            let user_row = user.row(&inputs.row_label).ok_or_else(|| format!("choose the row of your limits file to lay over the built-in limits ('{}' is not in it)", inputs.row_label))?;
+            let merged = built.rows[0].overlay(user_row);
+            built.name = format!("{} overlaid with {}", built.name, user.name);
+            built.source = format!("{}. Laid over it, wherever the file states a value: {}", built.source, user.source);
+            let label = merged.label.clone();
+            built.rows = vec![merged];
+            Ok((built, label))
+        }
+    }
 }
 
 pub fn stored_check(doc: &Document, alignment: ElementId) -> Option<AlignCheckInputs> {
@@ -344,8 +437,11 @@ pub fn blank_template() -> String {
     format!("#name,\n#source,\n{}\n", headers.join(","))
 }
 
-/// The explanation shown when no limits are loaded.
-pub const NO_LIMITS_TEXT: &str = "No geometric limits ship with AfroBIM. The Uganda MoWT Road Design Manual Volume 1: Geometric Design (2010) could not be obtained, so none of its values is built in, and no value is taken from memory. Load a limits table (CSV or JSON) that you have prepared from the standard you work to; it must name its source (document, edition, table, page). Until then every check reads Not checked.";
+/// The explanation shown when no limits source is chosen yet.
+pub const NO_LIMITS_TEXT: &str = "No limits source is chosen. Choose the built-in Uganda MoWT Road Design Manual Vol. I: Geometric Design (January 2010), with your class, terrain, design speed and emax; or load a limits table (CSV or JSON) that names its source (document, edition, table, page); or lay your table over the built-in one. Until then every check reads Not checked. No value is taken from memory.";
+
+/// Said wherever the built-in limits are used: the copy of the manual is not the Ministry's own.
+pub const THIRD_PARTY_NOTE: &str = "The copy of the manual used for the built-in limits was hosted by a third party and was not compared with a Ministry original. The edition is the one the document gives itself (January 2010).";
 
 
 /// Runs the engine's checks of a design against one row of a limits table.
@@ -368,18 +464,18 @@ pub fn check_for_report(doc: &Document, alignment: ElementId) -> Option<Alignmen
     let Some(stored) = stored_check(doc, alignment) else {
         return Some(AlignmentCheck::InputNeeded("no limits file or design speed is stored for this alignment: open ALIGNCHECK, load your limits table and choose the design speed".into()));
     };
-    if stored.limits_path.trim().is_empty() {
-        return Some(AlignmentCheck::NotChecked("no limits table is loaded, so no limit could be applied (no geometric limits ship with AfroBIM)".into()));
+    if stored.source == LimitSource::UserFile && stored.limits_path.trim().is_empty() {
+        return Some(AlignmentCheck::NotChecked("no limits source is chosen, so no limit could be applied: open ALIGNCHECK and choose the built-in MoWT manual or load a limits table".into()));
     }
-    let basis = match load_basis(Path::new(&stored.limits_path)) {
+    let (basis, row_label) = match resolve_basis(&stored) {
         Ok(b) => b,
-        Err(e) => return Some(AlignmentCheck::InputNeeded(format!("the stored limits file cannot be read ({e}): open ALIGNCHECK and load it again"))),
+        Err(e) => return Some(AlignmentCheck::InputNeeded(format!("the stored limits cannot be used ({e}): open ALIGNCHECK and choose them again"))),
     };
     let design = match load(doc, design_id) {
         Ok(d) => d,
         Err(e) => return Some(AlignmentCheck::Failed(e)),
     };
-    Some(match run_check(&design, &basis, &stored.row_label) {
+    Some(match run_check(&design, &basis, &row_label) {
         Ok(r) => AlignmentCheck::Report(r),
         Err(e) => AlignmentCheck::InputNeeded(format!("{e}: open ALIGNCHECK and choose the design speed row")),
     })
@@ -738,13 +834,13 @@ mod tests {
         assert!(report.source.contains("test fixture"));
         // CHECKALL's view: nothing stored asks for input, an empty path says not checked, a file works.
         assert!(matches!(check_for_report(&doc, a), Some(AlignmentCheck::InputNeeded(_))));
-        store_check(&mut doc, a, &AlignCheckInputs { limits_path: String::new(), row_label: String::new() });
+        store_check(&mut doc, a, &AlignCheckInputs::default());
         assert!(matches!(check_for_report(&doc, a), Some(AlignmentCheck::NotChecked(_))));
         let dir = std::env::temp_dir().join(format!("afrobim-limits-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("limits.csv");
         std::fs::write(&path, "#name,t\n#source,fixture\nlabel,min_radius_m\nrow A,150\n").unwrap();
-        store_check(&mut doc, a, &AlignCheckInputs { limits_path: path.display().to_string(), row_label: "row A".into() });
+        store_check(&mut doc, a, &AlignCheckInputs { limits_path: path.display().to_string(), row_label: "row A".into(), ..Default::default() });
         match check_for_report(&doc, a) {
             Some(AlignmentCheck::Report(r)) => assert!(r.count(design::CheckStatus::Fail) >= 1),
             _ => panic!("expected a report"),

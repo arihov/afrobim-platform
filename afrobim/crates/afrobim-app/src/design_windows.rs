@@ -13,7 +13,7 @@ use afrobim_kernel::ElementId;
 use egui::{Color32, RichText};
 
 use crate::app::AfroBimApp;
-use crate::design_glue::{self as glue, AlignCheckInputs};
+use crate::design_glue::{self as glue, AlignCheckInputs, BuiltinChoice, LimitSource};
 use crate::design_ui::{BAD, GOOD, WARN};
 
 #[derive(Default)]
@@ -25,6 +25,16 @@ pub struct AlignCheckUi {
     pub report: Option<Result<CheckReport, String>>,
     report_rev: u64,
     pub design: Option<ElementId>,
+    /// Where the limits come from, and the built-in selection (class, terrain, speed, emax).
+    pub source: LimitSource,
+    pub builtin: BuiltinChoice,
+}
+
+impl AlignCheckUi {
+    /// The inputs as stored on the alignment.
+    fn inputs(&self) -> AlignCheckInputs {
+        AlignCheckInputs { limits_path: self.path.trim().to_string(), row_label: self.row.clone(), source: self.source, builtin: self.builtin }
+    }
 }
 
 #[derive(Default)]
@@ -63,6 +73,93 @@ fn figure_text(value: f64, unit: &str) -> String {
     if unit == "nr" { format!("{value:.0}") } else { format!("{value:.3}") }
 }
 
+/// The class, terrain, design speed and emax pickers, fed from the engine's list of built-in bases.
+fn builtin_picker(ui: &mut egui::Ui, b: &mut BuiltinChoice) {
+    let bases = afrobim_design::builtin_bases();
+    let Some(info) = bases.first() else { return };
+    ui.label(RichText::new(&info.name).small());
+    egui::Grid::new("chk-builtin").num_columns(2).spacing([10.0, 5.0]).show(ui, |ui| {
+        ui.label("Road class");
+        let shown = b.class.and_then(|c| info.classes.iter().find(|x| x.class == c)).map(|x| x.name.to_string()).unwrap_or_else(|| "choose".into());
+        egui::ComboBox::from_id_salt("chk-class").selected_text(shown).show_ui(ui, |ui| {
+            for c in &info.classes {
+                if ui.selectable_value(&mut b.class, Some(c.class), c.name).clicked() {
+                    b.terrain = None;
+                    b.speed_kmh = None;
+                }
+            }
+        });
+        ui.end_row();
+        let class = b.class.and_then(|c| info.classes.iter().find(|x| x.class == c));
+        ui.label("Terrain");
+        let shown = b.terrain.and_then(|t| class.and_then(|c| c.terrains.iter().find(|x| x.terrain == t))).map(|x| x.name.to_string()).unwrap_or_else(|| "choose".into());
+        ui.add_enabled_ui(class.is_some(), |ui| {
+            egui::ComboBox::from_id_salt("chk-terrain").selected_text(shown).show_ui(ui, |ui| {
+                if let Some(class) = class {
+                    for t in &class.terrains {
+                        if ui.selectable_value(&mut b.terrain, Some(t.terrain), format!("{} (up to {} km/h)", t.name, t.max_design_speed_kmh)).clicked() {
+                            b.speed_kmh = None;
+                        }
+                    }
+                }
+            });
+        });
+        ui.end_row();
+        if let Some(class) = class {
+            for (terrain, why) in &class.refused_terrains {
+                ui.label("");
+                ui.label(RichText::new(format!("{terrain:?} is not offered for this class: {why}")).small().weak());
+                ui.end_row();
+            }
+        }
+        ui.label("Design speed");
+        let terrain = b.terrain.and_then(|t| class.and_then(|c| c.terrains.iter().find(|x| x.terrain == t)));
+        let shown = b.speed_kmh.map(|s| format!("{s} km/h")).unwrap_or_else(|| "choose".into());
+        ui.add_enabled_ui(terrain.is_some(), |ui| {
+            egui::ComboBox::from_id_salt("chk-speed").selected_text(shown).show_ui(ui, |ui| {
+                if let Some(t) = terrain {
+                    for s in &t.speeds_kmh {
+                        ui.selectable_value(&mut b.speed_kmh, Some(*s), format!("{s} km/h"));
+                    }
+                }
+            });
+        });
+        ui.end_row();
+        ui.label("Maximum superelevation emax");
+        let shown = b.emax_percent.map(|e| format!("{e} %")).unwrap_or_else(|| "choose".into());
+        egui::ComboBox::from_id_salt("chk-emax").selected_text(shown).show_ui(ui, |ui| {
+            for e in &info.emax_percent_options {
+                ui.selectable_value(&mut b.emax_percent, Some(*e), format!("{e} %"));
+            }
+        });
+        ui.end_row();
+        ui.label("Maximum gradient");
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut b.absolute_grade, false, "desirable");
+            ui.selectable_value(&mut b.absolute_grade, true, "absolute");
+        });
+        ui.end_row();
+        ui.label("Minimum grade in cut");
+        ui.checkbox(&mut b.minimum_grade_in_cut, "check the 0.5 % minimum (applied to every grade, so use it only when the alignment is in cut throughout)");
+        ui.end_row();
+    });
+}
+
+/// What the manual does not cover, and the slips found in it.
+fn mowt_panels(ui: &mut egui::Ui) {
+    egui::CollapsingHeader::new("Checks the manual does not cover (stay Not checked)").id_salt("chk-notcovered").show(ui, |ui| {
+        for n in afrobim_design::mowt::not_checked_under_mowt_2010() {
+            ui.label(RichText::new(format!("{}: {}. {}", n.check_id, n.what, n.reason)).small());
+        }
+    });
+    egui::CollapsingHeader::new("Known slips in the manual").id_salt("chk-slips").show(ui, |ui| {
+        ui.label(RichText::new(format!("{} Where a table cell contradicts another table of the same manual it is withheld and the check is reported Not checked, or derived and labelled so; the engineer decides which figure governs.", glue::THIRD_PARTY_NOTE)).small().color(WARN));
+        for s in afrobim_design::mowt::known_slips() {
+            ui.label(RichText::new(format!("{} ({}): {} Treatment: {}", s.id, s.place, s.what, s.treatment)).small());
+        }
+    });
+}
+
 fn number(v: Option<f64>) -> String {
     v.map(|v| format!("{v:.3}")).unwrap_or_else(|| "none".into())
 }
@@ -86,13 +183,22 @@ impl AfroBimApp {
                         }
                     }
                 }
-                // The inputs kept on the alignment open again.
+                // The inputs kept on the alignment open again, and are run again at once so that the
+                // window shows the stored selection's results.
                 if let Some(a) = glue::alignment_of_design(&self.doc, d) {
                     if let Some(stored) = glue::stored_check(&self.doc, a) {
-                        if c.path.is_empty() && !stored.limits_path.is_empty() {
-                            c.path = stored.limits_path.clone();
-                            c.basis = Some(glue::load_basis(std::path::Path::new(&stored.limits_path)));
-                            c.row = stored.row_label;
+                        if c.path.is_empty() && c.row.is_empty() && c.builtin == BuiltinChoice::default() {
+                            c.source = stored.source;
+                            c.builtin = stored.builtin;
+                            if !stored.limits_path.is_empty() {
+                                c.path = stored.limits_path.clone();
+                                c.basis = Some(glue::load_basis(std::path::Path::new(&stored.limits_path)));
+                            }
+                            c.row = stored.row_label.clone();
+                            if let Ok((basis, label)) = glue::resolve_basis(&stored) {
+                                c.report = glue::load(&self.doc, d).and_then(|design| glue::run_check(&design, &basis, &label)).into();
+                                c.report_rev = self.design.revision;
+                            }
                         }
                     }
                 }
@@ -124,7 +230,24 @@ impl AfroBimApp {
                 });
             });
             ui.separator();
-            ui.label(RichText::new("Limits table").strong());
+            ui.label(RichText::new("Limits source").strong());
+            ui.horizontal_wrapped(|ui| {
+                for s in LimitSource::ALL {
+                    if ui.selectable_value(&mut c.source, s, s.label()).clicked() {
+                        c.report = None;
+                    }
+                }
+            });
+            if c.source != LimitSource::UserFile {
+                builtin_picker(ui, &mut c.builtin);
+                ui.label(RichText::new(glue::THIRD_PARTY_NOTE).small().weak());
+            }
+            ui.separator();
+            ui.label(RichText::new(if c.source == LimitSource::BuiltinWithOverlay { "Your limits table (its stated values replace the built-in ones)" } else { "Limits table" }).strong());
+            if c.source == LimitSource::Builtin {
+                ui.label(RichText::new("Not used: the built-in limits are chosen above. Switch to \"My limits file\" or the overlay to load one.").small().weak());
+            }
+            ui.add_enabled_ui(c.source != LimitSource::Builtin, |ui| {
             ui.horizontal(|ui| {
                 ui.add_sized([420.0, 20.0], egui::TextEdit::singleline(&mut c.path).hint_text("path of a limits file (CSV or JSON)"));
                 if ui.button("Browse...").clicked() {
@@ -139,7 +262,21 @@ impl AfroBimApp {
                     template = true;
                 }
             });
-            match &c.basis {
+            });
+            let builtin_ready = c.source == LimitSource::Builtin && c.builtin.selection().is_ok();
+            if c.source == LimitSource::Builtin {
+                // The built-in basis needs no file: the run button is here.
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(builtin_ready && c.design.is_some(), egui::Button::new("Run the checks")).clicked() {
+                        run = true;
+                    }
+                    if let Err(why) = c.builtin.selection() {
+                        ui.label(RichText::new(format!("Still to choose: {why}.")).small().color(WARN));
+                    }
+                });
+            }
+            match if c.source == LimitSource::Builtin { &None } else { &c.basis } {
+                None if c.source == LimitSource::Builtin => {}
                 None => {
                     egui::Frame::new().fill(Color32::from_rgb(0x4A, 0x36, 0x12)).inner_margin(8.0).corner_radius(4.0).show(ui, |ui| {
                         ui.label(RichText::new("No limits are loaded").strong().color(Color32::from_rgb(0xFF, 0xD0, 0x80)));
@@ -168,7 +305,7 @@ impl AfroBimApp {
                                 }
                             }
                         });
-                        if ui.add_enabled(!c.row.is_empty() && c.design.is_some(), egui::Button::new("Run the checks")).clicked() {
+                        if ui.add_enabled(!c.row.is_empty() && c.design.is_some() && (c.source == LimitSource::UserFile || c.builtin.selection().is_ok()), egui::Button::new("Run the checks")).clicked() {
                             run = true;
                         }
                     });
@@ -236,7 +373,10 @@ impl AfroBimApp {
                     });
                 }
             }
-            ui.label(RichText::new("These are checks of the geometry against the limits you loaded: lateral sight distance, passing and decision sight distance, superelevation and combinations of horizontal and vertical alignment are not checked. A pass is not a certification.").small().weak());
+            if c.source != LimitSource::UserFile {
+                mowt_panels(ui);
+            }
+            ui.label(RichText::new("These are checks of the geometry against the limits chosen: lateral sight distance, passing and decision sight distance, superelevation and combinations of horizontal and vertical alignment are not checked. A pass is not a certification.").small().weak());
         });
         if let Some(p) = load {
             c.path = p.display().to_string();
@@ -249,13 +389,14 @@ impl AfroBimApp {
             c.report = None;
         }
         if run {
-            if let (Some(d), Some(Ok(b))) = (c.design, &c.basis) {
-                let result = glue::load(&self.doc, d).and_then(|design| glue::run_check(&design, b, &c.row));
+            if let Some(d) = c.design {
+                let inputs = c.inputs();
+                let result = glue::resolve_basis(&inputs).and_then(|(basis, label)| glue::load(&self.doc, d).and_then(|design| glue::run_check(&design, &basis, &label)));
                 if result.is_ok() {
                     if let Some(a) = glue::alignment_of_design(&self.doc, d) {
-                        glue::store_check(&mut self.doc, a, &AlignCheckInputs { limits_path: c.path.trim().to_string(), row_label: c.row.clone() });
+                        glue::store_check(&mut self.doc, a, &inputs);
                         self.schedule_commit_now();
-                        self.status = "Checked. The limits file and the design speed are kept on the alignment for CHECKALL.".into();
+                        self.status = "Checked. The limits selection is kept on the alignment (check.alignment) for CHECKALL and the report pack.".into();
                     }
                 }
                 c.report_rev = revision;

@@ -797,7 +797,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("limits.csv");
         std::fs::write(&path, "#name,test\n#source,test fixture\nlabel,min_radius_m\nrow,150\n").unwrap();
-        dg::store_check(&mut doc, a, &dg::AlignCheckInputs { limits_path: path.display().to_string(), row_label: "row".into() });
+        dg::store_check(&mut doc, a, &dg::AlignCheckInputs { limits_path: path.display().to_string(), row_label: "row".into(), ..Default::default() });
         assert_eq!(rows(&doc)[0].status, Status::Fails);
         std::fs::write(&path, "#name,test\n#source,test fixture\nlabel,min_radius_m\nrow,50\n").unwrap();
         assert_eq!(rows(&doc)[0].status, Status::Passes);
