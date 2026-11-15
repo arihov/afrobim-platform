@@ -53,7 +53,7 @@ pub struct RationalDialog {
     pub element: Option<ElementId>,
     pub form: RationalInputs,
     /// The peak flow and the calculation lines of whichever method ran.
-    result: Option<Result<(f64, Vec<String>), String>>,
+    pub(crate) result: Option<Result<(f64, Vec<String>), String>>,
 }
 
 /// The state of the check windows.

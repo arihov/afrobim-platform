@@ -1,5 +1,6 @@
 //! AfroBIM desktop application.
 
+mod aids;
 mod alignment_glue;
 mod anno_glue;
 mod anno_ui;
@@ -53,6 +54,8 @@ mod u2_align_tests;
 #[cfg(test)]
 mod u2_drain_tests;
 #[cfg(test)]
+mod u2_geom_tests;
+#[cfg(test)]
 mod u2_pack_tests;
 #[cfg(test)]
 mod u2_units_tests;
@@ -103,6 +106,8 @@ pub struct Options {
     pub date: Option<String>,
     /// Sub-tab to show in the Bill and Estimate windows (0 is the first), to look at each without a pointer.
     pub subtab: Option<u8>,
+    /// Screenshot aid: fill a dialog with arbitrary test values (see `aids.rs`).
+    pub aid: Option<String>,
     /// After the demo clash run, zoom to the clash with this index (from 0) in the 3D view.
     pub zoom_clash: Option<usize>,
     /// A limits table (CSV or JSON) that ALIGNCHECK loads when it opens, and the row of it to check against.
@@ -182,6 +187,7 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--run" => o.run = args.next(),
             "--date" => o.date = args.next(),
             "--zoom-clash" => o.zoom_clash = args.next().and_then(|v| v.parse().ok()),
+            "--aid" => o.aid = args.next(),
             "--subtab" => o.subtab = args.next().and_then(|v| v.parse().ok()),
             "--export-set" => o.export_set = args.next().map(PathBuf::from),
             "--sheet-set" => o.sheet_set = args.next(),

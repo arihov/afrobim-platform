@@ -892,9 +892,10 @@ impl AfroBimApp {
         let mut bufs = std::mem::take(&mut self.design.bufs);
         let last = self.design.last.clone();
         let mut bad_input = String::new();
+        let units = crate::anno_ui::units_of(&self.doc);
         let work = crate::win::work_rect(ctx);
         crate::win::new(ctx, "PI table").default_pos(egui::pos2(work.min.x + 16.0, (work.max.y - 250.0).max(work.min.y + 40.0))).open(&mut open).default_width(900.0).default_height(230.0).show(ctx, |ui| {
-            ui.label(RichText::new(format!("{name}: start station {}", format_station(design.horizontal.start_station_m, 3))).strong());
+            ui.label(RichText::new(format!("{name}: start station {}", units.station(design.horizontal.start_station_m))).strong());
             ui.label(RichText::new("Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.").small().weak());
             if let Err(e) = &solution {
                 ui.label(RichText::new(format!("The design cannot be solved: {e}")).color(BAD));
@@ -916,7 +917,7 @@ impl AfroBimApp {
                         if ui.selectable_label(sel_now == Some(i), label).clicked() {
                             sel = Some(i);
                         }
-                        ui.label(station.map(|s| format_station(s, 3)).unwrap_or_default());
+                        ui.label(station.map(|s| units.station(s)).unwrap_or_default());
                         for (k, value) in [(0u8, pi.x), (1u8, pi.y)] {
                             let text = bufs.entry((i, k)).or_insert_with(|| format!("{value:.3}"));
                             let r = ui.add_sized([74.0, 20.0], egui::TextEdit::singleline(text));

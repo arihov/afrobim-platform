@@ -30,7 +30,7 @@ pub enum Outcome {
 
 /// The pavement design dialog.
 pub struct DesignDialog {
-    form: DesignForm,
+    pub(crate) form: DesignForm,
     /// The pavement the inputs are kept on (`check.pavement_design`), so the model-wide check can
     /// compare the design with its layers. None: the design is run without being kept.
     element: Option<ElementId>,
@@ -54,7 +54,7 @@ pub struct RoadDialogs {
     barrier: Option<(Option<ElementId>, RestraintRequest)>,
     pavement: Option<(Option<ElementId>, PavementRequest)>,
     speed: Option<(ElementId, SpeedInput)>,
-    design: Option<DesignDialog>,
+    pub(crate) design: Option<DesignDialog>,
     corridor: Option<(Option<ElementId>, CorridorRequest)>,
     sections: Option<SectionsView>,
     lighting_check: Option<crate::lighting_inputs::LightingCheck>,
@@ -700,7 +700,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut run, mut create) = (true, false, false);
     crate::win::new(ctx, "Pavement design").collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label("Method");
             for (i, m) in road_glue::methods().iter().enumerate() {
                 ui.selectable_value(&mut d.form.method, i, m.name());

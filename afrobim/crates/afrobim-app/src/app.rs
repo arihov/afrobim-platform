@@ -105,7 +105,7 @@ pub struct AfroBimApp {
     pub(crate) design_report: Option<(String, Vec<String>)>,
     /// The dialogs of street lighting, road restraint, pavement, pavement design and corridors,
     /// and the cross-section window.
-    road: road_dialogs::RoadDialogs,
+    pub(crate) road: road_dialogs::RoadDialogs,
     /// The built 3D surfaces of corridors.
     pub(crate) corridor_cache: HashMap<ElementId, CorridorSurfaces>,
     /// The "Place on alignment" dialog: sign, alignment, station (m), offset (m), right side.
@@ -435,6 +435,9 @@ impl AfroBimApp {
                 Err(e) => eprintln!("AfroBIM: sheet export failed: {e}"),
             }
             app.quit = true;
+        }
+        if let Some(aid) = app.options.aid.clone() {
+            app.apply_aid(&aid);
         }
         if let Some(path) = app.options.export_pack.clone() {
             app.pack_compose();
