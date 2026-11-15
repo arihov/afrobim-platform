@@ -45,6 +45,8 @@ mod supports_glue;
 #[cfg(test)]
 mod u1_tests;
 #[cfg(test)]
+mod u2_drain_tests;
+#[cfg(test)]
 mod u2_tests;
 mod underlay;
 mod view3d;

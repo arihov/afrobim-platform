@@ -440,7 +440,7 @@ fn drain(doc: &Document, e: &Element, m: &mut Maker) {
         Ok(p) => p,
         Err(why) => return m.push(e, check, Status::InputNeeded, format!("{why}: run CHECK on this drain"), Vec::new()),
     };
-    let basis = if params.dmrb { DesignBasis::Dmrb } else { DesignBasis::Mowt };
+    let basis = params.basis;
     match def.check_capacity(basis, params.flow_m3_s, params.freeboard_m) {
         Err(DrainageError::InvalidInput(why)) => m.push(e, check, Status::InputNeeded, format!("{why}: set it in Properties"), Vec::new()),
         Err(other) => m.push(e, check, Status::NotChecked, other.to_string(), Vec::new()),
@@ -480,8 +480,7 @@ fn culvert(doc: &Document, e: &Element, m: &mut Maker) {
         return;
     }
     // Layout limits: they need no entry but the basis, which is the engineer's choice (stored with the culvert's other inputs).
-    let dmrb = stored.as_ref().is_some_and(|s| s.dmrb);
-    let basis = if dmrb { DesignBasis::Dmrb } else { DesignBasis::Mowt };
+    let basis = stored.as_ref().map_or(DesignBasis::Mowt, |s| s.basis());
     let notes = def.layout_notes(basis);
     let mut lines = vec![format!("Layout limits of the {} basis. {}", basis.name(), basis.basis_line())];
     lines.extend(note_lines(&notes));
@@ -493,15 +492,57 @@ fn culvert(doc: &Document, e: &Element, m: &mut Maker) {
         m.push(e, "Culvert layout limits", Status::Passes, format!("no layout limit of the {} basis is breached{basis_note}", basis.name()), lines);
     }
 
-    // Outlet control.
+    // Hydraulics: the basis decides which check. DMRB has no hydraulic culvert check in the engine.
     let check = "Culvert outlet control (MoWT DDM 9.4.2)";
     let Some(stored) = stored else {
         return m.push(e, check, Status::InputNeeded, "no flow, Manning's n, entrance loss or tailwater is stored for this culvert: select it and run CHECK and enter them", Vec::new());
     };
+    match stored.basis() {
+        DesignBasis::Dmrb => return m.push(e, "Culvert hydraulic check", Status::NotChecked, "the UK DMRB basis has no culvert hydraulic check in the engine; only its layout limits are checked. Choose MoWT or SANRAL in CHECK for a hydraulic check", Vec::new()),
+        DesignBasis::Sanral => return sanral_culvert(&def, &stored, rational.as_ref(), e, m),
+        _ => {}
+    }
     let p = match stored.params(rational.as_ref()) {
         Ok(p) => p,
         Err(why) => return m.push(e, check, Status::InputNeeded, format!("{why}: run CHECK on this culvert"), Vec::new()),
     };
+    // The complete check (inlet and outlet control, the greater, the allowable headwater) when the
+    // inlet edge and the allowable headwater are entered; else the outlet half alone, said so.
+    let edge = stored.inlet_edge.and_then(|i| inputs::circular_inlets().get(i).copied());
+    let allowable = match stored.allowable_headwater() {
+        Ok(a) => a,
+        Err(why) => return m.push(e, check, Status::InputNeeded, why, Vec::new()),
+    };
+    if let (Some(edge), Some(allowable)) = (edge, allowable) {
+        let check = "Culvert complete check (MoWT DDM 9.4 and FHWA HDS-5 inlet control)";
+        match def.culvert_check(p.flow_m3_s, p.manning_n, p.entrance_ke, p.tailwater_m, edge, allowable, p.shoulder_level_m.zip(p.major_road)) {
+            Err(DrainageError::InvalidInput(why)) => return m.push(e, check, Status::InputNeeded, why, Vec::new()),
+            Err(other) => return m.push(e, check, Status::NotChecked, other.to_string(), Vec::new()),
+            Ok(c) => {
+                // The existing outlet lines first, unchanged; then the additional lines.
+                let mut lines = p.rational_lines.clone();
+                if let Ok(oc) = def.outlet_control(p.flow_m3_s, p.manning_n, p.entrance_ke, p.tailwater_m) {
+                    lines.extend(oc.calculation());
+                }
+                lines.extend(c.additional_lines());
+                let control = c.governing.label();
+                if c.passes() {
+                    return m.push(e, check, Status::Passes, format!("{control} governs: headwater {:.3} m above the inlet invert, within the allowable {allowable} m", c.headwater_m), lines);
+                }
+                let mut why = Vec::new();
+                if !c.within_allowable {
+                    why.push(format!("the headwater {:.3} m exceeds the allowable {allowable} m", c.headwater_m));
+                }
+                if !c.within_ratio_limit {
+                    why.push(format!("HW/D = {:.2} exceeds the limit of {} (DDM Section 9.3)", c.headwater_ratio, mowt::HEADWATER_RATIO_LIMIT));
+                }
+                if let Some((free, false)) = c.freeboard {
+                    why.push(format!("the freeboard {free:.3} m is below the DDM requirement"));
+                }
+                return m.push(e, check, Status::Fails, format!("{control} governs; {}", why.join("; ")), lines);
+            }
+        }
+    }
     match def.outlet_control(p.flow_m3_s, p.manning_n, p.entrance_ke, p.tailwater_m) {
         Err(DrainageError::InvalidInput(why)) => m.push(e, check, Status::InputNeeded, why, Vec::new()),
         Err(other) => m.push(e, check, Status::NotChecked, other.to_string(), Vec::new()),
@@ -527,9 +568,37 @@ fn culvert(doc: &Document, e: &Element, m: &mut Maker) {
                 }
             }
             if fails.is_empty() {
-                m.push(e, check, Status::Passes, format!("outlet control only: HWoi/D = {:.2} within the limit of {}; inlet control is not computed, so this does not size the culvert", oc.headwater_ratio, mowt::HEADWATER_RATIO_LIMIT), lines);
+                m.push(e, check, Status::InputNeeded, format!("outlet control only: HWoi/D = {:.2} within the limit of {}. Inlet control is not computed until the inlet edge and the allowable headwater are entered (CHECK), so this does not size the culvert", oc.headwater_ratio, mowt::HEADWATER_RATIO_LIMIT), lines);
             } else {
                 m.push(e, check, Status::Fails, fails.join("; "), lines);
+            }
+        }
+    }
+}
+
+/// The SANRAL culvert check (SDM Table 7.2 inlet control and Eq. 7.4 outlet control).
+fn sanral_culvert(def: &PipeCulvertDefinition, stored: &CulvertInputs, rational: Option<&RationalInputs>, e: &Element, m: &mut Maker) {
+    use afrobim_drainage::design::sanral;
+    let check = "Culvert SANRAL check (SDM Table 7.2 and Eq. 7.4)";
+    let (flow, rational_lines) = match stored.flow(rational) {
+        Ok(f) => f,
+        Err(why) => return m.push(e, check, Status::InputNeeded, format!("{why}: run CHECK on this culvert"), Vec::new()),
+    };
+    let input = match stored.sanral.input(def, flow) {
+        Ok(i) => i,
+        Err(why) => return m.push(e, check, Status::InputNeeded, format!("{why}: run CHECK on this culvert"), Vec::new()),
+    };
+    match sanral::culvert_check_sanral(&input) {
+        Err(DrainageError::InvalidInput(why)) => m.push(e, check, Status::InputNeeded, why, Vec::new()),
+        Err(other) => m.push(e, check, Status::NotChecked, other.to_string(), Vec::new()),
+        Ok(r) => {
+            let mut lines = rational_lines;
+            lines.extend(r.calculation());
+            let control = if r.inlet_governs { "inlet control" } else { "outlet control" };
+            if r.passes() {
+                m.push(e, check, Status::Passes, format!("{control} governs: H1 = {:.3} m, H1/D = {:.2}", r.h1_m, r.h1_over_d), lines);
+            } else {
+                m.push(e, check, Status::Fails, format!("{control} governs: H1 = {:.3} m, H1/D = {:.2}; a SANRAL limit is not met (see the lines)", r.h1_m, r.h1_over_d), lines);
             }
         }
     }
@@ -802,7 +871,7 @@ mod tests {
         inputs::save(&mut doc, id, inputs::KEY_CULVERT, &stored);
         let r = report(&doc);
         let outlet = r.rows.iter().find(|row| row.element == id && row.check.starts_with("Culvert outlet control")).unwrap();
-        assert!(matches!(outlet.status, Status::Passes | Status::Fails), "{outlet:?}");
+        assert!(matches!(outlet.status, Status::InputNeeded | Status::Fails), "{outlet:?}");
         let expected = def.outlet_control(0.3, 0.013, 0.5, 0.2).unwrap().calculation();
         assert_eq!(outlet.lines, expected);
         assert!(outlet.lines.iter().any(|l| l.starts_with("Check: Inlet control is not computed")));

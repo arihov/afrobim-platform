@@ -8,7 +8,8 @@
 
 use std::collections::BTreeSet;
 
-use afrobim_drainage::design::mowt::{self, PipeEntrance, PipeWall};
+use afrobim_drainage::design::mowt::{PipeEntrance, PipeWall};
+use afrobim_drainage::design::DesignBasis;
 use afrobim_kernel::{Document, ElementId, Note, SelectMode};
 use egui::{Color32, RichText, Ui};
 
@@ -51,7 +52,8 @@ pub struct CulvertDialog {
 pub struct RationalDialog {
     pub element: Option<ElementId>,
     pub form: RationalInputs,
-    result: Option<Result<mowt::RationalResult, String>>,
+    /// The peak flow and the calculation lines of whichever method ran.
+    result: Option<Result<(f64, Vec<String>), String>>,
 }
 
 /// The state of the check windows.
@@ -94,6 +96,200 @@ fn field(ui: &mut Ui, label: &str, value: &mut String, hint: &str) {
     ui.label(label);
     ui.add(egui::TextEdit::singleline(value).hint_text(hint).desired_width(180.0));
     ui.end_row();
+}
+
+/// The three bases, one choice. Each basis keeps its own values; nothing carries across.
+fn basis_radios(ui: &mut Ui, form: &mut DrainInputs) {
+    let mut basis = form.basis();
+    ui.vertical(|ui| {
+        for b in DesignBasis::EVERY {
+            ui.radio_value(&mut basis, b, basis_label(b));
+        }
+    });
+    if basis != form.basis() {
+        form.set_basis(basis);
+    }
+}
+
+fn culvert_basis_radios(ui: &mut Ui, form: &mut CulvertInputs) {
+    let mut basis = form.basis();
+    ui.vertical(|ui| {
+        for b in DesignBasis::EVERY {
+            ui.radio_value(&mut basis, b, basis_label(b));
+        }
+    });
+    if basis != form.basis() {
+        form.set_basis(basis);
+    }
+}
+
+fn basis_label(b: DesignBasis) -> &'static str {
+    match b {
+        DesignBasis::Mowt => "MoWT Road Design Manual Vol. 2 (2010)",
+        DesignBasis::Dmrb => "UK DMRB (CG 501, CD 521)",
+        _ => "SANRAL Drainage Manual, 6th edition (2013)",
+    }
+}
+
+/// The SANRAL rational method entries: run-off coefficient from the Table 3.7 classes, the time
+/// of concentration by reach, and the point rainfall depth, which is always yours.
+fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
+    use afrobim_drainage::design::sanral::UrbanUse;
+    let small = |ui: &mut Ui, text: &str| {
+        ui.label(RichText::new(text).small());
+    };
+    ui.label(RichText::new("Run-off coefficient (SDM Table 3.7 and 3.8)").strong());
+    egui::Grid::new("sanral-basic").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+        field(ui, "Catchment area (km²)", &mut s.area_km2, "enter the area");
+        field(ui, "Mean annual precipitation (mm)", &mut s.map_mm, "selects the column of Table 3.7");
+        field(ui, "Dolomitic share of the rural area (%)", &mut s.dolomite_percent, "enter 0 if none");
+        ui.label("Catchment kind for Ft (Table 3.8)");
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut s.ft_class, Some(0), "steep and impermeable");
+            ui.selectable_value(&mut s.ft_class, Some(1), "flat and permeable");
+        });
+        ui.end_row();
+        field(ui, "Return period (years, or maximum)", &mut s.return_period, "2, 5, 10, 20, 50, 100");
+        field(ui, "Rural area factor alpha", &mut s.alpha, "alpha + beta + gamma = 1");
+        field(ui, "Urban area factor beta", &mut s.beta, "");
+        field(ui, "Lakes area factor gamma", &mut s.gamma, "");
+        field(ui, "Run-off coefficient of lakes C3", &mut s.lakes_c3, "only with lakes");
+    });
+    small(ui, "Shares of the rural area in each class, percent; leave a class empty when it is not present. Each group adds up to 100.");
+    egui::Grid::new("sanral-shares").num_columns(3).spacing([14.0, 4.0]).show(ui, |ui| {
+        ui.vertical(|ui| {
+            for ((_, name), v) in inputs::RURAL_SLOPES.iter().zip(s.slope.iter_mut()) {
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(v).desired_width(44.0));
+                    ui.label(RichText::new(*name).small());
+                });
+            }
+        });
+        ui.vertical(|ui| {
+            for ((_, name), v) in inputs::RURAL_PERMEABILITY.iter().zip(s.permeability.iter_mut()) {
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(v).desired_width(44.0));
+                    ui.label(RichText::new(*name).small());
+                });
+            }
+        });
+        ui.vertical(|ui| {
+            for ((_, name), v) in inputs::RURAL_VEGETATION.iter().zip(s.vegetation.iter_mut()) {
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(v).desired_width(44.0));
+                    ui.label(RichText::new(*name).small());
+                });
+            }
+        });
+        ui.end_row();
+        small(ui, "Surface slope (Cs)");
+        small(ui, "Permeability (Cp)");
+        small(ui, "Vegetation (Cv)");
+        ui.end_row();
+    });
+    ui.add_space(4.0);
+    ui.label(RichText::new("Urban parts (C2): the factor is yours, within the printed range shown").strong());
+    let mut remove = None;
+    for (i, u) in s.urban.iter_mut().enumerate() {
+        ui.horizontal(|ui| {
+            let shown = u.land_use.map(|k| UrbanUse::ALL[k.min(11)].label().to_string()).unwrap_or_else(|| "land use".to_string());
+            egui::ComboBox::from_id_salt(format!("sanral-urban-{i}")).width(210.0).selected_text(shown).show_ui(ui, |ui| {
+                for (k, use_) in UrbanUse::ALL.iter().enumerate() {
+                    let (lo, hi) = use_.range();
+                    ui.selectable_value(&mut u.land_use, Some(k), format!("{} ({lo} to {hi})", use_.label()));
+                }
+            });
+            ui.add(egui::TextEdit::singleline(&mut u.percent).hint_text("share %").desired_width(60.0));
+            ui.add(egui::TextEdit::singleline(&mut u.factor).hint_text("factor").desired_width(60.0));
+            if ui.small_button("x").clicked() {
+                remove = Some(i);
+            }
+        });
+    }
+    if let Some(i) = remove {
+        s.urban.remove(i);
+    }
+    if ui.button("Add an urban part").clicked() {
+        s.urban.push(inputs::UrbanRow::default());
+    }
+    ui.add_space(6.0);
+    ui.label(RichText::new("Time of concentration, by reach (SDM 3.5.1.4)").strong());
+    let mut remove = None;
+    for (i, r) in s.reaches.iter_mut().enumerate() {
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut r.kind, 0, "overland (Kerby)");
+            ui.selectable_value(&mut r.kind, 1, "channel");
+            ui.selectable_value(&mut r.kind, 2, "urban");
+            if r.kind == 0 {
+                ui.add(egui::TextEdit::singleline(&mut r.r).hint_text("r").desired_width(44.0));
+            }
+            ui.add(egui::TextEdit::singleline(&mut r.length).hint_text(if r.kind == 2 { "length m" } else { "length km" }).desired_width(70.0));
+            ui.add(egui::TextEdit::singleline(&mut r.slope_or_velocity).hint_text(if r.kind == 2 { "velocity m/s" } else { "slope m/m" }).desired_width(80.0));
+            if ui.small_button("x").clicked() {
+                remove = Some(i);
+            }
+        });
+    }
+    if let Some(i) = remove {
+        s.reaches.remove(i);
+    }
+    if ui.button("Add a reach").clicked() {
+        s.reaches.push(inputs::ReachRow::default());
+    }
+    ui.add_space(6.0);
+    ui.label(RichText::new("Rainfall (always yours)").strong());
+    egui::Grid::new("sanral-rain").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+        field(ui, "Point rainfall depth for Tc and T (mm)", &mut s.point_rainfall_mm, "from the DDF, Hershfield or Design Rainfall Estimation");
+        field(ui, "Where the depth comes from", &mut s.rainfall_source, "your source and its date");
+        ui.label("Area reduction factor");
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut s.area_reduction, 0, "SDM Eq. 3.10");
+            ui.selectable_value(&mut s.area_reduction, 1, "a value I enter");
+            ui.selectable_value(&mut s.area_reduction, 2, "not applied");
+            if s.area_reduction == 1 {
+                ui.add(egui::TextEdit::singleline(&mut s.area_reduction_percent).hint_text("%").desired_width(50.0));
+            }
+        });
+        ui.end_row();
+    });
+    ui.label(RichText::new("SANRAL Drainage Manual, 6th edition (2013), Section 3.5.1. AfroBIM holds no rainfall data and no map: the depth, the shares and the factors are yours. Every field starts empty.").small().weak());
+}
+
+/// The SANRAL culvert entries below the flow. The slope unit is a question with no default.
+fn sanral_culvert_rows(ui: &mut Ui, s: &mut inputs::SanralCulvertEntries) {
+    ui.label("How the bed slope is read in Table 7.2");
+    ui.vertical(|ui| {
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut s.slope_unit, Some(0), "metre per metre");
+            ui.selectable_value(&mut s.slope_unit, Some(1), "per cent");
+            if s.slope_unit.is_none() {
+                ui.label(RichText::new("not answered").color(WARN));
+            }
+        });
+        ui.label(RichText::new(inputs::SLOPE_UNIT_NOTE).small().weak());
+    });
+    ui.end_row();
+    field(ui, "Inlet loss coefficient Kin", &mut s.k_in, "enter Kin");
+    field(ui, "Outlet loss coefficient Kout", &mut s.k_out, "enter Kout");
+    ui.label("Barrel friction");
+    ui.horizontal(|ui| {
+        ui.selectable_value(&mut s.friction_mode, 0, "Manning n");
+        ui.selectable_value(&mut s.friction_mode, 1, "Colebrook ks (m)");
+        ui.add(egui::TextEdit::singleline(&mut s.friction_value).hint_text("enter the value").desired_width(110.0));
+    });
+    ui.end_row();
+    field(ui, "Downstream energy level H2 (m)", &mut s.h2_m, "above the outlet invert");
+    field(ui, "Shoulder break height above the inlet invert (m)", &mut s.shoulder_break_height_m, "optional");
+    ui.label("Road class (SDM Table 7.1)");
+    let shown = s.road_class.map(|i| inputs::ROAD_CLASSES[i.min(4)].label().to_string()).unwrap_or_else(|| "choose the class".to_string());
+    egui::ComboBox::from_id_salt("culvert-road-class").width(380.0).selected_text(shown).show_ui(ui, |ui| {
+        for (i, c) in inputs::ROAD_CLASSES.iter().enumerate() {
+            ui.selectable_value(&mut s.road_class, Some(i), c.label());
+        }
+    });
+    ui.end_row();
+    field(ui, "Flow at twice the return period (m³/s)", &mut s.twice_flow_m3_s, "optional");
+    field(ui, "H2 at twice the return period (m)", &mut s.twice_h2_m, "with the flow above");
 }
 
 fn flow_rows(ui: &mut Ui, flow: &mut String, from_rational: &mut bool, has_rational: bool, open_rational: &mut bool) {
@@ -344,10 +540,7 @@ impl AfroBimApp {
             egui::Grid::new("drain-check").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                 flow_rows(ui, &mut d.form.flow_m3_s, &mut d.form.flow_from_rational, has_rational, &mut rational);
                 ui.label("Basis");
-                ui.vertical(|ui| {
-                    ui.radio_value(&mut d.form.dmrb, false, "MoWT Road Design Manual Vol. 2 (2010)");
-                    ui.radio_value(&mut d.form.dmrb, true, "UK DMRB (CG 501, CD 521)");
-                });
+                basis_radios(ui, &mut d.form);
                 ui.end_row();
                 field(ui, "Required freeboard (m)", &mut d.form.required_freeboard_m, "only if the project states one");
             });
@@ -397,6 +590,11 @@ impl AfroBimApp {
         crate::win::new(ctx, format!("Check the culvert {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
             egui::Grid::new("culvert-check").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                 flow_rows(ui, &mut d.form.flow_m3_s, &mut d.form.flow_from_rational, has_rational, &mut rational);
+                ui.label("Design basis");
+                culvert_basis_radios(ui, &mut d.form);
+                ui.end_row();
+                let basis = d.form.basis();
+                if basis == DesignBasis::Mowt {
                 ui.label("Manning's n of the barrel");
                 ui.vertical(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut d.form.manning_n).hint_text("enter n").desired_width(180.0));
@@ -430,12 +628,16 @@ impl AfroBimApp {
                 });
                 ui.end_row();
                 field(ui, "Tailwater depth above the outlet invert (m)", &mut d.form.tailwater_m, "enter the depth");
-                ui.label("Layout limits of");
-                ui.vertical(|ui| {
-                    ui.radio_value(&mut d.form.dmrb, false, "MoWT Road Design Manual Vol. 2 (2010)");
-                    ui.radio_value(&mut d.form.dmrb, true, "UK DMRB");
+                ui.label("Inlet edge (HDS-5 Table A.1)");
+                let inlets = inputs::circular_inlets();
+                let shown = d.form.inlet_edge.and_then(|i| inlets.get(i)).map(|e| e.label().to_string()).unwrap_or_else(|| "choose the inlet".to_string());
+                egui::ComboBox::from_id_salt("culvert-inlet-edge").width(380.0).selected_text(shown).show_ui(ui, |ui| {
+                    for (i, e) in inlets.iter().enumerate() {
+                        ui.selectable_value(&mut d.form.inlet_edge, Some(i), e.label());
+                    }
                 });
                 ui.end_row();
+                field(ui, "Allowable headwater above the inlet invert (m)", &mut d.form.allowable_headwater_m, "the engineer's limit");
                 field(ui, "Shoulder break level at the road low point (m)", &mut d.form.shoulder_level_m, "only for the freeboard");
                 ui.label("The road is");
                 ui.horizontal(|ui| {
@@ -444,9 +646,16 @@ impl AfroBimApp {
                     ui.selectable_value(&mut d.form.major_road, Some(false), "a minor road");
                 });
                 ui.end_row();
+                } else if basis == DesignBasis::Sanral {
+                    sanral_culvert_rows(ui, &mut d.form.sanral);
+                } else {
+                    ui.label("");
+                    ui.label(RichText::new("The UK DMRB basis has no culvert hydraulic check in the engine: only its layout limits are checked. Choose MoWT or SANRAL for the hydraulics.").small().color(WARN));
+                    ui.end_row();
+                }
             });
             ui.add_space(4.0);
-            ui.label(RichText::new("The outlet-control headwater follows MoWT DDM Section 9.4.2 and is one half of a culvert check: inlet control is not computed. Every field starts empty and what you enter is kept on the culvert, for CHECKALL.").small().weak());
+            ui.label(RichText::new("MoWT: the complete check is inlet control (FHWA HDS-5 equations, the inlet edge you choose) and outlet control (DDM Section 9.4.2); the greater governs and is named, and the outlet lines are shown first. With no inlet edge or allowable headwater only the outlet half is shown, and it is marked as incomplete. SANRAL: SDM Table 7.2 and Eq. 7.4, for the barrel of this element. Each basis keeps its own values. Every field starts empty and what you enter is kept on the culvert, for CHECKALL.").small().weak());
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 if ui.button("Check").clicked() {
@@ -469,8 +678,8 @@ impl AfroBimApp {
                 lines.push(format!("{}: {}. {}", r.check, r.status.label(), r.reason));
                 lines.extend(r.lines.iter().cloned());
             }
-            match rows.iter().find(|r| r.check.starts_with("Culvert outlet control")) {
-                Some(r) if r.status == Status::InputNeeded => {
+            match rows.iter().find(|r| r.check.starts_with("Culvert outlet control") || r.check.starts_with("Culvert complete check") || r.check.starts_with("Culvert SANRAL") || r.check.starts_with("Culvert hydraulic")) {
+                Some(r) if r.status == Status::InputNeeded && r.lines.is_empty() => {
                     self.status = format!("Not checked: {}", r.reason);
                     self.checks.culvert = Some(d);
                 }
@@ -500,6 +709,14 @@ impl AfroBimApp {
         .default_width(600.0)
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(520.0).auto_shrink([false, true]).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Method");
+                    ui.selectable_value(&mut d.form.use_sanral, false, "MoWT (Vol. 2, 4.4.2)");
+                    ui.selectable_value(&mut d.form.use_sanral, true, "SANRAL (Drainage Manual 3.5.1)");
+                });
+                if d.form.use_sanral {
+                    sanral_rational_form(ui, &mut d.form.sanral);
+                } else {
                 ui.label(RichText::new("Parts of the catchment").strong());
                 let mut remove = None;
                 egui::Grid::new("rational-rows").num_columns(4).spacing([8.0, 4.0]).show(ui, |ui| {
@@ -532,6 +749,7 @@ impl AfroBimApp {
                 });
                 ui.add_space(4.0);
                 ui.label(RichText::new("MoWT Road Design Manual Vol. 2, Sections 4.4.2 and 4.4.3. AfroBIM holds no rainfall data: the intensity, the areas and the runoff coefficients are yours. Every field starts empty.").small().weak());
+                }
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     if ui.button("Calculate").clicked() {
@@ -548,10 +766,10 @@ impl AfroBimApp {
                     }
                 });
                 match &d.result {
-                    Some(Ok(r)) => {
+                    Some(Ok((q, lines))) => {
                         ui.separator();
-                        ui.label(RichText::new(format!("Design peak flow Q = {:.3} m³/s", r.peak_flow_m3_s)).strong());
-                        for l in r.calculation() {
+                        ui.label(RichText::new(format!("Design peak flow Q = {q:.3} m³/s")).strong());
+                        for l in lines.iter().cloned() {
                             let flagged = l.starts_with("Check:");
                             let text = RichText::new(l).small().monospace();
                             ui.label(if flagged { text.color(WARN) } else { text });
@@ -566,9 +784,9 @@ impl AfroBimApp {
             });
         });
         if calculate {
-            d.result = Some(d.form.run());
-            if let Some(Ok(r)) = &d.result {
-                self.status = format!("Rational method: Q = {:.3} m³/s.", r.peak_flow_m3_s);
+            d.result = Some(d.form.run_flow());
+            if let Some(Ok((q, _))) = &d.result {
+                self.status = format!("Rational method ({}): Q = {q:.3} m³/s.", if d.form.use_sanral { "SANRAL" } else { "MoWT" });
                 if let (true, Some(id)) = (use_it, d.element) {
                     inputs::save(&mut self.doc, id, inputs::KEY_RATIONAL, &d.form);
                     // The drain or culvert takes its flow from these inputs from now on.
