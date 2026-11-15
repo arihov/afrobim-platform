@@ -8,8 +8,9 @@
 //!   returns the recomputed solution or the reason it is impossible, leaving the design unchanged.
 //! - [`AlignmentDesign::build`] gives an `afrobim_alignment::Alignment` with its `Profile`, the
 //!   same type an imported alignment has; [`write_landxml`] exports it.
-//! - [`run_checks`]: design checks against limits the user supplies ([`DesignBasis`]). No limits
-//!   are built in.
+//! - [`run_checks`]: design checks against limits the user supplies ([`DesignBasis`], from CSV or JSON), or
+//!   against the built-in Uganda MoWT Road Design Manual Volume I (January 2010) basis, [`DesignBasis::mowt_2010`];
+//!   the typed lookups of the manual's tables are in [`mowt`]. No other limits are built in.
 //! - [`OptionSet`], [`compare_options`], [`score`], [`options_comparison_csv`]: several options compared on
 //!   figures computed from the model, with the user's own weights.
 //! - [`add_design`], [`store_design`], [`DesignModule`] and friends: the document elements.
@@ -23,6 +24,7 @@ mod error;
 mod fit;
 mod horizontal;
 mod landxml;
+pub mod mowt;
 mod module;
 mod options;
 pub mod physics;
@@ -31,6 +33,7 @@ mod vertical;
 pub use checks::{run_checks, Bound, CheckItem, CheckOptions, CheckReport, CheckStatus, DesignBasis, StandardRow};
 pub use design::{AlignmentDesign, DesignedAlignment};
 pub use error::{DesignError, Problem};
+pub use mowt::{builtin_bases, BuiltinBasisInfo, BuiltinSelection, MowtOptions};
 pub use fit::{fit_to_ground, FitInputs, FitResult, FIT_LABEL};
 pub use horizontal::{CurveData, HorizontalDesign, HorizontalSolution, TangentData};
 pub use landxml::{write_landxml, LandXmlOptions};
