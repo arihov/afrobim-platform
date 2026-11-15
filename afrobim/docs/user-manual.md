@@ -118,6 +118,13 @@ These come from `crates/afrobim-app/src/main.rs`. An argument that is not an opt
 | `--photometry FILE` | Opens the Photometry window with this IES or LDT file loaded. With `--photometry-run`, also runs it on arbitrary demo settings. |
 | `--underlay FILE[,dx,dy,rot]` | Attaches this DXF as an underlay (millimetres, degrees). |
 | `--signschedule FILE` | Reads this sign schedule CSV at start-up and opens its mapping and plan windows. |
+| `--survey FILE` | Makes a ground surface from this file of survey points at start-up. Needs `--survey-order`. |
+| `--survey-order ORDER` | The columns of the point file: `PNEZD`, `PENZD`, `NEZD` or `ENZD` (P point, N northing, E easting, Z level, D description). Not guessed. |
+| `--survey-crs NAME` | The coordinate system of the point file, for example `"WGS 84 / UTM zone 36S"` or `EPSG:32736`. Optional. |
+| `--survey-max-side M` | The longest side a triangle may have, in metres. Optional: with none, the surface fills the convex hull of the points. |
+| `--survey-exclude CODES` | Descriptions whose points are left out, separated by commas; a trailing `*` matches any ending (`CULV-*`). |
+| `--survey-name NAME` | The name of the surface; the file's name when not given. |
+| `--save-as FILE` | Saves the document to this file once the start-up imports are done, then exits. |
 | `--layers-on NAMES` | Switches these layers on at start-up, comma separated. |
 | `--zoom-to x,y,width` | Frames the 2D view on this centre and width (millimetres). |
 | `--xer-in FILE`, `--xer-out FILE` | Imports or exports a Primavera XER file at start-up, to see the reports without a dialog. |
@@ -146,7 +153,7 @@ The menus repeat ribbon commands. They are File, Edit, View, Insert, Annotate, F
 - **File**: New, Open, Save, Save as, Import LandXML alignments, Export DXF, Export IFC 4.3, Export quantities (BoQ), Export fabrication sheets, Quit.
 - **Edit**: Undo, Redo, Copy, Paste, Erase, Select all.
 - **View**: zoom commands, Grid, Snap, Ortho, 2D model space or 3D view, Real or Outlined display, dark or light model space and theme.
-- **Insert**: Standard signs, Sign schedule from CSV, the export and blank template of the sign schedule, DXF underlay.
+- **Insert**: Standard signs, Sign schedule from CSV, the export and blank template of the sign schedule, Survey points (CSV), DXF underlay.
 - **Annotate**: element marks and the annotation commands.
 - **Format**: the design standard, UK or Uganda. The active standard is marked with a dot.
 - **Modify**: Place the sign on an alignment, Add supports, Design the sign's supports, Remove the sign's supports, Move, Copy, Erase, Arrange.
@@ -254,7 +261,7 @@ This walkthrough follows the order a road design takes. Each step names the comm
 1. **Settings and units.** Choose the design standard with `UK` (UK Traffic Signs Manual) or `UGANDA` (Uganda Traffic Signs Manual 2004). Set the project information with `PROJECTINFO` (Manage tab). Set the display units with `UNITS` (length, stations, areas, volumes, angles). Set the speed band rule for km/h limits with `PROJECTSETTINGS`. The rule is stored in the document and is stated in every calculation that uses it.
 2. **Alignment.** Either import one with `LANDXML` (File → Import LandXML, or Roads → Alignment), or design one. To design one: `ALIGNDESIGN`, name the alignment, give its start station, then pick PIs on the plan or type them as `x,y` on the command line. Curves start with no radius; enter each radius in `PITABLE`. Edit the plan with `ALIGNEDIT` and the vertical profile with `PROFILEDESIGN`.
 3. **Check the alignment.** Load a limits table (CSV or JSON) and run `ALIGNCHECK`, or use the built-in MoWT Road Design Manual Vol. I basis, which holds its own limits and their sources. Compare design options with `OPTIONS`.
-4. **Ground surface and corridor.** Import a survey surface from a LandXML TIN with `SURFACE`. Build a corridor with `CORRIDOR`: a typical section (lane, shoulder, formation depth, side slopes, all entered), along the alignment against the surface. View cross-sections with `SECTIONS`, and the earthworks by average end area under `QUANTITIES`.
+4. **Ground surface and corridor.** Import a survey surface from a LandXML TIN with `SURFACE`, or make one from a file of survey points with `SURVEY`. Build a corridor with `CORRIDOR`: a typical section (lane, shoulder, formation depth, side slopes, all entered), along the alignment against the surface. View cross-sections with `SECTIONS`, and the earthworks by average end area under `QUANTITIES`.
 5. **Signs.** Insert a sign with `STACK`, `DIRECTION`, `CONFIRM`, `PLACE`, `LANE`, `DIVERSION`, `MAP`, `TEE` or `ROUNDABOUT`, or pick a standard sign from `LIBRARY`. Place the selected sign on the alignment by station and offset with `STATION`, entering the station as shown on the drawings. If the alignment has station equations, pick the stationing region.
 6. **Sign supports.** Select the sign and type `SUPPORTS` to add posts and foundations. Enter the real dimensions in Properties. Type `DESIGN` to size the posts and foundations for wind. Enter the ground and wind inputs in the dialog. For a sign on a gantry, use `GANTRY` or `CANTILEVER`, then `HANG`.
 7. **Road markings.** Lay longitudinal lines with `MARKINGS`, choosing the line type, speed limit, width and station range. Lay transverse, arrow, hatching, yellow-line, stud and worded markings with `MARKTRANSVERSE`, `MARKARROW`, `MARKHATCH`, `MARKYELLOW`, `MARKSTUDS`, `MARKWORD`, and the Uganda lines with `MARKLINES2`.
@@ -341,13 +348,15 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 | `SIGNSCHEDULE` | `SIGNSCHED` | A CSV file (comma, semicolon or tab; quoted; with or without a byte order mark). The column mapping, with a dropdown per file column and a unit for lengths; save or load the mapping as JSON; then the import plan | Sign elements from the rows. Each row that cannot be read gives its reason and line number. Duplicate marks are skipped or updated. Apply is one undo step and ends in a report. |
 | `UNDERLAY` | `XREF`, `XATTACH`, `DXFUNDERLAY` | One or more DXF files; the file units and millimetres per unit (can be overridden); insertion offset (mm), rotation (degrees) and scale; visibility and fade; per-layer switches; optionally draped flat at a level in the 3D view | A read-only underlay element, stored by path and an FNV-1a hash. |
 | `SURFACE` | `TIN`, `TERRAIN` | A LandXML file with a TIN | A ground surface element, used by the profile editor, the corridor and the dimension of a level. |
+| `SURVEY` | `SURVEYPOINTS`, `POINTFILE`, `TOPO` | A text file of survey points, one a line (comma, semicolon, tab or blanks; with or without a heading). The column order (`PNEZD`, `PENZD`, `NEZD`, `ENZD`), with the first points shown as they are read; the coordinate system (a WGS 84 / UTM zone, optional); the longest triangle side in metres (optional); the descriptions to leave out, ticked from the list of those in the file with their counts | A ground surface element triangulated from the points, with its coordinate system kept. The account of the import is in the command history: points read, left out, merged and used, triangles, extent, and the latitude and longitude of the middle of the survey. |
 | `IFCREF` | `REFERENCEMODEL`, `IMPORTIFC` | One or more IFC files (IFC2X3, IFC4 or IFC4X3). A tick box applies the file's IfcMapConversion when it has one; the default is the file's own coordinates | Read-only reference models, stored by path and hash and read again on open. |
 | `REFMODELS` | `REFERENCES`, `REFLIST` | The reference models window: visibility, transparency, offset and rotation, the import report, and the properties of a picked product | Nothing new; it changes how the models are shown. |
 
 **Limits.**
 
 - *LandXML alignments:* not tested against a file exported by Civil 3D. Only the first ProfAlign of a profile is read. Superelevation is stored data only; no rate is computed. Spirals are clothoids only. `IrregularLine` and `Chain` are not supported. LandXML is not written by this command (`LANDXMLOUT` on the Design tab writes it).
-- *Survey surfaces:* hand-built test files only, not tested against a file exported by Civil 3D. Triangulation of survey points or contours is not done.
+- *Survey surfaces:* the LandXML reader was tried on hand-built test files only, not on a file exported by Civil 3D.
+- *Survey points:* the column order is yours to state. With a coordinate system given, a file whose coordinates cannot be in it is refused (the usual cause is northing and easting the wrong way round); with none given nothing can be checked. Only WGS 84 / UTM zones are known, and nothing is reprojected: the system is a record. Points at one plan position (to the millimetre) are merged and the first one read is kept. The triangulation follows Delaunay's rule only: **breaklines are not applied**, so a triangle side can cut across a kerb, a channel or a top of bank, and contours are not read. Without a longest side the surface fills the convex hull of the points, across ground nobody surveyed. Which descriptions are not ground levels is the surveyor's convention: nothing is left out unless you tick it. Coordinates and levels are read as metres. A file dropped on the window is not offered as a survey: use the command.
 - *Sign schedule:* the CSV is read and written; XML is not read. A column mapping step is needed for any layout other than the AfroBIM template. `SIGNSCHEDULEOUT` and `SIGNSCHEDULETEMPLATE` are on the Output tab.
 - *DXF underlays:* DWG is refused (convert to DXF first). Read as DXF R12 to current, ASCII. Line types, line weights, hatch patterns, fonts and styles are not read. Drawn in one muted ink at the chosen fade, not in the file's colours. At most 250 000 segments are drawn a frame; the 3D draping uses the first 40 000. The sheet layout and site coordinates are different systems, so an underlay in survey coordinates appears far from the signs (see Troubleshooting).
 - *IFC reference models:* read-only, for reference. Openings are not subtracted. Colours, materials, layers and type objects are not read. Files of 4 GiB or more are refused. Not opened in a commercial BIM tool.
@@ -481,6 +490,7 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 | `PAVEMENT` | `PAVE` | Mark; carriageway width; cross-fall; shape; layers, top first; optional shoulders | A pavement with its cross-section, slabs at the profile level and layer quantities. |
 | `PAVEDESIGN` | `PAVEMENTDESIGN` | Method: MoWT Volume 3 Part I, UK DMRB, AASHTO 1993, or South African SAPEM Chapter 10. Each method's own form (see 5.7 Limits) | The calculation lines and warnings. For the MoWT, DMRB and AASHTO methods the result can make a pavement from its layers. SAPEM returns no layers. |
 | `SURFACE` | `TIN`, `TERRAIN` | A LandXML file with a TIN | A ground surface element (also under Insert). |
+| `SURVEY` | `SURVEYPOINTS`, `POINTFILE`, `TOPO` | A file of survey points; see Insert (5.2) | A ground surface element triangulated from the points (also under Insert). |
 | `CORRIDOR` | none | Ground surface; Name; Lane width (each side); Lane cross-fall; Formation under the shoulder; Formation depth below paved links; Cut slope and Fill slope (horizontal for 1 vertical); Section interval; Stretch. A "Fill from MoWT class" button fills lane and shoulder widths and cross-fall, with the citation shown | A corridor: a typical section along the alignment, cut and filled against the surface. |
 | `SECTIONS` | `XSECTIONS` | The selected corridor; a station; vertical exaggeration | The cross-section window, station by station. Labels are set beside the drawing, not written to DXF. |
 
@@ -916,6 +926,7 @@ Shortcuts, from `shortcut()` in `ribbon.rs`: Ctrl+N (New), Ctrl+O (Open), Ctrl+S
 | `STYLE` | ST, TEXTSTYLE | Annotate | Manage the named text styles stored in the document |
 | `SUPPORTS` | POSTS | Home, Modify, Structures | Add posts and foundations to the selected sign |
 | `SURFACE` | TIN, TERRAIN | Insert, Roads | Import ground surfaces (TIN) from a LandXML file |
+| `SURVEY` | SURVEYPOINTS, POINTFILE, TOPO | Insert, Roads | Make a ground surface from a file of survey points (CSV or text): column order, coordinate system, longest triangle side, descriptions to leave out |
 | `TEE` | none | Signs | Insert a map-type T-junction sign |
 | `TEXT` | DT, DTEXT | Annotate | Place a line of text: start point, height, rotation, then the text |
 | `TEXTEDIT` | ED | Annotate | Edit the text of the selected text or leader (also a double-click on it) |

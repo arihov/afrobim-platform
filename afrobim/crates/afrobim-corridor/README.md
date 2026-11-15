@@ -9,7 +9,8 @@ factor is entered by the engineer. Nothing is taken from a design manual, and no
 a design against one.
 
 **Not tested against Civil 3D.** No surface, section or volume in the tests came from Civil 3D or
-any other design package. The LandXML test files were written by hand to the schema. Every
+any other design package. The LandXML test files were written by hand to the schema, and the
+survey point file of the tests (`tests/survey/points.csv`) is made up. Every
 expected value in the tests is worked by hand from plane geometry. Before relying on the volumes
 for payment or a bill of quantities, compare a real job against the package you trust.
 
@@ -19,6 +20,8 @@ for payment or a bill of quantities, compare a real job against the package you 
 |---|---|
 | Ground surface (TIN) | `Tin`: elevation at a point, section cut along a line, bounds, boundary edges |
 | LandXML surface import | `read_landxml_surfaces`, `parse_landxml_surfaces` |
+| Survey point file to surface | `read_survey_points`, `parse_survey_points`, `build_survey_surface`, `import_survey_surface` |
+| Coordinate system of a surface | `CoordinateSystem` (WGS 84 / UTM zones), `surface_crs` |
 | Template | `Template`, `TemplateSide`, `Link`, `Slope`, `Daylight`, `TemplateRegion`, `CorridorDefinition` |
 | Sections | `Corridor::build`, `section_at` → `Section` |
 | Areas | `cut_fill_areas`, `polygon_area` |
@@ -61,9 +64,51 @@ triangles, each a plane; a point in no triangle has no elevation.
 - **From code**: `Tin::new(points, triangles)` or `Tin::from_grid(...)`. Indices must be in
   range, coordinates finite and every triangle must have plan area.
 
-Not done: **triangulation**. The crate does not build a surface from scattered survey points or
-contours (no Delaunay). It takes triangles that already exist. Overlapping triangles are not
-detected.
+- **From a file of survey points**: `read_survey_points` then `build_survey_surface`, or
+  `import_survey_surface` for both and the element. See "Survey points" below.
+
+Overlapping triangles are not detected. Contours are not read.
+
+### Survey points
+
+A text file, one point a line: an optional point number, northing and easting in the order the
+caller states (`ColumnOrder`: `PNEZD`, `PENZD`, `NEZD`, `ENZD`), a level and an optional
+description. The delimiter is the comma, semicolon or tab the first lines use, otherwise blanks.
+A first line whose coordinates are not numbers is a heading; any other unreadable line is left
+out and reported by line number. **The column order is never guessed.**
+
+`build_survey_surface` then:
+
+1. leaves out the points whose description is on `SurfaceOptions::exclude` (without regard to
+   case; a trailing `*` matches any ending). The list is empty unless the engineer fills it;
+2. merges points at one plan position, to the millimetre, keeping the first read, and reports how
+   many and the largest difference in level among them;
+3. triangulates by Delaunay's rule with the [`delaunator`](https://crates.io/crates/delaunator)
+   crate (ISC licence; exact predicates from `robust`), on coordinates measured from the
+   south-west corner;
+4. removes triangles with a side longer than `SurfaceOptions::max_side_m`, when one is given;
+5. drops the points no triangle uses.
+
+Not done: **breaklines**. A triangle side can cross a kerb, a channel or a top of bank.
+
+Tests: the reader's cases; the triangle count Euler's formula requires and the levels of a plane on
+a grid; Delaunay's rule checked the slow way (no point inside the circle of any triangle) on 400
+points; exclusions, merging and the side limit; and the errors.
+
+### Coordinate system
+
+`CoordinateSystem` is an EPSG code and a name, kept on the surface element (`crs`). Only the
+WGS 84 / UTM zones are known (EPSG:32601 to 32660 and 32701 to 32760). **Nothing is
+reprojected**: the system records what the stored coordinates mean. `to_geographic` gives the
+latitude and longitude of a coordinate (Krüger series after Karney 2011, third order in the third
+flattening), which the import uses to say where the survey is, and `doubts` says when
+coordinates cannot be in the system: eastings outside 100 000 to 900 000 m, northings outside 0
+to 10 000 000 m, or an extent more than three degrees from the zone's central meridian.
+`import_survey_surface` refuses a file with such doubts.
+
+The inverse projection is tested on worked values only: the zone's origin, one degree along the
+central meridian (meridian arc 110 574.4 m, to a decimetre) and one degree along the equator. It
+was not compared with PROJ or another package.
 
 ### LandXML
 
@@ -225,7 +270,7 @@ called.** Nothing detects that automatically.
 
 ## Limits
 
-- The ground must be a TIN that already exists. No triangulation, no contours.
+- The ground is a TIN from LandXML or triangulated from survey points. No breaklines, no contours.
 - Sections are straight lines square to the alignment. On tight curves with wide sections,
   neighbouring section lines can cross on the inside; nothing checks for that.
 - The daylight is the first meeting of slope and ground. There are no benches, no slope

@@ -53,6 +53,8 @@ pub enum Action {
     PavementDesign,
     /// Import ground surfaces from LandXML.
     ImportSurface,
+    /// Make a ground surface from a file of survey points.
+    ImportSurvey,
     AddCorridor,
     /// Cross-sections of the selected corridor.
     ShowSections,
@@ -228,6 +230,7 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "PAVEMENT", aliases: &["PAVE"], help: "Add a pavement along an alignment: width, cross-fall and a list of layers", action: Action::AddPavement },
     CommandInfo { name: "PAVEDESIGN", aliases: &["PAVEMENTDESIGN"], help: "Design a pavement structure by the MoWT manual, UK DMRB or AASHTO 1993, and make a pavement from the layers", action: Action::PavementDesign },
     CommandInfo { name: "SURFACE", aliases: &["TIN", "TERRAIN"], help: "Import ground surfaces (TIN) from a LandXML file", action: Action::ImportSurface },
+    CommandInfo { name: "SURVEY", aliases: &["SURVEYPOINTS", "POINTFILE", "TOPO"], help: "Make a ground surface from a file of survey points (CSV or text): column order, coordinate system, longest triangle side, descriptions to leave out", action: Action::ImportSurvey },
     CommandInfo { name: "CORRIDOR", aliases: &[], help: "Build a corridor on an alignment and a surface: a typical section, cut and fill, earthworks", action: Action::AddCorridor },
     CommandInfo { name: "SECTIONS", aliases: &["XSECTIONS"], help: "Show the cross-sections of the selected corridor, station by station", action: Action::ShowSections },
     CommandInfo { name: "HANG", aliases: &["GANTRYSIGN"], help: "Hang the selected sign on a gantry", action: Action::HangSign },

@@ -158,7 +158,7 @@ impl AfroBimApp {
                 }
             });
             if surfaces.is_empty() {
-                ui.label(RichText::new("There is no survey surface in this document, so there is no ground line. Import one with SURFACE (LandXML).").small().color(WARN));
+                ui.label(RichText::new("There is no survey surface in this document, so there is no ground line. Import one with SURFACE (LandXML) or make one with SURVEY (a point file).").small().color(WARN));
             }
             let exag = parse(&ui_state.exag_text).filter(|v| *v > 0.0);
             if !ui_state.exag_text.trim().is_empty() && exag.is_none() {

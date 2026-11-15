@@ -81,6 +81,38 @@ pub(crate) fn step_fine(value: f64) -> String {
     text
 }
 
+/// An area or a volume (square or cubic metres) as a STEP literal: rounded to 1e-12 like
+/// [`step_fine`], but never to more than thirteen significant digits.
+///
+/// The cap matters for values of ten and above. A total of some 11 000 m3 has only twelve decimals
+/// of precision left in an `f64`, so rounding it to 1e-12 does nothing and the last bit of the sum
+/// reaches the file. That bit depends on the platform's maths library, so the same model exported
+/// on two systems differed in one digit. Thirteen significant digits leave the last bits out, and
+/// values below ten are written exactly as before.
+pub(crate) fn step_measure(value: f64) -> String {
+    if !value.is_finite() {
+        return "0.".to_string();
+    }
+    // Digits before the decimal point, by exact comparisons (no logarithm: that would be another
+    // maths-library call).
+    let magnitude = value.abs();
+    let mut integer_digits = 0_i32;
+    let mut power = 1.0_f64;
+    while magnitude >= power && integer_digits < 13 {
+        power *= 10.0;
+        integer_digits += 1;
+    }
+    let decimals = (13 - integer_digits).clamp(0, 12);
+    let scale = 10_f64.powi(decimals);
+    let rounded = (value * scale).round() / scale;
+    let rounded = if rounded == 0.0 { 0.0 } else { rounded };
+    let mut text = format!("{rounded}");
+    if !text.contains('.') {
+        text.push('.');
+    }
+    text
+}
+
 /// `(a,b,c)` from already encoded parts.
 pub(crate) fn list<I: IntoIterator<Item = String>>(parts: I) -> String {
     let mut out = String::from("(");
@@ -175,6 +207,29 @@ mod tests {
         assert_eq!(step_real(1e-5), "0.00001");
         assert_eq!(step_real(12345678.5), "12345678.5");
         assert_eq!(step_real(f64::NAN), "0.");
+    }
+
+    #[test]
+    fn measures_keep_at_most_thirteen_significant_digits() {
+        assert_eq!(step_measure(8.0), "8.");
+        assert_eq!(step_measure(157.5), "157.5");
+        assert_eq!(step_measure(-0.0), "0.");
+        assert_eq!(step_measure(f64::NAN), "0.");
+        // Below ten nothing changes: twelve decimals, as `step_fine` writes.
+        assert_eq!(step_measure(1e-12), "0.000000000001");
+        assert_eq!(step_measure(0.002827433388), step_fine(0.002827433388));
+        assert_eq!(step_measure(1.350884841044), "1.350884841044");
+        assert_eq!(step_measure(9.123456789012345), "9.123456789012");
+        assert_eq!(step_measure(0.1 + 0.2), "0.3");
+        // The earthworks total as arm64 macOS and x86-64 Linux computed it: one last bit apart,
+        // one text.
+        assert_eq!(step_measure(11318.99033569562), "11318.9903357");
+        assert_eq!(step_measure(11318.990335695622), "11318.9903357");
+        assert_eq!(step_measure(9381.966526517259), "9381.966526517");
+        assert_eq!(step_measure(-2500.123456789123), "-2500.123456789");
+        // Large values lose decimals, not integer digits.
+        assert_eq!(step_measure(123_456_789_012.75), "123456789012.8");
+        assert_eq!(step_measure(1e15), "1000000000000000.");
     }
 
     #[test]

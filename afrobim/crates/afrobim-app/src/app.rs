@@ -68,6 +68,7 @@ pub struct AfroBimApp {
     /// The sign schedule import windows.
     pub(crate) signsched: crate::signsched::SignSchedUi,
     pub(crate) projset: crate::projset::ProjSetUi,
+    pub(crate) survey: crate::survey_ui::SurveyUi,
     /// The name of the last IFC file exported, which BCF topics name as their model.
     pub(crate) last_ifc_name: Option<String>,
     signs_ready: bool,
@@ -180,6 +181,7 @@ impl AfroBimApp {
             under: Default::default(),
             signsched: Default::default(),
             projset: Default::default(),
+            survey: Default::default(),
             last_ifc_name: None,
             signs_ready,
             module_status,
@@ -410,6 +412,31 @@ impl AfroBimApp {
         }
         if let Some(path) = app.options.signschedule.clone() {
             app.signsched_load(&path);
+        }
+        if let Some(path) = app.options.survey.clone() {
+            let o = &app.options;
+            let text = |v: &Option<String>| v.clone().unwrap_or_default();
+            let request = match o.survey_order.as_deref().map(afrobim_corridor::ColumnOrder::parse) {
+                None => Err("--survey needs --survey-order (PNEZD, PENZD, NEZD or ENZD): the column order is not guessed.".to_string()),
+                Some(None) => Err(format!("--survey-order {} is not PNEZD, PENZD, NEZD or ENZD.", text(&o.survey_order))),
+                Some(Some(order)) => crate::survey_ui::request(&text(&o.survey_name), order, &text(&o.survey_crs), &text(&o.survey_max_side), &text(&o.survey_exclude)),
+            };
+            match request.and_then(|r| app.survey_import(None, &path, &r)) {
+                Ok(report) => {
+                    for line in report {
+                        eprintln!("AfroBIM: {line}");
+                    }
+                }
+                Err(why) => {
+                    app.status = format!("Could not make a surface from {}: {why}", path.display());
+                    eprintln!("AfroBIM: {}", app.status);
+                }
+            }
+        }
+        if let Some(path) = app.options.save_as.clone() {
+            app.save_to(path);
+            eprintln!("AfroBIM: {}", app.status);
+            app.quit = true;
         }
         if let Some(path) = app.options.dxf_out.clone() {
             app.doc.clear_selection();
@@ -1115,6 +1142,11 @@ impl AfroBimApp {
                     self.import_surface(ctx, path);
                 }
             }
+            Action::ImportSurvey => {
+                if let Some(path) = rfd::FileDialog::new().add_filter("Survey points", &["csv", "txt", "pnt", "asc", "xyz"]).add_filter("All files", &["*"]).pick_file() {
+                    self.survey_open(path);
+                }
+            }
             Action::CheckElement => match self.doc.primary() {
                 Some(id) => match modules_glue::check(&self.doc, id) {
                     modules_glue::Check::Lines(Ok(lines)) => {
@@ -1613,6 +1645,7 @@ impl AfroBimApp {
                     item(ui, "Export the sign schedule (CSV)…", "SIGNSCHEDULEOUT", Action::SignScheduleOut);
                     item(ui, "Blank sign schedule template…", "SIGNSCHEDULETEMPLATE", Action::SignScheduleTemplate);
                     ui.separator();
+                    item(ui, "Survey points (CSV)…", "SURVEY", Action::ImportSurvey);
                     item(ui, "DXF underlay…", "UNDERLAY", Action::Underlay);
                 });
                 ui.menu_button("Annotate", |ui| {
@@ -2277,6 +2310,7 @@ impl AfroBimApp {
         self.underlay_window(ctx);
         self.signsched_windows(ctx);
         self.projset_window(ctx);
+        self.survey_window(ctx);
         self.issues_windows(ctx);
         self.visibility_windows(ctx);
         self.photometry_windows(ctx);

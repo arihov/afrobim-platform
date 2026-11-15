@@ -115,7 +115,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
     const INSERT: &[Panel] = &[
         Panel { title: "Signs", items: &[Big(Icon::Library, "Standard signs", "LIBRARY")] },
         Panel { title: "Import", items: &[Big(Icon::Alignment, "LandXML alignments", "LANDXML"), Big(Icon::Open, "AfroBIM document", "OPEN"), Big(Icon::Schedule, "Sign schedule", "SIGNSCHEDULE")] },
-        Panel { title: "Reference", items: &[Big(Icon::Dxf, "DXF underlay", "UNDERLAY"), Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::RefModel, "IFC reference model", "IFCREF"), Big(Icon::RefList, "Reference models", "REFMODELS")] },
+        Panel { title: "Reference", items: &[Big(Icon::Dxf, "DXF underlay", "UNDERLAY"), Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Surface, "Survey points", "SURVEY"), Big(Icon::RefModel, "IFC reference model", "IFCREF"), Big(Icon::RefList, "Reference models", "REFMODELS")] },
     ];
     const ANNOTATE: &[Panel] = &[
         Panel { title: "Marks", items: &[Big(Icon::Marks, "Element marks", "MARKS")] },
@@ -171,7 +171,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Lighting", items: &[Big(Icon::Lighting, "Street lighting", "LIGHTING"), Big(Icon::Lighting, "Light column", "LIGHTCOLUMN"), Big(Icon::Photometry, "Photometry", "PHOTOMETRY")] },
         Panel { title: "Restraint", items: &[Big(Icon::Barrier, "Road restraint", "BARRIER")] },
         Panel { title: "Pavement", items: &[Big(Icon::Pavement, "Pavement", "PAVEMENT"), Big(Icon::Design, "Pavement design", "PAVEDESIGN")] },
-        Panel { title: "Earthworks", items: &[Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Corridor, "Corridor", "CORRIDOR"), Big(Icon::Section, "Sections", "SECTIONS")] },
+        Panel { title: "Earthworks", items: &[Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Surface, "Survey points", "SURVEY"), Big(Icon::Corridor, "Corridor", "CORRIDOR"), Big(Icon::Section, "Sections", "SECTIONS")] },
     ];
     const DESIGN: &[Panel] = &[
         Panel { title: "Alignment", items: &[Big(Icon::AlignDesign, "New alignment", "ALIGNDESIGN"), Big(Icon::AlignEdit, "Edit in plan", "ALIGNEDIT"), Big(Icon::PiTable, "PI table", "PITABLE"), Big(Icon::Labels, "Curve labels", "ALIGNLABELS")] },
