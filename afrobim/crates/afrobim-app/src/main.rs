@@ -24,6 +24,7 @@ mod design_glue;
 mod design_profile;
 mod design_ui;
 mod disp;
+mod dropped;
 mod design_windows;
 mod icons;
 mod ifc_options;

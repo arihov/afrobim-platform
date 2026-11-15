@@ -124,6 +124,7 @@ pub struct AfroBimApp {
     pub(crate) show_labels: bool,
 
     path: Option<PathBuf>,
+    pub(crate) drops: crate::dropped::DropUi,
     pub(crate) status: String,
     fitted: bool,
     pub(crate) view_3d: bool,
@@ -213,6 +214,7 @@ impl AfroBimApp {
             rep: Representation::Real,
             show_labels: true,
             path: None,
+            drops: Default::default(),
             status: "Ready.".into(),
             fitted: false,
             view_3d: false,
@@ -681,7 +683,7 @@ impl AfroBimApp {
         self.commit_due = Some(0.0);
     }
 
-    fn open_path(&mut self, path: PathBuf) {
+    pub(crate) fn open_path(&mut self, path: PathBuf) {
         match Document::load(&path) {
             Ok(doc) => {
                 self.doc = doc;
@@ -693,6 +695,7 @@ impl AfroBimApp {
                 }
                 self.sync_generated();
                 self.history.reset(self.doc.snapshot());
+                self.drops.saved = Some(crate::background::fingerprint(&self.doc));
                 self.status = format!("Opened {} ({} elements).", path.display(), self.doc.elements().len());
                 self.path = Some(path);
                 self.fitted = false;
@@ -706,6 +709,7 @@ impl AfroBimApp {
         match self.doc.save(&path) {
             Ok(()) => {
                 self.status = format!("Saved {}.", path.display());
+                self.drops.saved = Some(crate::background::fingerprint(&self.doc));
                 self.path = Some(path);
             }
             Err(e) => self.status = format!("Could not save {}: {e}", path.display()),
@@ -892,6 +896,7 @@ impl AfroBimApp {
                 self.reset_records();
                 self.history.reset(Vec::new());
                 self.path = None;
+                self.drops.saved = Some(crate::background::fingerprint(&self.doc));
                 self.fitted = false;
                 self.status = "New document.".into();
             }
@@ -2986,6 +2991,7 @@ impl eframe::App for AfroBimApp {
             }
         }
 
+        self.drop_tick(ctx);
         self.sched_tick(ctx);
         self.under.sync(&mut self.doc, self.view.scale);
         if std::mem::take(&mut self.under.doc_changed) {
