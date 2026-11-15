@@ -587,6 +587,8 @@ no specific entity, the table says so.
 | --- | --- | --- | --- |
 | `marking` (road marking), carried by a pavement | `IfcSurfaceFeature` adhering to the `IfcPavement` by `IfcRelAdheresToElement`; contained nowhere | `LINEMARKING` ("2D lines painted on pavement surfaces to form boundaries, centrelines and edge markings") | `domain/IfcStructuralElementsDomain/Entities/IfcSurfaceFeature.md`, `.../Types/IfcSurfaceFeatureTypeEnum.md`, `core/IfcProductExtension/Entities/IfcRelAdheresToElement.md` |
 | `marking`, no pavement carries it | **No specific entity fits**: `IfcBuildingElementProxy`, contained in the road, `ObjectType` `marking` | `USERDEFINED` | `shared/IfcSharedBldgElements/Entities/IfcBuildingElementProxy.md`; see "Markings" |
+| `marking_ext` (second marking set), carried by a pavement | `IfcSurfaceFeature` adhering to the `IfcPavement` by `IfcRelAdheresToElement`; contained nowhere | by the kind of catalogue entry, see "Second marking set" | the three pages of the first row |
+| `marking_ext`, no pavement carries it | **No specific entity fits**: `IfcBuildingElementProxy`, contained in the road, `ObjectType` `marking` | `USERDEFINED` | see "Markings" |
 | `drain` (side drain, an open channel) | `IfcPipeSegment` | `GUTTER` ("a continuous open-channel segment of pipe") | `domain/IfcHvacDomain/Entities/IfcPipeSegment.md`, `.../Types/IfcPipeSegmentTypeEnum.md` |
 | `culvert` (pipe culvert), one per barrel | `IfcPipeSegment`; several barrels are one `IfcGroup` | `CULVERT` ("a covered channel or large pipe that forms a watercourse below ground level, usually under a road or railway") | the same two pages; `core/IfcKernel/Entities/IfcGroup.md` |
 | `gantry` | `IfcElementAssembly` aggregating legs, boom, foundations and the hung signs | `SIGNALASSEMBLY` ("an assembly to physically aggregate together one or more signal instances (and also sign instances) including any supporting structural elements such as a simple pole or a rigid frame gantry") | `core/IfcProductExtension/Types/IfcElementAssemblyTypeEnum.md` |
@@ -604,6 +606,67 @@ no specific entity, the table says so.
 | pavement layer (slab) | `IfcCourse`, aggregated by the pavement | `PAVEMENT` ("a layer within a pavement structure that forms a paved area or road") | `.../Entities/IfcCourse.md`, `.../Types/IfcCourseTypeEnum.md` |
 | `corridor` | **No specific entity fits**: `IfcBuildingElementProxy`, `ObjectType` `corridor`, three open surfaces (finished surface, cut slopes, fill slopes) | `USERDEFINED` | see "Corridors" |
 | `surface` (ground TIN) | `IfcGeographicElement`, contained in the site | `TERRAIN` | `core/IfcProductExtension/Entities/IfcGeographicElement.md`, `.../Types/IfcGeographicElementTypeEnum.md` |
+
+### Second marking set
+
+The elements of category `marking_ext` (stop and give way lines, the give way triangle, lane and
+deflection arrows, hatching, chevrons and island markings, yellow lines, zig-zag lines, pedestrian
+crossings, worded-marking blocks, road studs, the UK and Uganda types) are written as the first set
+is: an `IfcSurfaceFeature` adhering to the pavement that carries it, otherwise the proxy. A
+pavement carries a marking when it is on the same alignment, covers the marking's stations, and
+covers its offset (for a line across the road, both its offsets; for a point item, its centre). The
+`IfcSurfaceFeatureTypeEnum` enumerators are, in the IFC4X3_ADD2 schema of IfcOpenShell 0.9.0.post1:
+`DEFECT`, `HATCHMARKING`, `LINEMARKING`, `MARK`, `NONSKIDSURFACING`, `PAVEMENTSURFACEMARKING`,
+`RUMBLESTRIP`, `SYMBOLMARKING`, `TAG`, `TRANSVERSERUMBLESTRIP`, `TREATMENT`, `USERDEFINED`,
+`NOTDEFINED`. Their documentation text was read in the IfcOpenShell package
+(`express/DocEnumeration.csv`) and in `docs/schemas/domain/IfcStructuralElementsDomain/Types/IfcSurfaceFeatureTypeEnum.md`
+of `buildingSMART/IFC4.3.x-development` (fetched on 15 November 2026; the two agree). The choice is
+made by `ext_feature_type`, from the kind of the catalogue entry:
+
+| Catalogue kind (entries) | PredefinedType | The documentation the choice rests on |
+| --- | --- | --- |
+| Lines (1017, 1018.1, M01 to M04, M11, M12, M21 to M23), transverse lines (1001, 1002.1, 1003.1, 1003A, M31, M32), zig-zag line (M05), crossing of two broken lines (M34), parking bay (M71, catalogued only) | `LINEMARKING` | "2D lines painted on pavement surfaces to form boundaries, centrelines and edge markings" |
+| Triangle (1023A, M61), arrows (1038, 1014, M41 to M45), worded markings (1022, 1024, M62, M63; M63 is catalogued only) | `SYMBOLMARKING` | "Surface markings that convey information in the form of symbols and shapes such as arrows, text or pictorial symbols" |
+| Hatching, chevrons and island markings (1040, 1041, 1042, M51 to M53; M51 and M52 are catalogued only) | `HATCHMARKING` | "surface markings defined by enclosed 2d shape with defined hatch fillings". Chevrons and the island marking are read as hatch fillings of an enclosed area, which is an interpretation: no enumerator names chevrons |
+| Crossing of stripes (M33) and the hump marking (M35, catalogued only) | `PAVEMENTSURFACEMARKING` | "Painted or chemical lines or symbols on the surface of pavements"; the stripes are neither a boundary line nor a symbol |
+| Road studs (`STUD`) | `USERDEFINED`, `ObjectType` `ROAD_STUD` | No enumerator names a raised stud fixed to the pavement. Every enumerator of the schema whose name contains `STUD` was listed: `IfcMemberTypeEnum.STUD`, `IfcReinforcingBarRoleEnum.STUD`, `IfcReinforcingBarTypeEnum.STUD` and `IfcMechanicalFastenerTypeEnum.STUDSHEARCONNECTOR`, all structural, none for a road stud. `RUMBLESTRIP` and `TRANSVERSERUMBLESTRIP` are raised textured strips, not studs, and a transverse rumble strip is not a marking at all. The schema rule `HasObjectType` (an `ObjectType` for `USERDEFINED`) is met. This is a judgement, not a documented mapping |
+
+Nothing is mapped to `RUMBLESTRIP`, `TRANSVERSERUMBLESTRIP`, `MARK` ("a point, line, cross, or other
+mark, applied for example for easier adjustment of elements during assembly", a manufacturing
+mark), `TAG`, `TREATMENT` or `NONSKIDSURFACING`.
+
+Property sets. `Pset_RoadMarkingCommon` applies, in the IFC4X3 template, to
+`IfcSurfaceFeature/HATCHMARKING`, `/LINEMARKING`, `/PAVEMENTSURFACEMARKING` and `/SYMBOLMARKING`;
+it is written (`DiagramNumber`, `MaterialColour`, `MaterialType` when a material is entered) for
+every adhering marking of those types, and not for a stud or a proxy. `Pset_MarkingLinesCommon`
+applies to `LINEMARKING` only and is **not** written for this set: its `DashedLine` and
+`DashedLinePattern` would have to be derived from the pattern of each strand and the setting, which
+the export does not yet do. `Qto_SurfaceFeatureBaseQuantities` (`Area` painted, `Length` painted)
+is written for an adhering marking, with `Area` only where the module reports a painted area (not
+for a placeholder block, not for studs) and `Length` only when it is above zero. The element's own
+`AfroBIM_RoadMarkingExt` carries the type identifier, basis, diagram, TSRGD reference (UK types),
+colour, material, speed and the caller's speed note, any UK fallback reason, the source citation and
+the stations; `AfroBIM_Quantities` carries overall and painted length, painted area, the number of
+marks, part marks and, for a placeholder, the area of its block.
+
+**Placeholder blocks.** A worded marking, the lane and deflection arrows other than M41, and the
+Uganda arrows M42 to M45 are drawn as the bounding block of the marking, because the source does not
+dimension the outline. The export writes the block, sets `PlaceholderBlock` true and `ShapeStatus` to
+"Placeholder block: the bounding block of the marking, not its true shape" with the reason from the
+catalogue, and ends the `Description` with "(placeholder block, not the true shape)". An entry that
+is catalogue only (M35, M51, M52, M63, M71) has no geometry and takes the type of its family; the element is still written, without
+a shape, and a note says so. Every other marking has `PlaceholderBlock` false.
+
+Validated with IfcOpenShell 0.9.0.post1 by `tests/ifcopenshell_ext_markings.rs` and
+`tests/check_ext_markings_ifc.py` on a document with a pavement and 20 markings (every kind in the
+table above, UK and Uganda) plus one the pavement does not carry: **0 schema and EXPRESS rule
+issues**, the standard sets agree with the IFC4X3 templates (88 properties), the geometry iterator
+built a shape for each of the 23 products with a representation, and each marking has the class,
+PredefinedType, `ObjectType`, adhesion and placeholder properties the test states. The same
+document without its pavement (every marking a proxy) also has 0 issues. The limits of the
+mapping are those of the first set: a marking is attached to a pavement only when one of the
+document covers it, and the offsets tested are the marking's reference offsets, not its painted
+extent.
 
 Choices the documentation settled, and what it ruled out:
 
@@ -682,6 +745,7 @@ written for them.
 | Element | Standard sets (names, applicable entity and property names checked) | `AfroBIM_` sets |
 | --- | --- | --- |
 | Marking | `Pset_RoadMarkingCommon` (`DiagramNumber`, `MaterialColour`, `MaterialType` when the material is entered), `Pset_MarkingLinesCommon` (`DashedLine`, `DashedLinePattern`, `NominalWidth`, the overall width of a double line), `Qto_SurfaceFeatureBaseQuantities` (`Area` painted, `Length` painted) | `AfroBIM_RoadMarking` (line type, diagram, TSRGD reference, pattern, width, colour, speed limit, material, source citation), `AfroBIM_Quantities` (overall and painted length, painted area, marks, part marks) |
+| Second-set marking | `Pset_RoadMarkingCommon` (`DiagramNumber`, `MaterialColour`, `MaterialType`), on every adhering marking but a stud; `Qto_SurfaceFeatureBaseQuantities` (`Area` where painted, `Length`) | `AfroBIM_RoadMarkingExt` (see "Second marking set"), `AfroBIM_Quantities` |
 | Side drain | `Pset_PipeSegmentTypeGutter` (`IsCovered` false), `Pset_PipeSegmentOccurrence` (`Gradient`), `Qto_PipeSegmentBaseQuantities` (`Length` of the drain's own centreline) | `AfroBIM_SideDrain` (section, lining, gradient, Manning's n, placeholder flag), `AfroBIM_Quantities` (excavation, lining and areas) |
 | Culvert barrel | `Pset_PipeSegmentTypeCommon` (`InnerDiameter`, `OuterDiameter`, `Length`), `Pset_PipeSegmentTypeCulvert` (`InternalWidth`, `ClearDepth`, both the diameter of a circular barrel), `Pset_PipeSegmentOccurrence` (`Gradient`, fall over plan length), `Qto_PipeSegmentBaseQuantities` (`Length` of one barrel); `IfcMaterial` when the material text is entered | `AfroBIM_PipeCulvert` (barrels, diameter, wall, inverts, skew, road level, material), `AfroBIM_Quantities` |
 | Gantry | `Pset_ElementAssemblyCommon` (`Reference`); legs `Qto_ColumnBaseQuantities` (`Length`), boom `Qto_BeamBaseQuantities` (`Length`), foundations `Qto_FootingBaseQuantities` (`Length`, `Width`, `Height`, `GrossVolume`) | `AfroBIM_Gantry`, `AfroBIM_GantryMember` (envelope, offset, levels, mass per metre where entered), `AfroBIM_GantryMount` on each hung sign (lane or offset, bottom above the boom, traffic served), `AfroBIM_Quantities` (span or outreach, boom, signs, sign area, foundation concrete); steel mass only where every member has a mass per metre |

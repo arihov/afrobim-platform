@@ -48,7 +48,7 @@ failures = base.failures
 
 # The mapping table of the README: class -> allowed predefined types.
 MAPPING = {
-    "IfcSurfaceFeature": {"LINEMARKING"},
+    "IfcSurfaceFeature": {"LINEMARKING", "SYMBOLMARKING", "HATCHMARKING", "PAVEMENTSURFACEMARKING", "USERDEFINED"},
     "IfcPipeSegment": {"GUTTER", "CULVERT"},
     "IfcElementAssembly": {"SIGNALASSEMBLY", "MAST"},
     "IfcColumn": {"COLUMN"},
