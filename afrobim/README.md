@@ -67,8 +67,11 @@ cargo test                                    # kernel, sign engine (golden test
 ```
 
 The traffic-signs module needs the rule pack `packs/UK-TSM-2019.json` and the Transport fonts
-in `fonts/`. Run from a checkout and they are found automatically; otherwise set `AFROBIM_PACK`
-(the JSON file) and `AFROBIM_FONTS` (the folder). The fonts are third-party files and are not
+in `fonts/`. They are looked for in this order: the environment variable; next to the executable;
+on macOS the bundle's `Contents/Resources`; then the folders above the executable and above the
+working directory (a source checkout). The variables are `AFROBIM_PACK` (the UK JSON file),
+`AFROBIM_PACK_UG` (the Uganda pack's folder or its `pack.xml`) and `AFROBIM_FONTS` (the folder).
+A document path given as the first command-line argument is opened at start-up. The fonts are third-party files and are not
 part of AfroBIM: do not redistribute them without a licence that allows it.
 
 `--screenshot file.png` renders a few frames, saves the window and exits. It is how the UI is
