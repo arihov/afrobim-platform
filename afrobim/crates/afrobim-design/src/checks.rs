@@ -65,6 +65,63 @@ pub struct StandardRow {
     pub object_height_m: Option<f64>,
     pub headlight_height_m: Option<f64>,
     pub headlight_beam_deg: Option<f64>,
+    /// Where each limit comes from, keyed by the field name (`min_radius_m`, `max_grade`, ...): document,
+    /// edition, table or figure, section and page. The text is added to the limit basis printed on every
+    /// check item. For a field that is `None` the text may say why the standard gives no value. Empty for
+    /// rows read from CSV, which carry their source in the `#source` line of the basis.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub limit_sources: std::collections::BTreeMap<String, String>,
+}
+
+impl StandardRow {
+    /// This row with every value that `over` states replacing the value here: the way a user's own table
+    /// overrides a built-in one for the limits the user supplies. The label, the sources of replaced values
+    /// and `over`'s own sources follow `over`.
+    pub fn overlay(&self, over: &StandardRow) -> StandardRow {
+        let mut out = self.clone();
+        macro_rules! take {
+            ($($f:ident),*) => {$(
+                if over.$f.is_some() {
+                    out.$f = over.$f;
+                    out.limit_sources.remove(stringify!($f));
+                }
+            )*};
+        }
+        take!(
+            design_speed_kmh,
+            min_radius_m,
+            max_superelevation,
+            max_side_friction,
+            min_curve_length_m,
+            min_spiral_length_m,
+            min_tangent_same_direction_m,
+            min_tangent_reverse_m,
+            max_grade,
+            min_grade,
+            min_k_crest,
+            min_k_sag,
+            min_vertical_curve_length_m,
+            stopping_sight_distance_m,
+            reaction_time_s,
+            longitudinal_friction,
+            eye_height_m,
+            object_height_m,
+            headlight_height_m,
+            headlight_beam_deg
+        );
+        for (k, v) in &over.limit_sources {
+            out.limit_sources.insert(k.clone(), v.clone());
+        }
+        if !over.label.is_empty() {
+            out.label = over.label.clone();
+        }
+        out
+    }
+
+    /// The source text stored for a limit, if any.
+    pub fn source_of(&self, field: &str) -> Option<&str> {
+        self.limit_sources.get(field).map(|s| s.as_str())
+    }
 }
 
 /// A named set of rows and where they come from.
@@ -314,8 +371,15 @@ struct Limit {
     basis: String,
 }
 
-fn from_table(v: Option<f64>, what: &str) -> Limit {
-    Limit { value: v, basis: if v.is_some() { format!("table value ({what})") } else { format!("no {what} in the table") } }
+fn from_table(row: &StandardRow, field: &str, v: Option<f64>, what: &str) -> Limit {
+    let src = row.source_of(field);
+    let basis = match (v.is_some(), src) {
+        (true, Some(s)) => format!("table value ({what}); source: {s}"),
+        (true, None) => format!("table value ({what})"),
+        (false, Some(s)) => format!("no {what} in the table; {s}"),
+        (false, None) => format!("no {what} in the table"),
+    };
+    Limit { value: v, basis }
 }
 
 /// Runs every check on a horizontal and/or vertical solution against one row of a basis.
@@ -342,15 +406,15 @@ pub fn run_checks(basis: &DesignBasis, row: &StandardRow, horizontal: Option<&Ho
 
     if let Some(h) = horizontal {
         let radius_limit = match (row.min_radius_m, row.design_speed_kmh, row.max_superelevation, row.max_side_friction) {
-            (Some(r), _, _, _) => Limit { value: Some(r), basis: "table value (minimum radius)".into() },
+            (Some(r), _, _, _) => from_table(row, "min_radius_m", Some(r), "minimum radius"),
             (None, Some(v), Some(e), Some(f)) => Limit {
                 value: physics::min_radius_m(v, e, f),
                 basis: format!("derived: R = V^2 / (12.96 g (e + f)) with V = {v} km/h, e = {e}, f = {f}"),
             },
             _ => Limit { value: None, basis: "no minimum radius, and not enough inputs (design speed, maximum e and f) to derive one".into() },
         };
-        let len_limit = from_table(row.min_curve_length_m, "minimum curve length");
-        let spiral_limit = from_table(row.min_spiral_length_m, "minimum spiral length");
+        let len_limit = from_table(row, "min_curve_length_m", row.min_curve_length_m, "minimum curve length");
+        let spiral_limit = from_table(row, "min_spiral_length_m", row.min_spiral_length_m, "minimum spiral length");
         for c in &h.curves {
             let loc = format!("PI {}", c.pi_index);
             add("H.radius", loc.clone(), "Curve radius".into(), Some(c.radius_m), &radius_limit, Bound::AtLeast, "m");
@@ -361,8 +425,8 @@ pub fn run_checks(basis: &DesignBasis, row: &StandardRow, horizontal: Option<&Ho
                 }
             }
         }
-        let same = from_table(row.min_tangent_same_direction_m, "minimum tangent between curves in the same direction");
-        let rev = from_table(row.min_tangent_reverse_m, "minimum tangent between reverse curves");
+        let same = from_table(row, "min_tangent_same_direction_m", row.min_tangent_same_direction_m, "minimum tangent between curves in the same direction");
+        let rev = from_table(row, "min_tangent_reverse_m", row.min_tangent_reverse_m, "minimum tangent between reverse curves");
         for t in &h.tangents {
             if let Some(r) = t.reverse {
                 let (id, lim, what) = if r { ("H.tangent_reverse", &rev, "reverse") } else { ("H.tangent_same", &same, "same direction") };
@@ -372,8 +436,8 @@ pub fn run_checks(basis: &DesignBasis, row: &StandardRow, horizontal: Option<&Ho
     }
 
     if let Some(v) = vertical {
-        let max_g = from_table(row.max_grade, "maximum grade");
-        let min_g = from_table(row.min_grade, "minimum grade");
+        let max_g = from_table(row, "max_grade", row.max_grade, "maximum grade");
+        let min_g = from_table(row, "min_grade", row.min_grade, "minimum grade");
         for g in &v.grades {
             let loc = format!("grade PVI {} to {}", g.from_pvi, g.from_pvi + 1);
             add("V.max_grade", loc.clone(), "Grade (absolute)".into(), Some(g.grade.abs() * 100.0), &Limit { value: max_g.value.map(|x| x * 100.0), basis: max_g.basis.clone() }, Bound::AtMost, "%");
@@ -382,7 +446,7 @@ pub fn run_checks(basis: &DesignBasis, row: &StandardRow, horizontal: Option<&Ho
             }
         }
         let ssd_limit = match (row.stopping_sight_distance_m, row.design_speed_kmh, row.reaction_time_s, row.longitudinal_friction) {
-            (Some(s), ..) => Limit { value: Some(s), basis: "table value (stopping sight distance)".into() },
+            (Some(s), ..) => from_table(row, "stopping_sight_distance_m", Some(s), "stopping sight distance"),
             (None, Some(vk), Some(t), Some(f)) => Limit {
                 value: physics::stopping_distance_m(vk, t, f, 0.0),
                 basis: format!("derived on the level: S = v t + v^2 / (2 g f) with V = {vk} km/h, t = {t} s, f = {f}"),
@@ -390,7 +454,7 @@ pub fn run_checks(basis: &DesignBasis, row: &StandardRow, horizontal: Option<&Ho
             _ => Limit { value: None, basis: "no stopping sight distance, and not enough inputs to derive one".into() },
         };
         let k_crest = match (row.min_k_crest, ssd_limit.value, row.eye_height_m, row.object_height_m) {
-            (Some(k), ..) => Limit { value: Some(k), basis: "table value (minimum K, crest)".into() },
+            (Some(k), ..) => from_table(row, "min_k_crest", Some(k), "minimum K, crest"),
             (None, Some(s), Some(h1), Some(h2)) => Limit {
                 value: physics::crest_k_for_sight(s, h1, h2),
                 basis: format!("derived: K = S^2 / (200 (sqrt h1 + sqrt h2)^2) with S = {s:.1} m, h1 = {h1} m, h2 = {h2} m (valid while S <= L)"),
@@ -398,14 +462,14 @@ pub fn run_checks(basis: &DesignBasis, row: &StandardRow, horizontal: Option<&Ho
             _ => Limit { value: None, basis: "no minimum K for crests, and not enough inputs to derive one".into() },
         };
         let k_sag = match (row.min_k_sag, ssd_limit.value, row.headlight_height_m, row.headlight_beam_deg) {
-            (Some(k), ..) => Limit { value: Some(k), basis: "table value (minimum K, sag)".into() },
+            (Some(k), ..) => from_table(row, "min_k_sag", Some(k), "minimum K, sag"),
             (None, Some(s), Some(h), Some(a)) => Limit {
                 value: physics::sag_k_for_sight(s, h, a),
                 basis: format!("derived: K = S^2 / (200 (H + S tan a)) with S = {s:.1} m, H = {h} m, a = {a} deg (valid while S <= L)"),
             },
             _ => Limit { value: None, basis: "no minimum K for sags, and not enough inputs to derive one".into() },
         };
-        let vlen = from_table(row.min_vertical_curve_length_m, "minimum vertical curve length");
+        let vlen = from_table(row, "min_vertical_curve_length_m", row.min_vertical_curve_length_m, "minimum vertical curve length");
         for c in &v.curves {
             let loc = format!("PVI {}", c.pvi_index);
             let (id, lim, what) = match c.kind {
