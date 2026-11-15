@@ -4,6 +4,7 @@ mod alignment_glue;
 mod anno_glue;
 mod anno_ui;
 mod app;
+mod background;
 mod canvas;
 mod check_all;
 mod check_inputs;

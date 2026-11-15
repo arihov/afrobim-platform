@@ -92,6 +92,8 @@ pub struct AfroBimApp {
     marking_dialog: Option<(Option<ElementId>, markings_glue::MarkingRequest)>,
     /// The second-set marking dialog.
     pub(crate) ext_marking_dialog: Option<crate::ext_markings_ui::ExtDialog>,
+    /// Slow work running on worker threads.
+    pub(crate) bg: crate::background::Background,
     /// The IFC export options dialog is open.
     pub(crate) ifc_options_open: bool,
     /// The "add a road element" dialog: kind, alignment, start and end station, distance, right side.
@@ -137,21 +139,7 @@ const CMD_ID: &str = "afrobim-command-line";
 impl AfroBimApp {
     pub fn new(cc: &eframe::CreationContext<'_>, options: Options) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::dark());
-        let mut modules = ModuleRegistry::default();
-        supports_glue::register(&mut modules);
-        alignment_glue::register(&mut modules);
-        markings_glue::register(&mut modules);
-        modules_glue::register(&mut modules);
-        crate::coordination_glue::register(&mut modules);
-        modules.register(Box::new(crate::reference_models::RefModule));
-        modules.register(Box::new(afrobim_schedule::ScheduleModule::default()));
-        modules.register(Box::new(afrobim_cost::EstimateModule));
-        modules.register(Box::new(afrobim_progress::ProgressModule));
-        crate::sheets_glue::register(&mut modules);
-        afrobim_design::register(&mut modules);
-        afrobim_annotate::register(&mut modules);
-        modules.register(Box::new(crate::underlay::UnderlayModule));
-        modules.register(Box::new(afrobim_kernel::ProjectSettingsModule));
+        let mut modules = crate::background::worker_registry();
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
             Ok(l) => {
@@ -206,6 +194,7 @@ impl AfroBimApp {
             design_dialog: None,
             marking_dialog: None,
             ext_marking_dialog: None,
+            bg: Default::default(),
             ifc_options_open: false,
             road_dialog: None,
             hang_dialog: None,
@@ -1145,7 +1134,7 @@ impl AfroBimApp {
                 self.coord.sync(&self.doc);
                 self.coord.tests_open = true;
             }
-            Action::ClashRun => self.run_clash_tests(),
+            Action::ClashRun => self.run_clash_tests_bg(),
             Action::ClashResults => {
                 self.coord.sync(&self.doc);
                 self.coord.results_open = true;
@@ -2443,6 +2432,7 @@ impl AfroBimApp {
         }
 
         self.ext_marking_window(ctx);
+        self.background_tick(ctx);
         self.ifc_options_window(ctx);
 
         if let Some((mut alignment, mut req)) = self.marking_dialog.take() {
@@ -2874,7 +2864,7 @@ impl AfroBimApp {
     fn screenshot_mode(&mut self, ctx: &egui::Context) {
         let Some(path) = self.options.screenshot.clone() else { return };
         // Wait for a viewpoint snapshot or a running import before the picture is taken.
-        if self.issues.snap.is_some() || self.refs.busy() || self.under.busy() {
+        if self.issues.snap.is_some() || self.refs.busy() || self.under.busy() || self.bg.busy() {
             ctx.request_repaint();
             return;
         }

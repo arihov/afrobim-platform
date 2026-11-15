@@ -849,9 +849,37 @@ impl AfroBimApp {
         self.pack.pack = Some(pack);
     }
 
+    /// Composes the pack on a worker thread, with a progress indicator and Cancel. The pack is
+    /// kept only if the document has not changed since the composition started.
+    pub(crate) fn pack_compose_bg(&mut self) {
+        if self.bg.pack.is_some() {
+            self.status = "The report pack is already being composed.".into();
+            return;
+        }
+        let doc = self.doc.clone();
+        let fp = crate::background::fingerprint(&self.doc);
+        let (title, standard_label, standard) = (self.title_for_pack(), self.standard_label(), self.standard.clone());
+        let composed = crate::sheets_glue::now_text();
+        self.bg.pack = Some(crate::background::Job::spawn("Report pack", fp, move || {
+            // The worker builds its own modules and sign engine: the app's are not `Send`.
+            let mut modules = crate::background::worker_registry();
+            let engine = match crate::signs_glue::load_module(&standard) {
+                Ok(l) => {
+                    modules.register(l.module);
+                    Some(l.engine)
+                }
+                Err(_) => None,
+            };
+            let pack = build(&doc, &modules, engine.as_deref(), &composed, &title, &standard_label);
+            let pages = compose(&pack).len();
+            (pack, pages)
+        }));
+        self.status = "Composing the report pack on a worker thread.".into();
+    }
+
     pub(crate) fn pack_open(&mut self) {
         self.pack.open = true;
-        self.pack_compose();
+        self.pack_compose_bg();
     }
 
     pub(crate) fn pack_export_dialog(&mut self) {
@@ -899,7 +927,7 @@ impl AfroBimApp {
         });
         self.pack.open = open;
         if recompose {
-            self.pack_compose();
+            self.pack_compose_bg();
         }
         if export {
             self.pack_export_dialog();
