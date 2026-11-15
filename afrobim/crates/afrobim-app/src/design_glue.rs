@@ -661,6 +661,12 @@ pub fn demo(doc: &mut Document) -> Vec<String> {
         }
     };
     hide_design_layers(doc);
+    // Demo values: the alignment check is set to the built-in MoWT basis, class II, rolling
+    // terrain, 70 km/h, emax 7 %, so that CHECKALL shows real statuses with their citations.
+    if let Some(alignment) = alignment_of_design(doc, design_a) {
+        let builtin = BuiltinChoice { class: Some(design::mowt::RoadClass::II), terrain: Some(design::mowt::Terrain::Rolling), speed_kmh: Some(70.0), emax_percent: Some(7.0), ..Default::default() };
+        store_check(doc, alignment, &AlignCheckInputs { source: LimitSource::Builtin, builtin, ..Default::default() });
+    }
     // Demo values: the second option moves the middle PI 60 m to the south and uses a 300 m radius.
     let mut b = a.clone();
     b.horizontal.name = "Option B".into();

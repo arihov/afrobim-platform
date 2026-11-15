@@ -256,6 +256,44 @@ pub fn add(doc: &mut Document, alignment: ElementId, req: &ExtRequest) -> Result
     Ok(doc.find(id).map(|e| e.name.clone()).unwrap_or(name))
 }
 
+/// Adds the demo's second-set markings on the alignment, for `--demo`: a stop line, a lane arrow,
+/// a hatched area and a run of studs. Returns what could not be added.
+///
+/// **Every number is an arbitrary demonstration value**: positions at fractions of the length of
+/// the stretch the demo pavement covers, offsets of 3.5 m and 1.8 m, a hatched strip 3 m clear
+/// width, 40 mph and 60 km/h limits. None is a design value.
+pub fn demo(doc: &mut Document, alignment_id: ElementId, a: &afrobim_alignment::Alignment) -> Vec<String> {
+    let (from, to) = crate::road_glue::DEMO_PAVEMENT_FRACTIONS;
+    let at = |f: f64| a.start_station_m + a.length() * (from + (to - from) * f);
+    let mut problems = Vec::new();
+    // Demo: a stop line across the left lane at 20 % of the stretch (UK diagram 1002.1).
+    let mut stop = ExtRequest::new(Basis::Uk, "1002.1", at(0.2), at(0.2));
+    stop.offset_m = -3.5;
+    // Demo: an Uganda lane arrow in the right lane at 35 % (a drawn outline, 60 km/h limit).
+    let mut arrow = ExtRequest::new(Basis::Uganda, "M41", at(0.35), at(0.35));
+    arrow.offset_m = 1.8;
+    arrow.speed = Some(60);
+    arrow.speed_note = "demo value".into();
+    // Demo: a hatched area 3 m clear width, 100 mm boundaries, over 5 % of the stretch (UK diagram 1040, 40 mph).
+    let mut hatch = ExtRequest::new(Basis::Uk, "1040", at(0.5), at(0.55));
+    hatch.offset_m = 0.0;
+    hatch.strip_width_mm = Some(3000);
+    hatch.width_mm = Some(100);
+    hatch.speed = Some(40);
+    hatch.speed_note = "demo value".into();
+    // Demo: studs along the centre line at the 9 m spacing of UK Table 2-1 (1008.1, 150 mm).
+    let mut studs = ExtRequest::new(Basis::Uk, markings::STUD_ID, at(0.0), at(0.15));
+    studs.stud_spacing_mm = Some(9000);
+    studs.stud_colour = Some(StudColour::White);
+    studs.stud_row = "UK-2-1-e".into();
+    for r in [stop, arrow, hatch, studs] {
+        if let Err(e) = add(doc, alignment_id, &r) {
+            problems.push(format!("Demo marking {}: {e}", r.type_id));
+        }
+    }
+    problems
+}
+
 /// Refreshes every second-set marking's copy of its alignment.
 pub fn sync(doc: &mut Document) -> usize {
     markings::sync_ext_markings(doc)

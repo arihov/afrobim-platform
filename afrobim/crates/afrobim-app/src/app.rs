@@ -65,7 +65,7 @@ pub struct AfroBimApp {
     pub(crate) last_ifc_name: Option<String>,
     signs_ready: bool,
     pub(crate) module_status: String,
-    standard: String,
+    pub(crate) standard: String,
     pub(crate) engine: Option<std::sync::Arc<afrobim_signs::SignEngine>>,
     fonts_dir: PathBuf,
     pub(crate) cache: HashMap<ElementId, Cached>,
@@ -295,7 +295,7 @@ impl AfroBimApp {
             // covers, so that the IFC export can attach them to it (see `markings_glue::demo`).
             if app.options.demo {
                 if let Some((alignment_id, a)) = alignment_glue::alignments(&app.doc).into_iter().next().and_then(|(id, _)| Some((id, alignment_glue::alignment_of(&app.doc, id)?))) {
-                    for problem in markings_glue::demo(&mut app.doc, alignment_id, &a) {
+                    for problem in markings_glue::demo(&mut app.doc, alignment_id, &a).into_iter().chain(crate::ext_markings_glue::demo(&mut app.doc, alignment_id, &a)) {
                         app.status = problem;
                     }
                 }

@@ -30,15 +30,18 @@ pub struct ExtDialog {
 }
 
 impl ExtDialog {
-    pub fn new(doc: &Document, group: Group) -> Option<ExtDialog> {
+    pub fn new(doc: &Document, group: Group, uganda: bool) -> Option<ExtDialog> {
         let first = alignment_glue::alignments(doc).first().map(|a| a.0)?;
         let (start, end) = alignment_glue::alignment_of(doc, first).map(|a| (a.start_station_m, a.end_station_m())).unwrap_or((0.0, 0.0));
         // The first type of the group under the UK basis, or of the Uganda basis for the Uganda lines.
-        let basis = if group == Group::Longitudinal { Basis::Uganda } else { Basis::Uk };
+        // The basis starts from the document's sign standard; the engineer changes it in the dialog.
+        let basis = if group == Group::Longitudinal || uganda { Basis::Uganda } else { Basis::Uk };
+        // The first marking of the group that can be laid, then the first of any kind.
+        let layable = |s: &&&'static ExtSpec| !matches!(s.geometry, markings::GeometryStatus::CatalogueOnly(_));
         let type_id = group
             .families()
             .iter()
-            .find_map(|f| glue::types_of(basis, *f).ok().and_then(|v| v.first().map(|s| s.id.to_string())))
+            .find_map(|f| glue::types_of(basis, *f).ok().and_then(|v| v.iter().find(layable).or(v.first()).map(|s| s.id.to_string())))
             .unwrap_or_else(|| markings::STUD_ID.to_string());
         let type_id = if group == Group::Studs { markings::STUD_ID.to_string() } else { type_id };
         Some(ExtDialog { group, alignment: Some(first), req: ExtRequest::new(basis, &type_id, start, end), fallback_family: None, speed_text: String::new(), kmh: false, answer: None, stud_rural: false })
@@ -180,7 +183,7 @@ fn wants_speed(spec: Option<&ExtSpec>) -> bool {
 
 impl AfroBimApp {
     pub(crate) fn open_ext_marking(&mut self, group: Group) {
-        match ExtDialog::new(&self.doc, group) {
+        match ExtDialog::new(&self.doc, group, self.standard == "UG-TSM-2004") {
             Some(d) => self.ext_marking_dialog = Some(d),
             None => self.status = "There is no alignment yet. Import one with File → Import LandXML.".into(),
         }
@@ -376,15 +379,15 @@ impl AfroBimApp {
                         .small()
                         .weak(),
                 );
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(d.alignment.is_some(), egui::Button::new("Lay the marking")).clicked() {
-                        lay = true;
-                    }
-                    if ui.button("Close").clicked() {
-                        keep = false;
-                    }
-                });
+            });
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                if ui.add_enabled(d.alignment.is_some(), egui::Button::new("Lay the marking")).clicked() {
+                    lay = true;
+                }
+                if ui.button("Close").clicked() {
+                    keep = false;
+                }
             });
         });
         if lay {
