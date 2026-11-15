@@ -324,7 +324,7 @@ impl<'a> OffsetLine<'a> {
 }
 
 /// The marks of a pattern over a length `total`, as (from, to, whole), in order.
-fn intervals(pattern: Pattern, total: f64, anchor: PatternAnchor) -> Vec<(f64, f64, bool)> {
+pub(crate) fn intervals(pattern: Pattern, total: f64, anchor: PatternAnchor) -> Vec<(f64, f64, bool)> {
     let Pattern::Broken { mark_mm, gap_mm } = pattern else {
         return vec![(0.0, total, true)];
     };
@@ -398,6 +398,42 @@ pub fn lay_out(
         laid.push(StrandLayout { name: strand.name.clone(), lateral_m: strand.lateral_m, width_m: strand.width_m, pattern: strand.pattern, length_m, marks });
     }
     Ok(Layout { overall_length_m, strands: laid })
+}
+
+/// Stations of points spaced `spacing_m` apart along the line at `lateral_m` from the alignment,
+/// from the start station to the end station, with a point at the start and one at each whole
+/// spacing after it that does not pass the end. Also returns the length of that line, m.
+///
+/// Spacing is measured along the offset line itself (as marks and gaps are), so studs on the
+/// outside of a bend are further apart in station than studs on the inside.
+pub fn stations_along(alignment: &Alignment, start_station_m: f64, end_station_m: f64, lateral_m: f64, spacing_m: f64) -> Result<(Vec<f64>, f64), LayoutError> {
+    let (from_m, to_m) = (alignment.start_station_m, alignment.end_station_m());
+    if alignment.elements.is_empty() || !(to_m > from_m) {
+        return Err(LayoutError::EmptyAlignment);
+    }
+    for station_m in [start_station_m, end_station_m] {
+        if !(station_m >= from_m - STATION_TOLERANCE_M && station_m <= to_m + STATION_TOLERANCE_M) {
+            return Err(LayoutError::StationOutside { station_m, from_m, to_m });
+        }
+    }
+    let (start, end) = (start_station_m.clamp(from_m, to_m), end_station_m.clamp(from_m, to_m));
+    if !(end - start > EPS_M) {
+        return Err(LayoutError::StationOrder { start_m: start_station_m, end_m: end_station_m });
+    }
+    if !(spacing_m > 0.0 && spacing_m.is_finite()) {
+        return Err(LayoutError::BadWidth);
+    }
+    let line = OffsetLine::new(alignment, start, end, lateral_m, 0.0)?;
+    let length = line.length();
+    let mut out = Vec::new();
+    for i in 0.. {
+        let d = i as f64 * spacing_m;
+        if d > length + EPS_M {
+            break;
+        }
+        out.push(line.station(d.min(length)));
+    }
+    Ok((out, length))
 }
 
 #[cfg(test)]
