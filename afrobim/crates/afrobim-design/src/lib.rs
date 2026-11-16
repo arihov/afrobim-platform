@@ -7,7 +7,8 @@
 //! - Editing operations on both (`insert_pi`, `move_pi`, `delete_pi`, `set_radius`, ...): each
 //!   returns the recomputed solution or the reason it is impossible, leaving the design unchanged.
 //! - [`AlignmentDesign::build`] gives an `afrobim_alignment::Alignment` with its `Profile`, the
-//!   same type an imported alignment has; [`write_landxml`] exports it.
+//!   same type an imported alignment has; [`write_landxml`] exports it, and [`write_landxml_file`] writes a whole
+//!   `afrobim_alignment::LandXmlFile` (coordinate system, points, parcels, surfaces, profiles, cross-sections).
 //! - [`run_checks`]: design checks against limits the user supplies ([`DesignBasis`], from CSV or JSON), or
 //!   against the built-in Uganda MoWT Road Design Manual Volume I (January 2010) basis, [`DesignBasis::mowt_2010`];
 //!   the typed lookups of the manual's tables are in [`mowt`]. No other limits are built in.
@@ -36,7 +37,7 @@ pub use error::{DesignError, Problem};
 pub use mowt::{builtin_bases, BuiltinBasisInfo, BuiltinSelection, MowtOptions};
 pub use fit::{fit_to_ground, FitInputs, FitResult, FIT_LABEL};
 pub use horizontal::{CurveData, HorizontalDesign, HorizontalSolution, TangentData};
-pub use landxml::{write_landxml, LandXmlOptions};
+pub use landxml::{surface_from_tin, write_landxml, write_landxml_file, LandXmlOptions, LandXmlOutput};
 pub use module::{
     add_design, add_option_set, compare_in_document, crossing_features_from_alignments, designs, load_design, load_option_set, plan_labels, plan_labels_with, register,
     store_design, store_option_set, DesignElement, DesignModule, OptionSetModule, PlanLabel, PlanLabelKind, ALIGNMENTS_LAYER, DESIGN_CATEGORY, DESIGN_LAYER,

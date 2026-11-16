@@ -39,7 +39,7 @@
 //! such as `ellipsoidHeight`, and is not applied). **PVI stations are taken to be internal
 //! stations**; the schema does not say, and a note is made when the alignment also has station
 //! equations. Only the first `ProfAlign` of an alignment is read; the others are named in a note.
-//! `ProfSurf` (existing ground) is not read.
+//! `ProfSurf` (existing ground) is not part of the alignment; [`crate::parse_landxml_file`] reads it.
 //!
 //! **Superelevation** (`Alignment/Superelevation`, one element per curve): the stations
 //! `BeginRunoutSta`, `BeginRunoffSta`, `FullSuperSta`, `RunoffSta`, `StartofRunoutSta`,
@@ -67,16 +67,25 @@
 //! why, and the rest of the file is still read:
 //!
 //! - spirals other than clothoids (`bloss`, `cubic`, `sinusoid`, …);
-//! - `IrregularLine` and `Chain`;
 //! - points given neither as coordinates nor as a resolvable `pntRef`.
 //!
-//! Ignored silently: `ProfSurf`, `CrossSects`, `Cant`, `AlignPIs`, `Feature`.
+//! `IrregularLine` (its `PntList2D` or `PntList3D` of northing, easting [, elevation]; the schema
+//! says the list includes the start and end, and they are added when it does not) and `Chain` (the
+//! `CgPoint` names, joined in order) are read as **straight segments between their points**, so an
+//! alignment through a polyline imports as a run of lines, with a note; the corners between those
+//! segments are not reported as discontinuities. A `Chain` that names a point not in the file leaves
+//! the alignment out.
+//!
+//! Ignored silently by this reader: `ProfSurf`, `CrossSects`, `Cant`, `AlignPIs`, `Feature`
+//! ([`crate::parse_landxml_file`] reads the first two and counts the others as skipped).
 //!
 //! None of this has been tested against a file exported by Civil 3D.
 
 use std::collections::HashMap;
 use std::f64::consts::{FRAC_PI_2, TAU};
 use std::path::Path;
+
+use crate::landxml_ext::list_numbers;
 
 use crate::geometry::{format_station, integrate_heading, Alignment, AlignmentElement};
 use crate::profile::{Profile, Pvi, VerticalCurve};
@@ -158,7 +167,7 @@ struct Context<'a> {
     points: HashMap<&'a str, (f64, f64)>,
 }
 
-trait LocalName {
+pub(crate) trait LocalName {
     fn has_tag_name_local(&self, name: &str) -> bool;
 }
 
@@ -168,7 +177,7 @@ impl LocalName for roxmltree::Node<'_, '_> {
     }
 }
 
-fn children<'a, 'i>(node: roxmltree::Node<'a, 'i>, name: &'static str) -> impl Iterator<Item = roxmltree::Node<'a, 'i>> {
+pub(crate) fn children<'a, 'i>(node: roxmltree::Node<'a, 'i>, name: &'static str) -> impl Iterator<Item = roxmltree::Node<'a, 'i>> {
     node.children().filter(move |n| n.has_tag_name_local(name))
 }
 
@@ -258,6 +267,8 @@ fn read_alignment(node: roxmltree::Node, name: &str, ctx: &Context, notes: &mut 
     let mut elements: Vec<AlignmentElement> = Vec::new();
     let mut local_notes: Vec<String> = Vec::new();
     let mut found_geometry = false;
+    // Elements that start at a vertex inside an irregular line or chain: a corner there is expected.
+    let mut poly_joints: std::collections::HashSet<usize> = std::collections::HashSet::new();
     for geom in children(node, "CoordGeom") {
         found_geometry = true;
         for item in geom.children().filter(|n| n.is_element()) {
@@ -338,8 +349,43 @@ fn read_alignment(node: roxmltree::Node, name: &str, ctx: &Context, notes: &mut 
                     }
                     elements.push(AlignmentElement { x: s.0, y: s.1, heading_rad: heading, length, curvature_start: k0, curvature_end: k1 });
                 }
-                "IrregularLine" | "Chain" => {
-                    return Err(format!("element {n} is a {}, which is not supported", item.tag_name().name()));
+                "IrregularLine" => {
+                    let (s, e) = (point(item, "Start", ctx)?, point(item, "End", ctx)?);
+                    let (list, stride) = match (children(item, "PntList2D").next(), children(item, "PntList3D").next()) {
+                        (Some(l), _) => (l, 2),
+                        (None, Some(l)) => (l, 3),
+                        _ => return Err(format!("element {n} is an IrregularLine with no PntList2D or PntList3D")),
+                    };
+                    let text = list.text().unwrap_or("");
+                    let values = list_numbers(text).filter(|v| v.len() % stride == 0 && v.len() >= 2 * stride);
+                    let mut pts: Vec<(f64, f64)> = values
+                        .ok_or_else(|| format!("element {n} is an IrregularLine whose point list is not at least two points of {stride} numbers"))?
+                        .chunks(stride)
+                        .map(|c| (c[1] * scale, c[0] * scale))
+                        .collect();
+                    // The schema says the list includes the start and the end; a file that leaves them out gets them added.
+                    if (pts[0].0 - s.0).hypot(pts[0].1 - s.1) > 1e-6 {
+                        pts.insert(0, s);
+                        local_notes.push(format!("element {n} (IrregularLine): its point list does not begin at Start; Start was added."));
+                    }
+                    if (pts[pts.len() - 1].0 - e.0).hypot(pts[pts.len() - 1].1 - e.1) > 1e-6 {
+                        pts.push(e);
+                        local_notes.push(format!("element {n} (IrregularLine): its point list does not end at End; End was added."));
+                    }
+                    polyline(&pts, &mut elements, &mut poly_joints);
+                    local_notes.push(format!("element {n} (IrregularLine) was read as {} between its points.", segments(pts.len() - 1)));
+                }
+                "Chain" => {
+                    let mut pts: Vec<(f64, f64)> = Vec::new();
+                    for name in item.text().unwrap_or("").split_whitespace() {
+                        let p = ctx.points.get(name).ok_or_else(|| format!("element {n} is a Chain that names point '{name}', which is not in the file"))?;
+                        pts.push((p.0 * scale, p.1 * scale));
+                    }
+                    if pts.len() < 2 {
+                        return Err(format!("element {n} is a Chain of fewer than two points"));
+                    }
+                    polyline(&pts, &mut elements, &mut poly_joints);
+                    local_notes.push(format!("element {n} (Chain) was read as {} between its points.", segments(pts.len() - 1)));
                 }
                 "Feature" => {}
                 other => return Err(format!("element {n} is a <{other}>, which is not part of CoordGeom")),
@@ -376,6 +422,9 @@ fn read_alignment(node: roxmltree::Node, name: &str, ctx: &Context, notes: &mut 
         }
     }
     for j in alignment.discontinuities(1e-3, 1e-4) {
+        if poly_joints.contains(&j.index) && j.gap_m <= 1e-3 {
+            continue;
+        }
         local_notes.push(format!(
             "at station {} element {} starts {:.4} m from the end of the one before and turns {:.4}° from it.",
             crate::format_station(j.station_m, 3),
@@ -386,6 +435,26 @@ fn read_alignment(node: roxmltree::Node, name: &str, ctx: &Context, notes: &mut 
     }
     notes.extend(local_notes.into_iter().map(|n| format!("Alignment '{name}': {n}")));
     Ok(alignment)
+}
+
+fn segments(n: usize) -> String {
+    format!("{n} straight segment{}", if n == 1 { "" } else { "s" })
+}
+
+/// Straight elements through `pts` (easting, northing, metres). The first starts where the previous
+/// element ended; the ones after it start at a vertex of the polyline and are recorded in `joints`.
+fn polyline(pts: &[(f64, f64)], elements: &mut Vec<AlignmentElement>, joints: &mut std::collections::HashSet<usize>) {
+    let mut first = true;
+    for w in pts.windows(2) {
+        let length = (w[1].0 - w[0].0).hypot(w[1].1 - w[0].1);
+        if length > 0.0 {
+            if !first {
+                joints.insert(elements.len());
+            }
+            first = false;
+            elements.push(AlignmentElement::line(w[0].0, w[0].1, (w[1].1 - w[0].1).atan2(w[1].0 - w[0].0), length));
+        }
+    }
 }
 
 /// Agreement asked of redundant values, and how far a profile may fall short of the alignment's
