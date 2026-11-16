@@ -174,7 +174,9 @@ impl LandXmlDesignProfile {
     /// The profile cut at each of its [`steps`](Self::steps) into engine [`Profile`]s: each piece
     /// ends at the level before the step and the next begins at the level after it, so the steps are
     /// the gaps between the pieces. A profile with no step is one piece. Fails when a piece is not a
-    /// valid profile (for example a vertical curve sits on the step itself).
+    /// valid profile (for example a vertical curve sits on the step itself). A step at the very
+    /// start or end of the profile leaves a piece of one PVI, which is a point and not a profile; it
+    /// is left out here and [`steps`](Self::steps) still lists the step.
     pub fn segments(&self) -> Result<Vec<Profile>, ProfileError> {
         let mut pieces: Vec<Vec<Pvi>> = vec![Vec::new()];
         for (i, e) in self.entries.iter().enumerate() {
@@ -184,7 +186,12 @@ impl LandXmlDesignProfile {
             pieces.last_mut().expect("one piece at least").push(e.pvi(i)?);
         }
         let many = pieces.len() > 1;
-        pieces.into_iter().enumerate().map(|(i, p)| Profile::new(&if many { format!("{} (part {})", self.name, i + 1) } else { self.name.clone() }, p)).collect()
+        pieces
+            .into_iter()
+            .enumerate()
+            .filter(|(_, p)| !many || p.len() > 1)
+            .map(|(i, p)| Profile::new(&if many { format!("{} (part {})", self.name, i + 1) } else { self.name.clone() }, p))
+            .collect()
     }
 }
 
