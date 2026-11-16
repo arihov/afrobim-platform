@@ -25,12 +25,14 @@ pub enum Segment {
     Zoom,
     /// The cursor's latitude and longitude, with the datum they are on.
     LatLon,
+    /// The WGS 84 reading, a second line to the datum's own latitude and longitude.
+    Wgs84,
     /// The project coordinate system, or the plain statement that there is none.
     Crs,
 }
 
 /// The order in which segments are dropped when space runs out: first entry goes first.
-pub const DROP_ORDER: [Segment; 5] = [Segment::Zoom, Segment::Standard, Segment::LatLon, Segment::Selection, Segment::Crs];
+pub const DROP_ORDER: [Segment; 6] = [Segment::Zoom, Segment::Wgs84, Segment::Standard, Segment::LatLon, Segment::Selection, Segment::Crs];
 
 /// The narrowest the message is allowed to become before a segment is dropped to give it room.
 pub const MIN_MESSAGE_W: f32 = 140.0;

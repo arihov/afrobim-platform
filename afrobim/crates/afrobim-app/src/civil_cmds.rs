@@ -63,13 +63,16 @@ pub enum Cv {
     // Intersections
     Intersection,
     Roundabout,
+    // Reprojection
+    Transform,
+    Calibrate,
 }
 
 
 
 /// Every civil command (a test checks each one is in the command table).
 #[cfg(test)]
-pub const ALL: [Cv; 47] = [
+pub const ALL: [Cv; 49] = [
     Cv::Toolspace,
     Cv::Points,
     Cv::PointCreate,
@@ -117,6 +120,8 @@ pub const ALL: [Cv; 47] = [
     Cv::GradeHelpers,
     Cv::Intersection,
     Cv::Roundabout,
+    Cv::Transform,
+    Cv::Calibrate,
 ];
 
 pub fn glyph(c: Cv) -> &'static str {
@@ -168,5 +173,7 @@ pub fn glyph(c: Cv) -> &'static str {
         Cv::GradeHelpers => ph::BOUNDING_BOX,
         Cv::Intersection => ph::ARROWS_SPLIT,
         Cv::Roundabout => ph::CIRCLE_NOTCH,
+        Cv::Transform => ph::GLOBE_HEMISPHERE_WEST,
+        Cv::Calibrate => ph::CROSSHAIR,
     }
 }

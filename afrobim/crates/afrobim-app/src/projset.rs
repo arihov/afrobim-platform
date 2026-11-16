@@ -98,8 +98,10 @@ pub const UNITS_TAB: usize = 2;
 
 /// The index of the defaults basis tab.
 pub const DEFAULTS_TAB: usize = 4;
+/// The index of the transform log tab.
+pub const LOG_TAB: usize = 5;
 
-const TABS: [&str; 5] = ["General", "Coordinate system", "Display units", "Speed limits", "Defaults basis"];
+const TABS: [&str; 6] = ["General", "Coordinate system", "Display units", "Speed limits", "Defaults basis", "Transform log"];
 
 impl AfroBimApp {
     /// PROJECTSETTINGS and UNITS: one dialog with the project's design standard, its display
@@ -124,6 +126,8 @@ impl AfroBimApp {
         let current_crs = afrobim_kernel::project_crs(&self.doc);
         let objects = crate::crs_ui::object_count(&self.doc);
         let mut crs_out = crate::crs_ui::CrsTabOut::default();
+        let log_entries = crate::transform_doc::log_of(&self.doc);
+        let calibrations = crate::transform_doc::calibrations_of(&self.doc);
         let out = Dialog::new("Project settings", crate::glyphs::by_name("PROJECTSETTINGS"))
             .subtitle(format!("{file}  ·  {elements} element(s)"))
             .width(600.0)
@@ -142,6 +146,7 @@ impl AfroBimApp {
                                 open_defaults = true;
                             }
                         }
+                        LOG_TAB => crate::transform_ui::log_tab(ui, &log_entries, &calibrations),
                         _ => speed_tab(ui, &mut rule, table_text),
                     }
                 },

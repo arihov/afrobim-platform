@@ -748,7 +748,7 @@ impl AfroBimApp {
         self.history.commit(self.doc.snapshot());
     }
 
-    fn undo(&mut self) {
+    pub(crate) fn undo(&mut self) {
         self.flush_commit();
         match self.history.undo().cloned() {
             Some(state) => {
@@ -1802,6 +1802,7 @@ impl AfroBimApp {
                 let zoom_text = crate::zoom_cmds::pixel_size_text(self.view.scale);
                 let crs_text = crs.as_ref().map(|c| c.label()).unwrap_or_else(|| "No coordinate system".to_string());
                 let latlon_text = crs.as_ref().and_then(|c| crate::crs_ui::lat_lon_text(w, c));
+                let wgs_text = crs.as_ref().and_then(|c| crate::crs_ui::wgs84_text(w, c));
                 let standard_text = self.module_status.clone();
                 let body = egui::TextStyle::Body.resolve(ui.style());
                 let mono = egui::TextStyle::Monospace.resolve(ui.style());
@@ -1815,6 +1816,7 @@ impl AfroBimApp {
                 ]
                 .into_iter()
                 .chain(latlon_text.as_ref().map(|t| (Segment::LatLon, text_w(ui, t, &mono) + gap)))
+                .chain(wgs_text.as_ref().map(|t| (Segment::Wgs84, text_w(ui, t, &mono) + gap)))
                 .collect::<Vec<_>>();
                 let plan = layout(ui.available_width(), &widths);
                 let msg_w = plan.message_w;
@@ -1850,12 +1852,18 @@ impl AfroBimApp {
                         }
                         ui.separator();
                     }
+                    if plan.shown.contains(&Segment::Wgs84) {
+                        if let Some(t) = &wgs_text {
+                            ui.label(RichText::new(t).monospace().weak()).on_hover_text("A second reading through the registry transformation named, to its stated accuracy (not survey accuracy). The datum's own latitude and longitude are the primary reading.");
+                            ui.separator();
+                        }
+                    }
                     if plan.shown.contains(&Segment::LatLon) {
                         if let (Some(t), Some(c)) = (&latlon_text, &crs) {
                             let r = ui.label(RichText::new(t).monospace().weak());
                             // Grid convergence and point scale factor, on hover.
                             if let Some(extra) = crate::crs_ui::convergence_text(w, c) {
-                                r.on_hover_text(format!("{extra}\nOn the datum of the system: no datum shift to WGS 84 is applied."));
+                                r.on_hover_text(format!("{extra}\nOn the datum of the system. A WGS 84 reading, where the registry has a transformation, is the second reading."));
                             }
                             ui.separator();
                         }

@@ -23,6 +23,8 @@ enum Act {
     Run(Cv, Option<ElementId>),
     /// Select the element and centre the plan on a point (a structure or a pipe of a network).
     ZoomPoint(ElementId, f64, f64),
+    /// Open the transform log tab of the project settings.
+    OpenLog,
 }
 
 /// One object row: what the tree needs of an element.
@@ -194,6 +196,22 @@ impl AfroBimApp {
                     self.civil_ui.tree.renaming = Some((id, text));
                 }
             }
+            let log_n = crate::transform_doc::log_of(&self.doc).len();
+            let cals = crate::transform_doc::calibrations_of(&self.doc);
+            self.node(ui, "ts-reproject", ph::GLOBE_HEMISPHERE_WEST, "Reprojection", log_n + cals.len(), Some(("Transform coordinates...", Cv::Transform)), &mut acts, |ui, acts| {
+                if ui.selectable_label(false, crate::theme::icon_text(ph::GLOBE_HEMISPHERE_WEST, "Transform coordinates...", 13.0, ui.visuals().text_color())).clicked() {
+                    acts.push(Act::Run(Cv::Transform, None));
+                }
+                if ui.selectable_label(false, crate::theme::icon_text(ph::CROSSHAIR, "Site calibration...", 13.0, ui.visuals().text_color())).clicked() {
+                    acts.push(Act::Run(Cv::Calibrate, None));
+                }
+                if ui.selectable_label(false, crate::theme::icon_text(ph::CLOCK_COUNTER_CLOCKWISE, &format!("Transform log ({log_n})"), 13.0, ui.visuals().text_color())).clicked() {
+                    acts.push(Act::OpenLog);
+                }
+                for c in &cals {
+                    ui.label(crate::theme::icon_text(ph::CROSSHAIR, &format!("{}: {} points, RMS {:.3} m", c.name, c.points, c.rms_m), 12.0, ui.visuals().weak_text_color()));
+                }
+            });
             let points = self.rows(POINTS);
             self.node(ui, "ts-points", ph::DOTS_NINE, "Points", points.len(), Some(("Import points...", Cv::Points)), &mut acts, |ui, acts| {
                 for r in &points {
@@ -438,6 +456,7 @@ impl AfroBimApp {
                 self.doc.select(&[id], SelectMode::Replace);
                 self.civil_zoom_to(e, n, 14.0);
             }
+            Act::OpenLog => self.open_transform_log(),
             Act::Run(cv, id) => {
                 if let Some(id) = id {
                     self.doc.select(&[id], SelectMode::Replace);

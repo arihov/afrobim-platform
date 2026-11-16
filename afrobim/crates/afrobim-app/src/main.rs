@@ -34,9 +34,13 @@ mod grading_ui;
 mod junction_ui;
 mod civil_grading;
 mod civil_junction;
+mod transform_doc;
+mod transform_ui;
 mod defaults_glue;
 #[cfg(test)]
 mod a1_tests;
+#[cfg(test)]
+mod a2_tests;
 mod alignment_glue;
 mod anno_glue;
 mod anno_ui;

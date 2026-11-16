@@ -296,6 +296,11 @@ impl AfroBimApp {
                             a(ui, &mut pick, c(cv), l);
                         }
                     });
+                    submenu(ui, egui_phosphor::regular::GLOBE_HEMISPHERE_WEST, "Reprojection", |ui| {
+                        for (cv, l) in [(Transform, "Transform coordinates…"), (Calibrate, "Site calibration…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
                     a(ui, &mut pick, c(Earthworks), "Earthworks and mass haul…");
                     sep(ui);
                     a(ui, &mut pick, c(CivilLandXml), "Export civil data as LandXML…");

@@ -36,6 +36,8 @@ pub struct LandXmlForm {
     take_pipes: Vec<bool>,
     as_definition: bool,
     tab: usize,
+    /// The offer shown when the file declares a system that differs from the project's.
+    crs: crate::transform_ui::ImportCrs,
 }
 
 impl LandXmlForm {
@@ -55,8 +57,9 @@ impl LandXmlForm {
         let pipes = afrobim_pipes::read_landxml_pipes(&path).map_err(|e| e.to_string());
         let take_pipes = pipes.as_ref().map(|p| vec![true; p.networks.len()]).unwrap_or_default();
         let file_crs = file.as_ref().ok().and_then(|f| f.coordinate_system.as_ref()).and_then(crate::crs_ui::from_landxml);
+        let crs = crate::transform_ui::ImportCrs::new(file_crs.as_ref());
         let (np, nr, nf) = file.as_ref().map(|f| (crate::civil_landxml::point_groups(f).len(), crate::civil_landxml::all_parcels(f).len(), f.ground_profiles.len())).unwrap_or((0, 0, 0));
-        LandXmlForm { path, file, file_crs, use_file_crs: true, alignments, surfaces, take_alignment, take_surface, take_points: vec![true; np], take_parcels: vec![true; nr], take_profiles: vec![true; nf], pipes, take_pipes, as_definition: true, tab }
+        LandXmlForm { path, file, file_crs, use_file_crs: true, alignments, surfaces, take_alignment, take_surface, take_points: vec![true; np], take_parcels: vec![true; nr], take_profiles: vec![true; nf], pipes, take_pipes, as_definition: true, tab, crs }
     }
 
     fn picked(&self) -> (usize, usize) {
@@ -97,6 +100,7 @@ impl AfroBimApp {
             (0, s) => format!("{s} surface(s)"),
             (a, s) => format!("{a} alignment(s) and {s} surface(s)"),
         });
+        let crs_state = std::cell::Cell::new((true, ""));
         let out = Dialog::new("Import LandXML", crate::glyphs::by_name("LANDXML"))
             .subtitle(file)
             .width(640.0)
@@ -114,14 +118,17 @@ impl AfroBimApp {
                         5 => civil_tab(ui, &mut form, 2),
                         _ => pipes_tab(ui, &mut form),
                     }
+                    crs_state.set((form.crs.ready(), form.crs.why_not()));
                 },
-                |ui| Footer::new(&button).enabled(na + ns + nc > 0, reason).icon(crate::glyphs::by_name("LANDXML")).show(ui),
+                |ui| Footer::new(&button).enabled(na + ns + nc > 0 && crs_state.get().0, if crs_state.get().0 { reason } else { crs_state.get().1 }).icon(crate::glyphs::by_name("LANDXML")).show(ui),
             );
         if out.closed || out.inner.is_some_and(|(_, f)| f.cancel) {
             return;
         }
         if out.inner.is_some_and(|(_, f)| f.primary) {
+            let before: Vec<afrobim_kernel::ElementId> = self.doc.elements().iter().map(|e| e.id).collect();
             self.landxml_apply(ctx, &form);
+            self.finish_import_transform(&form.crs, &before, &form.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default());
             return;
         }
         self.landxml.form = Some(form);
@@ -298,7 +305,12 @@ fn file_tab(ui: &mut egui::Ui, form: &mut LandXmlForm, project: Option<&ProjectC
             None => ui.label(RichText::new("The project has no coordinate system.").strong()),
         };
         crate::crs_ui::show_findings(ui, &crate::crs_ui::dataset_check(project, &name, form.file_crs.as_ref(), extent));
-        ui_kit::callout(ui, Level::Info, "Objects come in at the coordinates of the file, easting and northing times 1000 in model millimetres. Nothing is reprojected, shifted or re-based, whatever the check says.");
+        ui_kit::callout(ui, Level::Info, "Objects come in at the coordinates of the file, easting and northing times 1000 in model millimetres, unless you choose below to transform them. Nothing is reprojected by default.");
+        if crate::transform_ui::differs(form.file_crs.as_ref(), project) {
+            if let Some(p) = project {
+                form.crs.show(ui, "lx-crs", p, extent.map(|e| ((e.min_easting, e.min_northing), (e.max_easting, e.max_northing))));
+            }
+        }
         if project.is_none() && form.file_crs.is_some() {
             ui.add_space(4.0);
             ui_kit::toggle(ui, &mut form.use_file_crs, "Use the file's coordinate system for the project");

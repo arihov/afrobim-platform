@@ -38,6 +38,8 @@ pub const FEATURELINE: &str = "civil-featureline";
 pub const GRADING: &str = "civil-grading";
 pub const INTERSECTION: &str = "civil-intersection";
 pub const ROUNDABOUT: &str = "civil-roundabout";
+pub const POINTCLOUD: &str = "civil-pointcloud";
+pub const FIGURES: &str = "civil-figures";
 
 /// Category, display name and the plural the toolspace shows.
 pub const KINDS: [(&str, &str, &str); 14] = [

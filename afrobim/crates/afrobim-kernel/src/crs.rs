@@ -292,6 +292,9 @@ pub enum CrsKind {
     Projected,
     /// Known by name or code only. Nothing can be computed from it.
     NamedOnly,
+    /// A geographic system (latitude and longitude in degrees on a datum) the kernel knows by code
+    /// (see `crs_transform::geographic_crs_codes`): it takes part in datum transformations.
+    Geographic,
     /// A local site grid with no geodetic meaning.
     LocalGrid,
 }
@@ -391,6 +394,7 @@ struct ProjectCrsRaw {
 impl From<ProjectCrsRaw> for ProjectCrs {
     fn from(r: ProjectCrsRaw) -> ProjectCrs {
         let kind = r.kind.unwrap_or_else(|| if r.epsg.and_then(definition).is_some() { CrsKind::Projected } else { CrsKind::NamedOnly });
+        let geog = if kind == CrsKind::Geographic { r.epsg.and_then(crate::crs_transform::geographic_crs) } else { None };
         let mut crs = ProjectCrs {
             epsg: r.epsg,
             name: r.name,
@@ -403,6 +407,11 @@ impl From<ProjectCrsRaw> for ProjectCrs {
         };
         if crs.kind == CrsKind::Projected && crs.horizontal_datum.is_empty() {
             crs.horizontal_datum = crs.epsg.and_then(definition).map(|d| d.datum.to_string()).unwrap_or_default();
+        }
+        if let Some(g) = geog {
+            if crs.horizontal_datum.is_empty() {
+                crs.horizontal_datum = g.datum.to_string();
+            }
         }
         crs
     }
@@ -535,6 +544,27 @@ impl ProjectCrs {
         })
     }
 
+    /// A geographic system by EPSG code (4326, 4210, 4209, 4201, 4222, 4148): latitude and
+    /// longitude in degrees. `None` for any other code.
+    pub fn geographic(epsg: u32) -> Option<ProjectCrs> {
+        let g = crate::crs_transform::geographic_crs(epsg)?;
+        Some(ProjectCrs {
+            epsg: Some(epsg),
+            name: g.name.to_string(),
+            kind: CrsKind::Geographic,
+            horizontal_datum: g.datum.to_string(),
+            vertical_datum: String::new(),
+            linear_unit: LinearUnit::Metre,
+            wkt: None,
+            source: CrsSource::Typed,
+        })
+    }
+
+    /// The geographic systems the kernel knows, as systems.
+    pub fn geographic_systems() -> Vec<ProjectCrs> {
+        crate::crs_transform::geographic_crs_codes().into_iter().filter_map(ProjectCrs::geographic).collect()
+    }
+
     /// WGS 84 / UTM zone `zone` (1 to 60), north or south of the equator.
     pub fn utm_wgs84(zone: u8, south: bool) -> Option<ProjectCrs> {
         if !(1..=60).contains(&zone) {
@@ -647,7 +677,7 @@ impl ProjectCrs {
         let digits = c.strip_prefix("EPSG").unwrap_or(&c);
         if !digits.is_empty() && digits.chars().all(|ch| ch.is_ascii_digit()) {
             let code: u32 = digits.parse().ok()?;
-            return Some(ProjectCrs::from_epsg(code).unwrap_or_else(|| ProjectCrs::named_only(Some(code), &format!("EPSG:{code}"))));
+            return Some(ProjectCrs::from_epsg(code).or_else(|| ProjectCrs::geographic(code)).unwrap_or_else(|| ProjectCrs::named_only(Some(code), &format!("EPSG:{code}"))));
         }
         let mut c = c.replace("ZONE", "").replace("SOUTH", "S").replace("NORTH", "N");
         if c.starts_with("UTM") {
@@ -672,7 +702,7 @@ impl ProjectCrs {
             .and_then(|c| c.numbers.first().copied().or_else(|| c.strings.get(1).and_then(|s| s.trim().parse::<f64>().ok())))
             .map(|v| v as u32);
         let datum = root.find("DATUM").or_else(|| root.find("ENSEMBLE")).and_then(|d| d.strings.first().cloned()).unwrap_or_default();
-        let mut crs = match epsg.and_then(ProjectCrs::from_epsg) {
+        let mut crs = match epsg.and_then(|c| ProjectCrs::from_epsg(c).or_else(|| ProjectCrs::geographic(c))) {
             Some(known) => known,
             None => {
                 let local = keyword.starts_with("LOCAL") || keyword == "ENGCRS" || keyword == "ENGINEERINGCRS";
@@ -680,7 +710,7 @@ impl ProjectCrs {
             }
         };
         // Keep the file's own name when it differs from the registry name.
-        if crs.kind != CrsKind::Projected || crs.name != name {
+        if crs.kind == CrsKind::NamedOnly || crs.kind == CrsKind::LocalGrid || crs.name != name {
             crs.name = name;
         }
         if crs.horizontal_datum.is_empty() {
@@ -1088,7 +1118,7 @@ mod tests {
         assert_eq!(ProjectCrs::parse("EPSG:21096").unwrap().kind, CrsKind::Projected);
         // A code the kernel cannot project is kept by name only.
         let wgs = ProjectCrs::parse("EPSG:4326").unwrap();
-        assert_eq!((wgs.kind, wgs.epsg), (CrsKind::NamedOnly, Some(4326)));
+        assert_eq!((wgs.kind, wgs.epsg), (CrsKind::Geographic, Some(4326)));
         for text in ["UTM 36", "Arc 1960 / UTM zone 34S", "UTM 61S", "", "metres", "Clarke UTM 36S"] {
             assert_eq!(ProjectCrs::parse(text), None, "{text}");
         }

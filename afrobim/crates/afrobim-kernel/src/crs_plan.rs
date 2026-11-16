@@ -201,7 +201,7 @@ struct Endpoint {
 fn resolve(crs: &ProjectCrs) -> Result<Endpoint, NoPath> {
     match crs.kind {
         CrsKind::LocalGrid => return Err(NoPath::LocalGrid { name: crs.name.clone() }),
-        CrsKind::NamedOnly | CrsKind::Projected => {}
+        CrsKind::NamedOnly | CrsKind::Projected | CrsKind::Geographic => {}
     }
     let named = || NoPath::NamedOnly { label: crs.label() };
     let code = crs.epsg.ok_or_else(named)?;
