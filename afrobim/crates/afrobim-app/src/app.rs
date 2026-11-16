@@ -2305,11 +2305,11 @@ impl AfroBimApp {
         self.design_windows(ctx);
         let mut help = self.show_help;
         if help {
-            let dlg = crate::ui_kit::Dialog::titled("Commands").subtitle("Every command, its aliases and what it does").width(520.0).show_body(ctx, |ui| {
+            let dlg = crate::ui_kit::Dialog::titled("Commands").subtitle("Every command, its aliases and what it does").width(780.0).show_body(ctx, |ui| {
                 let fid = egui::Id::new("commands-filter");
                 let mut filter: String = ui.data(|d| d.get_temp(fid)).unwrap_or_default();
                 crate::ui_kit::heading(ui, "Find a command");
-                let r = crate::ui_kit::text_field_wide(ui, &mut filter, "name, alias or words of the help");
+                let r = crate::ui_kit::text_field(ui, &mut filter, "name, alias or words of the help");
                 crate::ui_kit::focus_once(ui, &r, "commands-filter");
                 ui.data_mut(|d| d.insert_temp(fid, filter.clone()));
                 let needle = filter.trim().to_lowercase();
@@ -2322,7 +2322,7 @@ impl AfroBimApp {
                     for c in COMMANDS.iter().filter(|c| needle.is_empty() || c.name.to_lowercase().contains(&needle) || c.aliases.iter().any(|a| a.to_lowercase().contains(&needle)) || c.help.to_lowercase().contains(&needle)) {
                         ui.label(RichText::new(c.name).monospace().strong());
                         ui.label(RichText::new(c.aliases.join(" ")).monospace().weak());
-                        ui.label(c.help);
+                        ui.add(egui::Label::new(c.help).wrap());
                         ui.end_row();
                     }
                 });
@@ -2339,7 +2339,7 @@ impl AfroBimApp {
         if library_open {
             let dlg = crate::ui_kit::Dialog::titled("Standard signs").subtitle("The sign library of the loaded standard").width(420.0).show_body(ctx, |ui| {
                 crate::ui_kit::heading(ui, "Find a sign");
-                let r = crate::ui_kit::text_field_wide(ui, &mut self.library_filter, "key or name");
+                let r = crate::ui_kit::text_field(ui, &mut self.library_filter, "key or name");
                 crate::ui_kit::focus_once(ui, &r, "library-filter");
                 crate::ui_kit::heading(ui, "Signs of the loaded standard");
                 let filter = self.library_filter.trim().to_lowercase();
