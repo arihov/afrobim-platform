@@ -129,8 +129,25 @@ impl Dialog {
         DialogOut { inner: out.and_then(|o| o.inner), closed }
     }
 
-    /// A dialog with no footer (a viewer).
+    /// A window whose fields apply as they are typed: the body, and a pinned footer with the given
+    /// secondary buttons and one primary "Close" (Enter in a kit field and Escape press it).
+    /// `closed` is set when the header's close button or the footer's Close was pressed; the second
+    /// value is the index of the secondary button pressed.
+    pub fn show_close<R>(self, ctx: &Context, body: impl FnOnce(&mut Ui) -> R, secondary: &[&str]) -> DialogOut<(R, Option<usize>)> {
+        let out = self.show(ctx, body, |ui| Footer::new("Close").cancel(None).secondary(secondary).show(ui));
+        let footer_close = out.inner.as_ref().is_some_and(|(_, f)| f.primary);
+        DialogOut { closed: out.closed || footer_close, inner: out.inner.map(|(r, f)| (r, f.secondary)) }
+    }
+
+    /// A viewer or an editor that applies as it is typed: the body and a pinned footer with one
+    /// primary "Close" (Enter in a kit field and Escape close it too).
     pub fn show_body<R>(self, ctx: &Context, body: impl FnOnce(&mut Ui) -> R) -> DialogOut<R> {
+        let out = self.show_close(ctx, body, &[]);
+        DialogOut { inner: out.inner.map(|(r, _)| r), closed: out.closed }
+    }
+
+    /// A dialog with no footer at all (a progress window that has its own buttons).
+    pub fn show_bare<R>(self, ctx: &Context, body: impl FnOnce(&mut Ui) -> R) -> DialogOut<R> {
         let out = self.show(ctx, body, |_| ());
         DialogOut { inner: out.inner.map(|(r, _)| r), closed: out.closed }
     }
@@ -682,14 +699,23 @@ pub fn results_table(ui: &mut Ui, id: &str, headers: &[&str], cols: &[Col], rows
     let t = tokens_ui(ui);
     egui::Frame::new().fill(t.flat(t.field)).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::symmetric(8, 6)).stroke(Stroke::new(1.0_f32, t.border)).show(ui, |ui| {
         egui::Grid::new(Id::new(("kit-table", id))).num_columns(headers.len()).spacing([theme::SP_LG, 4.0]).striped(true).show(ui, |ui| {
-            for h in headers {
-                ui.label(RichText::new(*h).size(theme::FONT_SMALL).strong().color(t.text_muted));
+            for (i, h) in headers.iter().enumerate() {
+                let l = RichText::new(*h).size(theme::FONT_SMALL).strong().color(t.text_muted);
+                if cols.get(i).copied() == Some(Col::Num) {
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| ui.label(l));
+                } else {
+                    ui.label(l);
+                }
             }
             ui.end_row();
             for row in rows {
                 for (i, cell) in row.iter().enumerate() {
                     let text = RichText::new(cell).color(t.text);
-                    ui.label(if cols.get(i).copied() == Some(Col::Num) { text.monospace() } else { text });
+                    if cols.get(i).copied() == Some(Col::Num) {
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| ui.label(text.monospace()));
+                    } else {
+                        ui.label(text);
+                    }
                 }
                 ui.end_row();
             }

@@ -298,7 +298,7 @@ impl crate::app::AfroBimApp {
         }
         ctx.request_repaint_after(std::time::Duration::from_millis(100));
         let mut cancel = Vec::new();
-        crate::ui_kit::Dialog::titled("Working").subtitle("Calculations running in the background").width(380.0).resizable(false).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Working").subtitle("Calculations running in the background").width(380.0).resizable(false).show_bare(ctx, |ui| {
             for (kind, label, elapsed) in &running {
                 ui.horizontal(|ui| {
                     ui.add(egui::ProgressBar::new(0.0).animate(true).desired_width(180.0).text(format!("{label}: {elapsed:.0} s")));
@@ -307,8 +307,11 @@ impl crate::app::AfroBimApp {
                     }
                 });
             }
-            crate::ui_kit::note(ui, "The model stays editable. An edit while this runs discards the result.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "The model stays editable. An edit while this runs discards the result. Closing this window cancels the calculation.");
         });
+        if dlg.closed {
+            cancel.extend(running.iter().map(|(k, _, _)| *k));
+        }
         for kind in cancel {
             self.bg.cancel(kind);
         }
