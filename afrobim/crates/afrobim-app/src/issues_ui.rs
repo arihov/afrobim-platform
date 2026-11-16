@@ -350,10 +350,11 @@ impl AfroBimApp {
         let mut message: Option<String> = None;
         let dlg = crate::ui_kit::Dialog::titled("Issues").subtitle("Problems raised against elements, with viewpoints").width(960.0).show_body(ctx, |ui| {
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Issues are kept in the document with the clash tests. Raise one from a clash or a group of clashes, or write a free-standing one; add comments and viewpoints; exchange them as BCF 2.1 (BCFOUT, BCFIN).");
+            crate::ui_kit::heading(ui, "Raise an issue");
+            crate::ui_kit::form(ui, "issue-author", |f| {
+                f.row("Your name", |ui| ui.add(egui::TextEdit::singleline(&mut self.issues.author).desired_width(180.0).hint_text("author of what you add")));
+            });
             ui.horizontal(|ui| {
-                ui.label("Your name");
-                ui.add(egui::TextEdit::singleline(&mut self.issues.author).desired_width(140.0).hint_text("author of what you add"));
-                ui.separator();
                 ui.add(egui::TextEdit::singleline(&mut self.issues.new_title).desired_width(260.0).hint_text("title of a new issue"));
                 if ui.button("New issue").clicked() {
                     create = true;
@@ -397,10 +398,10 @@ impl AfroBimApp {
             if !self.issues.message.is_empty() {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &self.issues.message);
             }
-            ui.separator();
             let n = self.coord.co.issues.len();
+            crate::ui_kit::heading(ui, &format!("Issues ({n})"));
             if n == 0 {
-                ui.label(RichText::new("No issues yet.").weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No issues yet.");
             }
             {
                 // The list.
@@ -426,9 +427,9 @@ impl AfroBimApp {
                     });
                 });
                 // The selected issue.
-                ui.separator();
+                crate::ui_kit::heading(ui, "Selected issue");
                 let Some(guid) = self.issues.selected.clone().filter(|g| self.coord.co.issue(g).is_some()) else {
-                    ui.label(RichText::new("Select an issue to edit it.").weak());
+                    crate::ui_kit::note(ui, "Select an issue to edit it.");
                     return;
                 };
                 if self.issues.due_for.as_deref() != Some(guid.as_str()) {
@@ -623,23 +624,34 @@ impl AfroBimApp {
     fn bcf_out_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let mut export = false;
-        let dlg = crate::ui_kit::Dialog::titled("Export issues as BCF").subtitle("Write the issues to a BCF file").width(560.0).show_body(ctx, |ui| {
+        let has_issues = !self.coord.co.issues.is_empty();
+        let dlg = crate::ui_kit::Dialog::titled("Export issues as BCF").subtitle("Write the issues to a BCF file").width(560.0).show(ctx, |ui| {
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, BCF_LIMITS);
-            ui.add_space(4.0);
-            ui.label(format!("{} issue(s) in the document.", self.coord.co.issues.len()));
-            ui.label(match &self.last_ifc_name {
-                Some(n) => format!("IFC file named in the topics: {n} (the last IFC export)."),
-                None => "No IFC file has been exported yet, so the topics will name none. Export the IFC first (IFCOUT) if the BCF should point at it.".to_string(),
+            crate::ui_kit::heading(ui, "What will be written");
+            crate::ui_kit::form(ui, "bcf-out", |f| {
+                f.row("Issues", |ui| ui.label(self.coord.co.issues.len().to_string()));
+                f.row("IFC file named", |ui| ui.label(self.last_ifc_name.clone().unwrap_or_else(|| "none".to_string())));
             });
-            if ui.button("Choose a file and export").clicked() {
-                export = true;
+            if self.last_ifc_name.is_none() {
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No IFC file has been exported yet, so the topics will name none. Export the IFC first (IFCOUT) if the BCF should point at it.");
             }
-            for l in &self.issues.bcf_report {
-                ui.label(RichText::new(l).small());
+            if !self.issues.bcf_report.is_empty() {
+                crate::ui_kit::heading(ui, "Last export");
+                for l in &self.issues.bcf_report {
+                    ui.label(RichText::new(l).small());
+                }
             }
-        });
+        }, |ui| crate::ui_kit::Footer::new("Choose a file and export").enabled(has_issues, "There are no issues to export").cancel(Some("Close")).show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                export = true;
+            }
         }
         self.issues.bcf_out_open = open;
         if export {
@@ -661,20 +673,28 @@ impl AfroBimApp {
     fn bcf_in_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let mut import = false;
-        let dlg = crate::ui_kit::Dialog::titled("Import issues from BCF").subtitle("Read issues from a BCF file").width(560.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Import issues from BCF").subtitle("Read issues from a BCF file").width(560.0).show(ctx, |ui| {
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, BCF_LIMITS);
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An issue with the same GUID replaces the one in the document; the others are added. What the model cannot hold is listed as not imported.");
-            if ui.button("Choose a file and import").clicked() {
-                import = true;
+            if !self.issues.bcf_report.is_empty() {
+                crate::ui_kit::heading(ui, "Last import");
+                egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
+                    for l in &self.issues.bcf_report {
+                        ui.label(RichText::new(l).small());
+                    }
+                });
             }
-            egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
-                for l in &self.issues.bcf_report {
-                    ui.label(RichText::new(l).small());
-                }
-            });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Choose a file and import").cancel(Some("Close")).show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                import = true;
+            }
         }
         self.issues.bcf_in_open = open;
         if import {

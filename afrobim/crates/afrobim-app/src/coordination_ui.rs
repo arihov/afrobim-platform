@@ -348,17 +348,18 @@ impl AfroBimApp {
             let mut edit: Option<usize> = None;
             let mut delete: Option<usize> = None;
             let mut add = false;
-            let dlg = crate::ui_kit::Dialog::titled("Clash tests").subtitle("Which groups of elements are tested against which").width(760.0).show_body(ctx, |ui| {
+            let has_tests = !self.coord.co.tests.is_empty();
+            let dlg = crate::ui_kit::Dialog::titled("Clash tests").subtitle("Which groups of elements are tested against which").width(760.0).show(ctx, |ui| {
                 ui.set_min_width(720.0);
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Reference models appear in the selections as categories 'reference:<model>' (pick one model) and by their IFC entity type under layers (for example IFCWALL).");
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "A test checks one selection of elements against another. Hard tests find solids that overlap; clearance tests find solids closer than the tolerance you enter. AfroBIM offers no tolerances: they come from your project requirements.");
-                ui.add_space(4.0);
+                crate::ui_kit::heading(ui, &format!("Tests ({})", self.coord.co.tests.len()));
                 if self.coord.co.tests.is_empty() {
-                    ui.label(RichText::new("No tests yet.").weak());
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No tests yet. Add one with the footer button.");
                 }
                 egui::Grid::new("clash-tests-grid").num_columns(6).striped(true).spacing([12.0, 4.0]).show(ui, |ui| {
-                    for h in ["Name", "Type", "Selection A", "Selection B", "Tolerance", ""] {
-                        crate::ui_kit::th(ui, &h);
+                    for (k, h) in ["Name", "Type", "Selection A", "Selection B", "Tolerance (mm)", ""].iter().enumerate() {
+                        if k == 4 { crate::ui_kit::th_num(ui, h) } else { crate::ui_kit::th(ui, h) }
                     }
                     ui.end_row();
                     for (i, t) in self.coord.co.tests.iter().enumerate() {
@@ -366,7 +367,7 @@ impl AfroBimApp {
                         ui.label(t.kind.label());
                         ui.label(selection_text(&t.a));
                         ui.label(selection_text(&t.b));
-                        ui.label(if t.kind == ClashKind::Clearance { format!("{} mm", t.tolerance_mm) } else if t.touching_counts { "touching counts".to_string() } else { String::new() });
+                        crate::ui_kit::cell_num(ui, if t.kind == ClashKind::Clearance { format!("{}", t.tolerance_mm) } else if t.touching_counts { "touching counts".to_string() } else { String::new() });
                         ui.horizontal(|ui| {
                             if ui.small_button("Edit").clicked() {
                                 edit = Some(i);
@@ -378,18 +379,20 @@ impl AfroBimApp {
                         ui.end_row();
                     }
                 });
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Add a test").clicked() {
-                        add = true;
-                    }
-                    if ui.add_enabled(!self.coord.co.tests.is_empty(), egui::Button::new("Run the tests")).clicked() {
-                        run = true;
-                    }
-                });
-            });
+            }, |ui| crate::ui_kit::Footer::new("Run the tests").enabled(has_tests, "Add a test first").secondary(&["Add a test"]).cancel(Some("Close")).show(ui));
             if dlg.closed {
                 open = false;
+            }
+            if let Some((_, out)) = &dlg.inner {
+                if out.cancel {
+                    open = false;
+                }
+                if out.primary {
+                    run = true;
+                }
+                if out.secondary == Some(0) {
+                    add = true;
+                }
             }
             self.coord.tests_open = open;
             if add {
@@ -427,10 +430,7 @@ impl AfroBimApp {
                     ui.add_sized([300.0, 20.0], egui::TextEdit::singleline(&mut form.name).hint_text("e.g. Services against structures"));
                     ui.end_row();
                     ui.label("Type");
-                    ui.horizontal(|ui| {
-                        ui.radio_value(&mut form.kind, Some(ClashKind::Hard), "Hard (solids overlap)");
-                        ui.radio_value(&mut form.kind, Some(ClashKind::Clearance), "Clearance (closer than a tolerance)");
-                    });
+                    crate::ui_kit::segmented_of(ui, &mut form.kind, &[(Some(ClashKind::Hard), "Hard (solids overlap)"), (Some(ClashKind::Clearance), "Clearance (closer than a tolerance)")]);
                     ui.end_row();
                     ui.label("Selection A");
                     ui.vertical(|ui| {
@@ -450,11 +450,11 @@ impl AfroBimApp {
                         ui.end_row();
                     } else {
                         ui.label("Touching");
-                        ui.checkbox(&mut form.touching, "faces that only touch count as a clash");
+                        crate::ui_kit::toggle(ui, &mut form.touching, "Faces that only touch count as a clash");
                         ui.end_row();
                     }
                     ui.label("Host chain");
-                    ui.checkbox(&mut form.ignore_host_chain, "ignore pairs where one element hosts the other (a post and its sign or foundation)");
+                    crate::ui_kit::toggle(ui, &mut form.ignore_host_chain, "Ignore pairs where one element hosts the other (a post and its sign or foundation)");
                     ui.end_row();
                 });
                 if !form.error.is_empty() {
@@ -505,33 +505,30 @@ impl AfroBimApp {
             let mut run = false;
             let mut zoom: Option<usize> = None;
             let names: Vec<String> = self.coord.co.tests.iter().map(|t| t.name.clone()).collect();
-            let dlg = crate::ui_kit::Dialog::titled("Clash results").subtitle("The clashes found, with their status").width(1060.0).show_body(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Test");
-                    let shown = self.coord.filter_test.clone().unwrap_or_else(|| "all".to_string());
-                    egui::ComboBox::from_id_salt("clash-filter-test").selected_text(shown).show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.coord.filter_test, None, "all");
-                        for n in &names {
-                            ui.selectable_value(&mut self.coord.filter_test, Some(n.clone()), n);
-                        }
+            let dlg = crate::ui_kit::Dialog::titled("Clash results").subtitle("The clashes found, with their status").width(1060.0).show(ctx, |ui| {
+                crate::ui_kit::heading(ui, "Filter");
+                crate::ui_kit::form(ui, "clash-filter", |f| {
+                    f.row("Test", |ui| {
+                        let shown = self.coord.filter_test.clone().unwrap_or_else(|| "all".to_string());
+                        egui::ComboBox::from_id_salt("clash-filter-test").selected_text(shown).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.coord.filter_test, None, "all");
+                            for n in &names {
+                                ui.selectable_value(&mut self.coord.filter_test, Some(n.clone()), n);
+                            }
+                        });
                     });
-                    ui.label("Status");
-                    egui::ComboBox::from_id_salt("clash-filter-status").selected_text(self.coord.filter_status.map(|s| s.label()).unwrap_or("all")).show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.coord.filter_status, None, "all");
-                        for s in STATUSES {
-                            ui.selectable_value(&mut self.coord.filter_status, Some(s), s.label());
-                        }
+                    f.row("Status", |ui| {
+                        egui::ComboBox::from_id_salt("clash-filter-status").selected_text(self.coord.filter_status.map(|s| s.label()).unwrap_or("all")).show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.coord.filter_status, None, "all");
+                            for s in STATUSES {
+                                ui.selectable_value(&mut self.coord.filter_status, Some(s), s.label());
+                            }
+                        });
                     });
-                    ui.checkbox(&mut self.coord.markers, "Markers in 3D");
-                    if ui.button("Run again").clicked() {
-                        run = true;
-                    }
-                    if ui.button("Export CSV").clicked() {
-                        export = true;
-                    }
+                    f.row("Markers in 3D", |ui| crate::ui_kit::toggle(ui, &mut self.coord.markers, "Show a marker at each clash"));
                 });
                 let counts: Vec<String> = STATUSES.iter().map(|s| format!("{} {}", self.coord.co.results.count(*s), s.label())).collect();
-                ui.label(RichText::new(format!("{} clash(es): {}.", self.coord.co.results.clashes.len(), counts.join(", "))).small().weak());
+                crate::ui_kit::heading(ui, &format!("{} clash(es): {}", self.coord.co.results.clashes.len(), counts.join(", ")));
                 if !self.coord.last_run.is_empty() {
                     crate::ui_kit::note(ui, format!("Last run: {}", self.coord.last_run));
                 }
@@ -546,13 +543,12 @@ impl AfroBimApp {
                     .map(|(i, _)| i)
                     .collect();
                 if rows.is_empty() {
-                    ui.add_space(6.0);
-                    ui.label(RichText::new(if self.coord.co.results.clashes.is_empty() { "No clashes on record." } else { "No clash matches the filters." }).weak());
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, if self.coord.co.results.clashes.is_empty() { "No clashes on record." } else { "No clash matches the filters." });
                 }
                 egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
                     egui::Grid::new("clash-results-grid").num_columns(10).striped(true).spacing([10.0, 4.0]).show(ui, |ui| {
-                        for h in ["", "Id", "Test", "Element A", "Element B", "Kind", "Depth or distance", "Status", "Assignee", "Comment"] {
-                            crate::ui_kit::th(ui, &h);
+                        for (k, h) in ["", "Id", "Test", "Element A", "Element B", "Kind", "Depth or distance (mm)", "Status", "Assignee", "Comment"].iter().enumerate() {
+                            if k == 6 { crate::ui_kit::th_num(ui, h) } else { crate::ui_kit::th(ui, h) }
                         }
                         ui.end_row();
                         for i in rows {
@@ -565,10 +561,10 @@ impl AfroBimApp {
                             ui.label(&c.mark_a);
                             ui.label(&c.mark_b);
                             ui.label(c.kind.label());
-                            ui.label(match (c.depth_mm, c.distance_mm) {
-                                (Some(d), _) if c.containment => format!("{d:.1} mm (one inside the other)"),
-                                (Some(d), _) => format!("{d:.1} mm deep"),
-                                (_, Some(d)) => format!("{d:.1} mm apart"),
+                            crate::ui_kit::cell_num(ui, match (c.depth_mm, c.distance_mm) {
+                                (Some(d), _) if c.containment => format!("{d:.1} (one inside the other)"),
+                                (Some(d), _) => format!("{d:.1} deep"),
+                                (_, Some(d)) => format!("{d:.1} apart"),
                                 _ => String::new(),
                             });
                             let before = c.status;
@@ -584,9 +580,20 @@ impl AfroBimApp {
                         }
                     });
                 });
-            });
+            }, |ui| crate::ui_kit::Footer::new("Run again").secondary(&["Export CSV..."]).cancel(Some("Close")).show(ui));
             if dlg.closed {
                 open = false;
+            }
+            if let Some((_, out)) = &dlg.inner {
+                if out.cancel {
+                    open = false;
+                }
+                if out.primary {
+                    run = true;
+                }
+                if out.secondary == Some(0) {
+                    export = true;
+                }
             }
             self.coord.results_open = open;
             self.coord.zoom = zoom;
