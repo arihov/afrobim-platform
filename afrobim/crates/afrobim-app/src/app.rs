@@ -69,6 +69,7 @@ pub struct AfroBimApp {
     pub(crate) signsched: crate::signsched::SignSchedUi,
     pub(crate) projset: crate::projset::ProjSetUi,
     pub(crate) survey: crate::survey_ui::SurveyUi,
+    pub(crate) landxml: crate::landxml_ui::LandXmlUi,
     /// The name of the last IFC file exported, which BCF topics name as their model.
     pub(crate) last_ifc_name: Option<String>,
     signs_ready: bool,
@@ -202,6 +203,7 @@ impl AfroBimApp {
             signsched: Default::default(),
             projset: Default::default(),
             survey: Default::default(),
+            landxml: Default::default(),
             last_ifc_name: None,
             signs_ready,
             module_status,
@@ -564,6 +566,12 @@ impl AfroBimApp {
             if app.options.pis_finish {
                 app.design_finish_create();
             }
+        }
+        if let Some(path) = app.options.landxml_dialog.clone() {
+            app.landxml_open(path, false);
+        }
+        if let Some(path) = app.options.survey_dialog.clone() {
+            app.survey_open(path);
         }
         app.frames_setup();
         if let Some(path) = app.options.export_ifc.clone() {
@@ -1118,7 +1126,7 @@ impl AfroBimApp {
             Action::Library => self.show_library = true,
             Action::ImportLandXml => {
                 if let Some(path) = rfd::FileDialog::new().add_filter("LandXML", &["xml"]).pick_file() {
-                    self.import_landxml(ctx, path);
+                    self.landxml_open(path, false);
                 }
             }
             Action::PlaceOnAlignment => match (self.selected_sign(), alignment_glue::alignments(&self.doc).first().map(|a| a.0)) {
@@ -1209,7 +1217,7 @@ impl AfroBimApp {
             },
             Action::ImportSurface => {
                 if let Some(path) = rfd::FileDialog::new().add_filter("LandXML", &["xml"]).pick_file() {
-                    self.import_surface(ctx, path);
+                    self.landxml_open(path, true);
                 }
             }
             Action::ImportSurvey => {
@@ -1420,8 +1428,14 @@ impl AfroBimApp {
             }
             Action::OsnapSettings => self.anno.osnap_open = true,
             Action::Layers => self.anno.layers_open = true,
-            Action::Units => self.anno.units_open = true,
-            Action::ProjectSettings => self.projset.open = true,
+            Action::Units => {
+                self.projset.open = true;
+                self.projset.tab = 1;
+            }
+            Action::ProjectSettings => {
+                self.projset.open = true;
+                self.projset.tab = 0;
+            }
             Action::Underlay => self.under.window_open = true,
             Action::SignSchedule => self.signsched_pick(),
             Action::SignScheduleOut => self.signsched_out(),
@@ -1857,7 +1871,19 @@ impl AfroBimApp {
             ui.separator();
             let mut definition_edited: Option<ElementId> = None;
             let mut changed = false;
-            egui::ScrollArea::vertical().id_salt("props").max_height((ui.available_height() - 170.0).max(120.0)).auto_shrink([false, false]).show(ui, |ui| {
+            let props_h = (ui.available_height() - 170.0).max(120.0);
+            let props_bg = ui.interact(egui::Rect::from_min_size(ui.cursor().min, egui::vec2(ui.available_width(), props_h)), egui::Id::new("props-context"), egui::Sense::click());
+            let mut props_pick = None;
+            props_bg.context_menu(|ui| {
+                props_pick = self.properties_context_menu(ui);
+                if props_pick.is_some() {
+                    ui.close_menu();
+                }
+            });
+            if let Some(a) = props_pick {
+                self.run(ctx, a);
+            }
+            egui::ScrollArea::vertical().id_salt("props").max_height(props_h).auto_shrink([false, false]).show(ui, |ui| {
                 let selected = self.doc.selection().len();
                 let Some(id) = self.doc.primary() else {
                     ui.label(RichText::new("Nothing selected. Click an element in the model.").weak());
@@ -1990,12 +2016,22 @@ impl AfroBimApp {
             ui.label(RichText::new("LAYERS").small().strong().weak());
             ui.separator();
             egui::ScrollArea::vertical().id_salt("layers").show(ui, |ui| {
+                let mut layer_pick: Option<(crate::menus::LayerPick, String)> = None;
                 for layer in self.doc.layers_mut().iter_mut().filter(|l| !crate::anno_ui::hidden_layer(&l.name)) {
                     ui.horizontal(|ui| {
                         ui.checkbox(&mut layer.visible, "").on_hover_text("Visible");
                         ui.toggle_value(&mut layer.locked, "Lock").on_hover_text("Locked layers cannot be selected");
-                        ui.label(&layer.name);
+                        let name = layer.name.clone();
+                        ui.add(egui::Label::new(&layer.name).sense(egui::Sense::click())).context_menu(|ui| {
+                            if let Some(p) = AfroBimApp::layer_context_menu(ui, &name) {
+                                layer_pick = Some((p, name.clone()));
+                                ui.close_menu();
+                            }
+                        });
                     });
+                }
+                if let Some((p, name)) = layer_pick {
+                    self.apply_layer_pick(ctx, p, &name);
                 }
                 ui.checkbox(&mut self.show_labels, "Show element marks");
             });
@@ -2184,6 +2220,7 @@ impl AfroBimApp {
         self.signsched_windows(ctx);
         self.projset_window(ctx);
         self.survey_window(ctx);
+        self.landxml_window(ctx);
         self.appearance_window(ctx);
         self.palette_window(ctx);
         self.issues_windows(ctx);

@@ -29,6 +29,8 @@ pub struct DialogOut<R> {
 
 pub struct Dialog {
     title: String,
+    /// The text the window's id is made from, when it is not the title (a title with a file name).
+    id_title: Option<String>,
     icon: &'static str,
     subtitle: Option<String>,
     help: Option<String>,
@@ -40,7 +42,12 @@ pub struct Dialog {
 
 impl Dialog {
     pub fn new(title: impl Into<String>, icon: &'static str) -> Self {
-        Dialog { title: title.into(), icon, subtitle: None, help: None, width: 460.0, min_width: 340.0, resizable: true, max_body: None }
+        Dialog { title: title.into(), id_title: None, icon, subtitle: None, help: None, width: 460.0, min_width: 340.0, resizable: true, max_body: None }
+    }
+    /// The window's identity (and remembered position) when it differs from the title.
+    pub fn id_title(mut self, t: impl Into<String>) -> Self {
+        self.id_title = Some(t.into());
+        self
     }
     pub fn subtitle(mut self, s: impl Into<String>) -> Self {
         self.subtitle = Some(s.into());
@@ -70,10 +77,11 @@ impl Dialog {
     /// Shows the dialog. `body` scrolls when it is taller than the area; `footer` is pinned below it.
     pub fn show<R, F>(self, ctx: &Context, body: impl FnOnce(&mut Ui) -> R, footer: impl FnOnce(&mut Ui) -> F) -> DialogOut<(R, F)> {
         let work = crate::win::work_rect(ctx);
-        let body_cap = self.max_body.unwrap_or((work.height() - 190.0).max(160.0));
+        let body_cap = self.max_body.unwrap_or((work.height() - 150.0).max(160.0));
         let mut closed = false;
-        let id = Id::new(&self.title).with("kit-help");
-        let out = crate::win::plain(ctx, &self.title)
+        let key = self.id_title.clone().unwrap_or_else(|| self.title.clone());
+        let id = Id::new(&key).with("kit-help");
+        let out = crate::win::plain(ctx, &key)
             .title_bar(false)
             .collapsible(false)
             .resizable(self.resizable)
@@ -113,7 +121,7 @@ fn header(ui: &mut Ui, t: &Tokens, icon: &str, title: &str, subtitle: Option<&st
     let top = ui.cursor().min;
     ui.horizontal(|ui| {
         let (badge, _) = ui.allocate_exact_size(vec2(34.0, 34.0), Sense::hover());
-        ui.painter().rect_filled(badge, 9.0, theme::over(t.accent, Color32::TRANSPARENT).gamma_multiply(if t.dark { 0.30 } else { 0.14 }));
+        ui.painter().rect_filled(badge, 9.0, t.flat(t.accent.gamma_multiply(if t.dark { 0.30 } else { 0.14 })));
         ui.painter().text(badge.center(), egui::Align2::CENTER_CENTER, icon, icon_font(19.0), t.accent_text);
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 1.0;
@@ -150,7 +158,7 @@ pub fn icon_button_on(ui: &mut Ui, glyph: &str, tip: &str, on: bool) -> Response
     let t = tokens_ui(ui);
     let (rect, resp) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::click());
     if resp.hovered() || on {
-        ui.painter().rect_filled(rect, theme::RADIUS_CONTROL as f32, if on { t.raised_active } else { t.raised_hover });
+        ui.painter().rect_filled(rect, theme::RADIUS_CONTROL as f32, t.flat(if on { t.raised_active } else { t.raised_hover }));
     }
     let colour = if resp.hovered() || on { t.text } else { t.text_muted };
     ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, glyph, icon_font(15.0), colour);
@@ -181,7 +189,10 @@ impl Form<'_> {
     /// A row: the label, then whatever `widget` adds. The label sits level with the first line.
     pub fn row<R>(&mut self, label: &str, widget: impl FnOnce(&mut Ui) -> R) -> R {
         let t = tokens_ui(self.ui);
-        self.ui.label(RichText::new(label).color(t.text));
+        self.ui.with_layout(Layout::top_down(Align::Min), |ui| {
+            ui.add_space(3.0);
+            ui.label(RichText::new(label).color(t.text));
+        });
         let r = widget(self.ui);
         self.ui.end_row();
         r
@@ -199,6 +210,10 @@ impl Form<'_> {
             .inner
         })
     }
+    /// Whatever adds its own cells and ends its own row (a helper written for a two-column grid).
+    pub fn raw<R>(&mut self, cells: impl FnOnce(&mut Ui) -> R) -> R {
+        cells(self.ui)
+    }
     /// A row that spans both columns (a callout, a table).
     pub fn full<R>(&mut self, widget: impl FnOnce(&mut Ui) -> R) -> R {
         // A grid cell cannot span, so the first cell is left empty and the content goes in the second.
@@ -211,7 +226,7 @@ impl Form<'_> {
 
 /// A two-column grid of labelled rows. `id` must be unique in the window.
 pub fn form<R>(ui: &mut Ui, id: &str, rows: impl FnOnce(&mut Form) -> R) -> R {
-    egui::Grid::new(Id::new(("kit-form", id))).num_columns(2).spacing([theme::SP_LG, 8.0]).min_col_width(130.0).show(ui, |ui| rows(&mut Form { ui })).inner
+    egui::Grid::new(Id::new(("kit-form", id))).num_columns(2).spacing([theme::SP_LG, 6.0]).min_col_width(130.0).show(ui, |ui| rows(&mut Form { ui })).inner
 }
 
 /// A collapsible "Advanced" block, closed until opened (and remembered while the window lives).
@@ -386,6 +401,11 @@ pub fn f64_field(ui: &mut Ui, value: &mut f64, unit: &str, range: std::ops::Rang
     .inner
 }
 
+/// A whole-number field for a count or a number of decimals.
+pub fn decimals_field(ui: &mut Ui, value: &mut u8, range: std::ops::RangeInclusive<u8>) -> Response {
+    ui.add(egui::DragValue::new(value).range(range).speed(0.1))
+}
+
 /// A single-line text field.
 pub fn text_field(ui: &mut Ui, text: &mut String, hint: &str) -> Response {
     let r = ui.add(egui::TextEdit::singleline(text).hint_text(hint).desired_width(220.0));
@@ -398,6 +418,15 @@ pub fn text_field_wide(ui: &mut Ui, text: &mut String, hint: &str) -> Response {
     let r = ui.add(egui::TextEdit::singleline(text).hint_text(hint).desired_width(f32::INFINITY));
     note_enter(ui, &r);
     r
+}
+
+/// Puts the keyboard focus in a field the first time its dialog is drawn, so typing can start at once.
+pub fn focus_once(ui: &Ui, r: &Response, key: &str) {
+    let id = Id::new(("kit-focused", key));
+    if !ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(false) {
+        r.request_focus();
+        ui.data_mut(|d| d.insert_temp(id, true));
+    }
 }
 
 const ENTER_IN_FIELD: &str = "afrobim-kit-enter";
@@ -450,7 +479,7 @@ pub fn segmented(ui: &mut Ui, selected: &mut usize, items: &[&str]) -> bool {
             let on = *selected == i;
             let r = theme::RADIUS_CONTROL;
             let radius = egui::CornerRadius { nw: if i == 0 { r } else { 0 }, sw: if i == 0 { r } else { 0 }, ne: if i + 1 == n { r } else { 0 }, se: if i + 1 == n { r } else { 0 } };
-            let (fill, text) = if on { (t.accent, t.text_on_accent) } else { (t.raised, t.text) };
+            let (fill, text) = if on { (t.accent, t.text_on_accent) } else { (t.flat(t.raised), t.text) };
             let resp = ui.add(egui::Button::new(RichText::new(*item).color(text)).fill(fill).corner_radius(radius).stroke(Stroke::new(1.0, if on { t.accent } else { t.border })).min_size(vec2(64.0, 26.0)));
             if resp.clicked() && !on {
                 *selected = i;
@@ -477,7 +506,7 @@ pub fn toggle(ui: &mut Ui, value: &mut bool, label: &str) -> Response {
             resp.mark_changed();
         }
         let how_on = ui.ctx().animate_bool_responsive(resp.id, *value);
-        let track = if *value { t.accent } else { theme::over(t.raised_active, Color32::TRANSPARENT) };
+        let track = if *value { t.accent } else { t.flat(t.raised_active) };
         ui.painter().rect(rect, 9.0, track, Stroke::new(1.0, if *value { t.accent } else { t.border }), egui::StrokeKind::Inside);
         let cx = egui::lerp((rect.left() + 9.0)..=(rect.right() - 9.0), how_on);
         ui.painter().circle_filled(egui::pos2(cx, rect.center().y), 6.5, if *value { t.text_on_accent } else { t.text });
@@ -544,7 +573,7 @@ pub fn callout(ui: &mut Ui, level: Level, text: impl Into<String>) -> Response {
     let colour = level.colour(&t);
     let text: String = text.into();
     egui::Frame::new()
-        .fill(colour.gamma_multiply(if t.dark { 0.16 } else { 0.10 }))
+        .fill(t.flat(colour.gamma_multiply(if t.dark { 0.16 } else { 0.10 })))
         .stroke(Stroke::new(1.0, colour.gamma_multiply(0.45)))
         .corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL))
         .inner_margin(egui::Margin::symmetric(10, 7))
@@ -569,7 +598,7 @@ pub enum Col {
 /// A results table: a muted header row, striped rows, numbers in monospace.
 pub fn results_table(ui: &mut Ui, id: &str, headers: &[&str], cols: &[Col], rows: &[Vec<String>]) {
     let t = tokens_ui(ui);
-    egui::Frame::new().fill(t.field).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::symmetric(8, 6)).stroke(Stroke::new(1.0, t.border)).show(ui, |ui| {
+    egui::Frame::new().fill(t.flat(t.field)).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::symmetric(8, 6)).stroke(Stroke::new(1.0, t.border)).show(ui, |ui| {
         egui::Grid::new(Id::new(("kit-table", id))).num_columns(headers.len()).spacing([theme::SP_LG, 4.0]).striped(true).show(ui, |ui| {
             for h in headers {
                 ui.label(RichText::new(*h).size(theme::FONT_SMALL).strong().color(t.text_muted));
@@ -673,7 +702,7 @@ impl<'a> Footer<'a> {
                 // What is left, to the left of the buttons.
                 ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                     if let Some(r) = self.reason {
-                        ui.label(RichText::new(format!("{}  {r}", crate::glyphs::ui::WARNING)).size(theme::FONT_SMALL + 0.5).color(t.warning));
+                        ui.label(theme::icon_text(crate::glyphs::ui::WARNING, r, theme::FONT_SMALL + 0.5, t.warning));
                     } else if let Some(n) = self.note {
                         ui.label(RichText::new(n).size(theme::FONT_SMALL + 0.5).color(t.text_muted));
                     }

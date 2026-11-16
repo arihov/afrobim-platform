@@ -135,6 +135,12 @@ fn rgba(r: u8, g: u8, b: u8, a: u8) -> Color32 {
 }
 
 impl Tokens {
+    /// A translucent fill as the opaque colour it gives over a floating window. Fills of controls
+    /// are applied this way, so they look the same whichever way a renderer blends alpha.
+    pub fn flat(&self, c: Color32) -> Color32 {
+        over(c, over(self.window, self.surface))
+    }
+
     pub fn of(theme: &Theme) -> Tokens {
         let dark = theme.is_dark();
         let glass = theme.glass();
@@ -292,14 +298,14 @@ fn build_visuals(t: &Tokens) -> egui::Visuals {
     v.menu_corner_radius = CornerRadius::same(RADIUS_MENU);
     v.window_shadow = Shadow { offset: [0, 10], blur: 30, spread: 0, color: t.shadow };
     v.popup_shadow = Shadow { offset: [0, 6], blur: 18, spread: 0, color: t.shadow };
-    v.extreme_bg_color = t.field;
-    v.faint_bg_color = if t.dark { rgba(255, 255, 255, 9) } else { rgba(0x1B, 0x28, 0x3C, 9) };
-    v.code_bg_color = t.raised;
+    v.extreme_bg_color = t.flat(t.field);
+    v.faint_bg_color = t.flat(if t.dark { rgba(255, 255, 255, 9) } else { rgba(0x1B, 0x28, 0x3C, 10) });
+    v.code_bg_color = t.flat(t.raised);
     v.hyperlink_color = t.accent_text;
     v.warn_fg_color = t.warning;
     v.error_fg_color = t.danger;
     v.override_text_color = None;
-    v.selection.bg_fill = t.selection;
+    v.selection.bg_fill = t.flat(t.selection);
     v.selection.stroke = Stroke::new(1.0, t.text);
     v.striped = false;
     v.window_highlight_topmost = false;
@@ -311,10 +317,10 @@ fn build_visuals(t: &Tokens) -> egui::Visuals {
     w.noninteractive.fg_stroke = Stroke::new(1.0, t.text);
     w.noninteractive.corner_radius = cr;
     for (wv, fill, stroke) in [
-        (&mut w.inactive, t.raised, Stroke::new(1.0, t.border)),
-        (&mut w.hovered, t.raised_hover, Stroke::new(1.0, t.accent_text)),
-        (&mut w.active, t.raised_active, Stroke::new(1.0, t.accent_text)),
-        (&mut w.open, t.raised_hover, Stroke::new(1.0, t.border)),
+        (&mut w.inactive, t.flat(t.raised), Stroke::new(1.0, t.border)),
+        (&mut w.hovered, t.flat(t.raised_hover), Stroke::new(1.0, t.accent_text)),
+        (&mut w.active, t.flat(t.raised_active), Stroke::new(1.0, t.accent_text)),
+        (&mut w.open, t.flat(t.raised_hover), Stroke::new(1.0, t.border)),
     ] {
         wv.bg_fill = fill;
         wv.weak_bg_fill = fill;

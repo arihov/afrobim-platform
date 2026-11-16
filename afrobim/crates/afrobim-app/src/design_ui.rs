@@ -55,6 +55,21 @@ pub struct NewDialog {
     pub name: String,
     pub start: String,
     pub problem: String,
+    /// 0 picks the PIs on the plan, 1 types them: one a line, `x,y` or `@dx,dy` after the first.
+    pub mode: usize,
+    pub pis_text: String,
+}
+
+/// The PIs typed in the dialog: the points, or the first line that is not one.
+pub fn parse_typed_pis(units: &DisplayUnits, text: &str) -> Result<Vec<(f64, f64)>, String> {
+    let mut points: Vec<(f64, f64)> = Vec::new();
+    for (i, line) in text.lines().enumerate().filter(|(_, l)| !l.trim().is_empty()) {
+        match crate::disp::parse_point(units, line.trim(), points.last().copied()) {
+            Some(p) => points.push(p),
+            None => return Err(format!("Line {}: '{}' is not a point. Write x,y, or @dx,dy from the PI before.", i + 1, line.trim())),
+        }
+    }
+    Ok(points)
 }
 
 /// A PI being dragged. `working` is the last design the engine accepted, `refused` the engine's
@@ -98,6 +113,11 @@ pub fn labels_in(design: &AlignmentDesign, units: &DisplayUnits) -> Vec<PlanLabe
     let station = |s: f64| crate::disp::station(units, s);
     let length = |m: f64| crate::disp::len_u(units, m);
     plan_labels_with(design, &station, Some(&length)).unwrap_or_default()
+}
+
+fn ui_kit_trim(v: f64) -> String {
+    let t = format!("{v:.3}");
+    t.trim_end_matches('0').trim_end_matches('.').to_string()
 }
 
 pub struct DesignUi {
@@ -848,55 +868,103 @@ impl AfroBimApp {
     }
 
     fn new_alignment_window(&mut self, ctx: &egui::Context) {
+        use crate::ui_kit::{self, Col, Dialog, Footer, Level};
         if self.design.new_dialog.is_none() {
             return;
         }
-        let mut open = true;
-        let mut go = false;
-        let mut cancel = false;
         let units = crate::anno_ui::units_of(&self.doc);
+        let existing: Vec<String> = crate::alignment_glue::alignments(&self.doc).into_iter().map(|a| a.1).collect();
         let nd = self.design.new_dialog.as_mut().expect("checked above");
-        crate::win::new(ctx, "ALIGNDESIGN: new alignment").open(&mut open).default_width(420.0).show(ctx, |ui| {
-            ui.label("Name the alignment and give the station at its first PI. Then pick the PIs on the plan: click, or type x,y on the command line (in the document's length unit; @dx,dy is relative to the last PI). Curves start with no radius: you enter each one afterwards in the PI table.");
-            egui::Grid::new("new-align").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                ui.label("Name");
-                ui.add_sized([240.0, 20.0], egui::TextEdit::singleline(&mut nd.name));
-                ui.end_row();
-                ui.label("Start station");
-                ui.add_sized([120.0, 20.0], egui::TextEdit::singleline(&mut nd.start).hint_text("for example 1+000.000"));
-                ui.end_row();
-            });
-            ui.label(RichText::new("The start station is the station at the first PI. Enter it as 1+250.000 or as a number of metres (1250).").small().weak());
-            if !nd.problem.is_empty() {
-                ui.label(RichText::new(&nd.problem).color(BAD()));
-            }
-            ui.horizontal(|ui| {
-                if ui.button("Pick the PIs on the plan").clicked() {
-                    go = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    cancel = true;
-                }
-            });
-        });
-        if go {
-            let nd = self.design.new_dialog.as_mut().expect("checked above");
-            let name = nd.name.trim().to_string();
-            match (name.is_empty(), crate::disp::parse_station(&units, &nd.start)) {
-                (true, _) => nd.problem = "Give the alignment a name.".into(),
-                (_, None) => nd.problem = "Enter the start station as 1+250.000 or as a number of metres.".into(),
-                (false, Some(start)) => {
-                    self.design.create = Some(Create { name, start_m: start, points: Vec::new() });
-                    self.design.new_dialog = None;
-                    self.design.plan_on = true;
-                    self.design.fitted = false;
-                    self.view_3d = false;
-                    self.design.invalidate();
-                    self.status = "Pick the first PI on the plan, or type x,y on the command line.".into();
-                }
-            }
-        } else if cancel || !open {
+        let start = crate::disp::parse_station(&units, &nd.start);
+        let name_ok = !nd.name.trim().is_empty();
+        let typed = parse_typed_pis(&units, &nd.pis_text);
+        let (enabled, reason, primary) = match (name_ok, start, nd.mode, &typed) {
+            (false, _, _, _) => (false, "Give the alignment a name".to_string(), "Pick the PIs on the plan"),
+            (_, None, _, _) => (false, "Enter the start station as 1+250.000 or as metres".to_string(), "Pick the PIs on the plan"),
+            (_, _, 0, _) => (true, String::new(), "Pick the PIs on the plan"),
+            (_, _, _, Err(e)) => (false, e.clone(), "Create the alignment"),
+            (_, _, _, Ok(p)) if p.len() < 2 => (false, "An alignment needs at least two PIs".to_string(), "Create the alignment"),
+            _ => (true, String::new(), "Create the alignment"),
+        };
+        let name_taken = name_ok && existing.iter().any(|n| n.eq_ignore_ascii_case(nd.name.trim()));
+        let length_unit = if crate::disp::suffix(&units) == "m" { "metres" } else { "millimetres" };
+        let out = Dialog::new("ALIGNDESIGN: new alignment", crate::glyphs::by_name("ALIGNDESIGN"))
+            .id_title("ALIGNDESIGN: new alignment")
+            .subtitle("Name it, say where it starts, then give its PIs")
+            .width(500.0)
+            .resizable(false)
+            .help("A PI is a point where the alignment changes direction. Curves start with no radius: you enter each one afterwards in the PI table, and the engine tells you the radii that are possible. The start station is the station at the first PI.")
+            .show(
+                ctx,
+                |ui| {
+                    ui_kit::section(ui, "Alignment", |ui| {
+                        ui_kit::form(ui, "newalign", |f| {
+                            f.row("Name", |ui| {
+                                let r = ui_kit::text_field(ui, &mut nd.name, "for example MC10");
+                                ui_kit::focus_once(ui, &r, "newalign-name");
+                            });
+                            f.row_note("Start station", &match start {
+                                Some(m) => format!("{} m internal, shown as {}", ui_kit_trim(m), crate::disp::station(&units, m)),
+                                None => "enter 1+250.000 or a number of metres".to_string(),
+                            }, |ui| {
+                                ui_kit::text_field(ui, &mut nd.start, "for example 1+000.000");
+                            });
+                        });
+                        if name_taken {
+                            ui.add_space(2.0);
+                            ui_kit::callout(ui, Level::Warning, "An alignment with this name is already in the document. Names should be unique: change this one, or the two will be hard to tell apart.");
+                        }
+                    });
+                    ui_kit::section(ui, "Points of intersection", |ui| {
+                        ui_kit::segmented(ui, &mut nd.mode, &["Pick on the plan", "Type the coordinates"]);
+                        ui.add_space(4.0);
+                        if nd.mode == 0 {
+                            ui.label(format!("Click each PI on the plan, or type x,y on the command line (in {length_unit}; @dx,dy is relative to the last PI). Enter or C finishes, U removes the last."));
+                        } else {
+                            ui.label(RichText::new(format!("One PI a line, in {length_unit}: easting, northing. A line that starts with @ is relative to the PI before it.")).small().weak());
+                            ui.add(egui::TextEdit::multiline(&mut nd.pis_text).font(egui::TextStyle::Monospace).desired_rows(5).desired_width(f32::INFINITY).hint_text("0, 0\n250, 40\n@300, -20"));
+                            match &typed {
+                                Err(e) => {
+                                    ui_kit::callout(ui, Level::Error, e.as_str());
+                                }
+                                Ok(p) if !p.is_empty() => {
+                                    let rows: Vec<Vec<String>> = p.iter().enumerate().map(|(i, (x, y))| vec![format!("{}", i + 1), crate::disp::len_u(&units, *x), crate::disp::len_u(&units, *y)]).collect();
+                                    ui_kit::results_table(ui, "newalign-pis", &["PI", "Easting", "Northing"], &[Col::Num, Col::Num, Col::Num], &rows);
+                                }
+                                _ => {}
+                            }
+                        }
+                    });
+                    if !nd.problem.is_empty() {
+                        ui.add_space(4.0);
+                        ui_kit::callout(ui, Level::Error, nd.problem.clone());
+                    }
+                },
+                |ui| Footer::new(primary).icon(crate::glyphs::by_name("ALIGNDESIGN")).enabled(enabled, &reason).show(ui),
+            );
+        let mode = nd.mode;
+        let (name, pis) = (nd.name.trim().to_string(), typed.clone());
+        if out.closed || out.inner.is_some_and(|(_, f)| f.cancel) {
             self.design.new_dialog = None;
+            return;
+        }
+        if out.inner.is_some_and(|(_, f)| f.primary) {
+            let Some(start) = start else { return };
+            self.design.new_dialog = None;
+            if mode == 0 {
+                self.design.create = Some(Create { name, start_m: start, points: Vec::new() });
+                self.design.plan_on = true;
+                self.design.fitted = false;
+                self.view_3d = false;
+                self.design.invalidate();
+                self.status = "Pick the first PI on the plan, or type x,y on the command line.".into();
+            } else if let Ok(points) = pis {
+                self.design.create = Some(Create { name, start_m: start, points });
+                self.design.plan_on = true;
+                self.design.fitted = false;
+                self.view_3d = false;
+                self.design_finish_create();
+            }
         }
     }
 
@@ -1108,4 +1176,20 @@ pub fn plan_text(painter: &egui::Painter, at: egui::Pos2, align: Align2, text: &
     let rect = align.anchor_size(at, galley.size());
     painter.rect_filled(rect.expand2(Vec2::new(3.0, 1.0)), 2.0, if dark { Color32::from_rgba_unmultiplied(20, 22, 26, 190) } else { Color32::from_rgba_unmultiplied(246, 246, 242, 200) });
     painter.galley(rect.min, galley, colour);
+}
+
+#[cfg(test)]
+mod new_dialog_tests {
+    use super::*;
+
+    #[test]
+    fn typed_pis_are_read_one_a_line_with_relative_points() {
+        let u = DisplayUnits::default();
+        let p = parse_typed_pis(&u, "0, 0\n\n250, 40\n@300,-20\n").unwrap();
+        assert_eq!(p.len(), 3);
+        assert!((p[1].0 - 250.0).abs() < 1e-9 && (p[2].0 - 550.0).abs() < 1e-9 && (p[2].1 - 20.0).abs() < 1e-9, "{p:?}");
+        let e = parse_typed_pis(&u, "0,0\nnot a point").unwrap_err();
+        assert!(e.starts_with("Line 2:"), "{e}");
+        assert!(parse_typed_pis(&u, "").unwrap().is_empty());
+    }
 }

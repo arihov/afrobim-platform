@@ -10,6 +10,15 @@ use crate::commands::{Action, COMMANDS};
 use crate::theme::{self, FONT_BODY};
 use crate::{glyphs, ribbon, signs_glue};
 
+/// What the layers list's context menu asked for.
+#[derive(Clone, Copy)]
+pub enum LayerPick {
+    Isolate,
+    ShowAll,
+    UnlockAll,
+    Manager,
+}
+
 /// What a menu asked for.
 pub enum Pick {
     Action(Action),
@@ -450,32 +459,48 @@ impl AfroBimApp {
         pick
     }
 
-    /// The right-click menu of a row in the layers list.
-    pub(crate) fn layer_context_menu(&mut self, ui: &mut Ui, layer: &str) -> Option<Action> {
+    /// The right-click menu of a row in the layers list. It only says what was chosen;
+    /// `apply_layer_pick` does it (the list is being drawn from the document).
+    pub(crate) fn layer_context_menu(ui: &mut Ui, layer: &str) -> Option<LayerPick> {
         let mut pick = None;
         let t = theme::tokens_ui(ui);
         ui.set_min_width(220.0);
         if plain_item(ui, glyphs::ui::EYE, "Show only this layer", "", false) {
-            for l in self.doc.layers_mut().iter_mut() {
-                l.visible = l.name == layer || crate::anno_ui::hidden_layer(&l.name);
-            }
+            pick = Some(LayerPick::Isolate);
         }
         if plain_item(ui, glyphs::ui::EYE, "Show all layers", "", false) {
-            for l in self.doc.layers_mut().iter_mut() {
-                l.visible = true;
-            }
+            pick = Some(LayerPick::ShowAll);
         }
         if plain_item(ui, glyphs::ui::UNLOCK, "Unlock all layers", "", false) {
-            for l in self.doc.layers_mut().iter_mut() {
-                l.locked = false;
-            }
+            pick = Some(LayerPick::UnlockAll);
         }
         sep(ui);
         ui.label(RichText::new(format!("Layer {layer}")).size(theme::FONT_SMALL).color(t.text_muted));
         if item(ui, Action::Layers, "Layer manager…") {
-            pick = Some(Action::Layers);
+            pick = Some(LayerPick::Manager);
         }
         pick
+    }
+
+    pub(crate) fn apply_layer_pick(&mut self, ctx: &egui::Context, pick: LayerPick, layer: &str) {
+        match pick {
+            LayerPick::Isolate => {
+                for l in self.doc.layers_mut().iter_mut() {
+                    l.visible = l.name == layer || crate::anno_ui::hidden_layer(&l.name);
+                }
+            }
+            LayerPick::ShowAll => {
+                for l in self.doc.layers_mut().iter_mut() {
+                    l.visible = true;
+                }
+            }
+            LayerPick::UnlockAll => {
+                for l in self.doc.layers_mut().iter_mut() {
+                    l.locked = false;
+                }
+            }
+            LayerPick::Manager => self.run(ctx, Action::Layers),
+        }
     }
 
     /// The right-click menu of the properties panel.

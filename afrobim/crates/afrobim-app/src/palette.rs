@@ -108,9 +108,9 @@ impl AfroBimApp {
                         let on = i == self.palette.selected;
                         let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
                         if on {
-                            ui.painter().rect_filled(rect, theme::RADIUS_CONTROL as f32, t.selection);
+                            ui.painter().rect_filled(rect, theme::RADIUS_CONTROL as f32, t.flat(t.selection));
                         } else if resp.hovered() {
-                            ui.painter().rect_filled(rect, theme::RADIUS_CONTROL as f32, t.raised_hover);
+                            ui.painter().rect_filled(rect, theme::RADIUS_CONTROL as f32, t.flat(t.raised_hover));
                         }
                         let p = ui.painter();
                         p.text(egui::pos2(rect.left() + 18.0, rect.center().y), Align2::CENTER_CENTER, crate::glyphs::of(c), theme::icon_font(17.0), if on { t.text } else { t.accent_text });

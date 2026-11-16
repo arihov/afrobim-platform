@@ -43,12 +43,30 @@ pub struct GripDrag {
     pub index: usize,
 }
 
+/// What the layer manager asked for this frame, applied after the window is drawn.
+enum LayerOp {
+    UnlockAll,
+    HideAll,
+    ShowAll,
+    Visible(String, bool),
+    Locked(String, bool),
+    Colour(String, [u8; 3]),
+    Weight(String, f64),
+    Rename(String, String),
+    Delete(String, Option<String>),
+    Create(String, LayerProps),
+}
+
 #[derive(Default)]
 pub struct LayerWin {
     pub new_name: String,
     pub rename: Option<(String, String)>,
     pub delete: Option<(String, String)>,
     pub message: String,
+    /// The filter over the names, and what a new layer will look like (the engine's `LayerProps`).
+    pub filter: String,
+    pub new_colour: [u8; 3],
+    pub new_weight: f64,
 }
 
 #[derive(Default)]
@@ -63,7 +81,6 @@ pub struct AnnoUi {
     pub results_open: bool,
     pub layers_open: bool,
     pub layer_win: LayerWin,
-    pub units_open: bool,
     pub text_styles_open: bool,
     pub dim_styles_open: bool,
     pub text_sel: usize,
@@ -503,7 +520,6 @@ impl AfroBimApp {
         self.anno_results_window(ctx);
         self.anno_osnap_window(ctx);
         self.anno_layers_window(ctx);
-        self.anno_units_window(ctx);
         self.anno_text_styles_window(ctx);
         self.anno_dim_styles_window(ctx);
         self.anno_edit_window(ctx);
@@ -572,244 +588,245 @@ impl AfroBimApp {
     }
 
     fn anno_layers_window(&mut self, ctx: &egui::Context) {
+        use crate::ui_kit::{self, Dialog, Footer, Level};
         if !self.anno.layers_open {
             return;
         }
-        let mut open = true;
         let mut committed = false;
-        crate::win::new(ctx, "Layer manager").open(&mut open).default_width(700.0).show(ctx, |ui| {
-            let rows: Vec<ann::LayerInfo> = ann::layers::list(&self.doc).into_iter().filter(|l| !hidden_layer(&l.name)).collect();
-            let mut msg: Option<String> = None;
-            egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
-                egui::Grid::new("layers-grid").num_columns(8).spacing([10.0, 4.0]).striped(true).show(ui, |ui| {
-                    for h in ["Current", "Name", "On", "Lock", "Colour", "Line weight (mm)", "Elements", ""] {
-                        ui.label(RichText::new(h).strong());
-                    }
-                    ui.end_row();
-                    for l in &rows {
-                        let current = self.anno.current_layer() == l.name;
-                        if ui.radio(current, "").on_hover_text("Make this the current layer: new annotation goes on it").clicked() {
-                            self.anno.layer = l.name.clone();
+        let rows: Vec<ann::LayerInfo> = ann::layers::list(&self.doc).into_iter().filter(|l| !hidden_layer(&l.name)).collect();
+        let current = self.anno.current_layer().to_string();
+        let mut msg: Option<String> = None;
+        let mut doc_ops: Vec<LayerOp> = Vec::new();
+        let layer_win = &mut self.anno.layer_win;
+        let mut set_current: Option<String> = None;
+        let out = Dialog::new("Layer manager", crate::glyphs::by_name("LAYER"))
+            .subtitle(format!("{} layers  ·  current: {current}", rows.len()))
+            .width(780.0)
+            .help("Create, rename, delete, colour and weight the layers; make one current so new annotation goes on it. Colour auto means the canvas ink. On and lock are not part of undo (the kernel keeps them outside its history); name, colour, line weight, create and delete are. Layer 0 and the built-in layers cannot be renamed or deleted. Colour and line weight show on the 2D canvas and in the DXF for annotation; DXF R12 carries no line weight.")
+            .show(
+                ctx,
+                |ui| {
+                    let t = crate::theme::tokens_ui(ui);
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(crate::glyphs::ui::SEARCH).font(crate::theme::icon_font(15.0)).color(t.text_muted));
+                        ui.add(egui::TextEdit::singleline(&mut layer_win.filter).hint_text("Filter layers by name").desired_width(220.0));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Unlock all").clicked() {
+                                doc_ops.push(LayerOp::UnlockAll);
+                            }
+                            if ui.button("Hide all").clicked() {
+                                doc_ops.push(LayerOp::HideAll);
+                            }
+                            if ui.button("Show all").clicked() {
+                                doc_ops.push(LayerOp::ShowAll);
+                            }
+                        });
+                    });
+                    ui.add_space(4.0);
+                    let needle = layer_win.filter.trim().to_lowercase();
+                    egui::Grid::new("layers-grid").num_columns(8).spacing([12.0, 5.0]).striped(true).show(ui, |ui| {
+                        for h in ["Current", "Name", "Show", "Lock", "Colour", "Line weight", "Elements", ""] {
+                            ui.label(RichText::new(h).size(crate::theme::FONT_SMALL).strong().color(t.text_muted));
                         }
-                        match self.anno.layer_win.rename.clone() {
-                            Some((old, mut new)) if old == l.name => {
-                                let mut done = false;
-                                ui.horizontal(|ui| {
-                                    ui.add(egui::TextEdit::singleline(&mut new).desired_width(120.0));
-                                    if ui.small_button("OK").clicked() {
-                                        done = true;
+                        ui.end_row();
+                        for l in rows.iter().filter(|l| needle.is_empty() || l.name.to_lowercase().contains(&needle)) {
+                            if ui.radio(current == l.name, "").on_hover_text("Make this the current layer: new annotation goes on it").clicked() {
+                                set_current = Some(l.name.clone());
+                            }
+                            match layer_win.rename.clone() {
+                                Some((old, mut new)) if old == l.name => {
+                                    let mut done = false;
+                                    ui.horizontal(|ui| {
+                                        let r = ui.add(egui::TextEdit::singleline(&mut new).desired_width(130.0));
+                                        if ui_kit::icon_button(ui, crate::glyphs::ui::CHECK, "Rename").clicked() || (r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+                                            done = true;
+                                        }
+                                    });
+                                    if done {
+                                        doc_ops.push(LayerOp::Rename(old, new));
+                                        layer_win.rename = None;
+                                    } else {
+                                        layer_win.rename = Some((old, new));
+                                    }
+                                }
+                                _ => {
+                                    ui.label(RichText::new(&l.name).color(t.text));
+                                }
+                            }
+                            if ui_kit::icon_button_on(ui, if l.visible { crate::glyphs::ui::EYE } else { crate::glyphs::ui::EYE_OFF }, "Visible on the drawing", l.visible).clicked() {
+                                doc_ops.push(LayerOp::Visible(l.name.clone(), !l.visible));
+                            }
+                            if ui_kit::icon_button_on(ui, if l.locked { crate::glyphs::ui::LOCK } else { crate::glyphs::ui::UNLOCK }, "Locked layers cannot be selected", l.locked).clicked() {
+                                doc_ops.push(LayerOp::Locked(l.name.clone(), !l.locked));
+                            }
+                            ui.horizontal(|ui| {
+                                let mut rgb = l.colour;
+                                if ui.color_edit_button_srgb(&mut rgb).changed() {
+                                    doc_ops.push(LayerOp::Colour(l.name.clone(), rgb));
+                                }
+                                if l.colour == [0, 0, 0] {
+                                    ui.label(RichText::new("auto").size(crate::theme::FONT_SMALL).color(t.text_muted));
+                                } else if ui.small_button("auto").on_hover_text("Back to the canvas ink colour").clicked() {
+                                    doc_ops.push(LayerOp::Colour(l.name.clone(), [0, 0, 0]));
+                                }
+                            });
+                            let mut w = l.lineweight_mm;
+                            if ui.add(egui::DragValue::new(&mut w).speed(0.05).range(0.0..=2.11).fixed_decimals(2).suffix(" mm")).changed() {
+                                doc_ops.push(LayerOp::Weight(l.name.clone(), w));
+                            }
+                            ui.label(RichText::new(l.elements.to_string()).monospace());
+                            ui.horizontal(|ui| {
+                                if ui_kit::icon_button(ui, crate::glyphs::by_name("TEXTEDIT"), "Rename").clicked() {
+                                    layer_win.rename = Some((l.name.clone(), l.name.clone()));
+                                }
+                                if ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Delete").clicked() {
+                                    let target = rows.iter().find(|r| r.name != l.name).map(|r| r.name.clone()).unwrap_or_default();
+                                    layer_win.delete = Some((l.name.clone(), target));
+                                }
+                            });
+                            ui.end_row();
+                        }
+                    });
+                    if let Some((name, target)) = layer_win.delete.clone() {
+                        let count = rows.iter().find(|r| r.name == name).map(|r| r.elements).unwrap_or(0);
+                        ui.add_space(6.0);
+                        ui_kit::callout(ui, Level::Warning, if count == 0 { format!("Delete the empty layer {name}?") } else { format!("{name} holds {count} element(s). A layer is deleted only when it is empty, or its elements are moved to another layer first.") });
+                        ui.horizontal(|ui| {
+                            let mut tgt = target.clone();
+                            if count > 0 {
+                                ui.label("Move them to");
+                                egui::ComboBox::from_id_salt("layer-move-target").selected_text(tgt.clone()).show_ui(ui, |ui| {
+                                    for r in rows.iter().filter(|r| r.name != name) {
+                                        ui.selectable_value(&mut tgt, r.name.clone(), &r.name);
                                     }
                                 });
-                                if done {
-                                    match ann::layers::rename(&mut self.doc, &old, &new) {
-                                        Ok(()) => {
-                                            if self.anno.layer == old {
-                                                self.anno.layer = new.clone();
-                                            }
-                                            committed = true;
-                                            msg = Some(format!("Renamed {old} to {new}; its elements moved with it."));
-                                        }
-                                        Err(e) => msg = Some(e.to_string()),
+                                if tgt != target {
+                                    layer_win.delete = Some((name.clone(), tgt.clone()));
+                                }
+                            }
+                            if ui.button(if count == 0 { "Delete" } else { "Move the elements and delete" }).clicked() {
+                                doc_ops.push(LayerOp::Delete(name.clone(), if count == 0 { None } else { Some(tgt.clone()) }));
+                                layer_win.delete = None;
+                            }
+                            if ui.button("Keep it").clicked() {
+                                layer_win.delete = None;
+                            }
+                        });
+                    }
+                    ui_kit::section(ui, "New layer", |ui| {
+                        ui_kit::form(ui, "layer-new", |f| {
+                            f.row("Name", |ui| {
+                                ui_kit::text_field(ui, &mut layer_win.new_name, "name");
+                            });
+                            f.row("Colour", |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.color_edit_button_srgb(&mut layer_win.new_colour);
+                                    if layer_win.new_colour == [0, 0, 0] {
+                                        ui.label(RichText::new("auto: the canvas ink").size(crate::theme::FONT_SMALL).color(t.text_muted));
                                     }
-                                    self.anno.layer_win.rename = None;
-                                } else {
-                                    self.anno.layer_win.rename = Some((old, new));
-                                }
-                            }
-                            _ => {
-                                ui.label(&l.name);
-                            }
-                        }
-                        let mut on = l.visible;
-                        if ui.checkbox(&mut on, "").changed() {
-                            let _ = ann::layers::set_visible(&mut self.doc, &l.name, on);
-                        }
-                        let mut locked = l.locked;
-                        if ui.checkbox(&mut locked, "").changed() {
-                            let _ = ann::layers::set_locked(&mut self.doc, &l.name, locked);
-                        }
+                                });
+                            });
+                            f.row("Line weight", |ui| {
+                                ui_kit::f64_field(ui, &mut layer_win.new_weight, "mm (0: default pen)", 0.0..=2.11, 0.05);
+                            });
+                        });
+                        let name_ok = ann::layers::valid_name(layer_win.new_name.trim()) && !rows.iter().any(|r| r.name.eq_ignore_ascii_case(layer_win.new_name.trim()));
                         ui.horizontal(|ui| {
-                            let mut rgb = l.colour;
-                            if ui.color_edit_button_srgb(&mut rgb).changed() {
-                                let _ = ann::layers::set_colour(&mut self.doc, &l.name, rgb);
-                                committed = true;
+                            if ui.add_enabled(name_ok, egui::Button::new("Create layer")).clicked() {
+                                doc_ops.push(LayerOp::Create(layer_win.new_name.trim().to_string(), LayerProps { colour: layer_win.new_colour, lineweight_mm: layer_win.new_weight }));
+                                layer_win.new_name.clear();
                             }
-                            if l.colour == [0, 0, 0] {
-                                ui.label(RichText::new("auto").small().weak());
-                            } else if ui.small_button("auto").on_hover_text("Back to the canvas ink colour").clicked() {
-                                let _ = ann::layers::set_colour(&mut self.doc, &l.name, [0, 0, 0]);
-                                committed = true;
+                            if !layer_win.new_name.trim().is_empty() && !name_ok {
+                                ui.label(crate::theme::icon_text(crate::glyphs::ui::WARNING, "A layer name is not empty, has no leading or trailing blanks, no control characters and none of \" ; > \\ ` < = : / ? *, and is not taken.", crate::theme::FONT_SMALL, t.warning));
                             }
                         });
-                        let mut w = l.lineweight_mm;
-                        if ui.add(egui::DragValue::new(&mut w).speed(0.05).range(0.0..=2.11).fixed_decimals(2)).changed() {
-                            let _ = ann::layers::set_lineweight(&mut self.doc, &l.name, w);
-                            committed = true;
-                        }
-                        ui.label(l.elements.to_string());
-                        ui.horizontal(|ui| {
-                            if ui.small_button("Rename").clicked() {
-                                self.anno.layer_win.rename = Some((l.name.clone(), l.name.clone()));
-                            }
-                            if ui.small_button("Delete").clicked() {
-                                let target = rows.iter().find(|r| r.name != l.name).map(|r| r.name.clone()).unwrap_or_default();
-                                self.anno.layer_win.delete = Some((l.name.clone(), target));
-                            }
-                        });
-                        ui.end_row();
+                    });
+                    if !layer_win.message.is_empty() {
+                        ui.add_space(4.0);
+                        ui_kit::callout(ui, Level::Info, layer_win.message.clone());
                     }
-                });
-            });
-            if let Some((name, target)) = self.anno.layer_win.delete.clone() {
-                let count = rows.iter().find(|r| r.name == name).map(|r| r.elements).unwrap_or(0);
-                ui.separator();
-                ui.horizontal_wrapped(|ui| {
-                    if count == 0 {
-                        ui.label(format!("Delete the empty layer {name}?"));
-                    } else {
-                        ui.label(format!("{name} holds {count} element(s). A layer is deleted only when it is empty, or its elements are moved to:"));
-                        let mut t = target.clone();
-                        egui::ComboBox::from_id_salt("layer-move-target").selected_text(t.clone()).show_ui(ui, |ui| {
-                            for r in rows.iter().filter(|r| r.name != name) {
-                                ui.selectable_value(&mut t, r.name.clone(), &r.name);
-                            }
-                        });
-                        if t != target {
-                            self.anno.layer_win.delete = Some((name.clone(), t));
-                        }
-                    }
-                    if ui.button(if count == 0 { "Delete" } else { "Move the elements and delete" }).clicked() {
-                        let policy = if count == 0 { ann::OnDelete::RefuseUnlessEmpty } else { ann::OnDelete::MoveTo(self.anno.layer_win.delete.as_ref().map(|d| d.1.clone()).unwrap_or_default()) };
-                        match ann::layers::delete(&mut self.doc, &name, &policy) {
-                            Ok(moved) => {
-                                msg = Some(format!("Deleted layer {name}{}.", if moved > 0 { format!(", {moved} element(s) moved") } else { String::new() }));
-                                if self.anno.layer == name {
-                                    self.anno.layer.clear();
-                                }
-                                committed = true;
-                            }
-                            Err(e) => msg = Some(e.to_string()),
-                        }
-                        self.anno.layer_win.delete = None;
-                    }
-                    if ui.button("Keep it").clicked() {
-                        self.anno.layer_win.delete = None;
-                    }
-                });
-            }
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("New layer");
-                ui.add(egui::TextEdit::singleline(&mut self.anno.layer_win.new_name).desired_width(160.0).hint_text("name"));
-                if ui.button("Create").clicked() {
-                    let name = std::mem::take(&mut self.anno.layer_win.new_name);
-                    match ann::layers::create(&mut self.doc, &name, LayerProps::default()) {
-                        Ok(()) => {
-                            committed = true;
-                            msg = Some(format!("Layer {name} created."));
-                        }
-                        Err(e) => {
-                            self.anno.layer_win.new_name = name;
-                            msg = Some(e.to_string());
-                        }
+                },
+                |ui| Footer::new("Done").cancel(None).note("Colour auto means the canvas ink").show(ui),
+            );
+        if let Some(c) = set_current {
+            self.anno.layer = c;
+        }
+        for op in doc_ops {
+            match op {
+                LayerOp::UnlockAll => {
+                    for l in &rows {
+                        let _ = ann::layers::set_locked(&mut self.doc, &l.name, false);
                     }
                 }
-            });
-            if let Some(m) = msg {
-                self.anno.layer_win.message = m;
+                LayerOp::HideAll => {
+                    for l in &rows {
+                        let _ = ann::layers::set_visible(&mut self.doc, &l.name, false);
+                    }
+                }
+                LayerOp::ShowAll => {
+                    for l in &rows {
+                        let _ = ann::layers::set_visible(&mut self.doc, &l.name, true);
+                    }
+                }
+                LayerOp::Visible(n, v) => {
+                    let _ = ann::layers::set_visible(&mut self.doc, &n, v);
+                }
+                LayerOp::Locked(n, v) => {
+                    let _ = ann::layers::set_locked(&mut self.doc, &n, v);
+                }
+                LayerOp::Colour(n, c) => {
+                    let _ = ann::layers::set_colour(&mut self.doc, &n, c);
+                    committed = true;
+                }
+                LayerOp::Weight(n, w) => {
+                    let _ = ann::layers::set_lineweight(&mut self.doc, &n, w);
+                    committed = true;
+                }
+                LayerOp::Rename(old, new) => match ann::layers::rename(&mut self.doc, &old, &new) {
+                    Ok(()) => {
+                        if self.anno.layer == old {
+                            self.anno.layer = new.clone();
+                        }
+                        committed = true;
+                        msg = Some(format!("Renamed {old} to {new}; its elements moved with it."));
+                    }
+                    Err(e) => msg = Some(e.to_string()),
+                },
+                LayerOp::Delete(name, target) => {
+                    let policy = match target {
+                        None => ann::OnDelete::RefuseUnlessEmpty,
+                        Some(t) => ann::OnDelete::MoveTo(t),
+                    };
+                    match ann::layers::delete(&mut self.doc, &name, &policy) {
+                        Ok(moved) => {
+                            msg = Some(format!("Deleted layer {name}{}.", if moved > 0 { format!(", {moved} element(s) moved") } else { String::new() }));
+                            if self.anno.layer == name {
+                                self.anno.layer.clear();
+                            }
+                            committed = true;
+                        }
+                        Err(e) => msg = Some(e.to_string()),
+                    }
+                }
+                LayerOp::Create(name, props) => match ann::layers::create(&mut self.doc, &name, props) {
+                    Ok(()) => {
+                        committed = true;
+                        msg = Some(format!("Layer {name} created."));
+                    }
+                    Err(e) => msg = Some(e.to_string()),
+                },
             }
-            if !self.anno.layer_win.message.is_empty() {
-                ui.label(RichText::new(&self.anno.layer_win.message).small());
-            }
-            ui.label(RichText::new(format!("Current layer: {}. Colour auto means the canvas ink. On and lock are not part of undo (the kernel keeps them outside its history); name, colour, line weight, create and delete are.", self.anno.current_layer())).small().weak());
-            ui.label(RichText::new("Colour and line weight show on the 2D canvas (the weight as a pen width in pixels) and in the DXF for annotation; DXF R12 carries no line weight. Layer 0 and the built-in layers cannot be renamed or deleted.").small().weak());
-        });
+        }
+        if let Some(m) = msg {
+            self.anno.layer_win.message = m;
+        }
         if committed {
             self.sync_generated();
             self.schedule_commit_now();
         }
-        self.anno.layers_open = open;
-    }
-
-    fn anno_units_window(&mut self, ctx: &egui::Context) {
-        if !self.anno.units_open {
-            return;
+        if out.closed || out.inner.is_some_and(|(_, f)| f.primary || f.cancel) {
+            self.anno.layers_open = false;
         }
-        let mut open = true;
-        let mut st = ann::settings::load(&self.doc);
-        let before = st.units.clone();
-        let mut set_dims = self.anno.units_set_dims;
-        crate::win::new(ctx, "Units").open(&mut open).default_width(480.0).show(ctx, |ui| {
-            let u = &mut st.units;
-            egui::Grid::new("units-grid").num_columns(2).spacing([14.0, 6.0]).show(ui, |ui| {
-                ui.label("Length");
-                ui.horizontal(|ui| {
-                    ui.radio_value(&mut u.length, ann::LengthUnit::Millimetre, "millimetres");
-                    ui.radio_value(&mut u.length, ann::LengthUnit::Metre, "metres");
-                });
-                ui.end_row();
-                ui.label("Length decimals");
-                ui.add(egui::DragValue::new(&mut u.length_decimals).range(0..=6));
-                ui.end_row();
-                ui.label("Station decimals");
-                ui.add(egui::DragValue::new(&mut u.station_decimals).range(0..=6));
-                ui.end_row();
-                ui.label("Area");
-                ui.horizontal(|ui| {
-                    ui.radio_value(&mut u.area, ann::AreaUnit::SquareMetre, "square metres");
-                    ui.radio_value(&mut u.area, ann::AreaUnit::Hectare, "hectares");
-                });
-                ui.end_row();
-                ui.label("Area decimals");
-                ui.add(egui::DragValue::new(&mut u.area_decimals).range(0..=6));
-                ui.end_row();
-                ui.label("Volume (cubic metres) decimals");
-                ui.add(egui::DragValue::new(&mut u.volume_decimals).range(0..=6));
-                ui.end_row();
-                ui.label("Angle");
-                egui::ComboBox::from_id_salt("angle-format").selected_text(angle_label(u.angle)).show_ui(ui, |ui| {
-                    for f in [ann::AngleFormat::Decimal, ann::AngleFormat::Dms, ann::AngleFormat::QuadrantBearing, ann::AngleFormat::Azimuth] {
-                        ui.selectable_value(&mut u.angle, f, angle_label(f));
-                    }
-                });
-                ui.end_row();
-                ui.label("Angle decimals");
-                ui.add(egui::DragValue::new(&mut u.angle_decimals).range(0..=6));
-                ui.end_row();
-            });
-            ui.checkbox(&mut set_dims, "Also set the dimension styles to these units");
-            ui.add_space(4.0);
-            ui.group(|ui| {
-                ui.label(RichText::new("Examples").strong());
-                ui.label(format!("12 345.6789 mm is shown as {}", u.length_u(12_345.6789)));
-                ui.label(format!("Station 1250.5 m is shown as {}", u.station(1250.5)));
-                ui.label(format!("1 234 567 890 mm2 is shown as {}", u.area_u(1_234_567_890.0)));
-                ui.label(format!("2 500 000 000 mm3 is shown as {} m3", u.volume(2_500_000_000.0)));
-                ui.label(format!("37.5 degrees is shown as {}", u.angle(37.5)));
-                ui.label(format!("A direction of 37.5 degrees is shown as {}", u.direction(37.5)));
-            });
-            ui.label(RichText::new("Typed lengths, stations, areas and angles are read in these formats (12.5, 12.5m, 12500mm, 1+250.500, 45d30m15s). Stored values stay in millimetres.").small().weak());
-            ui.label(RichText::new("Applied to: the status bar coordinates, Properties position and size, measure results, dimension text (styles), the typed point input of annotation commands and the station fields. Still raw: see the README.").small().weak());
-        });
-        self.anno.units_set_dims = set_dims;
-        if st.units != before {
-            if set_dims {
-                for d in &mut st.dim_styles {
-                    d.length_unit = st.units.length;
-                    d.length_decimals = st.units.length_decimals;
-                    d.angle_format = st.units.angle;
-                    d.angle_decimals = st.units.angle_decimals;
-                    d.station_decimals = st.units.station_decimals;
-                }
-            }
-            ann::settings::store(&mut self.doc, &st);
-            if set_dims {
-                ann::settings::restyle(&mut self.doc);
-            }
-            self.sync_generated();
-            self.schedule_commit_now();
-        }
-        self.anno.units_open = open;
     }
 
     fn anno_text_styles_window(&mut self, ctx: &egui::Context) {
@@ -1092,7 +1109,7 @@ impl AfroBimApp {
     }
 }
 
-fn angle_label(f: ann::AngleFormat) -> &'static str {
+pub(crate) fn angle_label(f: ann::AngleFormat) -> &'static str {
     match f {
         ann::AngleFormat::Decimal => "decimal degrees",
         ann::AngleFormat::Dms => "degrees, minutes, seconds",

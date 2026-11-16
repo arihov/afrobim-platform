@@ -1066,83 +1066,155 @@ fn aashto_form(ui: &mut Ui, f: &mut AashtoForm) {
 // ─── corridor ───────────────────────────────────────────────────────────────────────────
 
 fn corridor_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Option<ElementId>, CorridorRequest)>, out: &mut Vec<Outcome>) {
+    use crate::ui_kit::{self, Dialog, Footer, Level};
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let surfaces = afrobim_corridor::surfaces(doc);
-    let (mut keep, mut add) = (true, false);
-    crate::win::new(ctx, "Corridor").collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::Grid::new("corridor").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-            alignment_row(ui, "corridor-alignment", &choices, &mut alignment);
-            ui.label("Ground surface");
-            let current = surfaces.iter().find(|s| Some(s.0) == req.surface).map(|s| s.1.clone()).unwrap_or_default();
-            egui::ComboBox::from_id_salt("corridor-surface").selected_text(current).show_ui(ui, |ui| {
-                for (id, name) in &surfaces {
-                    ui.selectable_value(&mut req.surface, Some(*id), name);
-                }
-            });
-            ui.end_row();
-            ui.label("Name");
-            text(ui, &mut req.name, "e.g. Corridor", 140.0);
-            ui.end_row();
-            ui.label("");
-            ui.vertical(|ui| {
-                if let Some(fill) = mowt_fill_row(ui, "corridor") {
-                    req.lane_width_m = fill.lane_width_m;
-                    if let Some(f) = fill.crossfall_percent {
-                        req.lane_crossfall_percent = f;
+    let problem: Option<String> = if alignment.is_none() {
+        Some("Choose an alignment".into())
+    } else if req.surface.is_none() {
+        Some("Choose a ground surface".into())
+    } else if req.name.trim().is_empty() {
+        Some("Give the corridor a name".into())
+    } else {
+        req.definition().check().err().map(|e| {
+            let mut e = e;
+            if let Some(c) = e.get_mut(0..1) {
+                c.make_ascii_uppercase();
+            }
+            e
+        })
+    };
+    let reason = problem.clone().unwrap_or_default();
+    let ctx_doc: &Document = doc;
+    let result = Dialog::new("Corridor", crate::glyphs::by_name("CORRIDOR"))
+        .subtitle("A typical section built along an alignment, down to a ground surface")
+        .width(560.0)
+        .resizable(false)
+        .help("Every width, slope, depth and interval is yours: the corridor holds no design values. It needs an alignment with a vertical profile; the same template is used on both sides over the whole length (more regions are edited in Properties). Volumes are by average end area; the factors under Advanced multiply the cut and fill of the mass ordinate (1 changes nothing).")
+        .show(
+            ctx,
+            |ui| {
+                ui_kit::section(ui, "Built on", |ui| {
+                    ui_kit::form(ui, "corridor-on", |f| {
+                        f.row("Alignment", |ui| {
+                            let mut i = choices.iter().position(|c| Some(c.0) == alignment).unwrap_or(usize::MAX);
+                            let names: Vec<&str> = choices.iter().map(|c| c.1.as_str()).collect();
+                            let mut shown = i.min(names.len());
+                            let before = shown;
+                            egui::ComboBox::from_id_salt("corridor-alignment").selected_text(names.get(i).copied().unwrap_or("choose one")).width(220.0).show_ui(ui, |ui| {
+                                for (k, n) in names.iter().enumerate() {
+                                    ui.selectable_value(&mut shown, k, *n);
+                                }
+                            });
+                            if shown != before {
+                                i = shown;
+                                alignment = choices.get(i).map(|c| c.0);
+                            }
+                        });
+                        f.row("Ground surface", |ui| {
+                            let current = surfaces.iter().find(|s| Some(s.0) == req.surface).map(|s| s.1.clone()).unwrap_or_else(|| "choose one".into());
+                            egui::ComboBox::from_id_salt("corridor-surface").selected_text(current).width(220.0).show_ui(ui, |ui| {
+                                for (id, name) in &surfaces {
+                                    ui.selectable_value(&mut req.surface, Some(*id), name);
+                                }
+                            });
+                        });
+                        f.row("Name", |ui| {
+                            ui_kit::text_field(ui, &mut req.name, "e.g. Corridor");
+                        });
+                    });
+                });
+                ui_kit::section(ui, "Typical section, each side", |ui| {
+                    if let Some(fill) = mowt_fill_row(ui, "corridor") {
+                        req.lane_width_m = fill.lane_width_m;
+                        if let Some(c) = fill.crossfall_percent {
+                            req.lane_crossfall_percent = c;
+                        }
+                        req.shoulder = Some(ShoulderRequest { width_m: fill.shoulder_width_m, crossfall_percent: fill.shoulder_crossfall_percent.unwrap_or(0.0) });
                     }
-                    req.shoulder = Some(ShoulderRequest { width_m: fill.shoulder_width_m, crossfall_percent: fill.shoulder_crossfall_percent.unwrap_or(0.0) });
-                    let _ = &fill.citation;
-                }
-            });
-            ui.end_row();
-            ui.label("Lane width, each side");
-            number(ui, &mut req.lane_width_m, 0.05, " m");
-            ui.end_row();
-            ui.label("Lane cross-fall (falling away)");
-            ui.horizontal(|ui| {
-                number(ui, &mut req.lane_crossfall_percent, 0.1, " %");
-                ui.checkbox(&mut req.follow_superelevation, "take the alignment's stored cross-fall where there is one");
-            });
-            ui.end_row();
-            shoulder_row(ui, "Shoulder, each side", &mut req.shoulder);
-            if req.shoulder.is_some() {
-                ui.label("Formation under the shoulder");
-                ui.checkbox(&mut req.shoulder_paved, "the shoulder is paved");
-                ui.end_row();
-            }
-            ui.label("Formation depth below paved links");
-            number(ui, &mut req.formation_depth_m, 0.01, " m");
-            ui.end_row();
-            ui.label("Cut slope (horizontal for 1 vertical)");
-            number(ui, &mut req.cut_run_per_rise, 0.05, "");
-            ui.end_row();
-            ui.label("Fill slope (horizontal for 1 vertical)");
-            number(ui, &mut req.fill_run_per_rise, 0.05, "");
-            ui.end_row();
-            ui.label("Section interval");
-            number(ui, &mut req.interval_m, 1.0, " m");
-            ui.end_row();
-            ui.label("Stretch");
-            ui.horizontal(|ui| {
-                let mut limited = req.stretch.is_some();
-                if ui.checkbox(&mut limited, "limit to a stretch of the alignment").changed() {
-                    req.stretch = if limited { alignment.and_then(|a| alignment_glue::alignment_of(doc, a)).map(|a| (a.start_station_m, a.end_station_m())) } else { None };
-                }
-                if !limited {
-                    ui.label(RichText::new("the whole alignment").weak());
-                }
-            });
-            ui.end_row();
-            if let Some((start, end)) = &mut req.stretch {
-                station_row(ui, doc, alignment, "corridor-start", "Stretch start station", start);
-                station_row(ui, doc, alignment, "corridor-end", "Stretch end station", end);
-            }
-        });
-        ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
-        not_a_design(ui, "The corridor holds no design values: every width, slope, depth and interval is yours. It needs an alignment with a vertical profile, and the same template is used both sides over the whole length. More regions are edited in Properties. Volumes are by average end area, with no bulking or shrinkage factor (both 1).");
-        buttons(ui, "Build", alignment.is_some() && req.surface.is_some(), &mut add, &mut keep);
-    });
+                    ui.add_space(4.0);
+                    ui_kit::form(ui, "corridor-section", |f| {
+                        f.row("Lane width", |ui| {
+                            ui_kit::f64_field(ui, &mut req.lane_width_m, "m", 0.0..=60.0, 0.05);
+                        });
+                        f.row("Lane cross-fall", |ui| {
+                            ui.vertical(|ui| {
+                                ui_kit::f64_field(ui, &mut req.lane_crossfall_percent, "% falling away", -50.0..=50.0, 0.1);
+                                ui_kit::toggle(ui, &mut req.follow_superelevation, "take the alignment's stored cross-fall where there is one");
+                            });
+                        });
+                        f.row("Shoulder", |ui| {
+                            ui.vertical(|ui| {
+                                let mut on = req.shoulder.is_some();
+                                if ui_kit::toggle(ui, &mut on, "a shoulder on each side").changed() {
+                                    req.shoulder = on.then(ShoulderRequest::default);
+                                }
+                                if let Some(s) = &mut req.shoulder {
+                                    ui_kit::f64_field(ui, &mut s.width_m, "m wide", 0.0..=30.0, 0.1);
+                                    ui_kit::f64_field(ui, &mut s.crossfall_percent, "% falling away", -50.0..=50.0, 0.1);
+                                    ui_kit::toggle(ui, &mut req.shoulder_paved, "the shoulder is paved");
+                                }
+                            });
+                        });
+                        f.row("Formation depth", |ui| {
+                            ui_kit::f64_field(ui, &mut req.formation_depth_m, "m below the paved links", 0.0..=10.0, 0.01);
+                        });
+                    });
+                });
+                ui_kit::section(ui, "Cut and fill slopes", |ui| {
+                    ui_kit::form(ui, "corridor-slopes", |f| {
+                        f.row("Cut slope", |ui| {
+                            ui_kit::f64_field(ui, &mut req.cut_run_per_rise, "horizontal to 1 vertical", 0.0..=50.0, 0.05);
+                        });
+                        f.row("Fill slope", |ui| {
+                            ui_kit::f64_field(ui, &mut req.fill_run_per_rise, "horizontal to 1 vertical", 0.0..=50.0, 0.05);
+                        });
+                    });
+                });
+                ui_kit::section(ui, "Sections", |ui| {
+                    ui_kit::form(ui, "corridor-sections", |f| {
+                        f.row("Section interval", |ui| {
+                            ui_kit::f64_field(ui, &mut req.interval_m, "m", 0.0..=1000.0, 1.0);
+                        });
+                        f.row("Stretch", |ui| {
+                            let mut limited = req.stretch.is_some();
+                            if ui_kit::toggle(ui, &mut limited, "limit to a stretch of the alignment").changed() {
+                                req.stretch = if limited { alignment.and_then(|a| alignment_glue::alignment_of(ctx_doc, a)).map(|a| (a.start_station_m, a.end_station_m())) } else { None };
+                            }
+                        });
+                        if let Some((start, end)) = &mut req.stretch {
+                            f.raw(|ui| station_row(ui, ctx_doc, alignment, "corridor-start", "Stretch start", start));
+                            f.raw(|ui| station_row(ui, ctx_doc, alignment, "corridor-end", "Stretch end", end));
+                        }
+                    });
+                    ui.label(RichText::new(station_input::note(ctx_doc, alignment)).small().weak());
+                });
+                ui_kit::advanced(ui, "corridor-volumes", |ui| {
+                    ui_kit::form(ui, "corridor-volume-options", |f| {
+                        f.row_note("Cut factor", "multiplies every cut volume in the mass ordinate; 1 changes nothing", |ui| {
+                            ui_kit::f64_field(ui, &mut req.cut_factor, "", 0.01..=10.0, 0.01);
+                        });
+                        f.row_note("Fill factor", "multiplies every fill volume in the mass ordinate; 1 changes nothing", |ui| {
+                            ui_kit::f64_field(ui, &mut req.fill_factor, "", 0.01..=10.0, 0.01);
+                        });
+                        f.row_note("Curvature correction", "the Pappus correction of each end area", |ui| {
+                            ui_kit::toggle(ui, &mut req.curvature_correction, "apply it");
+                        });
+                    });
+                });
+                ui.add_space(4.0);
+                ui_kit::callout(ui, Level::Info, "Volumes are by average end area. The corridor needs an alignment with a vertical profile.");
+            },
+            |ui| Footer::new("Build").icon(crate::glyphs::by_name("CORRIDOR")).enabled(problem.is_none(), &reason).show(ui),
+        );
+    let (mut keep, mut add) = (!result.closed, false);
+    if let Some((_, f)) = result.inner {
+        add = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
     if add {
         match alignment.ok_or_else(|| "Choose an alignment.".to_string()).and_then(|a| road_glue::add_corridor(doc, a, &req)) {
             Ok((mark, summary)) => out.push(Outcome::Added(mark.clone(), format!("Built {mark}: {summary}. SECTIONS shows the cross-sections."))),

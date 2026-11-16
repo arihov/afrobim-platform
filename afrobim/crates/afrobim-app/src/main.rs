@@ -30,6 +30,7 @@ mod design_windows;
 mod glyphs;
 mod icons;
 mod ifc_options;
+mod landxml_ui;
 mod issues_ui;
 mod lighting_inputs;
 mod markings_glue;
@@ -200,6 +201,10 @@ pub struct Options {
     /// Screenshot aid: pointer actions at start-up, `x,y` to click and `x,yh` to hover, separated
     /// by semicolons, in points (to open a menu or show a tooltip without a pointer).
     pub click: Option<String>,
+    /// Open the LandXML import dialog on this file at start-up (instead of importing at once).
+    pub landxml_dialog: Option<PathBuf>,
+    /// Open the survey points dialog on this file at start-up.
+    pub survey_dialog: Option<PathBuf>,
 }
 
 fn parse_args() -> Options {
@@ -265,6 +270,8 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--scale" => o.scale = args.next().and_then(|v| v.parse().ok()),
             "--workspace" => o.workspace = args.next(),
             "--click" => o.click = args.next(),
+            "--landxml-dialog" => o.landxml_dialog = args.next().map(PathBuf::from),
+            "--survey-dialog" => o.survey_dialog = args.next().map(PathBuf::from),
             "--export-pack" => o.export_pack = args.next().map(PathBuf::from),
             "--sheet" => o.sheet = args.next().and_then(|v| v.parse().ok()),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),
