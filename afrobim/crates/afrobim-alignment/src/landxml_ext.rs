@@ -1332,6 +1332,8 @@ fn read_attributes(element: &str) -> Option<&'static [&'static str]> {
         ],
         "Project" => &["name", "desc", "state"],
         "Application" => &["name", "desc", "manufacturer", "version", "manufacturerURL", "timeStamp"],
+        // Containers: they have no attribute that is read (Civil 3D puts a `name` on `Alignments`).
+        "Units" | "Alignments" | "Surfaces" | "Parcels" | "Pnts" | "Faces" | "Breaklines" | "Contours" | "Boundaries" | "PointFiles" => &[],
         "Alignment" => &["name", "length", "staStart", "desc", "state", "oID"],
         "CoordGeom" => &["name", "desc", "state"],
         "StaEquation" => &["staInternal", "staAhead", "staBack", "staIncrement"],
