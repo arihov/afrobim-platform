@@ -723,6 +723,37 @@ pub fn results_table(ui: &mut Ui, id: &str, headers: &[&str], cols: &[Col], rows
     });
 }
 
+/// A column header cell of a hand-built table: small, bold and muted.
+pub fn th(ui: &mut Ui, text: &str) {
+    let t = tokens_ui(ui);
+    ui.label(RichText::new(text).size(theme::FONT_SMALL).strong().color(t.text_muted));
+}
+
+/// A column header of a numeric column: right-aligned.
+pub fn th_num(ui: &mut Ui, text: &str) {
+    let t = tokens_ui(ui);
+    ui.with_layout(Layout::right_to_left(Align::Center), |ui| ui.label(RichText::new(text).size(theme::FONT_SMALL).strong().color(t.text_muted)));
+}
+
+/// A number in a table cell: right-aligned, in the monospace face.
+pub fn cell_num(ui: &mut Ui, text: impl Into<String>) {
+    let t = tokens_ui(ui);
+    let text: String = text.into();
+    ui.with_layout(Layout::right_to_left(Align::Center), |ui| ui.label(RichText::new(text).monospace().color(t.text)));
+}
+
+/// `tabs` over a selection kept as a `u8`.
+pub fn tabs_u8(ui: &mut Ui, selected: &mut u8, labels: &[&str]) {
+    let mut i = *selected as usize;
+    tabs(ui, &mut i, labels);
+    *selected = i as u8;
+}
+
+/// A table in a block that scrolls sideways when it is wider than the dialog.
+pub fn scroll_x<R>(ui: &mut Ui, id: &str, body: impl FnOnce(&mut Ui) -> R) -> R {
+    egui::ScrollArea::horizontal().id_salt(("kit-scroll-x", id)).auto_shrink([false, true]).show(ui, body).inner
+}
+
 // ─── the footer ──────────────────────────────────────────────────────────────
 
 /// What the footer reports.
