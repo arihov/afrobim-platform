@@ -425,6 +425,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-survey"
+version = "0.1.0"
+dependencies = [
+ "afrobim-cogo",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-terrain"
 version = "0.1.0"
 dependencies = [
