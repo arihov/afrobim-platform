@@ -135,7 +135,7 @@ impl AfroBimApp {
         let _ = revision;
         let dlg = crate::ui_kit::Dialog::titled("Profile editor").subtitle("The vertical alignment: points of intersection and curves").width(1020.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("{name}: stations {} to {}", crate::disp::station(u, alignment.start_station_m), crate::disp::station(u, alignment.end_station_m()))).strong());
+                crate::ui_kit::heading(ui, &format!("{name}: stations {} to {}", crate::disp::station(u, alignment.start_station_m), crate::disp::station(u, alignment.end_station_m())));
                 ui.separator();
                 ui.label("Ground");
                 let current = ui_state.surface.and_then(|s| surfaces.iter().find(|x| x.0 == s)).map(|s| s.1.clone()).unwrap_or_else(|| "no surface".into());

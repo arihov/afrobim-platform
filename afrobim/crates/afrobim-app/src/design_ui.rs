@@ -998,7 +998,7 @@ impl AfroBimApp {
         let u = &units;
         let work = crate::win::work_rect(ctx);
         let dlg = crate::ui_kit::Dialog::titled("PI table").subtitle("The points of intersection of the horizontal geometry").width(900.0).default_pos(egui::pos2(work.min.x + 16.0, (work.max.y - 250.0).max(work.min.y + 40.0))).show_body(ctx, |ui| {
-            ui.label(RichText::new(format!("{name}: start station {}", units.station(design.horizontal.start_station_m))).strong());
+            crate::ui_kit::heading(ui, &format!("{name}: start station {}", units.station(design.horizontal.start_station_m)));
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.");
             if let Err(e) = &solution {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("The design cannot be solved: {e}"));

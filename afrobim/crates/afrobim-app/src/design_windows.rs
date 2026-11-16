@@ -641,7 +641,7 @@ impl AfroBimApp {
                     }
                 });
                 ui.separator();
-                ui.label(RichText::new("Comparison: the figures of each option, unweighted").strong());
+                crate::ui_kit::heading(ui, "Comparison: the figures of each option, unweighted");
                 match o.cmp.as_ref().map(|(_, c)| c) {
                     Some(Ok(cmp)) if !cmp.options.is_empty() => {
                         let units = crate::anno_ui::units_of(&self.doc);

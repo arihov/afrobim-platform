@@ -969,7 +969,7 @@ impl AfroBimApp {
             let is_current = s.name == current_name;
             let mut make_current = false;
             egui::ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
-                ui.label(RichText::new("Sizes (paper millimetres, defaults to edit; the annotation scale multiplies them)").strong());
+                crate::ui_kit::heading(ui, "Sizes (paper millimetres, defaults to edit; the annotation scale multiplies them)");
                 crate::ui_kit::grid(ui, "dim-style-sizes", |ui| {
                     ui.label("Name");
                     ui.add(egui::TextEdit::singleline(&mut s.name).desired_width(160.0));

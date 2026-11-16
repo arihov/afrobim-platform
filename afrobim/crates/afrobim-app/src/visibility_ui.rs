@@ -772,7 +772,7 @@ impl AfroBimApp {
                         match &resolved {
                             Some(r) => {
                                 let by_rule = SpeedBandMph::from_mph(r.mph_used);
-                                ui.label(RichText::new(format!("From the approach speed: {}", by_rule.label())).strong());
+                                crate::ui_kit::heading(ui, &format!("From the approach speed: {}", by_rule.label()));
                                 ui.label(RichText::new(&r.band_note).small().weak());
                                 if let Some(ask) = r.ask {
                                     crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph));
@@ -852,7 +852,7 @@ impl AfroBimApp {
                     ui.end_row();
                 });
                 ui.add_space(4.0);
-                ui.label(RichText::new("Road edges at the sign: distances from the centreline (m), for the clearance lines").strong());
+                crate::ui_kit::heading(ui, "Road edges at the sign: distances from the centreline (m), for the clearance lines");
                 egui::Grid::new("vis-edges").num_columns(3).spacing([10.0, 4.0]).show(ui, |ui| {
                     ui.label("");
                     ui.label("left");
@@ -867,7 +867,7 @@ impl AfroBimApp {
                 });
                 ui.checkbox(&mut f.kerbed, "the road is kerbed at the sign");
                 ui.add_space(4.0);
-                ui.label(RichText::new("Walls or banks beside the road (the inside of a curve): nothing beyond the offset can be seen").strong());
+                crate::ui_kit::heading(ui, "Walls or banks beside the road (the inside of a curve): nothing beyond the offset can be seen");
                 let mut remove = None;
                 for (k, r) in f.lateral.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
@@ -888,7 +888,7 @@ impl AfroBimApp {
                     f.lateral.push(LateralRow::default());
                 }
                 ui.add_space(4.0);
-                ui.label(RichText::new("Analysis settings (resolution of the sweep, not standard values; the engine's own starting values)").strong());
+                crate::ui_kit::heading(ui, "Analysis settings (resolution of the sweep, not standard values; the engine's own starting values)");
                 crate::ui_kit::grid(ui, "vis-analysis", |ui| {
                     for (label, field) in [("Sweep length before the sign (m)", &mut f.start), ("Eye step (m)", &mut f.step), ("Road sample spacing (m)", &mut f.sample), ("Bisection tolerance (m)", &mut f.tolerance), ("Sight-line grid (points per side)", &mut f.grid)] {
                         ui.label(label);

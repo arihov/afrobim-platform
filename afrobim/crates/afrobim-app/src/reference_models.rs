@@ -656,14 +656,12 @@ impl AfroBimApp {
         let mut show_report: Option<String> = None;
         let mut accept: Option<String> = None;
         let mut zoom: Option<String> = None;
-        let dlg = crate::ui_kit::Dialog::titled("Reference models").subtitle("IFC models shown for reference and clash tests").width(900.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Reference models").subtitle("IFC models shown for reference and clash tests").width(900.0).show(ctx, |ui| {
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Reference models are read-only IFC files. The document stores each file's path and a hash, not its contents; the file is read again when the document opens. A model in another coordinate frame needs the offset and rotation that line it up: enter them below (rotation about the file's own origin, then the offset).");
             crate::ui_kit::note(ui, format!("Limits: the importer reads the whole file into memory and refuses files of 4 GiB or more. Models above {DRAW_TRIANGLE_CAP} triangles in view are drawn as the boxes of their products."));
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut self.refs.apply_map_conversion, "apply the file's IfcMapConversion when it has one (on by default: the model is placed at its map coordinates; turn it off to use the file's own coordinates)");
-                if ui.button("Import IFC files...").clicked() {
-                    import = true;
-                }
+            crate::ui_kit::heading(ui, "Import");
+            crate::ui_kit::form(ui, "ref-import", |f| {
+                f.row_note("Map coordinates", "On by default: the model is placed at its map coordinates. Turn it off to use the file's own coordinates.", |ui| crate::ui_kit::toggle(ui, &mut self.refs.apply_map_conversion, "Apply the file's IfcMapConversion when it has one"));
             });
             if self.refs.busy() {
                 ui.horizontal(|ui| {
@@ -672,11 +670,11 @@ impl AfroBimApp {
                 });
             }
             if !self.refs.message.is_empty() {
-                ui.label(RichText::new(&self.refs.message).small());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, self.refs.message.clone());
             }
-            ui.separator();
+            crate::ui_kit::heading(ui, &format!("Models ({})", self.refs.set.models.len()));
             if self.refs.set.models.is_empty() {
-                ui.label(RichText::new("No reference models.").weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No reference models. Import IFC files with the button below.");
             }
             let labels: Vec<String> = self.refs.set.models.iter().map(|m| m.label.clone()).collect();
             egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
@@ -718,33 +716,39 @@ impl AfroBimApp {
                                 crate::ui_kit::note(ui, "Reading...");
                             }
                         }
-                        ui.horizontal(|ui| {
-                            ui.label("Transparency");
-                            changed |= ui.add(egui::Slider::new(&mut e.transparency, 0.0..=1.0)).changed();
+                        crate::ui_kit::form(ui, &format!("ref-look-{i}"), |f| {
+                            f.row("Transparency", |ui| ui.add(egui::Slider::new(&mut e.transparency, 0.0..=1.0)).changed().then(|| changed = true));
                         });
-                        ui.horizontal(|ui| {
-                            for (n, name) in ["Offset X (mm)", "Y (mm)", "Z (mm)", "Rotation (deg)"].iter().enumerate() {
-                                ui.label(*name);
-                                if ui.add(egui::TextEdit::singleline(&mut typed[n]).desired_width(70.0)).changed() {
-                                    if let Ok(v) = typed[n].trim().replace(',', ".").parse::<f64>() {
-                                        if v.is_finite() {
-                                            if n < 3 {
-                                                e.offset_mm[n] = v;
-                                            } else {
-                                                e.rotation_deg = v;
+                        crate::ui_kit::advanced(ui, &format!("ref-place-{i}"), |ui| {
+                            crate::ui_kit::form(ui, &format!("ref-place-form-{i}"), |f| {
+                                for (n, (name, unit)) in [("Offset X", "mm"), ("Offset Y", "mm"), ("Offset Z", "mm"), ("Rotation", "deg")].iter().enumerate() {
+                                    f.row(name, |ui| {
+                                        let bad = typed[n].trim().replace(',', ".").parse::<f64>().map_or(true, |v| !v.is_finite());
+                                        if ui.add(egui::TextEdit::singleline(&mut typed[n]).desired_width(90.0).horizontal_align(egui::Align::RIGHT)).changed() {
+                                            if let Ok(v) = typed[n].trim().replace(',', ".").parse::<f64>() {
+                                                if v.is_finite() {
+                                                    if n < 3 {
+                                                        e.offset_mm[n] = v;
+                                                    } else {
+                                                        e.rotation_deg = v;
+                                                    }
+                                                    changed = true;
+                                                }
                                             }
-                                            changed = true;
                                         }
-                                    }
+                                        ui.label(*unit);
+                                        if bad {
+                                            ui.label(RichText::new("Not a number").size(11.0).color(crate::theme::danger()));
+                                        }
+                                    });
                                 }
-                            }
+                            });
                         });
                     });
                 }
                 if !self.refs.set.models.is_empty() {
-                    ui.separator();
                     crate::ui_kit::heading(ui, "Products");
-                    ui.add(egui::TextEdit::singleline(&mut self.refs.filter).hint_text("filter by name or type").desired_width(240.0));
+                    crate::ui_kit::text_field(ui, &mut self.refs.filter, "filter by name or type");
                     let f = self.refs.filter.trim().to_lowercase();
                     let mut shown = 0;
                     'outer: for e in &self.refs.set.models {
@@ -769,9 +773,17 @@ impl AfroBimApp {
                     }
                 }
             });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Import IFC files...").cancel(Some("Close")).show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                import = true;
+            }
         }
         self.refs.list_open = open;
         if import {
@@ -844,28 +856,37 @@ impl AfroBimApp {
         let offer = if project.is_none() && applied { self.refs.loaded.get(&label).and_then(|l| declared_crs(&l.model)) } else { None };
         let mut use_it = false;
         let warning = self.refs.loaded.get(&label).and_then(|l| l.warning.clone());
-        let dlg = crate::ui_kit::Dialog::titled(format!("Import report: {label}")).width(640.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled(format!("Import report: {label}")).width(640.0).show(ctx, |ui| {
             if let Some(w) = warning {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, w);
             }
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                for l in &lines {
-                    ui.label(RichText::new(l).monospace().small());
-                }
-            });
-            ui.horizontal(|ui| {
-                if ui.button("Copy").clicked() {
-                    ctx.copy_text(lines.join("\n"));
-                }
-                if let Some(c) = &offer {
-                    if ui.button("Use this model's coordinate system for the project").on_hover_text(c.label()).clicked() {
-                        use_it = true;
-                    }
-                }
-            });
+            crate::ui_kit::heading(ui, "What the import read");
+            for l in &lines {
+                ui.label(RichText::new(l).monospace().small());
+            }
+            if let Some(c) = &offer {
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, format!("The model declares a coordinate system: {}. You may use it for the project.", c.label()));
+            }
+        }, |ui| {
+            let mut f = crate::ui_kit::Footer::new("Use this model's coordinate system").enabled(offer.is_some(), "The model declares no coordinate system the project can take").secondary(&["Copy"]).cancel(Some("Close"));
+            if offer.is_none() {
+                f = f.cancel(Some("Close"));
+            }
+            f.show(ui)
         });
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                use_it = true;
+            }
+            if out.secondary == Some(0) {
+                ctx.copy_text(lines.join("\n"));
+            }
         }
         if let (true, Some(c)) = (use_it, offer) {
             self.apply_project_crs(c);
@@ -896,7 +917,7 @@ impl AfroBimApp {
             names.join(" > ")
         };
         let dlg = crate::ui_kit::Dialog::titled("Reference product").subtitle("One product of a reference model").width(420.0).show_body(ctx, |ui| {
-            crate::ui_kit::note(ui, "Read-only: the model is a reference.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Read-only: the model is a reference.");
             crate::ui_kit::grid(ui, "ref-product", |ui| {
                 for (k, v) in [
                     ("Model", label.clone()),
@@ -912,8 +933,8 @@ impl AfroBimApp {
                     ui.end_row();
                 }
             });
-            ui.separator();
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            crate::ui_kit::heading(ui, "Property sets");
+            {
                 let mut sets: Vec<&str> = p.properties.iter().map(|x| x.set.as_str()).collect();
                 sets.dedup();
                 let mut seen = BTreeSet::new();
@@ -933,7 +954,7 @@ impl AfroBimApp {
                         }
                     });
                 }
-            });
+            }
         });
         if dlg.closed {
             open = false;

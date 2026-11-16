@@ -380,7 +380,7 @@ impl AfroBimApp {
             };
             let dups = plan.duplicates().count();
             ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new(format!("{} rows to create or update", plan.valid_count())).color(GOOD()).strong());
+                crate::ui_kit::heading(ui, &format!("{} rows to create or update", plan.valid_count()));
                 ui.label(RichText::new(format!("{} rows with problems", plan.invalid_count())).color(if plan.invalid_count() > 0 { BAD() } else { Color32::GRAY }).strong());
                 ui.label(RichText::new(format!("{dups} duplicate marks")).color(if dups > 0 { WARN() } else { Color32::GRAY }).strong());
             });

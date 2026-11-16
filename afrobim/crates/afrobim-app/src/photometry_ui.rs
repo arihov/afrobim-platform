@@ -635,8 +635,10 @@ impl AfroBimApp {
             polar_diagram(&l.photometry, &planes)
         });
         let check_lines = self.photo.loaded.as_ref().map(file_check_lines);
-        let dlg = crate::ui_kit::Dialog::titled("Photometry").subtitle("Luminaire data files and the lighting calculation").width(900.0).show_body(ctx, |ui| {
+        let can_calc = self.photo.form.element.is_some() && self.photo.loaded.is_some();
+        let dlg = crate::ui_kit::Dialog::titled("Photometry").subtitle("Luminaire data files and the lighting calculation").width(900.0).show(ctx, |ui| {
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, LIMITS);
+            crate::ui_kit::heading(ui, "Installation and luminaire file");
             ui.horizontal(|ui| {
                 ui.label("Installation");
                 let shown = self.photo.form.element.and_then(|id| elements.iter().find(|e| e.0 == id)).map(|e| e.1.clone()).unwrap_or_else(|| "none: add one with LIGHTING".into());
@@ -666,22 +668,21 @@ impl AfroBimApp {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &self.photo.message);
             }
             if self.photo.loaded.is_none() {
-                ui.add_space(6.0);
-                ui.label(RichText::new(NO_FILE).strong());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, NO_FILE);
                 if self.options.demo {
                     crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "Demo: the demo model has a lighting installation but no luminaire file, because none ships. Nothing here is calculated until you supply one.");
                 }
                 return;
             }
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                ui.label(RichText::new("1. The file's own checks (before any calculation)").strong());
+                crate::ui_kit::heading(ui, "1. The file's own checks (before any calculation)");
                 if let Some(lines) = &check_lines {
                     for l in lines {
                         ui.label(RichText::new(l).small());
                     }
                 }
                 ui.add_space(4.0);
-                ui.label(RichText::new("2. Polar diagram: right half plane C, left half the plane 180 degrees on, nadir at the bottom").strong());
+                crate::ui_kit::heading(ui, "2. Polar diagram: right half plane C, left half the plane 180 degrees on, nadir at the bottom");
                 ui.horizontal(|ui| {
                     ui.label("Plane pairs");
                     ui.add(egui::TextEdit::singleline(&mut self.photo.polar_planes).desired_width(180.0).hint_text("0,180; 90,270"));
@@ -690,7 +691,7 @@ impl AfroBimApp {
                     paint_labelled(ui, p, 420.0, 320.0);
                 }
                 ui.add_space(4.0);
-                ui.label(RichText::new("3. Orientation: an assumption you confirm").strong());
+                crate::ui_kit::heading(ui, "3. Orientation: an assumption you confirm");
                 let f = &mut self.photo.form;
                 ui.horizontal(|ui| {
                     ui.label("C-plane facing the carriageway (degrees)");
@@ -701,7 +702,7 @@ impl AfroBimApp {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "The file does not say which C-plane faces the road. The value above is the crate's assumption for this format (IES: C0; EULUMDAT: C270; counter-clockwise). Judge it from the polar diagram and the shares of flux in the checks above: a road luminaire throws most of its light to the street side.");
                 ui.checkbox(&mut f.orient_confirmed, "I have checked this orientation against the polar diagram");
                 ui.add_space(4.0);
-                ui.label(RichText::new("4. Calculation settings (none is prefilled)").strong());
+                crate::ui_kit::heading(ui, "4. Calculation settings (none is prefilled)");
                 crate::ui_kit::grid(ui, "photo-settings", |ui| {
                     for (label, field, hint) in [
                         ("Maintenance factor (0 to 1)", &mut f.maintenance, "yours, from BS 5489-1 or the supplier"),
@@ -759,7 +760,7 @@ impl AfroBimApp {
                     }
                 });
                 ui.add_space(4.0);
-                ui.label(RichText::new("Calculation areas: rectangles in stations and offsets (right of the alignment positive); points are cell centres").strong());
+                crate::ui_kit::heading(ui, "Calculation areas: rectangles in stations and offsets (right of the alignment positive); points are cell centres");
                 let mut remove = None;
                 for (k, a) in f.areas.iter_mut().enumerate() {
                     ui.group(|ui| {
@@ -814,13 +815,18 @@ impl AfroBimApp {
                 if !f.error.is_empty() {
                     crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &f.error);
                 }
-                if ui.button("Calculate").clicked() {
-                    run = true;
-                }
             });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Calculate").enabled(can_calc, "Choose an installation and a luminaire file").cancel(Some("Close")).show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                run = true;
+            }
         }
         self.photo.open = open;
         if let Some(id) = pick {
@@ -941,7 +947,7 @@ impl AfroBimApp {
                     ui.checkbox(&mut self.photo.overlay_on, "Contours in the site view (plan overlay)");
                 });
                 if let Some(((contours, values), levels)) = &drawings {
-                    ui.label(RichText::new(format!("Contours of horizontal illuminance, levels {} lx (a sheet detail feed: add a Detail sheet 'Lighting, iso-illuminance contours' in SHEETSET)", levels.iter().map(|l| format!("{l}")).collect::<Vec<_>>().join(", "))).strong());
+                    crate::ui_kit::heading(ui, &format!("Contours of horizontal illuminance, levels {} lx (a sheet detail feed: add a Detail sheet 'Lighting, iso-illuminance contours' in SHEETSET)", levels.iter().map(|l| format!("{l}")).collect::<Vec<_>>().join(", ")));
                     match contours {
                         Some(c) => paint_labelled(ui, c, 820.0, 300.0),
                         None => {

@@ -843,7 +843,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
 }
 
 fn mowt_form(ui: &mut Ui, f: &mut MowtForm) {
-    ui.label(RichText::new("Traffic, one direction (the other is taken to carry the same)").strong());
+    crate::ui_kit::heading(ui, "Traffic, one direction (the other is taken to carry the same)");
     let mut remove = None;
     egui::Grid::new("mowt-classes").num_columns(4).spacing([8.0, 4.0]).show(ui, |ui| {
         ui.label(RichText::new("Vehicle category").small());
@@ -923,7 +923,7 @@ fn mowt_form(ui: &mut Ui, f: &mut MowtForm) {
 }
 
 fn dmrb_form(ui: &mut Ui, f: &mut DmrbForm) {
-    ui.label(RichText::new("Commercial vehicle flows, one direction, at opening").strong());
+    crate::ui_kit::heading(ui, "Commercial vehicle flows, one direction, at opening");
     let groups = index_options(dmrb::VehicleGroup::ALL.iter().map(|g| g.label().to_string()).collect());
     let mut remove = None;
     egui::Grid::new("dmrb-flows").num_columns(3).spacing([8.0, 4.0]).show(ui, |ui| {

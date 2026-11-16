@@ -901,32 +901,37 @@ impl AfroBimApp {
         }
         let mut open = true;
         let (mut export, mut recompose) = (false, false);
-        let dlg = crate::ui_kit::Dialog::titled("Calculation report pack").subtitle("The calculations of the model in one document").width(640.0).show_body(ctx, |ui| {
-            ui.label(RichText::new(STATEMENT).strong());
+        let has_pack = self.pack.pack.is_some();
+        let dlg = crate::ui_kit::Dialog::titled("Calculation report pack").subtitle("The calculations of the model in one document").width(640.0).show(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, STATEMENT);
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "One A4 portrait PDF, with a plain-text and a CSV variant beside it. Every calculation line is as the engine wrote it; sections with no data are listed as not included.");
             let Some(pack) = &self.pack.pack else { return };
+            crate::ui_kit::heading(ui, "The pack");
             ui.label(format!("Composed {} for '{}': {} page(s). {}", pack.composed, pack.project, self.pack.pages, summary_line(pack)));
-            ui.horizontal(|ui| {
-                if ui.button("Compose again").clicked() {
-                    recompose = true;
-                }
-                if ui.button("Export PDF, text and CSV...").clicked() {
-                    export = true;
-                }
-            });
             if !self.pack.message.is_empty() {
-                ui.label(RichText::new(&self.pack.message).small());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, self.pack.message.clone());
             }
-            ui.separator();
+            crate::ui_kit::heading(ui, "Sections");
             for (i, s) in pack.sections.iter().enumerate() {
                 match &s.body {
                     Some(_) => ui.label(format!("{}. {}", i + 1, s.title)),
                     None => ui.label(RichText::new(format!("{}. {}: not included: no data", i + 1, s.title)).color(crate::theme::muted())),
                 };
             }
-        });
+        }, |ui| crate::ui_kit::Footer::new("Export PDF, text and CSV...").enabled(has_pack, "Compose the pack first").secondary(&["Compose again"]).cancel(Some("Close")).show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                export = true;
+            }
+            if out.secondary == Some(0) {
+                recompose = true;
+            }
         }
         self.pack.open = open;
         if recompose {

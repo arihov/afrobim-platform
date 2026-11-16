@@ -156,7 +156,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
     let small = |ui: &mut Ui, text: &str| {
         ui.label(RichText::new(text).small());
     };
-    ui.label(RichText::new("Run-off coefficient (SDM Table 3.7 and 3.8)").strong());
+    crate::ui_kit::heading(ui, "Run-off coefficient (SDM Table 3.7 and 3.8)");
     crate::ui_kit::grid(ui, "sanral-basic", |ui| {
         field(ui, "Catchment area (km²)", &mut s.area_km2, "enter the area");
         field(ui, "Mean annual precipitation (mm)", &mut s.map_mm, "selects the column of Table 3.7");
@@ -206,7 +206,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
         ui.end_row();
     });
     ui.add_space(4.0);
-    ui.label(RichText::new("Urban parts (C2): the factor is yours, within the printed range shown").strong());
+    crate::ui_kit::heading(ui, "Urban parts (C2): the factor is yours, within the printed range shown");
     let mut remove = None;
     for (i, u) in s.urban.iter_mut().enumerate() {
         ui.horizontal(|ui| {
@@ -231,7 +231,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
         s.urban.push(inputs::UrbanRow::default());
     }
     ui.add_space(6.0);
-    ui.label(RichText::new("Time of concentration, by reach (SDM 3.5.1.4)").strong());
+    crate::ui_kit::heading(ui, "Time of concentration, by reach (SDM 3.5.1.4)");
     let mut remove = None;
     for (i, r) in s.reaches.iter_mut().enumerate() {
         ui.horizontal(|ui| {
@@ -472,39 +472,26 @@ impl AfroBimApp {
             self.checks.report_open = false;
             return;
         };
-        let dlg = crate::ui_kit::Dialog::titled("Check the whole model").subtitle("Every check of every element, with its status").width(900.0).show_body(ctx, |ui| {
-            ui.label(
-                RichText::new("Every check an engine has, on every element it applies to, with the inputs kept on each element. A pass means the engine's own lines passed on those inputs: it is a calculation for an engineer to check, not a certification. Warnings the engines raise are in the calculation lines, as the engines wrote them.")
-                    .small()
-                    .weak(),
-            );
+        let dlg = crate::ui_kit::Dialog::titled("Check the whole model").subtitle("Every check of every element, with its status").width(900.0).show(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Every check an engine has, on every element it applies to, with the inputs kept on each element. A pass means the engine's own lines passed on those inputs: it is a calculation for an engineer to check, not a certification. Warnings the engines raise are in the calculation lines, as the engines wrote them.");
+            crate::ui_kit::heading(ui, "Show");
             ui.horizontal_wrapped(|ui| {
                 for (i, s) in Status::ALL.iter().enumerate() {
                     let text = RichText::new(format!("{} ({})", s.label(), report.count(*s))).color(colour(*s));
                     ui.toggle_value(&mut c.statuses[i], text);
                 }
-                ui.separator();
-                ui.label("Category");
-                let shown = c.category.clone().unwrap_or_else(|| "all".to_string());
-                egui::ComboBox::from_id_salt("check-category").selected_text(shown).show_ui(ui, |ui| {
-                    ui.selectable_value(&mut c.category, None, "all");
-                    for cat in report.categories() {
-                        ui.selectable_value(&mut c.category, Some(cat.clone()), cat);
-                    }
+            });
+            crate::ui_kit::form(ui, "check-filter", |f| {
+                f.row("Category", |ui| {
+                    let shown = c.category.clone().unwrap_or_else(|| "all".to_string());
+                    egui::ComboBox::from_id_salt("check-category").selected_text(shown).show_ui(ui, |ui| {
+                        ui.selectable_value(&mut c.category, None, "all");
+                        for cat in report.categories() {
+                            ui.selectable_value(&mut c.category, Some(cat.clone()), cat);
+                        }
+                    });
                 });
             });
-            ui.horizontal(|ui| {
-                if ui.button("Run again").clicked() {
-                    again = true;
-                }
-                if ui.button("Export CSV…").clicked() {
-                    csv = true;
-                }
-                if ui.button("Export calculation pack…").clicked() {
-                    pack = true;
-                }
-            });
-            ui.separator();
             // What needs attention first: failures, then missing input, then differences, then the rest.
             let rank = |s: Status| match s {
                 Status::Fails => 0,
@@ -515,8 +502,8 @@ impl AfroBimApp {
             };
             let mut visible = report.visible(&c.statuses, c.category.as_deref());
             visible.sort_by_key(|i| rank(report.rows[*i].status));
-            ui.label(RichText::new(format!("{} of {} check(s) shown", visible.len(), report.rows.len())).small().weak());
-            egui::ScrollArea::vertical().id_salt("check-rows").max_height(ui.available_height() - 90.0).auto_shrink([false, false]).show(ui, |ui| {
+            crate::ui_kit::heading(ui, &format!("Checks ({} of {} shown)", visible.len(), report.rows.len()));
+            {
                 for i in visible {
                     let r = &report.rows[i];
                     ui.horizontal(|ui| {
@@ -548,15 +535,28 @@ impl AfroBimApp {
                     }
                     ui.separator();
                 }
-            });
+            }
             egui::CollapsingHeader::new(format!("Categories with no check ({})", report.no_check.len())).default_open(true).show(ui, |ui| {
                 for (category, why) in &report.no_check {
                     crate::ui_kit::note(ui, format!("{category}: {why}"));
                 }
             });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Run again").secondary(&["Export CSV...", "Export calculation pack..."]).cancel(Some("Close")).show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                again = true;
+            }
+            match out.secondary {
+                Some(0) => csv = true,
+                Some(1) => pack = true,
+                _ => {}
+            }
         }
         self.checks.report_open = open;
         if again {
@@ -831,7 +831,7 @@ impl AfroBimApp {
                 match &d.result {
                     Some(Ok((q, lines))) => {
                         ui.separator();
-                        ui.label(RichText::new(format!("Design peak flow Q = {q:.3} m³/s")).strong());
+                        crate::ui_kit::heading(ui, &format!("Design peak flow Q = {q:.3} m³/s"));
                         for l in lines.iter().cloned() {
                             let flagged = l.starts_with("Check:");
                             let text = RichText::new(l).small().monospace();
