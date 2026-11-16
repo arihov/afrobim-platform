@@ -1,0 +1,13 @@
+[package]
+name = "afrobim-survey"
+description = "Survey database (networks, control, setups, observations, figures, import events), reductions, field book import and least squares network adjustment (engine only, no user interface)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-cogo = { path = "../afrobim-cogo" }
+serde.workspace = true
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+thiserror.workspace = true
