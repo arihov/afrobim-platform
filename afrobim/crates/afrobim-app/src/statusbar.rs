@@ -6,7 +6,9 @@
 //!
 //! 1. the zoom read-out (`1 px = 4.5 mm`),
 //! 2. the standard name,
-//! 3. the selection read-out.
+//! 3. the latitude and longitude of the cursor,
+//! 4. the selection read-out,
+//! 5. the project coordinate system (or "No coordinate system", which is a button to set one).
 //!
 //! The message is never dropped: it is shortened. A path in it is shortened in the middle and keeps
 //! its file name; if it still does not fit the end is cut with an ellipsis. The full text is always
@@ -21,10 +23,14 @@ pub enum Segment {
     Selection,
     Standard,
     Zoom,
+    /// The cursor's latitude and longitude, with the datum they are on.
+    LatLon,
+    /// The project coordinate system, or the plain statement that there is none.
+    Crs,
 }
 
 /// The order in which segments are dropped when space runs out: first entry goes first.
-pub const DROP_ORDER: [Segment; 3] = [Segment::Zoom, Segment::Standard, Segment::Selection];
+pub const DROP_ORDER: [Segment; 5] = [Segment::Zoom, Segment::Standard, Segment::LatLon, Segment::Selection, Segment::Crs];
 
 /// The narrowest the message is allowed to become before a segment is dropped to give it room.
 pub const MIN_MESSAGE_W: f32 = 140.0;

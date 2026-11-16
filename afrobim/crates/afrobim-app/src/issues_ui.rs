@@ -13,13 +13,18 @@ use std::collections::HashMap;
 
 use afrobim_coordination::{export_bcf, group_clashes, import_bcf, values, BcfOptions, ClashGroup, ElementRef, GroupOptions, ImportOptions, Issue};
 use afrobim_kernel::{ElementId, SelectMode};
-use egui::{Color32, RichText};
+use egui::{RichText};
 
 use crate::app::AfroBimApp;
 use crate::coordination_glue as glue;
 
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+#[allow(non_snake_case)]
+
+fn BAD() -> egui::Color32 {
+
+    crate::theme::danger()
+
+}
 
 /// What the BCF dialogs say about the files, as the engine's README states it.
 pub const BCF_LIMITS: &str = "AfroBIM writes and reads BCF 2.1 only; BCF 3.0 is not supported and a 3.0 file is refused. The files have been checked against the BCF 2.1 schemas and read back by AfroBIM, but they have not been opened in any other BCF tool, so how another tool shows the viewpoints and the selected objects is not known.";
@@ -343,12 +348,13 @@ impl AfroBimApp {
         let mut raise_all_groups = false;
         let mut delete: Option<String> = None;
         let mut message: Option<String> = None;
-        crate::win::new(ctx, "Issues").open(&mut open).default_width(960.0).default_height(640.0).show(ctx, |ui| {
-            ui.label(RichText::new("Issues are kept in the document with the clash tests. Raise one from a clash or a group of clashes, or write a free-standing one; add comments and viewpoints; exchange them as BCF 2.1 (BCFOUT, BCFIN).").small().weak());
+        let dlg = crate::ui_kit::Dialog::titled("Issues").subtitle("Problems raised against elements, with viewpoints").width(960.0).show_body(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Issues are kept in the document with the clash tests. Raise one from a clash or a group of clashes, or write a free-standing one; add comments and viewpoints; exchange them as BCF 2.1 (BCFOUT, BCFIN).");
+            crate::ui_kit::heading(ui, "Raise an issue");
+            crate::ui_kit::form(ui, "issue-author", |f| {
+                f.row("Your name", |ui| ui.add(egui::TextEdit::singleline(&mut self.issues.author).desired_width(180.0).hint_text("author of what you add")));
+            });
             ui.horizontal(|ui| {
-                ui.label("Your name");
-                ui.add(egui::TextEdit::singleline(&mut self.issues.author).desired_width(140.0).hint_text("author of what you add"));
-                ui.separator();
                 ui.add(egui::TextEdit::singleline(&mut self.issues.new_title).desired_width(260.0).hint_text("title of a new issue"));
                 if ui.button("New issue").clicked() {
                     create = true;
@@ -390,19 +396,19 @@ impl AfroBimApp {
                 }
             });
             if !self.issues.message.is_empty() {
-                ui.label(RichText::new(&self.issues.message).small().color(WARN));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &self.issues.message);
             }
-            ui.separator();
             let n = self.coord.co.issues.len();
+            crate::ui_kit::heading(ui, &format!("Issues ({n})"));
             if n == 0 {
-                ui.label(RichText::new("No issues yet.").weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No issues yet.");
             }
             {
                 // The list.
                 egui::ScrollArea::vertical().id_salt("issue-list").max_height(150.0).auto_shrink([false, true]).show(ui, |ui| {
                     egui::Grid::new("issue-list-grid").num_columns(7).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
                         for h in ["Title", "Status", "Priority", "Type", "Assignee", "Due", "Labels"] {
-                            ui.label(RichText::new(h).strong());
+                            crate::ui_kit::th(ui, &h);
                         }
                         ui.end_row();
                         for i in &self.coord.co.issues {
@@ -421,9 +427,9 @@ impl AfroBimApp {
                     });
                 });
                 // The selected issue.
-                ui.separator();
+                crate::ui_kit::heading(ui, "Selected issue");
                 let Some(guid) = self.issues.selected.clone().filter(|g| self.coord.co.issue(g).is_some()) else {
-                    ui.label(RichText::new("Select an issue to edit it.").weak());
+                    crate::ui_kit::note(ui, "Select an issue to edit it.");
                     return;
                 };
                 if self.issues.due_for.as_deref() != Some(guid.as_str()) {
@@ -442,7 +448,7 @@ impl AfroBimApp {
                 let Some(issue) = self.coord.co.issue_mut(&guid) else { return };
                 egui::ScrollArea::vertical().id_salt("issue-detail").auto_shrink([false, false]).show(ui, |ui| {
                     changed |= ui.add(egui::TextEdit::singleline(&mut issue.title).desired_width(f32::INFINITY)).changed();
-                    egui::Grid::new("issue-fields").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
+                    crate::ui_kit::grid(ui, "issue-fields", |ui| {
                         ui.label("Status");
                         let mut status = issue.status.clone();
                         if combo(ui, "issue-status", &mut status, &STATUSES) {
@@ -477,7 +483,7 @@ impl AfroBimApp {
                         }
                         ui.end_row();
                     });
-                    ui.label(RichText::new("Description").small().weak());
+                    crate::ui_kit::note(ui, "Description");
                     changed |= ui.add(egui::TextEdit::multiline(&mut issue.description).desired_rows(3).desired_width(f32::INFINITY)).changed();
                     if !issue.elements.is_empty() {
                         ui.label(RichText::new(format!("Elements: {}", issue.elements.iter().map(|e| if e.mark.is_empty() { e.ifc_guid.clone().unwrap_or_default() } else { e.mark.clone() }).collect::<Vec<_>>().join(", "))).small());
@@ -486,7 +492,7 @@ impl AfroBimApp {
                         ui.label(RichText::new(format!("Location: {}, {}, {}", units.length_u(p[0]), units.length_u(p[1]), units.length_u(p[2]))).small().weak());
                     }
                     ui.separator();
-                    ui.label(RichText::new("Comments").strong());
+                    crate::ui_kit::heading(ui, "Comments");
                     for c in &issue.comments {
                         ui.label(RichText::new(format!("{} ({}):", c.author, date_text(c.date))).small().weak());
                         ui.label(&c.text);
@@ -501,7 +507,7 @@ impl AfroBimApp {
                     });
                     ui.separator();
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Viewpoints").strong());
+                        crate::ui_kit::heading(ui, "Viewpoints");
                         if ui.button("Capture the 3D view").on_hover_text("Saves the current 3D camera and selection, with a snapshot of the 3D view").clicked() {
                             capture = Some(guid.clone());
                         }
@@ -537,12 +543,15 @@ impl AfroBimApp {
                         changed = true;
                     }
                     ui.separator();
-                    if ui.button(RichText::new("Delete this issue").color(BAD)).clicked() {
+                    if ui.button(RichText::new("Delete this issue").color(BAD())).clicked() {
                         delete = Some(guid.clone());
                     }
                 });
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.issues.open = open;
         if let Some(m) = message {
             self.issues.message = m;
@@ -615,21 +624,35 @@ impl AfroBimApp {
     fn bcf_out_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let mut export = false;
-        crate::win::new(ctx, "Export issues as BCF").open(&mut open).default_width(560.0).show(ctx, |ui| {
-            ui.label(RichText::new(BCF_LIMITS).small().color(WARN));
-            ui.add_space(4.0);
-            ui.label(format!("{} issue(s) in the document.", self.coord.co.issues.len()));
-            ui.label(match &self.last_ifc_name {
-                Some(n) => format!("IFC file named in the topics: {n} (the last IFC export)."),
-                None => "No IFC file has been exported yet, so the topics will name none. Export the IFC first (IFCOUT) if the BCF should point at it.".to_string(),
+        let has_issues = !self.coord.co.issues.is_empty();
+        let dlg = crate::ui_kit::Dialog::titled("Export issues as BCF").subtitle("Write the issues to a BCF file").width(560.0).show(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, BCF_LIMITS);
+            crate::ui_kit::heading(ui, "What will be written");
+            crate::ui_kit::form(ui, "bcf-out", |f| {
+                f.row("Issues", |ui| ui.label(self.coord.co.issues.len().to_string()));
+                f.row("IFC file named", |ui| ui.label(self.last_ifc_name.clone().unwrap_or_else(|| "none".to_string())));
             });
-            if ui.button("Choose a file and export").clicked() {
+            if self.last_ifc_name.is_none() {
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No IFC file has been exported yet, so the topics will name none. Export the IFC first (IFCOUT) if the BCF should point at it.");
+            }
+            if !self.issues.bcf_report.is_empty() {
+                crate::ui_kit::heading(ui, "Last export");
+                for l in &self.issues.bcf_report {
+                    ui.label(RichText::new(l).small());
+                }
+            }
+        }, |ui| crate::ui_kit::Footer::new("Choose a file and export").enabled(has_issues, "There are no issues to export").cancel(Some("Close")).show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
                 export = true;
             }
-            for l in &self.issues.bcf_report {
-                ui.label(RichText::new(l).small());
-            }
-        });
+        }
         self.issues.bcf_out_open = open;
         if export {
             if let Some(mut path) = rfd::FileDialog::new().add_filter("BCF 2.1", &["bcf", "bcfzip"]).set_file_name("issues.bcf").save_file() {
@@ -650,18 +673,29 @@ impl AfroBimApp {
     fn bcf_in_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let mut import = false;
-        crate::win::new(ctx, "Import issues from BCF").open(&mut open).default_width(560.0).show(ctx, |ui| {
-            ui.label(RichText::new(BCF_LIMITS).small().color(WARN));
-            ui.label(RichText::new("An issue with the same GUID replaces the one in the document; the others are added. What the model cannot hold is listed as not imported.").small().weak());
-            if ui.button("Choose a file and import").clicked() {
+        let dlg = crate::ui_kit::Dialog::titled("Import issues from BCF").subtitle("Read issues from a BCF file").width(560.0).show(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, BCF_LIMITS);
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An issue with the same GUID replaces the one in the document; the others are added. What the model cannot hold is listed as not imported.");
+            if !self.issues.bcf_report.is_empty() {
+                crate::ui_kit::heading(ui, "Last import");
+                egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
+                    for l in &self.issues.bcf_report {
+                        ui.label(RichText::new(l).small());
+                    }
+                });
+            }
+        }, |ui| crate::ui_kit::Footer::new("Choose a file and import").cancel(Some("Close")).show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
                 import = true;
             }
-            egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
-                for l in &self.issues.bcf_report {
-                    ui.label(RichText::new(l).small());
-                }
-            });
-        });
+        }
         self.issues.bcf_in_open = open;
         if import {
             if let Some(path) = rfd::FileDialog::new().add_filter("BCF", &["bcf", "bcfzip"]).pick_file() {

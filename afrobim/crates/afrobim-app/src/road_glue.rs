@@ -663,12 +663,6 @@ impl DesignForm {
 
 // ─── ground surfaces ────────────────────────────────────────────────────────────────────
 
-/// Imports the TIN surfaces of a LandXML file. Returns how many were added and the reader's notes.
-pub fn import_surfaces(doc: &mut Document, path: &std::path::Path) -> Result<(usize, Vec<String>), String> {
-    let (ids, notes) = corridor::import_landxml_surfaces(doc, path)?;
-    Ok((ids.len(), notes))
-}
-
 // ─── corridors ──────────────────────────────────────────────────────────────────────────
 
 /// What the "Corridor" dialog collects. The template is the same both sides of the centreline.
@@ -690,6 +684,11 @@ pub struct CorridorRequest {
     pub interval_m: f64,
     /// Internal start and end station of a stretch; None builds the whole alignment.
     pub stretch: Option<(f64, f64)>,
+    /// Factors on the cut and fill volumes of the mass ordinate (the engine's `VolumeOptions`;
+    /// 1 changes nothing) and the curvature (Pappus) correction of each end area.
+    pub cut_factor: f64,
+    pub fill_factor: f64,
+    pub curvature_correction: bool,
 }
 
 impl CorridorRequest {
@@ -707,6 +706,9 @@ impl CorridorRequest {
             formation_depth_m: 0.0,
             interval_m: 0.0,
             stretch: None,
+            cut_factor: 1.0,
+            fill_factor: 1.0,
+            curvature_correction: false,
         }
     }
 
@@ -730,6 +732,7 @@ impl CorridorRequest {
             def.start_station_m = Some(start);
             def.end_station_m = Some(end);
         }
+        def.volumes = corridor::VolumeOptions { cut_factor: self.cut_factor, fill_factor: self.fill_factor, curvature_correction: self.curvature_correction };
         def
     }
 }
@@ -941,5 +944,29 @@ pub fn demo(doc: &mut Document) -> Vec<String> {
 fn note(problems: &mut Vec<String>, what: &str, result: Result<(), String>) {
     if let Err(e) = result {
         problems.push(format!("{what}: {e}"));
+    }
+}
+
+#[cfg(test)]
+mod corridor_request_tests {
+    use super::*;
+
+    #[test]
+    fn the_volume_options_of_the_dialog_reach_the_definition_and_default_to_no_factor() {
+        let mut req = CorridorRequest::empty("C");
+        req.lane_width_m = 3.5;
+        req.cut_run_per_rise = 2.0;
+        req.fill_run_per_rise = 2.0;
+        req.interval_m = 25.0;
+        let d = req.definition();
+        assert_eq!((d.volumes.cut_factor, d.volumes.fill_factor, d.volumes.curvature_correction), (1.0, 1.0, false));
+        req.cut_factor = 1.25;
+        req.fill_factor = 0.9;
+        req.curvature_correction = true;
+        let d = req.definition();
+        assert_eq!((d.volumes.cut_factor, d.volumes.fill_factor, d.volumes.curvature_correction), (1.25, 0.9, true));
+        assert!(d.check().is_ok());
+        req.cut_factor = 0.0;
+        assert!(req.definition().check().is_err());
     }
 }

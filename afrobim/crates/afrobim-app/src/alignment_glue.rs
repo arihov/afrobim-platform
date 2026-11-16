@@ -37,7 +37,11 @@ pub fn add(doc: &mut Document, alignment: &Alignment) -> Option<ElementId> {
     let mut stored = alignment.clone();
     stored.name = name.clone();
     let data = serde_json::to_value(&stored).ok()?;
-    let id = doc.add(CATEGORY, &name, Pt::new(0.0, 0.0), w.max(1.0), h.max(1.0), LAYER, data);
+    // The element sits at the plan point its drawing starts from, so that the element origin plus a
+    // drawing coordinate is the source easting and northing times 1000 and nothing else: no shift,
+    // no re-basing. (The drawing itself is local to that point, which keeps its numbers small.)
+    let at = plan_origin_mm(&plan);
+    let id = doc.add(CATEGORY, &name, at, w.max(1.0), h.max(1.0), LAYER, data);
     if let Some(e) = doc.find_mut(id) {
         e.site = Some(SitePlacement {
             x: plan.origin_x_m * 1000.0,
@@ -56,6 +60,41 @@ pub fn add(doc: &mut Document, alignment: &Alignment) -> Option<ElementId> {
     Some(id)
 }
 
+/// The model position (mm) of the plan drawing's origin: the plan origin in metres times 1000.
+pub fn plan_origin_mm(plan: &afrobim_alignment::PlanDrawing) -> Pt {
+    afrobim_kernel::model_point_from_crs(plan.origin_x_m, plan.origin_y_m)
+}
+
+/// Sets the origin of an imported element that has a site placement (an alignment, a surface) to
+/// that placement, which is the plan position of its drawing's origin in millimetres. The element
+/// then sits at the coordinates of its source file. Does nothing for an element with no placement.
+pub fn place_at_source(doc: &mut Document, id: ElementId) {
+    if let Some(e) = doc.find_mut(id) {
+        if let Some(s) = &e.site {
+            e.origin = Pt::new(s.x, s.y);
+        }
+    }
+}
+
+/// Adds a ground surface at the coordinates of its source: the element sits at the plan origin of
+/// its drawing (the least easting and northing of its points), so the element origin plus a point
+/// of the drawing is the source easting and northing times 1000 in model millimetres.
+pub fn add_surface_at_source(doc: &mut Document, name: &str, tin: &afrobim_corridor::Tin, source: Option<&str>) -> Result<ElementId, afrobim_corridor::CorridorError> {
+    let id = afrobim_corridor::add_surface(doc, name, tin, source)?;
+    place_at_source(doc, id);
+    Ok(id)
+}
+
+/// The model position (mm) of the alignment's point at `station_m`, as the element carries it:
+/// the element origin plus the plan drawing of the stored alignment is not used here, this is the
+/// alignment's own geometry times 1000. None when the station is outside the alignment.
+#[cfg(test)]
+pub fn model_point_at(doc: &Document, id: ElementId, station_m: f64) -> Option<Pt> {
+    let a = alignment_of(doc, id)?;
+    let p = a.point_at(station_m)?;
+    Some(afrobim_kernel::model_point_from_crs(p.x, p.y))
+}
+
 /// Imports every alignment of a LandXML file, with its profile, superelevation and station
 /// equations where the file has them. Returns how many were added and the
 /// importer's notes (unsupported elements, skipped alignments).
@@ -67,7 +106,24 @@ pub fn import_landxml(doc: &mut Document, path: &Path) -> Result<(usize, Vec<Str
             added += 1;
         }
     }
-    Ok((added, import.notes))
+    let mut notes = import.notes;
+    // Without a dialog to ask in: a project with no coordinate system takes the one the file
+    // declares (the dialog offers the same, ticked). A project that has one keeps it; the
+    // objects are at source coordinates either way and nothing is reprojected.
+    let declared = afrobim_alignment::read_landxml_file(path).ok().and_then(|f| f.coordinate_system).and_then(|c| crate::crs_ui::from_landxml(&c));
+    if let Some(crs) = declared {
+        match afrobim_kernel::project_crs(doc) {
+            None => {
+                notes.push(format!("The project had no coordinate system and now uses the file's: {}.", crs.label()));
+                afrobim_kernel::set_project_crs(doc, &crs);
+            }
+            Some(p) => {
+                let check = crate::crs_ui::dataset_check(Some(&p), &path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(), Some(&crs), None);
+                notes.extend(check.into_iter().filter(|f| f.warning).map(|f| f.message));
+            }
+        }
+    }
+    Ok((added, notes))
 }
 
 /// Stands a sign at a station and offset on an alignment and moves its supports with it.

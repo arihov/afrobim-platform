@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-built test file following the LandXML 1.2 schema. It was NOT exported by Civil 3D.
+     Easting about 450 000 m and northing about 35 000 m, north of the equator in zone 36 (Lake Victoria region).
+     Coordinates are written "northing easting" as LandXML does. The alignment is a 100 m straight
+     east, a 200 m radius left-hand arc through 90 degrees, and a 150 m straight north, so its start,
+     its two joints and its end have exact, easily checked coordinates:
+       start  E 450123.456  N 35012.345
+       joint  E 450223.456  N 35012.345
+       joint  E 450423.456  N 35212.345
+       end    E 450423.456  N 35362.345 -->
+<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" date="2026-11-16" time="09:00:00" version="1.2">
+  <Units>
+    <Metric areaUnit="squareMeter" linearUnit="meter" volumeUnit="cubicMeter" temperatureUnit="celsius" pressureUnit="milliBars"/>
+  </Units>
+  <CoordinateSystem name="WGS 84 / UTM zone 36N" epsgCode="32636" horizontalDatum="WGS84"/>
+  <Application name="hand-built" desc="test data" manufacturer="AfroBIM" version="1"/>
+  <CgPoints>
+    <CgPoint name="P1">3.5e+04 4.5e+05 100.000</CgPoint>
+    <CgPoint name="P2">3.54e+04 4.5e+05 103.000</CgPoint>
+  </CgPoints>
+  <Alignments>
+    <Alignment name="TrueCoords" length="564.159265359" staStart="0.0">
+      <CoordGeom>
+        <Line length="100.000000">
+          <Start>35012.345 450123.456</Start>
+          <End>35012.345 450223.456</End>
+        </Line>
+        <Curve rot="ccw" crvType="arc" length="314.159265359" radius="200.000000">
+          <Start>35012.345 450223.456</Start>
+          <Center>35212.345 450223.456</Center>
+          <End>35212.345 450423.456</End>
+          <PI>35012.345 450423.456</PI>
+        </Curve>
+        <Line length="150.000000">
+          <Start>35212.345 450423.456</Start>
+          <End>35362.345 450423.456</End>
+        </Line>
+      </CoordGeom>
+    </Alignment>
+  </Alignments>
+  <Surfaces>
+    <Surface name="Ground">
+      <Definition surfType="TIN">
+        <Pnts>
+          <P id="1">34992.345 450103.456 100.000</P>
+          <P id="2">34992.345 450503.456 101.500</P>
+          <P id="3">35392.345 450503.456 103.000</P>
+          <P id="4">35392.345 450103.456 102.000</P>
+        </Pnts>
+        <Faces><F>1 2 3</F><F>1 3 4</F></Faces>
+      </Definition>
+    </Surface>
+  </Surfaces>
+</LandXML>

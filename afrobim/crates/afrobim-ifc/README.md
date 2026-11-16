@@ -815,6 +815,39 @@ lower-left front corner. All signs therefore stand in one vertical plane, arrang
 sheet. `export_ifc` always does this; `export_ifc_model` does it for the elements without a site
 placement.
 
+## Georeferencing (`IfcOptions::georeference`)
+
+With `georeference: None` (the default) nothing changes: no coordinate reference is written and
+placements are the site numbers. With `Some(IfcGeoreference)` and at least one element or alignment
+with a position on the site, `export_ifc_model` writes
+
+* `IfcProjectedCRS(Name, Description, GeodeticDatum, VerticalDatum, MapProjection, MapZone, MapUnit)`
+  with the name as the EPSG code (`EPSG:32736`), a description, datums as the project states them,
+  `UTM` and the zone where the application knows the system, and a metre as the map unit;
+* `IfcMapConversion(SourceCRS = the geometric representation context, TargetCRS, Eastings, Northings,
+  OrthogonalHeight, 1., 0., 0.001)`: no rotation, and a scale of 0.001, the factor from the file's
+  millimetres to the map's metres.
+
+**Local origin rule.** Geometry is written near an origin the exporter chooses, so viewers that keep
+positions in 32-bit floats do not lose accuracy at 9 960 000 000 mm. The origin is `origin` when
+given (metres); otherwise the least easting and least northing of every placement with a site
+position and every alignment element, rounded down to a whole kilometre, at height 0. All site
+placements (also the fallback position of a linear placement) and all alignment geometry are written
+minus that origin, `IfcMapConversion` carries it, and levels are not shifted. Nothing is rotated or
+scaled. A model with nothing on the site (a sheet of signs) gets no map conversion.
+
+The IFC 4.3 attribute order was checked against the IFC4X3_ADD2 schema in IfcOpenShell and the
+buildingSMART sample files (`bsi-4x3-Infra-Road.ifc`). The online documentation site refused the
+request (403) and was not used. Tested (`tests/georef.rs`): the entities and values; every
+cartesian point stays within a few kilometres; and IfcOpenShell reads the file back and, with the map
+conversion added, every product is where it is in the file written without a georeference (to a
+thousandth of a millimetre, `AlignmentExport::Simple`; the `Linear` mode is checked for the entities
+and the size of the numbers, not read back).
+
+**Import.** `MapConversion` now also carries the target `IfcProjectedCRS` attributes (`crs_name`,
+`crs_description`, `geodetic_datum`, `vertical_datum`, `map_projection`, `map_zone`). The application
+applies the map conversion by default and checks the model against the project coordinate system.
+
 ## What is not exported
 
 - By default (`AlignmentExport::Simple`): linear placement, alignment curve geometry, vertical

@@ -9,6 +9,10 @@
 //! - [`StationEquations`]: internal (continuous) stations to displayed stations and back.
 //! - [`parse_landxml`] / [`read_landxml`]: LandXML 1.2 alignments with their profile, station
 //!   equations and superelevation.
+//! - [`parse_landxml_file`] / [`read_landxml_file`]: a whole LandXML file into a [`LandXmlFile`]: coordinate
+//!   system, units, application, alignments, control points, parcels, plan features, existing-ground
+//!   profiles, cross-sections and surfaces (with their source data), a count and plan extent per class,
+//!   and a list of warnings including every element skipped. Coordinates are kept as the file has them.
 //! - [`resolve`], [`location_report`], [`place`]: where a sign stands beside an alignment (the
 //!   side, offset, facing and rotation rules of the C# reference, and their combination with the
 //!   geometry). [`place_with`] takes displayed stations and the cross-fall option.
@@ -22,6 +26,7 @@
 
 mod geometry;
 mod landxml;
+mod landxml_ext;
 mod module;
 mod placement;
 mod profile;
@@ -33,6 +38,12 @@ pub use geometry::{
     StationPoint, Turn,
 };
 pub use landxml::{parse_landxml, read_landxml, LandXmlError, LandXmlImport};
+pub use landxml_ext::{
+    parse_landxml_file, read_landxml_file, read_surface_source_data, LandXmlApplication, LandXmlBoundary, LandXmlBreakline, LandXmlCgPoint, LandXmlCgPointGroup,
+    LandXmlClassSummary, LandXmlContour, LandXmlCoordGeom, LandXmlCoordinateSystem, LandXmlCrossSectPoint, LandXmlCrossSectSurf, LandXmlCrossSection, LandXmlDataPoints,
+    LandXmlDesignCrossSectSurf, LandXmlExtent, LandXmlFile, LandXmlGeomElement, LandXmlHeader, LandXmlParcel, LandXmlPlanFeature, LandXmlPoint, LandXmlProfSurf,
+    LandXmlProject, LandXmlSourceData, LandXmlSummary, LandXmlSurfFace, LandXmlSurfPoint, LandXmlSurface, LandXmlUnits,
+};
 pub use module::{plan_drawing, AlignmentModule, PlanDrawing, CATEGORY};
 pub use placement::{
     location_report, normalize_rad, place, place_with, resolve, rotation, CrossFallAdjust, PlaceOptions, PlacedPosition, PlacedSign, Placement,

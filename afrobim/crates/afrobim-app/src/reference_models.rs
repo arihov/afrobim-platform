@@ -31,8 +31,6 @@ use crate::view3d::Camera;
 pub const CATEGORY: &str = "reference";
 pub const LAYER: &str = "Reference";
 const NAME: &str = "Reference models";
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
 
 /// Above this many triangles in view, products are drawn as their boxes (the view is a software
 /// projection and would stop being responsive).
@@ -147,6 +145,36 @@ pub fn read_file(path: &Path, map_conversion: bool) -> ReadOutcome {
         Ok(m) => ReadOutcome::Read { model: Box::new(m), hash, bytes },
         Err(e) => ReadOutcome::Failed(format!("{}: {e}", path.display())),
     }
+}
+
+/// The coordinate system the file states in its `IfcProjectedCRS`, as the application's type.
+/// `Name` is read as an EPSG code when it is one (`EPSG:32736`), else as a name.
+pub fn declared_crs(m: &ReferenceModel) -> Option<afrobim_kernel::ProjectCrs> {
+    let c = m.map_conversion.as_ref()?;
+    let name = c.crs_name.as_deref().or(c.crs_description.as_deref())?;
+    let mut crs = afrobim_kernel::ProjectCrs::parse(name).filter(|p| p.epsg.is_some()).unwrap_or_else(|| afrobim_kernel::ProjectCrs::named_only(None, name));
+    if crs.horizontal_datum.is_empty() {
+        crs.horizontal_datum = c.geodetic_datum.clone().unwrap_or_default();
+    }
+    if let Some(v) = &c.vertical_datum {
+        crs.vertical_datum = v.clone();
+    }
+    crs.source = afrobim_kernel::CrsSource::Ifc;
+    Some(crs)
+}
+
+/// What the check of the model against the project coordinate system says, as report lines. The
+/// extent is the model's plan extent in metres when the map conversion was applied (its
+/// coordinates are then projected coordinates); without it the file's own coordinates cannot be
+/// compared with a map system and only the declared system is compared.
+pub fn crs_lines(m: &ReferenceModel, applied: bool, extent_mm: Option<([f64; 3], [f64; 3])>, project: Option<&afrobim_kernel::ProjectCrs>) -> Vec<String> {
+    let declared = declared_crs(m);
+    let extent = extent_mm.filter(|_| applied).map(|(lo, hi)| afrobim_kernel::PlanExtent { min_easting: lo[0] / 1000.0, min_northing: lo[1] / 1000.0, max_easting: hi[0] / 1000.0, max_northing: hi[1] / 1000.0 });
+    let label = format!("{} ", m.project_name);
+    let mut out = vec!["Coordinate system check:".to_string()];
+    out.extend(crate::crs_ui::dataset_check(project, label.trim(), declared.as_ref(), extent).into_iter().map(|f| format!("  {}{}", if f.warning { "CHECK: " } else { "" }, f.message)));
+    out.push("  Nothing is reprojected. The model is at the coordinates it has, with the map conversion applied or not as chosen.".to_string());
+    out
 }
 
 /// The import report as lines for a window or a file: schema, units, the map conversion note,
@@ -287,6 +315,13 @@ fn unique_label(set: &RefSet, wanted: &str) -> String {
 }
 
 impl RefUi {
+    /// A fresh state. The file's `IfcMapConversion` is applied by default: a model that says where
+    /// it is on the map is placed there, at its true coordinates, and checked against the project's
+    /// coordinate system (the checkbox in the reference models window turns it off).
+    pub fn new() -> RefUi {
+        RefUi { apply_map_conversion: true, ..RefUi::default() }
+    }
+
     /// Reads the record when it changed, and starts reading the files of models not yet loaded.
     pub fn sync(&mut self, doc: &Document) {
         let current = doc.elements().iter().find(|e| e.category == CATEGORY).map(|e| e.data.clone()).unwrap_or(serde_json::Value::Null);
@@ -621,14 +656,12 @@ impl AfroBimApp {
         let mut show_report: Option<String> = None;
         let mut accept: Option<String> = None;
         let mut zoom: Option<String> = None;
-        crate::win::new(ctx, "Reference models").open(&mut open).default_width(900.0).default_height(520.0).show(ctx, |ui| {
-            ui.label(RichText::new("Reference models are read-only IFC files. The document stores each file's path and a hash, not its contents; the file is read again when the document opens. A model in another coordinate frame needs the offset and rotation that line it up: enter them below (rotation about the file's own origin, then the offset).").small().weak());
-            ui.label(RichText::new(format!("Limits: the importer reads the whole file into memory and refuses files of 4 GiB or more. Models above {DRAW_TRIANGLE_CAP} triangles in view are drawn as the boxes of their products.")).small().weak());
-            ui.horizontal(|ui| {
-                ui.checkbox(&mut self.refs.apply_map_conversion, "apply the file's IfcMapConversion when it has one (default: use the file's own coordinates)");
-                if ui.button("Import IFC files...").clicked() {
-                    import = true;
-                }
+        let dlg = crate::ui_kit::Dialog::titled("Reference models").subtitle("IFC models shown for reference and clash tests").width(900.0).show(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Reference models are read-only IFC files. The document stores each file's path and a hash, not its contents; the file is read again when the document opens. A model in another coordinate frame needs the offset and rotation that line it up: enter them below (rotation about the file's own origin, then the offset).");
+            crate::ui_kit::note(ui, format!("Limits: the importer reads the whole file into memory and refuses files of 4 GiB or more. Models above {DRAW_TRIANGLE_CAP} triangles in view are drawn as the boxes of their products."));
+            crate::ui_kit::heading(ui, "Import");
+            crate::ui_kit::form(ui, "ref-import", |f| {
+                f.row_note("Map coordinates", "On by default: the model is placed at its map coordinates. Turn it off to use the file's own coordinates.", |ui| crate::ui_kit::toggle(ui, &mut self.refs.apply_map_conversion, "Apply the file's IfcMapConversion when it has one"));
             });
             if self.refs.busy() {
                 ui.horizontal(|ui| {
@@ -637,11 +670,11 @@ impl AfroBimApp {
                 });
             }
             if !self.refs.message.is_empty() {
-                ui.label(RichText::new(&self.refs.message).small());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, self.refs.message.clone());
             }
-            ui.separator();
+            crate::ui_kit::heading(ui, &format!("Models ({})", self.refs.set.models.len()));
             if self.refs.set.models.is_empty() {
-                ui.label(RichText::new("No reference models.").weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No reference models. Import IFC files with the button below.");
             }
             let labels: Vec<String> = self.refs.set.models.iter().map(|m| m.label.clone()).collect();
             egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
@@ -670,46 +703,52 @@ impl AfroBimApp {
                             (Some(l), _) => {
                                 ui.label(RichText::new(format!("{} products, {} with geometry, {} triangles{}.", l.model.report.products, l.model.clashable().len(), l.triangles, if l.triangles > DRAW_TRIANGLE_CAP { " (drawn as boxes)" } else { "" })).small());
                                 if let Some(w) = &l.warning {
-                                    ui.label(RichText::new(w).small().color(WARN));
+                                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, w);
                                     if ui.small_button("Accept the file as it is now").clicked() {
                                         accept = Some(label.clone());
                                     }
                                 }
                             }
                             (None, Some(why)) => {
-                                ui.label(RichText::new(format!("File not read: {why}. The stored path and hash are kept; restore the file and reopen the document, or remove the model.")).small().color(BAD));
+                                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("File not read: {why}. The stored path and hash are kept; restore the file and reopen the document, or remove the model."));
                             }
                             (None, None) => {
-                                ui.label(RichText::new("Reading...").small().weak());
+                                crate::ui_kit::note(ui, "Reading...");
                             }
                         }
-                        ui.horizontal(|ui| {
-                            ui.label("Transparency");
-                            changed |= ui.add(egui::Slider::new(&mut e.transparency, 0.0..=1.0)).changed();
+                        crate::ui_kit::form(ui, &format!("ref-look-{i}"), |f| {
+                            f.row("Transparency", |ui| ui.add(egui::Slider::new(&mut e.transparency, 0.0..=1.0)).changed().then(|| changed = true));
                         });
-                        ui.horizontal(|ui| {
-                            for (n, name) in ["Offset X (mm)", "Y (mm)", "Z (mm)", "Rotation (deg)"].iter().enumerate() {
-                                ui.label(*name);
-                                if ui.add(egui::TextEdit::singleline(&mut typed[n]).desired_width(70.0)).changed() {
-                                    if let Ok(v) = typed[n].trim().replace(',', ".").parse::<f64>() {
-                                        if v.is_finite() {
-                                            if n < 3 {
-                                                e.offset_mm[n] = v;
-                                            } else {
-                                                e.rotation_deg = v;
+                        crate::ui_kit::advanced(ui, &format!("ref-place-{i}"), |ui| {
+                            crate::ui_kit::form(ui, &format!("ref-place-form-{i}"), |f| {
+                                for (n, (name, unit)) in [("Offset X", "mm"), ("Offset Y", "mm"), ("Offset Z", "mm"), ("Rotation", "deg")].iter().enumerate() {
+                                    f.row(name, |ui| {
+                                        let bad = typed[n].trim().replace(',', ".").parse::<f64>().map_or(true, |v| !v.is_finite());
+                                        if ui.add(egui::TextEdit::singleline(&mut typed[n]).desired_width(90.0).horizontal_align(egui::Align::RIGHT)).changed() {
+                                            if let Ok(v) = typed[n].trim().replace(',', ".").parse::<f64>() {
+                                                if v.is_finite() {
+                                                    if n < 3 {
+                                                        e.offset_mm[n] = v;
+                                                    } else {
+                                                        e.rotation_deg = v;
+                                                    }
+                                                    changed = true;
+                                                }
                                             }
-                                            changed = true;
                                         }
-                                    }
+                                        ui.label(*unit);
+                                        if bad {
+                                            ui.label(RichText::new("Not a number").size(11.0).color(crate::theme::danger()));
+                                        }
+                                    });
                                 }
-                            }
+                            });
                         });
                     });
                 }
                 if !self.refs.set.models.is_empty() {
-                    ui.separator();
-                    ui.label(RichText::new("Products").strong());
-                    ui.add(egui::TextEdit::singleline(&mut self.refs.filter).hint_text("filter by name or type").desired_width(240.0));
+                    crate::ui_kit::heading(ui, "Products");
+                    crate::ui_kit::text_field(ui, &mut self.refs.filter, "filter by name or type");
                     let f = self.refs.filter.trim().to_lowercase();
                     let mut shown = 0;
                     'outer: for e in &self.refs.set.models {
@@ -723,7 +762,7 @@ impl AfroBimApp {
                             }
                             shown += 1;
                             if shown > 200 {
-                                ui.label(RichText::new("More than 200 match: narrow the filter.").small().weak());
+                                crate::ui_kit::note(ui, "More than 200 match: narrow the filter.");
                                 break 'outer;
                             }
                             let on = self.refs.picked.as_ref().is_some_and(|(lab, i)| *lab == e.label && *i == pi);
@@ -734,7 +773,18 @@ impl AfroBimApp {
                     }
                 }
             });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Import IFC files...").cancel(Some("Close")).show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                import = true;
+            }
+        }
         self.refs.list_open = open;
         if import {
             self.ifcref_pick();
@@ -785,21 +835,62 @@ impl AfroBimApp {
             return;
         };
         let mut open = true;
-        let lines = self.refs.loaded.get(&label).map(|l| report_lines(&l.model, self.refs.set.models.iter().find(|m| m.label == label).is_some_and(|m| m.map_conversion))).unwrap_or_else(|| vec!["This model is not read.".to_string()]);
+        let applied = self.refs.set.models.iter().find(|m| m.label == label).is_some_and(|m| m.map_conversion);
+        let project = afrobim_kernel::project_crs(&self.doc);
+        let lines = self
+            .refs
+            .loaded
+            .get(&label)
+            .map(|l| {
+                let extent = l.bounds.iter().flatten().fold(None, |acc: Option<([f64; 3], [f64; 3])>, b| {
+                    Some(match acc {
+                        None => *b,
+                        Some(a) => ([a.0[0].min(b.0[0]), a.0[1].min(b.0[1]), a.0[2].min(b.0[2])], [a.1[0].max(b.1[0]), a.1[1].max(b.1[1]), a.1[2].max(b.1[2])]),
+                    })
+                });
+                let mut v = report_lines(&l.model, applied);
+                v.extend(crs_lines(&l.model, applied, extent, project.as_ref()));
+                v
+            })
+            .unwrap_or_else(|| vec!["This model is not read.".to_string()]);
+        let offer = if project.is_none() && applied { self.refs.loaded.get(&label).and_then(|l| declared_crs(&l.model)) } else { None };
+        let mut use_it = false;
         let warning = self.refs.loaded.get(&label).and_then(|l| l.warning.clone());
-        crate::win::new(ctx, format!("Import report: {label}")).open(&mut open).default_width(640.0).default_height(420.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled(format!("Import report: {label}")).width(640.0).show(ctx, |ui| {
             if let Some(w) = warning {
-                ui.label(RichText::new(w).color(WARN));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, w);
             }
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                for l in &lines {
-                    ui.label(RichText::new(l).monospace().small());
-                }
-            });
-            if ui.button("Copy").clicked() {
+            crate::ui_kit::heading(ui, "What the import read");
+            for l in &lines {
+                ui.label(RichText::new(l).monospace().small());
+            }
+            if let Some(c) = &offer {
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, format!("The model declares a coordinate system: {}. You may use it for the project.", c.label()));
+            }
+        }, |ui| {
+            let mut f = crate::ui_kit::Footer::new("Use this model's coordinate system").enabled(offer.is_some(), "The model declares no coordinate system the project can take").secondary(&["Copy"]).cancel(Some("Close"));
+            if offer.is_none() {
+                f = f.cancel(Some("Close"));
+            }
+            f.show(ui)
+        });
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                use_it = true;
+            }
+            if out.secondary == Some(0) {
                 ctx.copy_text(lines.join("\n"));
             }
-        });
+        }
+        if let (true, Some(c)) = (use_it, offer) {
+            self.apply_project_crs(c);
+        }
         self.refs.report_open = open;
     }
 
@@ -825,9 +916,9 @@ impl AfroBimApp {
             names.reverse();
             names.join(" > ")
         };
-        crate::win::new(ctx, "Reference product").open(&mut open).default_width(420.0).default_height(420.0).show(ctx, |ui| {
-            ui.label(RichText::new("Read-only: the model is a reference.").small().weak());
-            egui::Grid::new("ref-product").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Reference product").subtitle("One product of a reference model").width(420.0).show_body(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Read-only: the model is a reference.");
+            crate::ui_kit::grid(ui, "ref-product", |ui| {
                 for (k, v) in [
                     ("Model", label.clone()),
                     ("Name", p.name.clone()),
@@ -842,8 +933,8 @@ impl AfroBimApp {
                     ui.end_row();
                 }
             });
-            ui.separator();
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            crate::ui_kit::heading(ui, "Property sets");
+            {
                 let mut sets: Vec<&str> = p.properties.iter().map(|x| x.set.as_str()).collect();
                 sets.dedup();
                 let mut seen = BTreeSet::new();
@@ -863,8 +954,11 @@ impl AfroBimApp {
                         }
                     });
                 }
-            });
+            }
         });
+        if dlg.closed {
+            open = false;
+        }
         if !open {
             self.refs.picked = None;
         }

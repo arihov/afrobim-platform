@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-built test file following the LandXML 1.2 schema. It was NOT exported by Civil 3D.
+     Coordinates are of true UTM size south of the equator: northing about 9 960 000 m (the UTM
+     false northing of 10 000 000 m less about 40 km), easting about 450 000 m. -->
+<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" date="2026-11-16" time="09:00:00" version="1.2">
+  <Units>
+    <Metric areaUnit="squareMeter" linearUnit="meter" volumeUnit="cubicMeter" temperatureUnit="celsius" pressureUnit="milliBars"/>
+  </Units>
+  <CoordinateSystem name="WGS 84 / UTM zone 36S" epsgCode="32736" horizontalDatum="WGS84"/>
+  <CgPoints>
+    <CgPoint name="S1">9960012.3456 450123.4567 1150.1234</CgPoint>
+    <CgPoint name="S2">9960112.3456 450223.4567 1152.5</CgPoint>
+  </CgPoints>
+  <Alignments>
+    <Alignment name="South" length="141.4213562" staStart="0.0">
+      <CoordGeom>
+        <Line length="141.4213562">
+          <Start>9960012.3456 450123.4567</Start>
+          <End>9960112.3456 450223.4567</End>
+        </Line>
+      </CoordGeom>
+    </Alignment>
+  </Alignments>
+  <Parcels>
+    <Parcel name="P1" area="2500.0">
+      <Center>9960037.5 450148.5</Center>
+      <CoordGeom>
+        <Line><Start>9960012.3456 450123.4567</Start><End>9960012.3456 450173.4567</End></Line>
+        <Line><Start>9960012.3456 450173.4567</Start><End>9960062.3456 450173.4567</End></Line>
+        <Line><Start>9960062.3456 450173.4567</Start><End>9960012.3456 450123.4567</End></Line>
+      </CoordGeom>
+    </Parcel>
+  </Parcels>
+  <Surfaces>
+    <Surface name="S">
+      <Definition surfType="TIN">
+        <Pnts>
+          <P id="1">9960000.0001 450000.0001 100.0</P>
+          <P id="2">9960000.0001 450010.0001 101.0</P>
+          <P id="3">9960010.0001 450010.0001 102.0</P>
+        </Pnts>
+        <Faces><F>1 2 3</F></Faces>
+      </Definition>
+    </Surface>
+  </Surfaces>
+</LandXML>

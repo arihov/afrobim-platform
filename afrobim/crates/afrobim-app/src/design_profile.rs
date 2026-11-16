@@ -133,9 +133,9 @@ impl AfroBimApp {
         let u = &units;
         let revision = self.design.revision;
         let _ = revision;
-        crate::win::new(ctx, "Profile editor").open(&mut open).default_width(1020.0).default_height(700.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Profile editor").subtitle("The vertical alignment: points of intersection and curves").width(1020.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("{name}: stations {} to {}", crate::disp::station(u, alignment.start_station_m), crate::disp::station(u, alignment.end_station_m()))).strong());
+                crate::ui_kit::heading(ui, &format!("{name}: stations {} to {}", crate::disp::station(u, alignment.start_station_m), crate::disp::station(u, alignment.end_station_m())));
                 ui.separator();
                 ui.label("Ground");
                 let current = ui_state.surface.and_then(|s| surfaces.iter().find(|x| x.0 == s)).map(|s| s.1.clone()).unwrap_or_else(|| "no surface".into());
@@ -158,11 +158,11 @@ impl AfroBimApp {
                 }
             });
             if surfaces.is_empty() {
-                ui.label(RichText::new("There is no survey surface in this document, so there is no ground line. Import one with SURFACE (LandXML) or make one with SURVEY (a point file).").small().color(WARN));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "There is no survey surface in this document, so there is no ground line. Import one with SURFACE (LandXML) or make one with SURVEY (a point file).");
             }
             let exag = parse(&ui_state.exag_text).filter(|v| *v > 0.0);
             if !ui_state.exag_text.trim().is_empty() && exag.is_none() {
-                ui.label(RichText::new("The exaggeration must be a number greater than zero; blank fits the window.").small().color(BAD));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, "The exaggeration must be a number greater than zero; blank fits the window.");
             }
             let shown_exag = profile_plot(ui, &alignment, &design, &ui_state.ground, &mut ui_state.drag, &mut ui_state.pending, ui_state.fit_result.as_ref().and_then(|r| r.as_ref().ok()), exag, ui_state.add_mode, u, &mut edit);
             ui.label(RichText::new(match shown_exag {
@@ -174,7 +174,7 @@ impl AfroBimApp {
             // Pending PVIs of a profile not yet made.
             if design.vertical.is_none() {
                 ui.separator();
-                ui.label(RichText::new("This alignment has no profile yet.").strong());
+                crate::ui_kit::heading(ui, "This alignment has no profile yet.");
                 ui.label("Add at least two PVIs: switch on \"Add PVIs by clicking\" and click on the plot, or type a station and a level. Nothing is assumed.");
                 ui.horizontal(|ui| {
                     ui.label("Station");
@@ -205,7 +205,7 @@ impl AfroBimApp {
                 });
             }
             if !ui_state.problem.is_empty() {
-                ui.label(RichText::new(&ui_state.problem).color(BAD));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &ui_state.problem);
             }
             if ui_state.fit_open {
                 ui.separator();
@@ -216,14 +216,17 @@ impl AfroBimApp {
                 match v.solve() {
                     Ok(sol) => pvi_table(ui, v, &sol, &mut ui_state, u, &mut edit),
                     Err(e) => {
-                        ui.label(RichText::new(format!("The profile cannot be solved: {e}")).color(BAD));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("The profile cannot be solved: {e}"));
                     }
                 }
             }
             if let Some(r) = &last {
-                ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD } else { WARN }));
+                ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD() } else { WARN() }));
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.design.profile = ui_state;
         if let Some(s) = set_surface {
             self.design.profile.surface = s;
@@ -306,7 +309,7 @@ impl AfroBimApp {
 }
 
 fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &mut bool, replaces: bool, u: &DisplayUnits) {
-    ui.label(RichText::new("Fit to ground").strong());
+    crate::ui_kit::heading(ui, "Fit to ground");
     ui.label("Proposes a profile from the ground by a least squares fit of straight segments. You enter every input: nothing is assumed, and the fit knows nothing of drainage, cover, sight distance, earthwork balance or any standard.");
     egui::Grid::new("fit-form").num_columns(4).spacing([10.0, 6.0]).show(ui, |ui| {
         let f = &mut st.fit;
@@ -331,7 +334,7 @@ fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &m
     }
     match &st.fit_result {
         Some(Err(e)) => {
-            ui.label(RichText::new(e).color(BAD));
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
         }
         Some(Ok(fit)) => {
             egui::Frame::new().fill(Color32::from_rgb(0x5A, 0x3A, 0x10)).inner_margin(8.0).corner_radius(4.0).show(ui, |ui| {
@@ -345,7 +348,7 @@ fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &m
                 crate::disp::len_u(u, fit.rms_difference_m)
             ));
             if !fit.gaps.is_empty() {
-                ui.label(RichText::new(format!("{} stretch(es) where the centreline is off the surface were left out.", fit.gaps.len())).small().color(WARN));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("{} stretch(es) where the centreline is off the surface were left out.", fit.gaps.len()));
             }
             for n in &fit.notes {
                 ui.label(RichText::new(n).small());
@@ -359,7 +362,7 @@ fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &m
                     st.fit_result = None;
                 }
             });
-            ui.label(RichText::new("Nothing is inserted until you accept.").small().weak());
+            crate::ui_kit::note(ui, "Nothing is inserted until you accept.");
         }
         None => {}
     }
@@ -549,7 +552,7 @@ fn profile_plot(
         }
     }
     if let Some(d) = drag.as_ref().and_then(|d| d.refused.as_ref()) {
-        plan_text(&painter, plot.center_top() + Vec2::new(0.0, 8.0), Align2::CENTER_TOP, &format!("Refused: {d}"), 11.0, BAD, dark);
+        plan_text(&painter, plot.center_top() + Vec2::new(0.0, 8.0), Align2::CENTER_TOP, &format!("Refused: {d}"), 11.0, BAD(), dark);
     }
     if add_mode && response.clicked_by(PointerButton::Primary) {
         if let Some(pos) = response.interact_pointer_pos().filter(|p| plot.contains(*p)) {
@@ -572,13 +575,13 @@ fn profile_plot(
 
 /// The PVI table: station, level, grades, curve by length or K, and the high or low point.
 fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::VerticalSolution, st: &mut ProfileUi, u: &DisplayUnits, edit: &mut Option<VEdit>) {
-    ui.label(RichText::new("PVI table").strong());
+    crate::ui_kit::heading(ui, "PVI table");
     ui.label(RichText::new(format!("Stations are shown as 1+250.000 and may be typed that way or as a number of metres. Lengths and levels are in the document's display unit ({}; a trailing m or mm overrides it when typing). Grades are in percent. Give a vertical curve by its length or by K ({} of curve per 1 % change of grade); the other is worked out. No K and no length are assumed.", crate::disp::suffix(u), crate::disp::suffix(u))).small().weak());
     egui::ScrollArea::both().id_salt("pvi-table").max_height(190.0).auto_shrink([false, true]).show(ui, |ui| {
         egui::Grid::new("pvi-grid").num_columns(11).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
             let heads = ["PVI".to_string(), "Station".to_string(), crate::disp::head(u, "Level"), "Grade in %".to_string(), "Grade out %".to_string(), "Curve by".to_string(), "Value".to_string(), crate::disp::head(u, "L"), crate::disp::k_head(u), "High or low point".to_string(), String::new()];
             for h in heads {
-                ui.label(RichText::new(h).strong());
+                crate::ui_kit::th(ui, &h);
             }
             ui.end_row();
             for (i, p) in v.pvis.iter().enumerate() {
@@ -680,6 +683,6 @@ fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::Vertic
         }
     });
     for w in &sol.warnings {
-        ui.label(RichText::new(w).small().color(WARN));
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, w);
     }
 }

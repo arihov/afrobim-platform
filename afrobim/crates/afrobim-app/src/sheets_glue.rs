@@ -401,6 +401,14 @@ pub fn feed_set(set: &mut SheetSet, model: &Model, live: &Live) -> Vec<String> {
                         }
                     }
                 }
+                ViewKind::Sections(v) if v.sample_group.is_some() => {
+                    // Section views of a sample line group: cut here, drawn by the sheets crate.
+                    if let Err(why) = crate::civil_sheets::feed_sample_sections(v, model.doc) {
+                        v.fed.clear();
+                        v.fed_stations_m.clear();
+                        notes.push(format!("{spec_title}: {why}"));
+                    }
+                }
                 _ => {}
             }
         }

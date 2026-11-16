@@ -155,6 +155,22 @@ pub fn parse_point(text: &str, last: Option<Pt>, u: &DisplayUnits) -> Option<Pt>
     Some(pt(origin.x + x, origin.y + y))
 }
 
+/// As [`parse_point`], and with a project coordinate system an absolute `x,y` (no `@`, no `<`) is
+/// an `E,N` in metres of that system, at true magnitude: `450123.456,9960012.345` is the model
+/// point (450 123 456, 9 960 012 345) mm, whatever the display unit. Relative and polar input stays
+/// in the display unit.
+pub fn parse_point_crs(text: &str, last: Option<Pt>, u: &DisplayUnits, crs: Option<&afrobim_kernel::ProjectCrs>) -> Option<Pt> {
+    let t = text.trim();
+    if crs.is_some() && !t.starts_with('@') && !t.contains('<') {
+        let mut parts = t.split(',');
+        let num = |p: Option<&str>| p.and_then(|v| v.trim().trim_end_matches(['m', 'M']).trim().parse::<f64>().ok()).filter(|v| v.is_finite());
+        if let (Some(e), Some(n), None) = (num(parts.next()), num(parts.next()), parts.next()) {
+            return Some(afrobim_kernel::model_point_from_crs(e, n));
+        }
+    }
+    parse_point(text, last, u)
+}
+
 /// The element a click at `p` would attach a leader to: the topmost pickable model element that
 /// is not an annotation or a settings record.
 pub fn pick_model(doc: &Document, p: Pt, radius: f64) -> Option<ElementId> {
@@ -195,6 +211,14 @@ pub fn level_at(doc: &Document, site_mm: Pt) -> Option<(f64, String)> {
 pub fn id_report(doc: &Document, p: Pt, alignment: Option<&str>) -> String {
     let u = units(doc);
     let mut text = format!("Point X = {}, Y = {}", u.length_u(p.x), u.length_u(p.y));
+    // The same point in the project coordinate system: eastings and northings in metres at true
+    // magnitude, latitude and longitude on the datum of the system, convergence and scale.
+    if let Some(crs) = afrobim_kernel::project_crs(doc) {
+        for line in crate::crs_ui::where_lines(p, Some(&crs)).into_iter().skip(1) {
+            text.push_str("; ");
+            text.push_str(&line);
+        }
+    }
     let list = alignment_list(doc);
     let mut best: Option<(f64, String)> = None;
     for (name, a) in &list {
@@ -678,7 +702,7 @@ impl Session {
                         return out.say(format!("Alignment {name}."));
                     }
                 }
-                match parse_point(t, self.pts.last().copied(), &u) {
+                match parse_point_crs(t, self.pts.last().copied(), &u, afrobim_kernel::project_crs(doc).as_ref()) {
                     Some(p) => self.point(doc, p, 0.0),
                     None => {
                         let names = alignment_list(doc).into_iter().map(|a| a.0).collect::<Vec<_>>().join(", ");

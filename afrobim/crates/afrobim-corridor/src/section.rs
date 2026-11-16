@@ -126,6 +126,39 @@ pub(crate) fn interpolate(line: &[(f64, f64)], o: f64) -> Option<f64> {
     Some(p.1 + (q.1 - p.1) * ((o - p.0) / (q.0 - p.0)).clamp(0.0, 1.0))
 }
 
+/// The ground along the line square to the baseline through (x, y), as (offset, level) from the
+/// surface's far left to its far right, for the run that holds the centreline point. `None` when
+/// the centreline point is off the surface.
+pub(crate) fn ground_run(ground: &Tin, x: f64, y: f64, heading_rad: f64) -> Option<Vec<(f64, f64)>> {
+    let plan_point = |o: f64| (x + o * heading_rad.sin(), y - o * heading_rad.cos());
+    // Far enough each way to reach past the surface from wherever the station is.
+    let b = ground.bounds();
+    let reach = [(b.min_x, b.min_y), (b.min_x, b.max_y), (b.max_x, b.min_y), (b.max_x, b.max_y)]
+        .iter()
+        .map(|c| (c.0 - x).hypot(c.1 - y))
+        .fold(0.0, f64::max)
+        + 1.0;
+    let runs = ground.section(plan_point(-reach), plan_point(reach));
+    let run = runs.into_iter().find(|r| r[0].0 - reach <= 1e-7 && r[r.len() - 1].0 - reach >= -1e-7)?;
+    Some(run.into_iter().map(|(d, z)| (d - reach, z)).collect())
+}
+
+/// Keeps the ground over the earthworks line and a margin of a quarter of its width (at least 1 m)
+/// each side.
+pub(crate) fn trim_ground(run: &[(f64, f64)], earthworks: &[(f64, f64)]) -> Vec<(f64, f64)> {
+    let mut out = Vec::new();
+    let (Some(first), Some(last)) = (earthworks.first(), earthworks.last()) else { return out };
+    let (lo, hi) = (first.0, last.0);
+    let margin = ((hi - lo) / 4.0).max(1.0);
+    let (lo, hi) = ((lo - margin).max(run[0].0), (hi + margin).min(run[run.len() - 1].0));
+    if let (Some(z_lo), Some(z_hi)) = (interpolate(run, lo), interpolate(run, hi)) {
+        out.push((lo, z_lo));
+        out.extend(run.iter().filter(|p| p.0 > lo && p.0 < hi));
+        out.push((hi, z_hi));
+    }
+    out
+}
+
 /// Area of a closed polygon by the shoelace formula, `½ |Σ (xᵢ yᵢ₊₁ − xᵢ₊₁ yᵢ)|`.
 pub fn polygon_area(points: &[(f64, f64)]) -> f64 {
     let n = points.len();
@@ -296,19 +329,10 @@ pub fn section_at(template: &Template, region: usize, alignment: &Alignment, gro
         notes: Vec::new(),
     };
 
-    // Far enough each way to reach past the surface from wherever the station is.
-    let b = ground.bounds();
-    let reach = [(b.min_x, b.min_y), (b.min_x, b.max_y), (b.max_x, b.min_y), (b.max_x, b.max_y)]
-        .iter()
-        .map(|c| (c.0 - at.x).hypot(c.1 - at.y))
-        .fold(0.0, f64::max)
-        + 1.0;
-    let runs = ground.section(section.plan_point(-reach), section.plan_point(reach));
-    let Some(run) = runs.into_iter().find(|r| r[0].0 - reach <= 1e-7 && r[r.len() - 1].0 - reach >= -1e-7) else {
+    let Some(run) = ground_run(ground, at.x, at.y, at.heading_rad) else {
         section.notes.push("The centreline is off the ground surface.".to_string());
         return Ok(section);
     };
-    let run: Vec<(f64, f64)> = run.into_iter().map(|(d, z)| (d - reach, z)).collect();
 
     let (hinge_l, hinge_r) = (section.finished[0].clone(), section.finished[section.finished.len() - 1].clone());
     match daylight(&run, (hinge_l.offset_m, hinge_l.elevation_m), -1.0, &template.left.daylight) {
@@ -326,15 +350,7 @@ pub fn section_at(template: &Template, region: usize, alignment: &Alignment, gro
         section.earthworks.push((p.offset_m, p.elevation_m));
     }
 
-    // Keep the ground over the section and a margin.
-    let (lo, hi) = (section.earthworks[0].0, section.earthworks[section.earthworks.len() - 1].0);
-    let margin = ((hi - lo) / 4.0).max(1.0);
-    let (lo, hi) = ((lo - margin).max(run[0].0), (hi + margin).min(run[run.len() - 1].0));
-    if let (Some(z_lo), Some(z_hi)) = (interpolate(&run, lo), interpolate(&run, hi)) {
-        section.ground.push((lo, z_lo));
-        section.ground.extend(run.iter().filter(|p| p.0 > lo && p.0 < hi));
-        section.ground.push((hi, z_hi));
-    }
+    section.ground = trim_ground(&run, &section.earthworks);
 
     if section.left_daylight.is_some() && section.right_daylight.is_some() {
         let a = cut_fill_areas(&section.earthworks, &section.ground);

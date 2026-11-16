@@ -19,9 +19,16 @@ use egui::{pos2, Align2, Color32, FontId, RichText, Sense, Shape, Stroke, Ui};
 use crate::app::AfroBimApp;
 use crate::schedule_glue as glue;
 
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
+#[allow(non_snake_case)]
+
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+fn GOOD() -> egui::Color32 {
+    crate::theme::success()
+}
 
 /// The entries for one activity's location range, kept while they are typed.
 #[derive(Clone)]
@@ -272,15 +279,18 @@ impl AfroBimApp {
     fn xer_report_window(&mut self, ctx: &egui::Context) {
         let Some((title, lines)) = self.sched.ext.xer_report.clone() else { return };
         let mut open = true;
-        crate::win::new(ctx, title).open(&mut open).default_width(640.0).show(ctx, |ui| {
-            ui.label(RichText::new(glue::XER_UNTESTED).strong().color(WARN));
-            ui.separator();
+        let dlg = crate::ui_kit::Dialog::titled(title).width(640.0).show_body(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, glue::XER_UNTESTED);
+            crate::ui_kit::heading(ui, "What the file holds");
             egui::ScrollArea::vertical().max_height(340.0).show(ui, |ui| {
                 for l in lines.iter().skip(1) {
                     ui.label(l);
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         if !open {
             self.sched.ext.xer_report = None;
         }
@@ -314,28 +324,27 @@ impl AfroBimApp {
             Some(Ok(s)) => Some((s.critical().count(), s.rows.iter().filter(|r| r.on_longest_path).count(), s.rows.len())),
             _ => None,
         };
-        crate::win::new(ctx, "Critical path basis").open(&mut open).default_width(640.0).show(ctx, |ui| {
-            ui.label("Choose what marks an activity as critical. The Gantt chart, the schedule table and the time-location chart follow the choice.");
-            for (b, label, text) in [
-                (CriticalBasis::TotalFloat, "Total float of zero or less", glue::CRITICAL_TOTAL_FLOAT_TEXT),
-                (CriticalBasis::LongestPath, "Longest path", glue::CRITICAL_LONGEST_PATH_TEXT),
-            ] {
-                ui.add_space(4.0);
-                if ui.radio(current == b, RichText::new(label).strong()).clicked() {
-                    chosen = Some(b);
-                }
-                ui.label(RichText::new(text).small());
+        let dlg = crate::ui_kit::Dialog::titled("Critical path basis").subtitle("How the critical path is found").width(640.0).show_body(ctx, |ui| {
+            crate::ui_kit::heading(ui, "What marks an activity as critical");
+            let mut ix = if current == CriticalBasis::TotalFloat { 0 } else { 1 };
+            if crate::ui_kit::segmented(ui, &mut ix, &["Total float of zero or less", "Longest path"]) {
+                chosen = Some(if ix == 0 { CriticalBasis::TotalFloat } else { CriticalBasis::LongestPath });
             }
-            ui.add_space(6.0);
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, if current == CriticalBasis::TotalFloat { glue::CRITICAL_TOTAL_FLOAT_TEXT } else { glue::CRITICAL_LONGEST_PATH_TEXT });
+            crate::ui_kit::note(ui, "The Gantt chart, the schedule table and the time-location chart follow the choice.");
+            crate::ui_kit::heading(ui, "Now");
             match counts {
                 Some((critical, path, n)) => {
-                    ui.label(format!("Now: {critical} of {n} activities are critical; {path} are on the longest path whichever basis is chosen."));
+                    crate::ui_kit::results_table(ui, "crit-counts", &["Count", "Activities"], &[crate::ui_kit::Col::Text, crate::ui_kit::Col::Num], &[vec!["Critical on the chosen basis".into(), critical.to_string()], vec!["On the longest path, on either basis".into(), path.to_string()], vec!["In the programme".into(), n.to_string()]]);
                 }
                 None => {
-                    ui.label(RichText::new("There is no schedule yet (PROGRAMME, then SCHEDULE).").weak());
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "There is no schedule yet (PROGRAMME, then SCHEDULE).");
                 }
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         if let Some(b) = chosen {
             self.sched.ext.critical = b;
             glue::set_setting(&mut self.doc, glue::KEY_CRITICAL, glue::critical_key(b));
@@ -353,22 +362,23 @@ impl AfroBimApp {
         let mut changed = false;
         let mut basis_changed = false;
         let mut csv: Option<String> = None;
+        let mut csv_text: Option<String> = None;
         let s = &mut self.sched;
         let ext = &mut s.ext;
         let result = &s.result;
-        crate::win::new(ctx, "WBS: summary tasks and roll-up").open(&mut open).default_width(900.0).default_height(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("WBS: summary tasks and roll-up").subtitle("The work breakdown structure and its summary tasks").width(900.0).show_close(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
-                ui.label("There is no programme yet (PROGRAMME).");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "There is no programme yet (PROGRAMME).");
                 return;
             };
-            ui.label(RichText::new("Summary tasks").strong());
-            ui.label(RichText::new("A summary task has no duration of its own: it spans the activities under it. Put an activity under a summary task in the Under column of PROGRAMME. Indent puts a summary task under the one above it; outdent moves it up a level.").small().weak());
+            crate::ui_kit::heading(ui, "Summary tasks");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "A summary task has no duration of its own: it spans the activities under it. Put an activity under a summary task in the Under column of PROGRAMME. Indent puts a summary task under the one above it; outdent moves it up a level.");
             let ids: Vec<String> = p.summaries.iter().map(|x| x.id.clone()).collect();
             let mut act: Option<(usize, u8)> = None;
             egui::ScrollArea::vertical().id_salt("wbs-sums").max_height(190.0).auto_shrink([false, true]).show(ui, |ui| {
                 egui::Grid::new("wbs-grid").num_columns(6).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
                     for h in ["WBS", "Name", "Id", "Under", "", ""] {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for i in 0..p.summaries.len() {
@@ -418,6 +428,7 @@ impl AfroBimApp {
                     Err(e) => ext.problem = e,
                 }
             }
+            crate::ui_kit::heading(ui, "Add a summary task");
             ui.horizontal(|ui| {
                 ui.add_sized([60.0, 20.0], egui::TextEdit::singleline(&mut ext.new_summary.0).hint_text("id"));
                 ui.add_sized([60.0, 20.0], egui::TextEdit::singleline(&mut ext.new_summary.1).hint_text("WBS"));
@@ -442,20 +453,19 @@ impl AfroBimApp {
                 }
             });
             if !ext.problem.is_empty() {
-                ui.label(RichText::new(&ext.problem).color(BAD));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &ext.problem);
             }
-            ui.separator();
-            ui.label(RichText::new("Roll-up").strong());
-            ui.horizontal(|ui| {
-                ui.label("Percent complete weighs each activity by its");
-                for (b, label) in [(RollupBasis::Duration, "duration"), (RollupBasis::Weight, "weight")] {
-                    if ui.radio(ext.rollup == b, label).clicked() && ext.rollup != b {
-                        ext.rollup = b;
+            crate::ui_kit::heading(ui, "Roll-up");
+            crate::ui_kit::form(ui, "wbs-basis", |f| {
+                f.row("Percent complete weighs each activity by its", |ui| {
+                    let mut ix = if ext.rollup == RollupBasis::Duration { 0 } else { 1 };
+                    if crate::ui_kit::segmented(ui, &mut ix, &["Duration", "Weight"]) {
+                        ext.rollup = if ix == 0 { RollupBasis::Duration } else { RollupBasis::Weight };
                         basis_changed = true;
                     }
-                }
+                });
             });
-            ui.label(RichText::new(if ext.rollup == RollupBasis::Duration { glue::ROLLUP_DURATION_TEXT } else { glue::ROLLUP_WEIGHT_TEXT }).small());
+            crate::ui_kit::note(ui, if ext.rollup == RollupBasis::Duration { glue::ROLLUP_DURATION_TEXT } else { glue::ROLLUP_WEIGHT_TEXT });
             match result {
                 Some(Ok(sch)) => match wbs_rollup(p, sch, ext.rollup) {
                     Ok(ru) => {
@@ -463,8 +473,8 @@ impl AfroBimApp {
                         let order: Vec<_> = outline(p).into_iter().filter_map(|o| if let OutlineKind::Summary(k) = o.kind { Some(p.summaries[k].id.clone()) } else { None }).collect();
                         egui::ScrollArea::both().id_salt("wbs-roll").max_height(230.0).auto_shrink([false, true]).show(ui, |ui| {
                             egui::Grid::new("wbs-roll-grid").num_columns(8).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
-                                for h in ["WBS", "Name", "Start", "Finish", "Complete", "Activities", "Critical", "Least float"] {
-                                    ui.label(RichText::new(h).strong());
+                                for (k, h) in ["WBS", "Name", "Start", "Finish", "Complete (%)", "Activities", "Critical", "Least float (d)"].iter().enumerate() {
+                                    if k >= 4 { crate::ui_kit::th_num(ui, h) } else { crate::ui_kit::th(ui, h) }
                                 }
                                 ui.end_row();
                                 for id in &order {
@@ -474,29 +484,33 @@ impl AfroBimApp {
                                     ui.label(RichText::new(&r.name).strong());
                                     ui.label(r.start.map(|d| d.to_string()).unwrap_or_default());
                                     ui.label(r.finish.map(|d| d.to_string()).unwrap_or_default());
-                                    ui.label(format!("{:.1} %", r.percent_complete));
-                                    ui.label(r.activities.to_string());
-                                    ui.label(r.critical.to_string());
-                                    ui.label(r.total_float.map(|f| f.to_string()).unwrap_or_default());
+                                    crate::ui_kit::cell_num(ui, format!("{:.1}", r.percent_complete));
+                                    crate::ui_kit::cell_num(ui, r.activities.to_string());
+                                    crate::ui_kit::cell_num(ui, r.critical.to_string());
+                                    crate::ui_kit::cell_num(ui, r.total_float.map(|f| f.to_string()).unwrap_or_default());
                                     ui.end_row();
                                 }
                             });
                         });
-                        if ui.button("Save the roll-up as CSV...").clicked() {
-                            csv = Some(wbs_rollup_csv(&ru));
-                        }
+                        csv_text = Some(wbs_rollup_csv(&ru));
                     }
                     Err(e) => {
                         ext.rollup_error = Some(error_text(e));
-                        ui.label(RichText::new(format!("The roll-up cannot be made on this basis: {}", ext.rollup_error.clone().unwrap_or_default())).color(BAD));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("The roll-up cannot be made on this basis: {}", ext.rollup_error.clone().unwrap_or_default()));
                     }
                 },
                 Some(Err(m)) => {
-                    ui.label(RichText::new(format!("The programme cannot be scheduled: {}", m.join("; "))).color(BAD));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("The programme cannot be scheduled: {}", m.join("; ")));
                 }
                 None => {}
             }
-        });
+        }, &["Save the roll-up as CSV..."]);
+        if dlg.closed {
+            open = false;
+        }
+        if matches!(dlg.inner, Some((_, Some(0)))) {
+            csv = csv_text.take();
+        }
         if basis_changed {
             glue::set_setting(&mut self.doc, glue::KEY_ROLLUP, glue::rollup_key(self.sched.ext.rollup));
             self.sched.rebuild_gantt();
@@ -564,36 +578,30 @@ impl AfroBimApp {
         let doc = &self.doc;
         let ext = &mut self.sched.ext;
         let alignment_id = chosen.as_ref().and_then(|n| alignments.iter().find(|a| a.1 == *n)).map(|a| a.0);
-        crate::win::new(ctx, "Time-location chart").open(&mut open).default_width(980.0).default_height(620.0).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut ext.tl_tab, 0, "Chart");
-                ui.selectable_value(&mut ext.tl_tab, 1, "Location ranges");
-                ui.separator();
-                ui.label("Alignment");
-                egui::ComboBox::from_id_salt("tl-alignment").selected_text(chosen.clone().unwrap_or_else(|| "none".into())).show_ui(ui, |ui| {
-                    for (_, n) in &alignments {
-                        if ui.selectable_label(chosen.as_deref() == Some(n.as_str()), n).clicked() {
-                            new_alignment = Some(n.clone());
+        let dlg = crate::ui_kit::Dialog::titled("Time-location chart").subtitle("Activities against station and time").width(980.0).show_close(ctx, |ui| {
+            crate::ui_kit::tabs_u8(ui, &mut ext.tl_tab, &["Chart", "Location ranges"]);
+            crate::ui_kit::form(ui, "tl-alignment-row", |f| {
+                f.row("Alignment", |ui| {
+                    egui::ComboBox::from_id_salt("tl-alignment").selected_text(chosen.clone().unwrap_or_else(|| "none".into())).show_ui(ui, |ui| {
+                        for (_, n) in &alignments {
+                            if ui.selectable_label(chosen.as_deref() == Some(n.as_str()), n).clicked() {
+                                new_alignment = Some(n.clone());
+                            }
                         }
-                    }
+                    });
                 });
-                if ui.add_enabled(csv.is_some(), egui::Button::new("Save as CSV...")).clicked() {
-                    save_csv = true;
-                }
             });
             if !schedule_ok {
-                ui.label(RichText::new("The programme is not scheduled. Fix it in PROGRAMME first.").color(BAD));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, "The programme is not scheduled. Fix it in PROGRAMME first.");
                 return;
             }
             if ext.tl_tab == 0 {
-                ui.horizontal(|ui| {
-                    ui.checkbox(&mut ext.tl_vertical, "Time runs up the page");
-                    ui.label("Zoom: station");
-                    ui.add(egui::Slider::new(&mut ext.tl_px_per_100m, 10.0..=300.0).show_value(false));
-                    ui.label("time");
-                    ui.add(egui::Slider::new(&mut ext.tl_px_per_day, 1.0..=20.0).show_value(false));
+                crate::ui_kit::form(ui, "tl-view", |f| {
+                    f.row("Time runs up the page", |ui| crate::ui_kit::toggle(ui, &mut ext.tl_vertical, "Time up the page, stations across"));
+                    f.row("Zoom, station", |ui| ui.add(egui::Slider::new(&mut ext.tl_px_per_100m, 10.0..=300.0).show_value(false)));
+                    f.row("Zoom, time", |ui| ui.add(egui::Slider::new(&mut ext.tl_px_per_day, 1.0..=20.0).show_value(false)));
                 });
-                ui.label(RichText::new("Station is across the page and time up it. A diagonal is work moving along the alignment; a parallelogram shows the dwell you entered; a bar is work on the whole range at once (a culvert, a structure). Critical red, complete grey, others blue; thin grey outline is the baseline; green line the data date; brown line the required finish. Stations are internal stations (a designed or imported alignment's own, before any station equation).").small().weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Station is across the page and time up it. A diagonal is work moving along the alignment; a parallelogram shows the dwell you entered; a bar is work on the whole range at once (a culvert, a structure). Critical red, complete grey, others blue; thin grey outline is the baseline; green line the data date; brown line the required finish. Stations are internal stations (a designed or imported alignment's own, before any station equation).");
                 match &chart {
                     Some(c) => {
                         let labels: Vec<(afrobim_draw::Pt2, String, f32, Color32)> = c
@@ -607,16 +615,22 @@ impl AfroBimApp {
                         egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| paint_sheet(ui, &c.drawing, &labels, 1.0));
                     }
                     None => {
-                        ui.label(RichText::new("No activity has a location range on this alignment. Enter one on the Location ranges tab, or link activities to elements placed on the alignment (LINK4D, STATION).").color(WARN));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "No activity has a location range on this alignment. Enter one on the Location ranges tab, or link activities to elements placed on the alignment (LINK4D, STATION).");
                     }
                 }
                 for n in &resolved.notes {
-                    ui.label(RichText::new(n).small().color(WARN));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, n);
                 }
             } else {
                 tl_ranges_table(ui, &p, &resolved, doc, alignment_id, chosen.as_deref(), ext, &mut set_range);
             }
-        });
+        }, &["Save as CSV..."]);
+        if dlg.closed {
+            open = false;
+        }
+        if matches!(dlg.inner, Some((_, Some(0)))) && csv.is_some() {
+            save_csv = true;
+        }
         if let Some(n) = new_alignment {
             self.sched.ext.tl_alignment = Some(n.clone());
             glue::set_setting(&mut self.doc, glue::KEY_TL_ALIGNMENT, &n);
@@ -827,12 +841,12 @@ fn tl_ranges_table(
         return;
     };
     let alignment = alignment_id.and_then(|id| crate::alignment_glue::alignment_of(doc, id));
-    ui.label(RichText::new("Enter where along the alignment each activity works, in the stations shown on the drawings (the region picker appears where the alignment has station equations; AfroBIM converts to internal stations). Direction and dwell are your entries: nothing is assumed. A range derived from linked elements is shown for adopting; it is drawn as a bar because the elements' stations do not say in which order they are built.").small().weak());
+    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Enter where along the alignment each activity works, in the stations shown on the drawings (the region picker appears where the alignment has station equations; AfroBIM converts to internal stations). Direction and dwell are your entries: nothing is assumed. A range derived from linked elements is shown for adopting; it is drawn as a bar because the elements' stations do not say in which order they are built.");
     ui.label(RichText::new(crate::station_input::note(doc, alignment_id)).small().weak());
     egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         egui::Grid::new("tl-ranges").num_columns(8).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
             for h in ["Id", "Name", "From", "To", "Direction", "Dwell (days)", "Source", ""] {
-                ui.label(RichText::new(h).strong());
+                crate::ui_kit::th(ui, &h);
             }
             ui.end_row();
             for a in &p.activities {
@@ -853,8 +867,8 @@ fn tl_ranges_table(
                 });
                 ui.add_sized([60.0, 20.0], egui::TextEdit::singleline(&mut form.dwell).hint_text("none"));
                 ui.label(match (entered, current) {
-                    (Some(_), _) => RichText::new("entered").color(GOOD),
-                    (None, Some(l)) if l.derived => RichText::new("derived from elements").color(WARN),
+                    (Some(_), _) => RichText::new("entered").color(GOOD()),
+                    (None, Some(l)) if l.derived => RichText::new("derived from elements").color(WARN()),
                     _ => RichText::new("none").weak(),
                 });
                 let mut cleared = false;
@@ -883,7 +897,7 @@ fn tl_ranges_table(
         });
     });
     if !ext.problem.is_empty() {
-        ui.label(RichText::new(&ext.problem).color(BAD));
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &ext.problem);
     }
 }
 

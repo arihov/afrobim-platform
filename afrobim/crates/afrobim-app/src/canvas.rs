@@ -1,6 +1,6 @@
 //! Model-space painting: grid, axes, elements, and the CAD cursor furniture on top.
 
-use afrobim_kernel::{display_spacing, BBox, CanvasTool, Pt};
+use afrobim_kernel::{display_spacing_fine, BBox, CanvasTool, Pt};
 use egui::{pos2, Align2, Color32, FontId, Painter, Pos2, Rect, Shape, Stroke, Vec2};
 
 use crate::app::AfroBimApp;
@@ -22,9 +22,18 @@ fn outline(rect: Rect, stroke: Stroke) -> Shape {
     Shape::closed_line(vec![rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom()], stroke)
 }
 
+/// A dashed rectangle. Each edge is clipped to the visible area first (in f64), so a box that is
+/// millions of pixels wide at a deep zoom neither makes millions of dashes nor loses precision.
 fn dashed(painter: &Painter, rect: Rect, stroke: Stroke) {
-    let pts = [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom(), rect.left_top()];
-    painter.extend(Shape::dashed_line(&pts, stroke, 5.0, 3.0));
+    let clip = painter.clip_rect().expand(30.0);
+    let (lo, hi) = (Pt::new(clip.left() as f64, clip.top() as f64), Pt::new(clip.right() as f64, clip.bottom() as f64));
+    let c = [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom(), rect.left_top()];
+    for w in c.windows(2) {
+        let (a, b) = (Pt::new(w[0].x as f64, w[0].y as f64), Pt::new(w[1].x as f64, w[1].y as f64));
+        if let Some((a, b)) = crate::render::clip_segment_box(a, b, lo, hi) {
+            painter.extend(Shape::dashed_line(&[p(a), p(b)], stroke, 5.0, 3.0));
+        }
+    }
 }
 
 fn tip(painter: &Painter, at: Pos2, text: &str) {
@@ -47,7 +56,7 @@ impl AfroBimApp {
         let ink = if dark { Color32::from_gray(242) } else { Color32::from_gray(26) };
 
         if self.grid_on {
-            let step = display_spacing(self.grid_spacing, self.view.scale, 14.0);
+            let step = display_spacing_fine(self.grid_spacing, self.view.scale, 14.0);
             let (minor, major) = if dark {
                 (Color32::from_rgb(0x26, 0x2B, 0x32), Color32::from_rgb(0x31, 0x37, 0x40))
             } else {
@@ -70,15 +79,31 @@ impl AfroBimApp {
         }
 
         // Axes through the model origin.
+        // (Only when the origin is on screen: far from it the axes are millions of pixels away.)
         let o = self.view.to_screen(Pt::new(0.0, 0.0));
         let (ox, oy) = (o.x.round() as f32 + 0.5, o.y.round() as f32 + 0.5);
-        painter.line_segment([pos2(rect.left(), oy), pos2(rect.right(), oy)], Stroke::new(1.0_f32, AXIS_X.gamma_multiply(0.7)));
-        painter.line_segment([pos2(ox, rect.top()), pos2(ox, rect.bottom())], Stroke::new(1.0_f32, AXIS_Y.gamma_multiply(0.7)));
+        if o.y >= rect.top() as f64 && o.y <= rect.bottom() as f64 {
+            painter.line_segment([pos2(rect.left(), oy), pos2(rect.right(), oy)], Stroke::new(1.0_f32, AXIS_X.gamma_multiply(0.7)));
+        }
+        if o.x >= rect.left() as f64 && o.x <= rect.right() as f64 {
+            painter.line_segment([pos2(ox, rect.top()), pos2(ox, rect.bottom())], Stroke::new(1.0_f32, AXIS_Y.gamma_multiply(0.7)));
+        }
 
         // DXF underlays sit behind the model.
         self.under.paint(&self.doc, painter, &self.view, rect, ink);
 
         let label = if dark { Color32::from_rgb(0xA8, 0xB0, 0xBA) } else { Color32::from_rgb(0x50, 0x55, 0x5C) };
+        // The civil objects: scenes built off the UI thread, painted culled to the view.
+        let mut labels = crate::civil_scene::Labels::default();
+        for e in self.doc.elements() {
+            if crate::civil::is_civil(&e.category) && !crate::civil::hidden(e) {
+                if let Some((_, b)) = self.civil.built.get(&e.id) {
+                    b.scene.paint(painter, &mut labels, &self.view, rect, ink, self.doc.is_selected(e.id));
+                }
+            }
+        }
+        self.civil_ui.overlay.paint(painter, &mut labels, &self.view, rect, ink, false);
+        labels.flush(painter, dark);
         // Layer colour and line weight: black is "automatic" (the canvas ink); the weight is drawn
         // as a pen width in pixels (about 4 px per millimetre, between 1 and 6).
         let layer_props = afrobim_annotate::settings::load(&self.doc).layers;
@@ -108,7 +133,7 @@ impl AfroBimApp {
                     painter.line_segment([r.right_top(), r.left_bottom()], Stroke::new(1.0_f32, label));
                 }
             }
-            if self.show_labels && r.width() > 46.0 {
+            if self.show_labels && r.width() > 46.0 && !crate::civil::is_civil(&e.category) {
                 painter.text(pos2(r.left(), r.bottom() + 4.0), Align2::LEFT_TOP, &e.name, FontId::proportional(11.0), label);
             }
         }

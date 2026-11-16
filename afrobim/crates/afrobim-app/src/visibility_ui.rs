@@ -52,18 +52,30 @@ pub fn band_line(doc: &Document, id: ElementId) -> Option<String> {
     let r: BandRecord = check_inputs::load(doc, id, KEY_BAND)?;
     (!r.note.is_empty()).then(|| format!("Speed band: {}", r.note))
 }
-const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const NEED: Color32 = Color32::from_rgb(0x5B, 0x9B, 0xE6);
+#[allow(non_snake_case)]
+fn GOOD() -> egui::Color32 {
+    crate::theme::success()
+}
+#[allow(non_snake_case)]
+fn BAD() -> egui::Color32 {
+    crate::theme::danger()
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+fn NEED() -> egui::Color32 {
+    crate::theme::accent_text()
+}
 
 pub fn status_colour(s: Status) -> Color32 {
     match s {
-        Status::Ok => GOOD,
-        Status::Fails => BAD,
-        Status::Differs => WARN,
-        Status::InputNeeded => NEED,
-        Status::Information => Color32::from_rgb(0x8A, 0x91, 0x99),
+        Status::Ok => GOOD(),
+        Status::Fails => BAD(),
+        Status::Differs => WARN(),
+        Status::InputNeeded => NEED(),
+        Status::Information => crate::theme::muted(),
     }
 }
 
@@ -570,14 +582,14 @@ impl VisUi {
                 painter.line_segment([p, q], stroke);
             }
         };
-        let green = Stroke::new(2.5_f32, GOOD);
-        let red = Stroke::new(2.5_f32, BAD);
+        let green = Stroke::new(2.5_f32, GOOD());
+        let red = Stroke::new(2.5_f32, BAD());
         let limit = &sweep.full;
         match (&limit.at_limit, &limit.beyond) {
             (Some(last), beyond) => {
                 seg(mm(last.eye), centre, green);
                 if let Some((p, _)) = cam.project(mm(last.eye), rect) {
-                    painter.text(p + egui::vec2(6.0, -6.0), Align2::LEFT_BOTTOM, format!("limit: {:.0} m before the sign", limit.distance_m), FontId::proportional(12.0), GOOD);
+                    painter.text(p + egui::vec2(6.0, -6.0), Align2::LEFT_BOTTOM, format!("limit: {:.0} m before the sign", limit.distance_m), FontId::proportional(12.0), GOOD());
                 }
                 if let Some(b) = beyond {
                     seg(mm(b.eye), centre, Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(0xEF, 0x6C, 0x63, 120)));
@@ -585,7 +597,7 @@ impl VisUi {
                         seg(mm(b.eye), mm(hit.point), red);
                         if let Some((p, _)) = cam.project(mm(hit.point), rect) {
                             painter.circle_stroke(p, 8.0, red);
-                            painter.text(p + egui::vec2(10.0, 4.0), Align2::LEFT_TOP, format!("obstruction: {}", hit.label), FontId::proportional(12.0), BAD);
+                            painter.text(p + egui::vec2(10.0, 4.0), Align2::LEFT_TOP, format!("obstruction: {}", hit.label), FontId::proportional(12.0), BAD());
                         }
                     }
                 }
@@ -596,7 +608,7 @@ impl VisUi {
             if let Some(far) = sweep.samples.last() {
                 seg(mm(far.eye), centre, green);
                 if let Some((p, _)) = cam.project(mm(far.eye), rect) {
-                    painter.text(p, Align2::LEFT_BOTTOM, format!("clear to the start of the sweep ({:.0} m)", far.distance_m), FontId::proportional(12.0), GOOD);
+                    painter.text(p, Align2::LEFT_BOTTOM, format!("clear to the start of the sweep ({:.0} m)", far.distance_m), FontId::proportional(12.0), GOOD());
                 }
             }
         }
@@ -710,35 +722,35 @@ impl AfroBimApp {
         };
         let alignment = f.element.and_then(|id| self.doc.find(id)).and_then(|e| e.site.as_ref().and_then(|s| s.alignment.clone())).and_then(|name| crate::alignment_glue::alignments(&self.doc).into_iter().find(|a| a.1 == name).map(|a| a.0));
         let (mut keep, mut save, mut run) = (true, false, false);
-        crate::win::new(ctx, title).collapsible(false).default_width(640.0).default_height(620.0).show(ctx, |ui| {
-            ui.label(RichText::new("An analysis aid: the result states no compliance. Every field starts empty except the one marked 'to confirm', which is the engine's own default and is not used until you accept it. The UK band of a speed is your decision.").small().weak());
-            egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(500.0).show(ui, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled(title).subtitle("The inputs of the sight-distance analysis").width(640.0).show(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An analysis aid: the result states no compliance. Every field starts empty except the one marked 'to confirm', which is the engine's own default and is not used until you accept it. The UK band of a speed is your decision.");
+            {
+                crate::ui_kit::heading(ui, "Driver and traffic");
                 if f.element.is_some() {
-                    ui.checkbox(&mut f.apply_all, "store these entries on every placed sign, not only this one");
+                    crate::ui_kit::toggle(ui, &mut f.apply_all, "Store these entries on every placed sign, not only this one");
                 }
-                egui::Grid::new("vis-form").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "vis-form", |ui| {
                     ui.label("Driver's lateral position");
-                    ui.horizontal(|ui| {
-                        ui.radio_value(&mut f.eye_mode, 1, "signed offset (right of centreline positive)");
-                        ui.radio_value(&mut f.eye_mode, 2, "distance to lane centre");
-                        ui.add(egui::TextEdit::singleline(&mut f.eye_text).desired_width(70.0).hint_text("m"));
+                    ui.vertical(|ui| {
+                        crate::ui_kit::segmented_of(ui, &mut f.eye_mode, &[(1, "Signed offset (right positive)"), (2, "Distance to lane centre")]);
+                        ui.horizontal(|ui| {
+                            ui.add(egui::TextEdit::singleline(&mut f.eye_text).desired_width(70.0).horizontal_align(egui::Align::RIGHT).hint_text("m"));
+                            ui.label("m");
+                        });
                     });
                     ui.end_row();
                     ui.label("Driver's eye height (m)");
                     ui.vertical(|ui| {
                         ui.horizontal(|ui| {
                             ui.add(egui::TextEdit::singleline(&mut f.eye_height).desired_width(70.0));
-                            ui.label(RichText::new("to confirm").strong().color(WARN));
+                            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "to confirm");
                             ui.checkbox(&mut f.eye_height_accepted, "accept this value");
                         });
-                        ui.label(RichText::new(format!("Engine default, stated in held sources for other criteria, not for sign visibility: {UK_EYE_HEIGHT}; {UG_EYE_HEIGHT}.")).small().weak());
+                        crate::ui_kit::note(ui, format!("Engine default, stated in held sources for other criteria, not for sign visibility: {UK_EYE_HEIGHT}; {UG_EYE_HEIGHT}."));
                     });
                     ui.end_row();
                     ui.label("Traffic keeps to");
-                    ui.horizontal(|ui| {
-                        ui.radio_value(&mut f.traffic, 1, "the left");
-                        ui.radio_value(&mut f.traffic, 2, "the right");
-                    });
+                    crate::ui_kit::segmented_of(ui, &mut f.traffic, &[(1, "The left"), (2, "The right")]);
                     ui.end_row();
                     ui.label("Direction of travel");
                     egui::ComboBox::from_id_salt("vis-dir").selected_text(["from the sign's rotation (the traffic it serves)", "up station", "down station"][f.direction as usize % 3]).show_ui(ui, |ui| {
@@ -750,8 +762,7 @@ impl AfroBimApp {
                     ui.label("Approach speed (85th percentile)");
                     ui.horizontal(|ui| {
                         ui.add(egui::TextEdit::singleline(&mut f.speed).desired_width(70.0).hint_text("blank: the sign's speed class"));
-                        ui.selectable_value(&mut f.speed_mph, false, "km/h");
-                        ui.selectable_value(&mut f.speed_mph, true, "mph");
+                        crate::ui_kit::segmented_of(ui, &mut f.speed_mph, &[(false, "km/h"), (true, "mph")]);
                     });
                     ui.end_row();
                     ui.label("UK speed band");
@@ -760,10 +771,10 @@ impl AfroBimApp {
                         match &resolved {
                             Some(r) => {
                                 let by_rule = SpeedBandMph::from_mph(r.mph_used);
-                                ui.label(RichText::new(format!("From the approach speed: {}", by_rule.label())).strong());
+                                crate::ui_kit::heading(ui, &format!("From the approach speed: {}", by_rule.label()));
                                 ui.label(RichText::new(&r.band_note).small().weak());
                                 if let Some(ask) = r.ask {
-                                    ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).color(WARN));
+                                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph));
                                     ui.horizontal(|ui| {
                                         ui.selectable_value(&mut f.band_answer, Some(true), "Yes, take the band");
                                         ui.selectable_value(&mut f.band_answer, Some(false), "No, keep the exact value");
@@ -779,7 +790,7 @@ impl AfroBimApp {
                                 }
                             }
                             None => {
-                                ui.label(RichText::new("Enter the approach speed to have the band resolved by the project's rule, or choose one:").small().weak());
+                                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Enter the approach speed to have the band resolved by the project's rule, or choose one:");
                                 egui::ComboBox::from_id_salt("vis-band").selected_text(f.band.map(|b| b.label()).unwrap_or("not chosen")).show_ui(ui, |ui| {
                                     ui.selectable_value(&mut f.band, None, "not chosen");
                                     for b in SpeedBandMph::ALL {
@@ -840,7 +851,7 @@ impl AfroBimApp {
                     ui.end_row();
                 });
                 ui.add_space(4.0);
-                ui.label(RichText::new("Road edges at the sign: distances from the centreline (m), for the clearance lines").strong());
+                crate::ui_kit::heading(ui, "Road edges at the sign: distances from the centreline (m), for the clearance lines");
                 egui::Grid::new("vis-edges").num_columns(3).spacing([10.0, 4.0]).show(ui, |ui| {
                     ui.label("");
                     ui.label("left");
@@ -853,18 +864,16 @@ impl AfroBimApp {
                         ui.end_row();
                     }
                 });
-                ui.checkbox(&mut f.kerbed, "the road is kerbed at the sign");
-                ui.add_space(4.0);
-                ui.label(RichText::new("Walls or banks beside the road (the inside of a curve): nothing beyond the offset can be seen").strong());
+                crate::ui_kit::toggle(ui, &mut f.kerbed, "The road is kerbed at the sign");
+                crate::ui_kit::heading(ui, "Walls or banks beside the road (the inside of a curve): nothing beyond the offset can be seen");
                 let mut remove = None;
                 for (k, r) in f.lateral.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
-                        ui.selectable_value(&mut r.right, false, "left");
-                        ui.selectable_value(&mut r.right, true, "right");
+                        crate::ui_kit::segmented_of(ui, &mut r.right, &[(false, "Left"), (true, "Right")]);
                         ui.add(egui::TextEdit::singleline(&mut r.offset).desired_width(70.0).hint_text("offset m"));
                         ui.add(egui::TextEdit::singleline(&mut r.top).desired_width(70.0).hint_text("top m (opt)"));
                         ui.add(egui::TextEdit::singleline(&mut r.label).desired_width(160.0).hint_text("what it is"));
-                        if ui.small_button("x").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                             remove = Some(k);
                         }
                     });
@@ -876,31 +885,34 @@ impl AfroBimApp {
                     f.lateral.push(LateralRow::default());
                 }
                 ui.add_space(4.0);
-                ui.label(RichText::new("Analysis settings (resolution of the sweep, not standard values; the engine's own starting values)").strong());
-                egui::Grid::new("vis-analysis").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
+                crate::ui_kit::heading(ui, "Analysis settings (resolution of the sweep, not standard values; the engine's own starting values)");
+                crate::ui_kit::grid(ui, "vis-analysis", |ui| {
                     for (label, field) in [("Sweep length before the sign (m)", &mut f.start), ("Eye step (m)", &mut f.step), ("Road sample spacing (m)", &mut f.sample), ("Bisection tolerance (m)", &mut f.tolerance), ("Sight-line grid (points per side)", &mut f.grid)] {
                         ui.label(label);
                         ui.add(egui::TextEdit::singleline(field).desired_width(70.0));
                         ui.end_row();
                     }
                 });
-            });
-            if !f.error.is_empty() {
-                ui.label(RichText::new(&f.error).color(BAD));
             }
-            ui.horizontal(|ui| {
-                if ui.button("Store").clicked() {
-                    save = true;
-                }
-                if ui.button("Store and run").clicked() {
-                    save = true;
-                    run = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    keep = false;
-                }
-            });
-        });
+            if !f.error.is_empty() {
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &f.error);
+            }
+        }, |ui| crate::ui_kit::Footer::new("Store and run").secondary(&["Store"]).show(ui));
+        if dlg.closed {
+            keep = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                keep = false;
+            }
+            if out.primary {
+                save = true;
+                run = true;
+            }
+            if out.secondary == Some(0) {
+                save = true;
+            }
+        }
         if save {
             match store_form(&mut self.doc, &f) {
                 Ok(count) => {
@@ -927,31 +939,20 @@ impl AfroBimApp {
         let (mut csv, mut rerun, mut edit, mut draw) = (false, false, false, false);
         let mut copy: Option<String> = None;
         let mut pick: Option<ElementId> = None;
-        crate::win::new(ctx, "Sign visibility results").open(&mut open).default_width(920.0).default_height(560.0).show(ctx, |ui| {
-            ui.label(RichText::new("An analysis aid. Each line is OK, FAILS, DIFFERS, INPUT NEEDED or INFORMATION with the provision it rests on; it states no compliance and the engineer decides. The road surface is the centreline level of the profile (no cross-fall); obstruction is geometric only.").small().weak());
-            ui.horizontal(|ui| {
-                if ui.button("Run all signs").clicked() {
-                    rerun = true;
-                }
-                if ui.button("Edit inputs").clicked() {
-                    edit = true;
-                }
-                if ui.button("Plan and profile drawings").clicked() {
-                    draw = true;
-                }
-                if ui.button("Export CSV").clicked() {
-                    csv = true;
-                }
-                ui.checkbox(&mut self.vis.overlay, "Limiting sight line in 3D");
+        let dlg = crate::ui_kit::Dialog::titled("Sign visibility results").subtitle("What the sight lines found, with no compliance stated").width(920.0).show(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An analysis aid. Each line is OK, FAILS, DIFFERS, INPUT NEEDED or INFORMATION with the provision it rests on; it states no compliance and the engineer decides. The road surface is the centreline level of the profile (no cross-fall); obstruction is geometric only.");
+            crate::ui_kit::form(ui, "vis-res-opts", |f| {
+                f.row("Limiting sight line in 3D", |ui| crate::ui_kit::toggle(ui, &mut self.vis.overlay, "Draw it in the 3D view"));
             });
             let Some(run) = &self.vis.run else {
-                ui.label(RichText::new("No run yet.").weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No run yet. Press Run all signs.");
                 return;
             };
+            crate::ui_kit::heading(ui, "Signs");
             egui::ScrollArea::vertical().id_salt("vis-list").max_height(170.0).auto_shrink([false, true]).show(ui, |ui| {
                 egui::Grid::new("vis-rows").num_columns(5).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                     for h in ["Sign", "Station", "Overall", "Clear distance (whole face)", "Limiting obstruction"] {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for a in &run.analyses {
@@ -978,16 +979,16 @@ impl AfroBimApp {
             };
             egui::ScrollArea::vertical().id_salt("vis-lines").auto_shrink([false, false]).show(ui, |ui| {
                 if let Some(why) = &a.skipped {
-                    ui.label(RichText::new(format!("{} was not analysed: {why}", a.mark)).color(WARN));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("{} was not analysed: {why}", a.mark));
                 }
                 if let Some(d) = self.doc.find(a.element).and_then(|e| e.properties.get(crate::demo_glue::KEY_DEMO_VISIBILITY)) {
-                    ui.label(RichText::new(format!("DEMO inputs: {d}")).strong().color(WARN));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("DEMO inputs: {d}"));
                 }
                 if let Some(l) = band_line(&self.doc, a.element) {
                     ui.label(RichText::new(l).small().strong());
                 }
                 if afrobim_visibility::load(&self.doc, a.element).is_some() && !eye_height_accepted(&self.doc, a.element) {
-                    ui.label(RichText::new("The stored inputs use the engine's default eye height, which has not been confirmed for this sign. Open the inputs and accept it.").color(WARN));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "The stored inputs use the engine's default eye height, which has not been confirmed for this sign. Open the inputs and accept it.");
                 }
                 for l in &a.lines {
                     ui.horizontal_wrapped(|ui| {
@@ -996,7 +997,7 @@ impl AfroBimApp {
                     });
                     ui.label(&l.detail);
                     if !l.citation.is_empty() {
-                        ui.label(RichText::new(format!("Source: {}", l.citation)).small().weak());
+                        crate::ui_kit::note(ui, format!("Source: {}", l.citation));
                     }
                     ui.add_space(3.0);
                 }
@@ -1004,7 +1005,24 @@ impl AfroBimApp {
                     copy = Some(a.report().join("\n"));
                 }
             });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Run all signs").secondary(&["Edit inputs", "Plan and profile drawings", "Export CSV..."]).cancel(Some("Close")).show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                rerun = true;
+            }
+            match out.secondary {
+                Some(0) => edit = true,
+                Some(1) => draw = true,
+                Some(2) => csv = true,
+                _ => {}
+            }
+        }
         self.vis.results_open = open;
         if let Some(id) = pick {
             self.vis.selected = Some(id);
@@ -1037,13 +1055,13 @@ impl AfroBimApp {
         let exaggeration = self.vis.exaggeration.trim().parse::<f64>().ok().filter(|v| *v > 0.0);
         let drawings = self.vis.analysis().map(|a| drawings_of(a, self.vis.scene.as_ref(), exaggeration.unwrap_or(5.0)));
         let mark = self.vis.analysis().map(|a| a.mark.clone()).unwrap_or_default();
-        crate::win::new(ctx, format!("Visibility drawings: {mark}")).open(&mut open).default_width(900.0).default_height(700.0).show(ctx, |ui| {
-            ui.label(RichText::new("The plan shows the eye positions along the approach coloured by what they see, the sight lines at the limit and the obstruction. The profile is the limiting sight line over the road and ground. Add either to a drawing sheet as a Detail sheet in SHEETSET (kinds 'Sign visibility, plan envelope' and 'Sign visibility, sight-line profile').").small().weak());
+        let dlg = crate::ui_kit::Dialog::titled(format!("Visibility drawings: {mark}")).width(900.0).show_body(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "The plan shows the eye positions along the approach coloured by what they see, the sight lines at the limit and the obstruction. The profile is the limiting sight line over the road and ground. Add either to a drawing sheet as a Detail sheet in SHEETSET (kinds 'Sign visibility, plan envelope' and 'Sign visibility, sight-line profile').");
             ui.horizontal(|ui| {
                 ui.label("Profile vertical exaggeration");
                 ui.add(egui::TextEdit::singleline(&mut self.vis.exaggeration).desired_width(50.0));
                 if exaggeration.is_none() {
-                    ui.label(RichText::new("enter a number above zero").small().color(BAD));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, "enter a number above zero");
                 }
             });
             let Some((plan, profile)) = &drawings else {
@@ -1063,6 +1081,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         self.vis.drawings_open = open;
     }
 }

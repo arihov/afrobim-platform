@@ -26,8 +26,8 @@ use egui::{pos2, Align2, Color32, FontId, RichText, Shape, Stroke, Ui};
 
 use crate::app::AfroBimApp;
 
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+#[allow(non_snake_case)]
+
 
 /// What the photometry is and is not. Shown in the window, quoted in the manual.
 pub const LIMITS: &str = "This calculates illuminance (and luminance only when you supply an r-table file) on the grids you define, from the luminaire file, using the formulas documented in afrobim-lighting. It is not an EN 13201-3 calculation (its grid and observer rules are not held). It has not been validated against DIALux, Relux or AGi32. Luminance needs an r-table file that you supply: none ships. Threshold increment, longitudinal uniformity and wet overall uniformity are not computed and stay as you enter them.";
@@ -635,8 +635,10 @@ impl AfroBimApp {
             polar_diagram(&l.photometry, &planes)
         });
         let check_lines = self.photo.loaded.as_ref().map(file_check_lines);
-        crate::win::new(ctx, "Photometry").open(&mut open).default_width(900.0).default_height(700.0).show(ctx, |ui| {
-            ui.label(RichText::new(LIMITS).small().color(WARN));
+        let can_calc = self.photo.form.element.is_some() && self.photo.loaded.is_some();
+        let dlg = crate::ui_kit::Dialog::titled("Photometry").subtitle("Luminaire data files and the lighting calculation").width(900.0).show(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, LIMITS);
+            crate::ui_kit::heading(ui, "Installation and luminaire file");
             ui.horizontal(|ui| {
                 ui.label("Installation");
                 let shown = self.photo.form.element.and_then(|id| elements.iter().find(|e| e.0 == id)).map(|e| e.1.clone()).unwrap_or_else(|| "none: add one with LIGHTING".into());
@@ -648,7 +650,7 @@ impl AfroBimApp {
                     }
                 });
                 if !class.is_empty() {
-                    ui.label(RichText::new(format!("lighting class entered: {class}")).small().weak());
+                    crate::ui_kit::note(ui, format!("lighting class entered: {class}"));
                 }
             });
             ui.horizontal(|ui| {
@@ -660,28 +662,27 @@ impl AfroBimApp {
                 }
             });
             if !self.photo.file_error.is_empty() {
-                ui.label(RichText::new(&self.photo.file_error).color(BAD));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &self.photo.file_error);
             }
             if !self.photo.message.is_empty() {
-                ui.label(RichText::new(&self.photo.message).small().color(WARN));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &self.photo.message);
             }
             if self.photo.loaded.is_none() {
-                ui.add_space(6.0);
-                ui.label(RichText::new(NO_FILE).strong());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, NO_FILE);
                 if self.options.demo {
-                    ui.label(RichText::new("Demo: the demo model has a lighting installation but no luminaire file, because none ships. Nothing here is calculated until you supply one.").color(WARN));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "Demo: the demo model has a lighting installation but no luminaire file, because none ships. Nothing here is calculated until you supply one.");
                 }
                 return;
             }
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                ui.label(RichText::new("1. The file's own checks (before any calculation)").strong());
+                crate::ui_kit::heading(ui, "1. The file's own checks (before any calculation)");
                 if let Some(lines) = &check_lines {
                     for l in lines {
                         ui.label(RichText::new(l).small());
                     }
                 }
                 ui.add_space(4.0);
-                ui.label(RichText::new("2. Polar diagram: right half plane C, left half the plane 180 degrees on, nadir at the bottom").strong());
+                crate::ui_kit::heading(ui, "2. Polar diagram: right half plane C, left half the plane 180 degrees on, nadir at the bottom");
                 ui.horizontal(|ui| {
                     ui.label("Plane pairs");
                     ui.add(egui::TextEdit::singleline(&mut self.photo.polar_planes).desired_width(180.0).hint_text("0,180; 90,270"));
@@ -690,19 +691,19 @@ impl AfroBimApp {
                     paint_labelled(ui, p, 420.0, 320.0);
                 }
                 ui.add_space(4.0);
-                ui.label(RichText::new("3. Orientation: an assumption you confirm").strong());
+                crate::ui_kit::heading(ui, "3. Orientation: an assumption you confirm");
                 let f = &mut self.photo.form;
                 ui.horizontal(|ui| {
                     ui.label("C-plane facing the carriageway (degrees)");
                     ui.add(egui::TextEdit::singleline(&mut f.orient_c).desired_width(60.0));
                     ui.checkbox(&mut f.orient_ccw, "C increases counter-clockwise seen from above");
                 });
-                ui.label(RichText::new("to confirm").strong().color(WARN));
-                ui.label(RichText::new("The file does not say which C-plane faces the road. The value above is the crate's assumption for this format (IES: C0; EULUMDAT: C270; counter-clockwise). Judge it from the polar diagram and the shares of flux in the checks above: a road luminaire throws most of its light to the street side.").small().weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "to confirm");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "The file does not say which C-plane faces the road. The value above is the crate's assumption for this format (IES: C0; EULUMDAT: C270; counter-clockwise). Judge it from the polar diagram and the shares of flux in the checks above: a road luminaire throws most of its light to the street side.");
                 ui.checkbox(&mut f.orient_confirmed, "I have checked this orientation against the polar diagram");
                 ui.add_space(4.0);
-                ui.label(RichText::new("4. Calculation settings (none is prefilled)").strong());
-                egui::Grid::new("photo-settings").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::heading(ui, "4. Calculation settings (none is prefilled)");
+                crate::ui_kit::grid(ui, "photo-settings", |ui| {
                     for (label, field, hint) in [
                         ("Maintenance factor (0 to 1)", &mut f.maintenance, "yours, from BS 5489-1 or the supplier"),
                         ("Contribution distance (m)", &mut f.contribution, "luminaires further away add nothing"),
@@ -738,7 +739,7 @@ impl AfroBimApp {
                                 }
                             }
                             None => {
-                                ui.label(RichText::new("none: luminance is not calculated (no r-table values ship)").small().weak());
+                                crate::ui_kit::note(ui, "none: luminance is not calculated (no r-table values ship)");
                             }
                         }
                     });
@@ -759,7 +760,7 @@ impl AfroBimApp {
                     }
                 });
                 ui.add_space(4.0);
-                ui.label(RichText::new("Calculation areas: rectangles in stations and offsets (right of the alignment positive); points are cell centres").strong());
+                crate::ui_kit::heading(ui, "Calculation areas: rectangles in stations and offsets (right of the alignment positive); points are cell centres");
                 let mut remove = None;
                 for (k, a) in f.areas.iter_mut().enumerate() {
                     ui.group(|ui| {
@@ -812,13 +813,21 @@ impl AfroBimApp {
                     }
                 });
                 if !f.error.is_empty() {
-                    ui.label(RichText::new(&f.error).color(BAD));
-                }
-                if ui.button("Calculate").clicked() {
-                    run = true;
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &f.error);
                 }
             });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Calculate").enabled(can_calc, "Choose an installation and a luminaire file").cancel(Some("Close")).show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                run = true;
+            }
+        }
         self.photo.open = open;
         if let Some(id) = pick {
             self.photo.form.element = None;
@@ -873,20 +882,20 @@ impl AfroBimApp {
             }
             _ => None,
         };
-        crate::win::new(ctx, format!("Photometry results: {mark}")).open(&mut open).default_width(920.0).default_height(680.0).show(ctx, |ui| {
-            ui.label(RichText::new(LIMITS).small().color(WARN));
+        let dlg = crate::ui_kit::Dialog::titled(format!("Photometry results: {mark}")).width(920.0).show_body(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, LIMITS);
             let Some(run) = &self.photo.run else {
                 ui.label(RichText::new("No run yet.").weak());
                 return;
             };
             ui.label(RichText::new(format!("{}; {} luminaire(s); maintenance factor {}; contribution distance {} m; plane level {:.2} m. Values are maintained (initial times the maintenance factor).", run.file_name, run.result.luminaire_count, run.result.maintenance_factor, run.result.contribution_distance_m, run.result.plane_level_m)).small());
             for w in &run.warnings {
-                ui.label(RichText::new(format!("Warning: {w}")).small().color(WARN));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("Warning: {w}"));
             }
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 egui::Grid::new("photo-areas").num_columns(8).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                     for h in ["Area", "Points", "Average (lx)", "Minimum (lx)", "Maximum (lx)", "U_o (min/avg)", "min/max", "Class use"] {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for a in &run.result.areas {
@@ -912,7 +921,7 @@ impl AfroBimApp {
                 if let Some(e) = &run.result.eir {
                     ui.label(RichText::new(format!("Edge illuminance ratio (strip width {} m): left {:.3}, right {:.3}, value {:.3}", e.lane_width_m, e.left, e.right, e.value)).small());
                 }
-                ui.label(RichText::new("Not computed: threshold increment TI, longitudinal uniformity U_l, wet overall uniformity. Luminance appears only with your r-table and observer.").small().weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Not computed: threshold increment TI, longitudinal uniformity U_l, wet overall uniformity. Luminance appears only with your r-table and observer.");
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     ui.label("Area for the drawings and the class");
@@ -938,20 +947,23 @@ impl AfroBimApp {
                     ui.checkbox(&mut self.photo.overlay_on, "Contours in the site view (plan overlay)");
                 });
                 if let Some(((contours, values), levels)) = &drawings {
-                    ui.label(RichText::new(format!("Contours of horizontal illuminance, levels {} lx (a sheet detail feed: add a Detail sheet 'Lighting, iso-illuminance contours' in SHEETSET)", levels.iter().map(|l| format!("{l}")).collect::<Vec<_>>().join(", "))).strong());
+                    crate::ui_kit::heading(ui, &format!("Contours of horizontal illuminance, levels {} lx (a sheet detail feed: add a Detail sheet 'Lighting, iso-illuminance contours' in SHEETSET)", levels.iter().map(|l| format!("{l}")).collect::<Vec<_>>().join(", ")));
                     match contours {
                         Some(c) => paint_labelled(ui, c, 820.0, 300.0),
                         None => {
                             ui.label("No contours for this area.");
                         }
                     }
-                    ui.label(RichText::new("Grid values").strong());
+                    crate::ui_kit::heading(ui, "Grid values");
                     if let Some(v) = values {
                         paint_labelled(ui, v, 820.0, 300.0);
                     }
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         self.photo.results_open = open;
         if csv {
             if let Some(run) = &self.photo.run {
