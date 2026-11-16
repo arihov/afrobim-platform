@@ -406,3 +406,30 @@ fn elements_report_their_shape_and_bad_ones_are_refused() {
     }
     assert!(json.contains("\"curvature_start\"") && json.contains("\"heading_rad\""));
 }
+
+/// Found by reading a real Civil 3D file: at a UTM northing of 10 000 km coordinates are spaced
+/// 1.9e-9 m apart, so the root of the station search could not be polished below that, and the
+/// search used to give up with the middle of its bracket, up to 0.5 m from the station (this
+/// alignment, heading a little west of north, put 78 of 19 000 stations that far out).
+#[test]
+fn station_offset_inverts_point_at_on_utm_sized_coordinates() {
+    let a = AlignmentBuilder::new("utm", 0.0, 358_162.855_537_894, 9_965_018.087_733_403, 1.94)
+        .line(60.0)
+        .spiral(35.0, None, Some(480.0), Turn::Right)
+        .arc(480.0, 120.0, Turn::Right)
+        .spiral(35.0, Some(480.0), None, Turn::Right)
+        .line(40.0)
+        .build()
+        .unwrap();
+    let (mut worst, mut n) = (0.0f64, 0usize);
+    let mut s = 0.0;
+    while s <= a.length() {
+        let p = a.point_at(s).unwrap();
+        let (station, offset) = a.station_offset(p.x, p.y).unwrap();
+        worst = worst.max((station - s).abs());
+        assert!(offset.abs() < 1e-7, "station {s}: offset {offset}");
+        n += 1;
+        s += 0.0113;
+    }
+    assert!(n > 17_000 && worst < 1e-6, "{n} stations, worst difference {worst}");
+}
