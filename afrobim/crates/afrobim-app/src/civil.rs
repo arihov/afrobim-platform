@@ -42,7 +42,7 @@ pub const POINTCLOUD: &str = "civil-pointcloud";
 pub const FIGURES: &str = "civil-figures";
 
 /// Category, display name and the plural the toolspace shows.
-pub const KINDS: [(&str, &str, &str); 15] = [
+pub const KINDS: [(&str, &str, &str); 16] = [
     (POINTS, "Point set", "Points"),
     (SURFACE, "Surface", "Surfaces"),
     (PROFILE, "Ground profile", "Profiles"),
@@ -58,6 +58,7 @@ pub const KINDS: [(&str, &str, &str); 15] = [
     (INTERSECTION, "Intersection", "Intersections"),
     (ROUNDABOUT, "Roundabout", "Roundabouts"),
     (FIGURES, "Survey figures", "Survey Figures"),
+    (POINTCLOUD, "Point cloud", "Point Clouds"),
 ];
 
 pub fn is_civil(category: &str) -> bool {
@@ -170,6 +171,34 @@ pub struct ProfileViewData {
     pub show_bands: bool,
     /// Height of the plotted ground and design lines above the datum is exaggerated; the bands sit below.
     pub band_height_m: f64,
+    /// Point cloud slices along the alignment, drawn as points (station, level).
+    #[serde(default)]
+    pub cloud: Vec<CloudProfile>,
+}
+
+/// A point cloud sliced along an alignment at a thickness, for a profile view.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CloudProfile {
+    pub cloud: String,
+    pub thickness_m: f64,
+    /// Station (displayed internal station) and level.
+    pub points: Vec<[f64; 2]>,
+}
+
+/// A point cloud sliced at the sample lines, for the section views.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SliceSet {
+    pub cloud: String,
+    pub thickness_m: f64,
+    pub lines: Vec<SliceLine>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SliceLine {
+    /// The name of the sample line.
+    pub name: String,
+    /// Offset from the alignment (left negative) and level.
+    pub points: Vec<[f64; 2]>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -193,6 +222,9 @@ pub struct SampleData {
     pub columns: usize,
     /// Vertical exaggeration of the views.
     pub vertical_exaggeration: f64,
+    /// Point cloud slices drawn in the section views.
+    #[serde(default)]
+    pub slices: Vec<SliceSet>,
 }
 
 // ─── element helpers ──────────────────────────────────────────────────────
@@ -335,6 +367,7 @@ fn readable(category: &str, data: &serde_json::Value) -> Result<(), String> {
         INTERSECTION => ok::<crate::civil_junction::IntersectionData>(data),
         ROUNDABOUT => ok::<crate::civil_junction::RoundaboutData>(data),
         FIGURES => ok::<crate::survey_db::FigureData>(data),
+        POINTCLOUD => ok::<crate::cloud::CloudData>(data),
         _ => Ok(()),
     }
 }

@@ -404,6 +404,12 @@ impl AfroBimApp {
                     self.row_ui(ui, r, acts, &[("Parcel properties...", Cv::ParcelProps)]);
                 }
             });
+            let clouds = self.rows(POINTCLOUD);
+            self.node(ui, "ts-clouds", ph::CLOUD, "Point Clouds", clouds.len(), Some(("Attach a point cloud...", Cv::CloudAttach)), &mut acts, |ui, acts| {
+                for r in &clouds {
+                    self.row_ui(ui, r, acts, &[("Properties and display...", Cv::CloudProps), ("Clip...", Cv::CloudClip), ("Slices...", Cv::CloudSlice), ("Surface from the cloud...", Cv::CloudSurface), ("Compare with a surface...", Cv::CloudCompare), ("Export a subset...", Cv::CloudExport)]);
+                }
+            });
             let figures = self.rows(FIGURES);
             self.node(ui, "ts-figures", ph::SHAPES, "Survey Figures", figures.len(), Some(("Survey figures...", Cv::SurveyFigures)), &mut acts, |ui, acts| {
                 for r in &figures {
@@ -534,6 +540,7 @@ pub fn edit_command(category: &str) -> Option<Cv> {
         INTERSECTION => Cv::Intersection,
         ROUNDABOUT => Cv::Roundabout,
         FIGURES => Cv::SurveyFigures,
+        POINTCLOUD => Cv::CloudProps,
         _ => return None,
     })
 }

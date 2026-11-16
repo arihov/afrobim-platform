@@ -90,6 +90,7 @@ pub fn build(e: &Element, ctx: &Ctx) -> Built {
         INTERSECTION => crate::civil_junction::build_intersection_scene(e, ctx),
         ROUNDABOUT => crate::civil_junction::build_roundabout_scene(e),
         FIGURES => crate::survey_db::build_figures_scene(e),
+        POINTCLOUD => crate::cloud_ui::build_cloud_scene(e),
         PIPEPROFILE => crate::civil_pipes::build_pipe_profile(e, ctx),
         _ => Ok(Built::default()),
     };
@@ -485,6 +486,7 @@ fn build_profile_view(e: &Element, ctx: &Ctx) -> Result<Built, String> {
     }
     let design = |s: f64| al.profile.as_ref().and_then(|p| p.elevation_at(s).ok());
     let mut zs: Vec<f64> = grounds.iter().flat_map(|g| g.1.iter().filter_map(|p| p.1)).collect();
+    zs.extend(d.cloud.iter().flat_map(|c| c.points.iter().map(|p| p[1])));
     if d.show_design {
         let n = 200;
         zs.extend((0..=n).filter_map(|i| design(s0 + (s1 - s0) * i as f64 / n as f64)));
@@ -519,6 +521,11 @@ fn build_profile_view(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         stations.push(s);
         sc.lines.push(SLine::new(vec![[px(s), y0], [px(s), y1]], C_GRID, 0.5));
         s += sstep;
+    }
+    for c in &d.cloud {
+        for p in &c.points {
+            sc.points.push(PMark { at: [px(p[0]), py(p[1])], number: 0, z: None, desc: String::new() });
+        }
     }
     for g in &grounds {
         let mut run: Vec<[f64; 2]> = Vec::new();

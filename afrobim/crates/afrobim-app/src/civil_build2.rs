@@ -215,6 +215,14 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
             }
         }
     }
+    for set in &d.slices {
+        for l in &set.lines {
+            for p in &l.points {
+                zlo = zlo.min(p[1]);
+                zhi = zhi.max(p[1]);
+            }
+        }
+    }
     for v in &views {
         for gl in &v.ground_lines {
             for run in &gl.runs {
@@ -258,6 +266,14 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
             for run in &gl.runs {
                 if run.len() >= 2 {
                     sc.lines.push(SLine::new(run.iter().map(|p| [px(p.0), py(p.1)]).collect(), C_GROUND, 1.6));
+                }
+            }
+        }
+        // Point cloud slices: the points within half the thickness of the sample line.
+        for set in &d.slices {
+            if let Some(l) = set.lines.iter().find(|l| l.name == v.line.name) {
+                for p in &l.points {
+                    sc.points.push(crate::civil_scene::PMark { at: [px(p[0]), py(p[1])], number: 0, z: None, desc: String::new() });
                 }
             }
         }

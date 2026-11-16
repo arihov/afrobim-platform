@@ -161,6 +161,11 @@ fn a_site_calibration_is_stored_applied_and_logged() {
     let mut doc = demo_doc();
     set_project_crs(&mut doc, &ProjectCrs::local_grid("Site grid"));
     td::store_calibration(&mut doc, cal.clone());
+    // A cloud's points stay in their file: a calibration of the document is refused while one is there.
+    let cloud = doc.elements().iter().find(|e| e.category == crate::civil::POINTCLOUD).unwrap().id;
+    let err = td::apply_calibration(&mut doc.clone(), &cal, &target, "t".into()).unwrap_err();
+    assert!(err.contains("point cloud"), "{err}");
+    doc.remove(cloud);
     let back = Document::from_json(&doc.to_json()).unwrap();
     assert_eq!(td::calibrations_of(&back).len(), 1);
     let before = doc.to_json();

@@ -39,6 +39,8 @@ mod transform_ui;
 mod survey_db;
 mod sdb_ui;
 mod sdb_ui2;
+mod cloud;
+mod cloud_ui;
 mod defaults_glue;
 #[cfg(test)]
 mod a1_tests;

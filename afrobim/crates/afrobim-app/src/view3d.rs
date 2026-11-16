@@ -295,7 +295,7 @@ impl Frame {
     pub fn placement(&self) -> afrobim_coordination::Placement {
         afrobim_coordination::Placement::new(self.origin, self.sin.atan2(self.cos).to_degrees())
     }
-    fn at(&self, u: f64, d: f64, v: f64) -> V3 {
+    pub(crate) fn at(&self, u: f64, d: f64, v: f64) -> V3 {
         [self.origin[0] + u * self.cos - d * self.sin, self.origin[1] + u * self.sin + d * self.cos, self.origin[2] + v]
     }
     /// The direction a face in the local XZ plane looks (local −Y), in the world.
@@ -591,6 +591,13 @@ impl AfroBimApp {
             return Vec::new();
         }
         let Some(frame) = self.frame_of(e, site_mode) else { return Vec::new() };
+        if e.category == crate::civil::POINTCLOUD {
+            // The box of the opened cloud, so that the view frames it with its levels.
+            return match self.civil_ui.cloud.loaded.get(&e.id).map(|l| l.index.bounds()) {
+                Some(b) => vec![frame.at(b.min[0] * 1000.0 - e.origin.x, b.min[1] * 1000.0 - e.origin.y, b.min[2] * 1000.0), frame.at(b.max[0] * 1000.0 - e.origin.x, b.max[1] * 1000.0 - e.origin.y, b.max[2] * 1000.0)],
+                None => Vec::new(),
+            };
+        }
         if is_site_solid(&e.category) {
             // The corners of the solids themselves, so that levels well above zero are framed.
             match self.mesh_bounds(e, frame) {
@@ -849,6 +856,10 @@ impl AfroBimApp {
             }
             let Some(frame) = self.frame_of(e, site_mode) else { continue };
             if crate::civil::is_civil(&e.category) && crate::civil::hidden(e) {
+                continue;
+            }
+            if e.category == crate::civil::POINTCLOUD {
+                self.cloud_points_3d(e, frame, rect, &mut items);
                 continue;
             }
             if crate::supports_glue::is_support(&e.category) || is_site_solid(&e.category) {

@@ -533,6 +533,9 @@ pub fn apply_plan(doc: &mut Document, selected: Option<&[ElementId]>, plan: &Tra
     let before = doc.snapshot();
     let f = |e: f64, n: f64, z: f64| plan.apply(e, n, z).map(|p| (p.first, p.second)).map_err(|x| x.to_string());
     let report = apply_map(doc, selected, &f)?;
+    // The points of a point cloud stay in their file: the document records the plan they are drawn through.
+    let cloud_ids: Vec<ElementId> = scope_ids(doc, selected).into_iter().filter(|id| doc.find(*id).is_some_and(|e| e.category == civil::POINTCLOUD)).collect();
+    crate::cloud::note_move(doc, &cloud_ids, plan);
     let mut log = TransformLog::with_counts(what, plan, Some(when.clone()), report.positions, report.positions, 0);
     log.warnings.extend(report.notes.iter().cloned());
     let mut notes = report.notes.clone();
@@ -549,6 +552,9 @@ pub fn apply_plan(doc: &mut Document, selected: Option<&[ElementId]>, plan: &Tra
 
 /// Applies a stored site calibration (local grid to the target system) to the whole document.
 pub fn apply_calibration(doc: &mut Document, cal: &SiteCalibration, target: &ProjectCrs, when: String) -> Result<LogEntry, String> {
+    if doc.elements().iter().any(|e| e.category == civil::POINTCLOUD) {
+        return Err("The document holds a point cloud, whose points stay in their file and cannot be moved by a site calibration. Remove the cloud first, or use TRANSFORM for a datum change.".into());
+    }
     let f = |e: f64, n: f64, _z: f64| Ok(cal.to_target(e, n));
     let report = apply_map(doc, None, &f)?;
     set_project_crs(doc, target);

@@ -112,7 +112,7 @@ pub fn build(doc: &mut Document) -> Vec<String> {
     // Existing ground profile and its profile view, placed south of the site.
     let prof = ProfileData { alignment: al_name.clone(), surface: surf_id.0, interval_m: 10.0, imported: vec![] };
     let prof_id = civil::add(doc, PROFILE, "Demo ground profile (example data)", serde_json::to_value(&prof).unwrap_or_default(), None, SOURCE);
-    let pv = ProfileViewData { alignment: al_name.clone(), profiles: vec![prof_id.0], show_design: true, vertical_exaggeration: 5.0, datum: None, insertion: [E0, N0 - 110.0], show_bands: true, band_height_m: 3.0 };
+    let pv = ProfileViewData { alignment: al_name.clone(), profiles: vec![prof_id.0], show_design: true, vertical_exaggeration: 5.0, datum: None, insertion: [E0, N0 - 110.0], show_bands: true, band_height_m: 3.0, cloud: vec![] };
     let pv_b = Bounds { min_e: E0, min_n: N0 - 110.0, max_e: E0 + len, max_n: N0 - 70.0 };
     civil::add(doc, PROFILE_VIEW, "Demo profile view (example values)", serde_json::to_value(&pv).unwrap_or_default(), Some(pv_b), SOURCE);
 
@@ -135,7 +135,7 @@ pub fn build(doc: &mut Document) -> Vec<String> {
     if let Err(e) = grp.add_stations(&al, &SampleStations::Interval { interval_m: 30.0, start_station_m: None, end_station_m: None }, 18.0, 18.0, "SL") {
         notes.push(format!("Sample lines: {e}"));
     }
-    let sd = SampleData { group: grp, corridor: Some(cor_id.0), surfaces: vec![surf_id.0], insertion: [E0 + 330.0, N0 + 250.0], columns: 4, vertical_exaggeration: 2.0 };
+    let sd = SampleData { group: grp, corridor: Some(cor_id.0), surfaces: vec![surf_id.0], insertion: [E0 + 330.0, N0 + 250.0], columns: 4, vertical_exaggeration: 2.0, slices: vec![] };
     civil::add(doc, SAMPLES, "Demo sample lines (example values)", serde_json::to_value(&sd).unwrap_or_default(), Some(Bounds { min_e: E0 + 330.0, min_n: N0 + 100.0, max_e: E0 + 500.0, max_n: N0 + 250.0 }), SOURCE);
 
     // Two parcels the road crosses.
@@ -158,6 +158,8 @@ pub fn build(doc: &mut Document) -> Vec<String> {
     notes.extend(grading_demo(doc, surf_id));
     notes.extend(junction_demo(doc, surf_id, &al));
     notes.extend(survey_demo(doc));
+    let (cloud, _) = crate::cloud::synthetic_data(E0, N0);
+    crate::cloud::add(doc, &cloud);
     let _ = pts_id;
     let _: Option<ElementId> = None;
     notes

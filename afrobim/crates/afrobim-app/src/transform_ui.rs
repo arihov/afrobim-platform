@@ -598,6 +598,11 @@ impl ImportCrs {
         }
     }
 
+    /// The choice stops the import button: cancel, or transform without a plan picked and acknowledged.
+    pub fn cancelled_or_unready(&self) -> bool {
+        self.choice == 2 || (self.choice == 1 && self.chooser.chosen().is_none())
+    }
+
     pub fn wants_transform(&self) -> bool {
         self.choice == 1
     }

@@ -79,13 +79,21 @@ pub enum Cv {
     SurveyInsert,
     SurveyUpdate,
     SurveyEvents,
+    // Point clouds
+    CloudAttach,
+    CloudProps,
+    CloudClip,
+    CloudSlice,
+    CloudSurface,
+    CloudCompare,
+    CloudExport,
 }
 
 
 
 /// Every civil command (a test checks each one is in the command table).
 #[cfg(test)]
-pub const ALL: [Cv; 61] = [
+pub const ALL: [Cv; 68] = [
     Cv::Toolspace,
     Cv::Points,
     Cv::PointCreate,
@@ -147,6 +155,13 @@ pub const ALL: [Cv; 61] = [
     Cv::SurveyInsert,
     Cv::SurveyUpdate,
     Cv::SurveyEvents,
+    Cv::CloudAttach,
+    Cv::CloudProps,
+    Cv::CloudClip,
+    Cv::CloudSlice,
+    Cv::CloudSurface,
+    Cv::CloudCompare,
+    Cv::CloudExport,
 ];
 
 pub fn glyph(c: Cv) -> &'static str {
@@ -212,6 +227,14 @@ pub fn glyph(c: Cv) -> &'static str {
         Cv::SurveyInsert => ph::MAP_PIN_PLUS,
         Cv::SurveyUpdate => ph::ARROWS_CLOCKWISE,
         Cv::SurveyEvents => ph::CLOCK_COUNTER_CLOCKWISE,
+        Cv::CloudAttach => ph::CLOUD_ARROW_UP,
+        Cv::CloudProps => ph::CLOUD,
+        Cv::CloudClip => ph::CROP,
+        Cv::CloudSlice => ph::ROWS,
+        Cv::CloudSurface => ph::MOUNTAINS,
+        Cv::CloudCompare => ph::CHART_BAR,
+        Cv::CloudExport => ph::EXPORT,
+
 
     }
 }

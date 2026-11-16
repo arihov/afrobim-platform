@@ -296,6 +296,11 @@ impl AfroBimApp {
                             a(ui, &mut pick, c(cv), l);
                         }
                     });
+                    submenu(ui, egui_phosphor::regular::CLOUD, "Point clouds", |ui| {
+                        for (cv, l) in [(CloudAttach, "Attach a point cloud…"), (CloudProps, "Properties and display…"), (CloudClip, "Clip…"), (CloudSlice, "Slices in sections and profiles…"), (CloudSurface, "Surface from the cloud…"), (CloudCompare, "Compare with a surface…"), (CloudExport, "Export a subset…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
                     submenu(ui, egui_phosphor::regular::CHART_SCATTER, "Survey database", |ui| {
                         for (cv, l) in [(SurveyNew, "New database…"), (SurveyOpen, "Open database…"), (SurveySettings, "Settings…"), (SurveyImport, "Import field data…"), (SurveyObs, "Observations…"), (SurveyTraverse, "Traverse analysis…"), (SurveyAdjust, "Network adjustment…"), (SurveyApply, "Apply adjusted coordinates…"), (SurveyFigures, "Figures…"), (SurveyInsert, "Insert points…"), (SurveyUpdate, "Update linked points…"), (SurveyEvents, "Import events…")] {
                             a(ui, &mut pick, c(cv), l);
