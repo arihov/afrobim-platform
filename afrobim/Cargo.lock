@@ -240,6 +240,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-junction"
+version = "0.1.0"
+dependencies = [
+ "afrobim-alignment",
+ "afrobim-corridor",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-kernel"
 version = "0.1.0"
 dependencies = [
