@@ -58,7 +58,7 @@ fn layer_colour(name: &str) -> Color32 {
 }
 
 fn draw_preview(ui: &mut egui::Ui, p: &Preview) {
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().min(520.0), 330.0), Sense::hover());
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().min(420.0), 330.0), Sense::hover());
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 4.0, Color32::from_rgb(0x16, 0x1A, 0x20));
     let pts: Vec<(f64, f64)> = p.layers.iter().flat_map(|l| l.1.iter().flatten().copied()).collect();
@@ -390,15 +390,20 @@ impl AfroBimApp {
         let editing = f.edit.is_some();
         let pos = NumRule::default().min(0.0);
         let demo = self.options.civil_demo;
-        let out = Dialog::new("Intersection", crate::glyphs::by_name("INTERSECTION")).width(960.0).resizable(true).max_body_height(680.0).help("Choose the two alignments and the crossing, then the lane edge offsets, any widening, and the kerb return of each quadrant. The plan preview and the findings update as you type. Creating makes real alignments with their profiles (the four edges, the kerb returns and lines, the secondary profile locked to the primary) and, if you ask for it, a corridor. Fields with a defaults entry for the condition you choose are pre-filled with the citation; the rest are inputs.").show(
+        let form_h = (crate::win::work_rect(ctx).height() - 250.0).max(200.0);
+        let out = Dialog::new("Intersection", crate::glyphs::by_name("INTERSECTION")).width(920.0).resizable(true).max_body_height(680.0).help("Choose the two alignments and the crossing, then the lane edge offsets, any widening, and the kerb return of each quadrant. The plan preview and the findings update as you type. Creating makes real alignments with their profiles (the four edges, the kerb returns and lines, the secondary profile locked to the primary) and, if you ask for it, a corridor. Fields with a defaults entry for the condition you choose are pre-filled with the citation; the rest are inputs.").show(
             ctx,
             |ui| {
+                // The dialog is as wide as it asks for, not as wide as the screen: nothing inside may fill the available width.
+                ui.set_max_width(ui.available_width().min(900.0));
+                egui::ScrollArea::horizontal().id_salt("junction-h").max_width(900.0).auto_shrink([false, true]).show(ui, |ui| {
                 if demo {
                     ui_kit::callout(ui, Level::Info, "Some fields hold example values for the demonstration: they are not from any standard or design.");
                 }
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.set_width(430.0);
+                        egui::ScrollArea::vertical().id_salt("junction-form").max_height(form_h).auto_shrink([false, false]).show(ui, |ui| {
                         ui_kit::form(ui, "int-head", |fm| {
                             fm.row("Name", |ui| d::text(ui, &mut f.name, "e.g. Junction A"));
                             fm.row("Primary road", |ui| {
@@ -473,6 +478,7 @@ impl AfroBimApp {
                                 }
                             });
                         });
+                        });
                     });
                     ui.vertical(|ui| {
                         match &f.preview {
@@ -523,7 +529,7 @@ impl AfroBimApp {
                                     });
                                 }
                                 1 => {
-                                    ui.horizontal(|ui| {
+                                    ui.horizontal_wrapped(|ui| {
                                         for (t, u) in [(&mut r.r1, "R1"), (&mut r.r2, "R2"), (&mut r.r3, "R3"), (&mut r.o1, "o1"), (&mut r.o3, "o3")] {
                                             ui.label(u);
                                             ui.add(egui::TextEdit::singleline(t).desired_width(60.0));
@@ -602,7 +608,7 @@ impl AfroBimApp {
                         }
                     });
                     if !f.widen.is_empty() {
-                        egui::Grid::new("int-wtab").striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
+                        egui::ScrollArea::horizontal().id_salt("int-wtab-scroll").auto_shrink([false, true]).show(ui, |ui| egui::Grid::new("int-wtab").striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
                             for h in ["Road", "Side", "Start station", "Taper", "Full length", "Exit taper", "Width", ""] {
                                 ui_kit::th(ui, h);
                             }
@@ -622,7 +628,7 @@ impl AfroBimApp {
                             if let Some(i) = remove {
                                 f.widen.remove(i);
                             }
-                        });
+                        }));
                     }
                     ui_kit::note(ui, "Stations are along the road the row belongs to. A taper on a curved road is a straight chord (the engine reports the deviation).");
                 });
@@ -696,6 +702,7 @@ impl AfroBimApp {
                 if !f.message.is_empty() {
                     ui_kit::callout(ui, Level::Info, f.message.clone());
                 }
+                });
             },
             |ui| {
                 let o = Footer::new(if editing { "Update the intersection" } else { "Create the intersection" }).icon(crate::glyphs::by_name("INTERSECTION")).enabled(ready, "The inputs are not complete or the build is refused: see the preview").show(ui);
@@ -817,15 +824,20 @@ impl AfroBimApp {
         let pos = NumRule::required().above(0.0);
         let cond0 = Conditions::none();
         let demo = self.options.civil_demo;
-        let out = Dialog::new("Roundabout", crate::glyphs::by_name("ROUNDABOUTDESIGN")).width(960.0).resizable(true).max_body_height(680.0).help("A roundabout is an inscribed circle, a circulatory carriageway, an apron and a central island, with each arm's entry and exit kerbs and splitter island. The entry angle and the entry path radius are measured by AfroBIM's own construction (not the construction CD 116 defines) and are shown beside the limits of the defaults basis as a guide. The fields the basis has a value for are pre-filled with their citation.").show(
+        let form_h = (crate::win::work_rect(ctx).height() - 250.0).max(200.0);
+        let out = Dialog::new("Roundabout", crate::glyphs::by_name("ROUNDABOUTDESIGN")).width(920.0).resizable(true).max_body_height(680.0).help("A roundabout is an inscribed circle, a circulatory carriageway, an apron and a central island, with each arm's entry and exit kerbs and splitter island. The entry angle and the entry path radius are measured by AfroBIM's own construction (not the construction CD 116 defines) and are shown beside the limits of the defaults basis as a guide. The fields the basis has a value for are pre-filled with their citation.").show(
             ctx,
             |ui| {
+                // The dialog is as wide as it asks for, not as wide as the screen: nothing inside may fill the available width.
+                ui.set_max_width(ui.available_width().min(900.0));
+                egui::ScrollArea::horizontal().id_salt("junction-h").max_width(900.0).auto_shrink([false, true]).show(ui, |ui| {
                 if demo {
                     ui_kit::callout(ui, Level::Info, "Some fields hold example values for the demonstration: they are not from any standard or design.");
                 }
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.set_width(440.0);
+                        egui::ScrollArea::vertical().id_salt("junction-form").max_height(form_h).auto_shrink([false, false]).show(ui, |ui| {
                         ui_kit::form(ui, "rb-head", |fm| {
                             fm.row("Name", |ui| d::text(ui, &mut f.name, "e.g. Junction R1"));
                             fm.row("Centre", |ui| {
@@ -936,6 +948,7 @@ impl AfroBimApp {
                                 }
                             });
                         });
+                        });
                     });
                     ui.vertical(|ui| {
                         match &f.preview {
@@ -966,6 +979,7 @@ impl AfroBimApp {
                 if !f.message.is_empty() {
                     ui_kit::callout(ui, Level::Info, f.message.clone());
                 }
+                });
             },
             |ui| {
                 let o = Footer::new(if editing { "Update the roundabout" } else { "Create the roundabout" }).icon(crate::glyphs::by_name("ROUNDABOUTDESIGN")).enabled(ready, "The inputs are not complete or the build is refused: see the preview").show(ui);
