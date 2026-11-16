@@ -40,6 +40,15 @@ pub enum How {
     Rules,
     Alignment,
     Placed,
+    /// Annotation (text, dimension, leader): its data is local to the element's origin, so moving the
+    /// origin moves the drawing. The turn and scale of the transformation are not applied to it.
+    Rigid,
+    /// A DXF underlay: its placement (offset, turn, scale) is moved through the transformation.
+    Underlay,
+    /// A reference model: its placement (offset, turn) is moved; the model stays tied to its own file.
+    Reference,
+    /// Results derived from the geometry (clashes): cleared, to be worked out again.
+    Derived,
     NotGeographic,
     Unsupported,
 }
@@ -50,6 +59,10 @@ impl How {
             How::Rules => "coordinates in its data are transformed",
             How::Alignment => "alignment elements are transformed",
             How::Placed => "position is transformed (data holds stations and offsets)",
+            How::Rigid => "the drawing moves with its origin; the turn and scale of the transformation are not applied (text stays upright)",
+            How::Underlay => "placement (offset, turn, scale) is transformed",
+            How::Reference => "placement (offset, turn) is transformed; the model stays tied to its own file and is not scaled",
+            How::Derived => "derived results are cleared and are worked out again by running the tests",
             How::NotGeographic => "no coordinates: nothing to move",
             How::Unsupported => "NOT SUPPORTED: cannot be transformed",
         }
@@ -81,6 +94,10 @@ pub fn how(category: &str) -> How {
     match category {
         c if rules(c).is_some() => How::Rules,
         "alignment" => How::Alignment,
+        afrobim_annotate::TEXT_CATEGORY | afrobim_annotate::DIM_CATEGORY | afrobim_annotate::LEADER_CATEGORY => How::Rigid,
+        crate::underlay::CATEGORY => How::Underlay,
+        crate::reference_models::CATEGORY => How::Reference,
+        crate::coordination_glue::CATEGORY => How::Derived,
         "sign" | "post" | "foundation" | "lighting" | "restraint" | "drain" | "culvert" | "marking" | "marking_ext" | "pavement" | "gantry" => How::Placed,
         afrobim_kernel::PROJECT_SETTINGS_CATEGORY | "project_info" | "ann-settings" | "sheets" | "schedule" | "estimate" | "progress" => How::NotGeographic,
         _ => How::Unsupported,
@@ -290,6 +307,41 @@ fn map_alignment(data: &mut Value, m: &mut Mapper) {
     }
 }
 
+/// A placement stored as an offset in model millimetres (first two numbers), a turn in degrees about
+/// the file's own origin and, for an underlay, a scale: the offset goes through the mapping, the turn
+/// follows the local bearing change of the mapping along the file's x axis, and the scale follows its
+/// local scale change when `scale_key` is given (a reference model is not scaled).
+fn map_placement(v: &mut Value, offset_key: &str, rotation_key: &str, scale_key: Option<&str>, m: &mut Mapper) {
+    const STEP_M: f64 = 100.0;
+    let Some(off) = v.get(offset_key).and_then(|o| o.as_array()).map(|a| a.iter().filter_map(num).collect::<Vec<f64>>()) else { return };
+    if off.len() < 2 {
+        return;
+    }
+    let rot = v.get(rotation_key).and_then(num).unwrap_or(0.0);
+    let (oe, on) = crs_from_model_point(afrobim_kernel::Pt::new(off[0], off[1]));
+    let a = rot.to_radians();
+    let (e2, n2) = m.map(oe, on, 0.0);
+    let (pe, pn) = m.map(oe + STEP_M * a.cos(), on + STEP_M * a.sin(), 0.0);
+    let (dx, dy) = (pe - e2, pn - n2);
+    let scale = dx.hypot(dy) / STEP_M;
+    let turned = dy.atan2(dx).to_degrees();
+    let p = model_point_from_crs(e2, n2);
+    if let Some(Value::Array(o)) = v.get_mut(offset_key) {
+        put(&mut o[0], p.x);
+        put(&mut o[1], p.y);
+    }
+    if let Some(slot) = v.get_mut(rotation_key) {
+        put(slot, turned);
+    }
+    if let (Some(k), true) = (scale_key, scale.is_finite() && scale > 0.0) {
+        if let Some(slot) = v.get_mut(k) {
+            if let Some(cur) = num(slot) {
+                put(slot, cur * scale);
+            }
+        }
+    }
+}
+
 // ─── the safety check ──────────────────────────────────────────────────
 
 /// The extent of the document in metres of its own coordinates, widened by a kilometre.
@@ -462,7 +514,20 @@ fn transform_element(e: &mut Element, m: &mut Mapper, audit: Option<([f64; 2], [
             }
         }
         How::Alignment => map_alignment(&mut e.data, m),
-        How::Placed | How::NotGeographic => {}
+        How::Placed | How::NotGeographic | How::Rigid => {}
+        How::Underlay => map_placement(&mut e.data, "offset_mm", "rotation_deg", Some("scale"), m),
+        How::Reference => {
+            if let Some(Value::Array(models)) = e.data.get_mut("models") {
+                for entry in models.iter_mut() {
+                    map_placement(entry, "offset_mm", "rotation_deg", None, m);
+                }
+            }
+        }
+        How::Derived => {
+            if let Some(Value::Array(clashes)) = e.data.get_mut("results").and_then(|r| r.get_mut("clashes")) {
+                clashes.clear();
+            }
+        }
         How::Unsupported => return Err(format!("{} ({}) is of a kind the transform has not been taught", e.name, e.category)),
     }
     if matches!(class, How::Placed) {
@@ -473,7 +538,7 @@ fn transform_element(e: &mut Element, m: &mut Mapper, audit: Option<([f64; 2], [
         }
     }
     // An assembly or a ground profile sits at the model origin by convention: it has no position to move.
-    if class != How::NotGeographic && (!civil::is_civil(&e.category) || civil::has_plan_position(&e.category)) {
+    if !matches!(class, How::NotGeographic | How::Underlay | How::Reference | How::Derived) && (!civil::is_civil(&e.category) || civil::has_plan_position(&e.category)) {
         let (oe, on) = crs_from_model_point(e.origin);
         let (ne, nn) = m.map(oe, on, 0.0);
         e.origin = model_point_from_crs(ne, nn);

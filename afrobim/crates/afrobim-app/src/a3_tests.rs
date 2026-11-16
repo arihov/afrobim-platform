@@ -510,3 +510,43 @@ fn private_the_whole_project_exports_as_ifc_that_ifcopenshell_reads_back() {
         assert!(ok, "{said}");
     }
 }
+
+// ─── the whole-document transform: annotation, underlays, reference models, clash records ────
+
+#[test]
+fn the_transform_moves_annotation_underlays_and_reference_models_and_clears_clashes() {
+    use afrobim_kernel::crs_plan::{plan_transform, DataExtent};
+    use afrobim_kernel::{set_project_crs, ProjectCrs, Pt};
+    let mut doc = crate::a1_tests::demo_doc();
+    set_project_crs(&mut doc, &ProjectCrs::from_epsg(21036).unwrap());
+    let at = afrobim_kernel::model_point_from_crs(450_000.0, 9_960_000.0);
+    let text = doc.add(afrobim_annotate::TEXT_CATEGORY, "note", at, 500.0, 200.0, "ANNOTATION", serde_json::json!({"text": "x"}));
+    let underlay = doc.add(crate::underlay::CATEGORY, "u", Pt::new(0.0, 0.0), 1.0, 1.0, crate::underlay::LAYER, serde_json::json!({"offset_mm": [at.x, at.y], "rotation_deg": 0.0, "scale": 1.0}));
+    let reference = doc.add(crate::reference_models::CATEGORY, "r", at, 1.0, 1.0, crate::reference_models::LAYER, serde_json::json!({"models": [{"label": "m", "offset_mm": [at.x, at.y, 0.0], "rotation_deg": 10.0}]}));
+    let clash = doc.add(crate::coordination_glue::CATEGORY, "c", at, 1.0, 1.0, crate::coordination_glue::LAYER, serde_json::json!({"tests": [], "results": {"clashes": [{"id": "a"}, {"id": "b"}]}}));
+    let from = afrobim_kernel::project_crs(&doc).unwrap();
+    let to = ProjectCrs::from_epsg(32736).unwrap();
+    let (a, b) = crate::transform_doc::extent_of(&doc, None).unwrap();
+    let plan = plan_transform(&from, &to, Some(DataExtent::new(a, b))).unwrap().into_iter().next().unwrap();
+    let before = doc.snapshot();
+    assert!(crate::transform_doc::unsupported(&doc, None).is_empty(), "every category is taught");
+    let entry = crate::transform_doc::apply_plan(&mut doc, None, &plan, &to, "test", "t".into()).expect("the document transforms");
+    assert!(entry.positions > 0);
+    // The datum shift moves things by hundreds of metres.
+    let moved = |id| doc.find(id).unwrap().origin;
+    assert!((moved(text).x - at.x).hypot(moved(text).y - at.y) > 10_000.0, "the annotation moved");
+    let off = doc.find(underlay).unwrap().data["offset_mm"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect::<Vec<_>>();
+    assert!((off[0] - at.x).hypot(off[1] - at.y) > 10_000.0, "the underlay's origin moved");
+    let (r_off, r_rot) = {
+        let m = &doc.find(reference).unwrap().data["models"][0];
+        (m["offset_mm"][0].as_f64().unwrap(), m["rotation_deg"].as_f64().unwrap())
+    };
+    assert!((r_off - at.x).abs() > 1_000.0 && (r_rot - 10.0).abs() < 1.0, "the reference model moved and turned by the small bearing change only");
+    assert!(doc.find(clash).unwrap().data["results"]["clashes"].as_array().unwrap().is_empty(), "derived clash results are cleared");
+    // Every category says what it does, and undo restores the document exactly.
+    for r in crate::transform_doc::survey(&doc, None) {
+        assert!(!r.how.label().is_empty() && !r.how.label().contains('\u{2014}'));
+    }
+    doc.restore(before.clone());
+    assert_eq!(doc.snapshot(), before);
+}

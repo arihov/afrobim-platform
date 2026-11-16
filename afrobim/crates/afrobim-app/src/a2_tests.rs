@@ -74,12 +74,12 @@ fn undo_in_the_application_restores_the_document_exactly() {
 #[test]
 fn a_category_the_transform_cannot_move_refuses_the_whole_document_and_changes_nothing() {
     let mut doc = arc_doc();
-    doc.add("ann-text", "A note", afrobim_kernel::Pt::new(1.0, 1.0), 10.0, 10.0, "0", serde_json::json!({"at": [1.0, 2.0]}));
+    doc.add("mystery-kind", "A thing", afrobim_kernel::Pt::new(1.0, 1.0), 10.0, 10.0, "0", serde_json::json!({"at": [1.0, 2.0]}));
     let before = doc.to_json();
     let plan = plan_for(&doc, None);
     let to = ProjectCrs::from_epsg(32736).unwrap();
     let err = td::apply_plan(&mut doc, None, &plan, &to, "x", "t".into()).unwrap_err();
-    assert!(err.contains("ann-text"), "{err}");
+    assert!(err.contains("mystery-kind"), "{err}");
     assert_eq!(doc.to_json(), before);
     assert_eq!(td::unsupported(&doc, None).len(), 1);
 }
