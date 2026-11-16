@@ -45,6 +45,12 @@ impl Dialog {
     pub fn new(title: impl Into<String>, icon: &'static str) -> Self {
         Dialog { title: title.into(), id_title: None, icon, subtitle: None, help: None, width: 460.0, min_width: 340.0, resizable: true, max_body: None }
     }
+    /// A dialog whose icon is chosen from its title (the same table the window frame uses).
+    pub fn titled(title: impl Into<String>) -> Self {
+        let title: String = title.into();
+        let icon = crate::win::icon_for(&title);
+        Dialog::new(title, icon)
+    }
     /// The window's identity (and remembered position) when it differs from the title.
     pub fn id_title(mut self, t: impl Into<String>) -> Self {
         self.id_title = Some(t.into());

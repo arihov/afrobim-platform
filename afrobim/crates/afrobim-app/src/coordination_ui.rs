@@ -352,7 +352,7 @@ impl AfroBimApp {
             let mut edit: Option<usize> = None;
             let mut delete: Option<usize> = None;
             let mut add = false;
-            crate::win::new(ctx, "Clash tests").open(&mut open).default_width(760.0).show(ctx, |ui| {
+            let dlg = crate::ui_kit::Dialog::titled("Clash tests").width(760.0).show_body(ctx, |ui| {
                 ui.set_min_width(720.0);
                 ui.label(RichText::new("Reference models appear in the selections as categories 'reference:<model>' (pick one model) and by their IFC entity type under layers (for example IFCWALL).").small().weak());
                 ui.label(RichText::new("A test checks one selection of elements against another. Hard tests find solids that overlap; clearance tests find solids closer than the tolerance you enter. AfroBIM offers no tolerances: they come from your project requirements.").small().weak());
@@ -392,6 +392,9 @@ impl AfroBimApp {
                     }
                 });
             });
+            if dlg.closed {
+                open = false;
+            }
             self.coord.tests_open = open;
             if add {
                 self.coord.form = Some(TestForm::new());
@@ -505,7 +508,7 @@ impl AfroBimApp {
             let mut run = false;
             let mut zoom: Option<usize> = None;
             let names: Vec<String> = self.coord.co.tests.iter().map(|t| t.name.clone()).collect();
-            crate::win::new(ctx, "Clash results").open(&mut open).default_width(1060.0).default_height(420.0).show(ctx, |ui| {
+            let dlg = crate::ui_kit::Dialog::titled("Clash results").width(1060.0).show_body(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Test");
                     let shown = self.coord.filter_test.clone().unwrap_or_else(|| "all".to_string());
@@ -585,6 +588,9 @@ impl AfroBimApp {
                     });
                 });
             });
+            if dlg.closed {
+                open = false;
+            }
             self.coord.results_open = open;
             self.coord.zoom = zoom;
             if let Some(i) = self.coord.zoom.take() {

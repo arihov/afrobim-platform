@@ -1009,7 +1009,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut apply = false;
         let mut s = std::mem::take(&mut self.sheets);
-        crate::win::new(ctx, "Project information").open(&mut open).default_width(640.0).default_height(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Project information").width(640.0).show_body(ctx, |ui| {
             ui.label(RichText::new("What every title block of the project says. Nothing is filled in for you: every field starts empty. A sheet can override the revision, date and the three names for itself.").small().weak());
             ui.add_space(4.0);
             egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(430.0).show(ui, |ui| {
@@ -1091,6 +1091,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         if apply {
             set_project_info(&mut self.doc, &s.info);
             s.info_loaded = afrobim_sheets::project_info_id(&self.doc).and_then(|id| self.doc.find(id)).map(|e| e.data.clone()).unwrap_or_default();
@@ -1131,7 +1134,7 @@ impl AfroBimApp {
             })
             .collect();
 
-        crate::win::new(ctx, "Sheet sets").open(&mut open).default_width(900.0).default_height(640.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Sheet sets").width(900.0).show_body(ctx, |ui| {
             // ── choose, make, delete a set ──
             ui.horizontal(|ui| {
                 ui.label("Sheet set");
@@ -1303,6 +1306,9 @@ impl AfroBimApp {
                 ui.label(RichText::new(&s.message).small().color(WARN()));
             }
         });
+        if dlg.closed {
+            open = false;
+        }
 
         // ── the source form, in its own window ──
         let mut form_done = false;
@@ -1408,7 +1414,7 @@ impl AfroBimApp {
         let mut save_json = false;
         let mut load_json = false;
         let has_set = s.set.is_some();
-        crate::win::new(ctx, "Title block").open(&mut open).default_width(860.0).default_height(620.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Title block").width(860.0).show_body(ctx, |ui| {
             let Some(tb) = s.tb.as_mut() else { return };
             ui.label(RichText::new("The title block is data: rows of cells, a revision table and a logo box. Nothing here reproduces any organisation's title block; build your own, or load one from a file you keep.").small().weak());
             ui.horizontal_wrapped(|ui| {
@@ -1436,6 +1442,9 @@ impl AfroBimApp {
                 titleblock_editor(ui, tb, &user_labels);
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         if !open {
             s.titleblock_open = false;
         }
@@ -1482,7 +1491,7 @@ impl AfroBimApp {
         let mut s = std::mem::take(&mut self.sheets);
         let mut open = true;
         let mut recompose = false;
-        crate::win::new(ctx, "Sheet preview").open(&mut open).default_width(1100.0).default_height(760.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Sheet preview").width(1100.0).show_body(ctx, |ui| {
             let Some(c) = s.composed.as_ref() else {
                 ui.label("Nothing composed yet.");
                 if ui.button("Compose the selected set").clicked() {
@@ -1583,6 +1592,9 @@ impl AfroBimApp {
                 }
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         if !open {
             s.preview_open = false;
         }

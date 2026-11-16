@@ -541,7 +541,7 @@ impl AfroBimApp {
         }
         let mut open = true;
         let mut clear = false;
-        crate::win::new(ctx, "Measure results").open(&mut open).default_width(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Measure results").width(560.0).show_body(ctx, |ui| {
             if self.anno.results.is_empty() {
                 ui.label(RichText::new("Nothing measured yet. Use DIST, AREA, ID, MEASUREANGLE or MEASURERADIUS.").weak());
             }
@@ -566,6 +566,9 @@ impl AfroBimApp {
             });
             ui.label(RichText::new("Results use the document's units (UNITS). Stored values stay in millimetres.").small().weak());
         });
+        if dlg.closed {
+            open = false;
+        }
         if clear {
             self.anno.results.clear();
         }
@@ -577,7 +580,7 @@ impl AfroBimApp {
             return;
         }
         let mut open = true;
-        crate::win::new(ctx, "Object snap settings").open(&mut open).default_width(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Object snap settings").width(560.0).show_body(ctx, |ui| {
             ui.checkbox(&mut self.anno.osnap.on, "Object snap on (F3)");
             ui.label(RichText::new("Used by the text, dimension, leader and measure commands, when dragging an annotation grip, by the base point and second point of MOVE and COPY, when dragging a grip of an element, and when placing a sign hung from the cursor (its centre lands on the point). Pick a mode to see which elements provide it.").small().weak());
             ui.add_space(4.0);
@@ -594,6 +597,9 @@ impl AfroBimApp {
             ui.add_space(4.0);
             ui.label(RichText::new("Limits: an element other than an alignment, an annotation or an underlay gives snaps from the lines, arcs and circles of its drawing (the first 2000 of them, and 400 line segments for intersections over all elements); the shapes and lettering of a sign or marking are not snapped to, and an element with no line or arc in its drawing gives the corners, edge middles and centre of its bounding rectangle. Nothing snaps on a hidden layer. A press-and-drag move of the selection snaps to the grid only. The element being moved never snaps to itself.").small());
         });
+        if dlg.closed {
+            open = false;
+        }
         self.anno.osnap_open = open;
     }
 
@@ -847,7 +853,7 @@ impl AfroBimApp {
         let mut st = ann::settings::load(&self.doc);
         let before = st.clone();
         let mut apply = false;
-        crate::win::new(ctx, "Text styles").open(&mut open).default_width(520.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Text styles").width(520.0).show_body(ctx, |ui| {
             self.anno.text_sel = self.anno.text_sel.min(st.text_styles.len().saturating_sub(1));
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("text-style-pick").selected_text(st.text_styles[self.anno.text_sel].name.clone()).show_ui(ui, |ui| {
@@ -914,6 +920,9 @@ impl AfroBimApp {
                 ui.label(RichText::new(&self.anno.style_note).small().color(WARN()));
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         if st != before {
             ann::settings::store(&mut self.doc, &st);
             self.schedule_commit_now();
@@ -935,7 +944,7 @@ impl AfroBimApp {
         let mut st = ann::settings::load(&self.doc);
         let before = st.clone();
         let mut apply = false;
-        crate::win::new(ctx, "Dimension styles").open(&mut open).default_width(560.0).default_height(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Dimension styles").width(560.0).show_body(ctx, |ui| {
             self.anno.dim_sel = self.anno.dim_sel.min(st.dim_styles.len().saturating_sub(1));
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("dim-style-pick").selected_text(st.dim_styles[self.anno.dim_sel].name.clone()).show_ui(ui, |ui| {
@@ -1076,6 +1085,9 @@ impl AfroBimApp {
                 ui.label(RichText::new(&self.anno.style_note).small().color(WARN()));
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         if st != before {
             ann::settings::store(&mut self.doc, &st);
             self.schedule_commit_now();

@@ -901,7 +901,7 @@ impl AfroBimApp {
         }
         let mut open = true;
         let (mut export, mut recompose) = (false, false);
-        crate::win::new(ctx, "Calculation report pack").open(&mut open).default_width(640.0).default_height(520.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Calculation report pack").width(640.0).show_body(ctx, |ui| {
             ui.label(RichText::new(STATEMENT).strong());
             ui.label(RichText::new("One A4 portrait PDF, with a plain-text and a CSV variant beside it. Every calculation line is as the engine wrote it; sections with no data are listed as not included.").small().weak());
             let Some(pack) = &self.pack.pack else { return };
@@ -925,6 +925,9 @@ impl AfroBimApp {
                 };
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.pack.open = open;
         if recompose {
             self.pack_compose_bg();

@@ -284,7 +284,7 @@ impl AfroBimApp {
     fn xer_report_window(&mut self, ctx: &egui::Context) {
         let Some((title, lines)) = self.sched.ext.xer_report.clone() else { return };
         let mut open = true;
-        crate::win::new(ctx, title).open(&mut open).default_width(640.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled(title).width(640.0).show_body(ctx, |ui| {
             ui.label(RichText::new(glue::XER_UNTESTED).strong().color(WARN()));
             ui.separator();
             egui::ScrollArea::vertical().max_height(340.0).show(ui, |ui| {
@@ -293,6 +293,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         if !open {
             self.sched.ext.xer_report = None;
         }
@@ -326,7 +329,7 @@ impl AfroBimApp {
             Some(Ok(s)) => Some((s.critical().count(), s.rows.iter().filter(|r| r.on_longest_path).count(), s.rows.len())),
             _ => None,
         };
-        crate::win::new(ctx, "Critical path basis").open(&mut open).default_width(640.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Critical path basis").width(640.0).show_body(ctx, |ui| {
             ui.label("Choose what marks an activity as critical. The Gantt chart, the schedule table and the time-location chart follow the choice.");
             for (b, label, text) in [
                 (CriticalBasis::TotalFloat, "Total float of zero or less", glue::CRITICAL_TOTAL_FLOAT_TEXT),
@@ -348,6 +351,9 @@ impl AfroBimApp {
                 }
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         if let Some(b) = chosen {
             self.sched.ext.critical = b;
             glue::set_setting(&mut self.doc, glue::KEY_CRITICAL, glue::critical_key(b));
@@ -368,7 +374,7 @@ impl AfroBimApp {
         let s = &mut self.sched;
         let ext = &mut s.ext;
         let result = &s.result;
-        crate::win::new(ctx, "WBS: summary tasks and roll-up").open(&mut open).default_width(900.0).default_height(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("WBS: summary tasks and roll-up").width(900.0).show_body(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
                 ui.label("There is no programme yet (PROGRAMME).");
                 return;
@@ -509,6 +515,9 @@ impl AfroBimApp {
                 None => {}
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         if basis_changed {
             glue::set_setting(&mut self.doc, glue::KEY_ROLLUP, glue::rollup_key(self.sched.ext.rollup));
             self.sched.rebuild_gantt();
@@ -576,7 +585,7 @@ impl AfroBimApp {
         let doc = &self.doc;
         let ext = &mut self.sched.ext;
         let alignment_id = chosen.as_ref().and_then(|n| alignments.iter().find(|a| a.1 == *n)).map(|a| a.0);
-        crate::win::new(ctx, "Time-location chart").open(&mut open).default_width(980.0).default_height(620.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Time-location chart").width(980.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut ext.tl_tab, 0, "Chart");
                 ui.selectable_value(&mut ext.tl_tab, 1, "Location ranges");
@@ -629,6 +638,9 @@ impl AfroBimApp {
                 tl_ranges_table(ui, &p, &resolved, doc, alignment_id, chosen.as_deref(), ext, &mut set_range);
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         if let Some(n) = new_alignment {
             self.sched.ext.tl_alignment = Some(n.clone());
             glue::set_setting(&mut self.doc, glue::KEY_TL_ALIGNMENT, &n);

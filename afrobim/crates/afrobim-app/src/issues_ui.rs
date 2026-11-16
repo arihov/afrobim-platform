@@ -352,7 +352,7 @@ impl AfroBimApp {
         let mut raise_all_groups = false;
         let mut delete: Option<String> = None;
         let mut message: Option<String> = None;
-        crate::win::new(ctx, "Issues").open(&mut open).default_width(960.0).default_height(640.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Issues").width(960.0).show_body(ctx, |ui| {
             ui.label(RichText::new("Issues are kept in the document with the clash tests. Raise one from a clash or a group of clashes, or write a free-standing one; add comments and viewpoints; exchange them as BCF 2.1 (BCFOUT, BCFIN).").small().weak());
             ui.horizontal(|ui| {
                 ui.label("Your name");
@@ -552,6 +552,9 @@ impl AfroBimApp {
                 });
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.issues.open = open;
         if let Some(m) = message {
             self.issues.message = m;
@@ -624,7 +627,7 @@ impl AfroBimApp {
     fn bcf_out_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let mut export = false;
-        crate::win::new(ctx, "Export issues as BCF").open(&mut open).default_width(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Export issues as BCF").width(560.0).show_body(ctx, |ui| {
             ui.label(RichText::new(BCF_LIMITS).small().color(WARN()));
             ui.add_space(4.0);
             ui.label(format!("{} issue(s) in the document.", self.coord.co.issues.len()));
@@ -639,6 +642,9 @@ impl AfroBimApp {
                 ui.label(RichText::new(l).small());
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.issues.bcf_out_open = open;
         if export {
             if let Some(mut path) = rfd::FileDialog::new().add_filter("BCF 2.1", &["bcf", "bcfzip"]).set_file_name("issues.bcf").save_file() {
@@ -659,7 +665,7 @@ impl AfroBimApp {
     fn bcf_in_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let mut import = false;
-        crate::win::new(ctx, "Import issues from BCF").open(&mut open).default_width(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Import issues from BCF").width(560.0).show_body(ctx, |ui| {
             ui.label(RichText::new(BCF_LIMITS).small().color(WARN()));
             ui.label(RichText::new("An issue with the same GUID replaces the one in the document; the others are added. What the model cannot hold is listed as not imported.").small().weak());
             if ui.button("Choose a file and import").clicked() {
@@ -671,6 +677,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         self.issues.bcf_in_open = open;
         if import {
             if let Some(path) = rfd::FileDialog::new().add_filter("BCF", &["bcf", "bcfzip"]).pick_file() {

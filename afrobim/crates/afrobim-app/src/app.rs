@@ -169,6 +169,12 @@ pub struct AfroBimApp {
 const CMD_ID: &str = "afrobim-command-line";
 
 impl AfroBimApp {
+    /// The options the application runs with (the headless dialog test sets `run` through this).
+    #[cfg(test)]
+    pub fn options_mut(&mut self) -> &mut Options {
+        &mut self.options
+    }
+
     pub fn new(cc: &eframe::CreationContext<'_>, options: Options) -> Self {
         let mut prefs = if options.screenshot.is_some() { crate::prefs::Prefs::default() } else { crate::prefs::load() };
         let mut theme = prefs.theme();
@@ -2297,7 +2303,7 @@ impl AfroBimApp {
         self.sheets_windows(ctx);
         self.design_windows(ctx);
         let mut help = self.show_help;
-        crate::win::new(ctx, "Commands").open(&mut help).default_width(520.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Commands").width(520.0).show_body(ctx, |ui| {
             egui::Grid::new("cmds").num_columns(3).striped(true).spacing([14.0, 4.0]).show(ui, |ui| {
                 for c in COMMANDS {
                     ui.label(RichText::new(c.name).monospace().strong());
@@ -2309,11 +2315,14 @@ impl AfroBimApp {
             ui.add_space(6.0);
             ui.label(RichText::new("Points: x,y absolute  ·  @dx,dy relative  ·  @distance<angle polar. MOVE, COPY and the signs commands take millimetres; the annotation, dimension and measure commands take the document units (UNITS).").weak());
         });
+        if dlg.closed {
+            help = false;
+        }
         self.show_help = help;
 
         let mut library_open = self.show_library;
         let mut insert: Option<(String, serde_json::Value)> = None;
-        crate::win::new(ctx, "Standard signs").open(&mut library_open).default_width(420.0).default_height(520.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Standard signs").width(420.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Find");
                 ui.add(egui::TextEdit::singleline(&mut self.library_filter).hint_text("key or name").desired_width(f32::INFINITY));
@@ -2345,6 +2354,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            library_open = false;
+        }
         self.show_library = library_open;
         if let Some((key, data)) = insert {
             self.show_library = false;
@@ -2827,7 +2839,7 @@ impl AfroBimApp {
 
         if let Some((mark, lines)) = self.design_report.take() {
             let mut open = true;
-            crate::win::new(ctx, format!("Calculation for {mark}")).open(&mut open).default_width(640.0).show(ctx, |ui| {
+            let dlg = crate::ui_kit::Dialog::titled(format!("Calculation for {mark}")).width(640.0).show_body(ctx, |ui| {
                 egui::ScrollArea::vertical().max_height(460.0).show(ui, |ui| {
                     for line in &lines {
                         let text = RichText::new(line).small();
@@ -2839,6 +2851,9 @@ impl AfroBimApp {
                     ctx.copy_text(lines.join("\n"));
                 }
             });
+            if dlg.closed {
+                open = false;
+            }
             if open {
                 self.design_report = Some((mark, lines));
             }
@@ -2914,7 +2929,7 @@ impl AfroBimApp {
         }
 
         let mut about = self.show_about;
-        crate::win::new(ctx, "About AfroBIM").open(&mut about).collapsible(false).resizable(false).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("About AfroBIM").resizable(false).show_body(ctx, |ui| {
             ui.heading("AfroBIM");
             ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
             ui.add_space(6.0);
@@ -2923,6 +2938,9 @@ impl AfroBimApp {
             ui.add_space(6.0);
             ui.label(RichText::new(&self.module_status).weak());
         });
+        if dlg.closed {
+            about = false;
+        }
         self.show_about = about;
     }
 

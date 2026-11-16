@@ -455,7 +455,7 @@ impl AfroBimApp {
         let mut refresh = false;
         let mut status: Option<String> = None;
         let c = &mut self.cost;
-        crate::win::new(ctx, "Bill of quantities").open(&mut open).default_width(980.0).default_height(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Bill of quantities").width(980.0).show_body(ctx, |ui| {
             if c.est.is_none() {
                 ui.label("There is no estimate yet.");
                 return;
@@ -866,6 +866,9 @@ impl AfroBimApp {
                 }
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.cost.bill_open = open;
         if refresh {
             self.cost_collect();
@@ -891,7 +894,7 @@ impl AfroBimApp {
         let c = &mut self.cost;
         let currencies = c.defined_currencies();
         let unpriced: Vec<(String, String)> = c.live().map(|r| r.unpriced.iter().map(|u| (u.code.clone(), u.reason.clone())).collect()).unwrap_or_default();
-        crate::win::new(ctx, "Rate library").open(&mut open).default_width(960.0).default_height(520.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Rate library").width(960.0).show_body(ctx, |ui| {
             let Some(est) = c.est.as_mut() else {
                 ui.label("There is no estimate yet.");
                 return;
@@ -1004,6 +1007,9 @@ impl AfroBimApp {
                 }
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.cost.rates_open = open;
         if let Some(s) = status {
             self.status = s;
@@ -1018,7 +1024,7 @@ impl AfroBimApp {
         let mut changed = false;
         let mut status: Option<String> = None;
         let c = &mut self.cost;
-        crate::win::new(ctx, "Currency").open(&mut open).default_width(620.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Currency").width(620.0).show_body(ctx, |ui| {
             let Some(est) = c.est.as_mut() else {
                 ui.label("There is no estimate yet.");
                 return;
@@ -1135,6 +1141,9 @@ impl AfroBimApp {
             }
             status = None;
         });
+        if dlg.closed {
+            open = false;
+        }
         self.cost.currency_open = open;
         if let Some(s) = status {
             self.status = s;
@@ -1160,7 +1169,7 @@ impl AfroBimApp {
         let current_id = self.cost.id;
         let c = &mut self.cost;
         let decimals = c.decimals();
-        crate::win::new(ctx, "Estimate").open(&mut open).default_width(1020.0).default_height(600.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Estimate").width(1020.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Estimate");
                 let name = c.est.as_ref().map(|e| e.name.clone()).unwrap_or_default();
@@ -1532,6 +1541,9 @@ impl AfroBimApp {
                 }
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.cost.estimate_open = open;
         if let Some(id) = switch {
             self.cost.id = Some(id);
@@ -1620,7 +1632,7 @@ impl AfroBimApp {
         let sched_ready = matches!(self.sched.result, Some(Ok(_))) && self.sched.states.is_some();
         let c = &mut self.cost;
         let decimals = c.decimals();
-        crate::win::new(ctx, "Cash flow").open(&mut open).default_width(900.0).default_height(640.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Cash flow").width(900.0).show_body(ctx, |ui| {
             let Some(est) = c.est.as_mut() else {
                 ui.label("There is no estimate yet.");
                 return;
@@ -1763,6 +1775,9 @@ impl AfroBimApp {
                 }
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.cost.cash_open = open;
         if propose {
             if let (Some(Ok(r)), Some(Ok(s)), Some(p), Some(st)) = (self.cost.result.clone(), self.sched.result.clone(), self.sched.prog.clone(), self.sched.states.clone()) {
@@ -1812,7 +1827,7 @@ impl AfroBimApp {
         let sched_percent = self.sched.prog.is_some();
         let c = &mut self.cost;
         let decimals = c.decimals();
-        crate::win::new(ctx, "Interim payment certificate").open(&mut open).default_width(960.0).default_height(700.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Interim payment certificate").width(960.0).show_body(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(620.0).auto_shrink([false, true]).show(ui, |ui| {
             ui.label(RichText::new("This module encodes no FIDIC clause and no other contract's terms. Every percentage, cap, threshold and amount below is your own contract data, entered by you: AfroBIM only does the arithmetic on it and does not decide what a contract entitles anyone to.").color(WARN()));
             let (Some(est), Some(Ok(result))) = (c.est.as_ref(), c.result.as_ref()) else {
@@ -2011,6 +2026,9 @@ impl AfroBimApp {
             let _ = est;
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         self.cost.cert_open = open;
         if terms_changed {
             if let Some(id) = self.cost.id {

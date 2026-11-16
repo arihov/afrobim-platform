@@ -664,7 +664,7 @@ impl AfroBimApp {
         let mut show_report: Option<String> = None;
         let mut accept: Option<String> = None;
         let mut zoom: Option<String> = None;
-        crate::win::new(ctx, "Reference models").open(&mut open).default_width(900.0).default_height(520.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Reference models").width(900.0).show_body(ctx, |ui| {
             ui.label(RichText::new("Reference models are read-only IFC files. The document stores each file's path and a hash, not its contents; the file is read again when the document opens. A model in another coordinate frame needs the offset and rotation that line it up: enter them below (rotation about the file's own origin, then the offset).").small().weak());
             ui.label(RichText::new(format!("Limits: the importer reads the whole file into memory and refuses files of 4 GiB or more. Models above {DRAW_TRIANGLE_CAP} triangles in view are drawn as the boxes of their products.")).small().weak());
             ui.horizontal(|ui| {
@@ -778,6 +778,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         self.refs.list_open = open;
         if import {
             self.ifcref_pick();
@@ -849,7 +852,7 @@ impl AfroBimApp {
         let offer = if project.is_none() && applied { self.refs.loaded.get(&label).and_then(|l| declared_crs(&l.model)) } else { None };
         let mut use_it = false;
         let warning = self.refs.loaded.get(&label).and_then(|l| l.warning.clone());
-        crate::win::new(ctx, format!("Import report: {label}")).open(&mut open).default_width(640.0).default_height(420.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled(format!("Import report: {label}")).width(640.0).show_body(ctx, |ui| {
             if let Some(w) = warning {
                 ui.label(RichText::new(w).color(WARN()));
             }
@@ -869,6 +872,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         if let (true, Some(c)) = (use_it, offer) {
             self.apply_project_crs(c);
         }
@@ -897,7 +903,7 @@ impl AfroBimApp {
             names.reverse();
             names.join(" > ")
         };
-        crate::win::new(ctx, "Reference product").open(&mut open).default_width(420.0).default_height(420.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Reference product").width(420.0).show_body(ctx, |ui| {
             ui.label(RichText::new("Read-only: the model is a reference.").small().weak());
             egui::Grid::new("ref-product").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
                 for (k, v) in [
@@ -937,6 +943,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         if !open {
             self.refs.picked = None;
         }

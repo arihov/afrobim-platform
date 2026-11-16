@@ -1246,7 +1246,7 @@ fn sections_window(ctx: &egui::Context, slot: &mut Option<SectionsView>) {
     let Some(mut v) = slot.take() else { return };
     let mut open = true;
     let dark = ctx.style().visuals.dark_mode;
-    crate::win::new(ctx, format!("Cross-sections of {}", v.mark)).open(&mut open).default_width(700.0).show(ctx, |ui| {
+    let dlg = crate::ui_kit::Dialog::titled(format!("Cross-sections of {}", v.mark)).width(700.0).show_body(ctx, |ui| {
         let last = v.corridor.sections.len() - 1;
         ui.horizontal(|ui| {
             ui.label("Station");
@@ -1299,6 +1299,9 @@ fn sections_window(ctx: &egui::Context, slot: &mut Option<SectionsView>) {
             ui.label(RichText::new(n).small().color(NOTE()));
         }
     });
+    if dlg.closed {
+        open = false;
+    }
     if open {
         *slot = Some(v);
     }

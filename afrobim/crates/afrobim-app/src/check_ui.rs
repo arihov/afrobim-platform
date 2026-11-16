@@ -472,7 +472,7 @@ impl AfroBimApp {
             self.checks.report_open = false;
             return;
         };
-        crate::win::new(ctx, "Check the whole model").open(&mut open).default_width(900.0).default_height(640.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Check the whole model").width(900.0).show_body(ctx, |ui| {
             ui.label(
                 RichText::new("Every check an engine has, on every element it applies to, with the inputs kept on each element. A pass means the engine's own lines passed on those inputs: it is a calculation for an engineer to check, not a certification. Warnings the engines raise are in the calculation lines, as the engines wrote them.")
                     .small()
@@ -555,6 +555,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         self.checks.report_open = open;
         if again {
             self.run_check_all();

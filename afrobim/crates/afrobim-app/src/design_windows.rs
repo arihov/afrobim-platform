@@ -239,7 +239,7 @@ impl AfroBimApp {
         let mut template = false;
         let mut csv = false;
         let units = crate::anno_ui::units_of(&self.doc);
-        crate::win::new(ctx, "ALIGNCHECK: design checks").open(&mut open).default_width(860.0).default_height(560.0).vscroll(true).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("ALIGNCHECK: design checks").width(860.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Alignment");
                 let current = c.design.and_then(|d| designs.iter().find(|x| x.0 == d)).map(|x| x.2.clone()).unwrap_or_else(|| "choose".into());
@@ -400,6 +400,9 @@ impl AfroBimApp {
             }
             ui.label(RichText::new("These are checks of the geometry against the limits chosen: lateral sight distance, passing and decision sight distance, superelevation and combinations of horizontal and vertical alignment are not checked. A pass is not a certification.").small().weak());
         });
+        if dlg.closed {
+            open = false;
+        }
         if let Some(p) = load {
             c.path = p.display().to_string();
             c.basis = Some(glue::load_basis(&p));
@@ -490,7 +493,7 @@ impl AfroBimApp {
         } else {
             o.cmp = None;
         }
-        crate::win::new(ctx, "OPTIONS: alignment options").open(&mut open).default_width(1040.0).default_height(720.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("OPTIONS: alignment options").width(1040.0).show_body(ctx, |ui| {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Option set");
@@ -813,6 +816,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         if !open {
             o.open = false;
         }

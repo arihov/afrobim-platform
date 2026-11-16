@@ -133,7 +133,7 @@ impl AfroBimApp {
         let u = &units;
         let revision = self.design.revision;
         let _ = revision;
-        crate::win::new(ctx, "Profile editor").open(&mut open).default_width(1020.0).default_height(700.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Profile editor").width(1020.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(format!("{name}: stations {} to {}", crate::disp::station(u, alignment.start_station_m), crate::disp::station(u, alignment.end_station_m()))).strong());
                 ui.separator();
@@ -224,6 +224,9 @@ impl AfroBimApp {
                 ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD() } else { WARN() }));
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.design.profile = ui_state;
         if let Some(s) = set_surface {
             self.design.profile.surface = s;

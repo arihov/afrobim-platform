@@ -644,7 +644,7 @@ impl AfroBimApp {
             polar_diagram(&l.photometry, &planes)
         });
         let check_lines = self.photo.loaded.as_ref().map(file_check_lines);
-        crate::win::new(ctx, "Photometry").open(&mut open).default_width(900.0).default_height(700.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Photometry").width(900.0).show_body(ctx, |ui| {
             ui.label(RichText::new(LIMITS).small().color(WARN()));
             ui.horizontal(|ui| {
                 ui.label("Installation");
@@ -828,6 +828,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         self.photo.open = open;
         if let Some(id) = pick {
             self.photo.form.element = None;
@@ -882,7 +885,7 @@ impl AfroBimApp {
             }
             _ => None,
         };
-        crate::win::new(ctx, format!("Photometry results: {mark}")).open(&mut open).default_width(920.0).default_height(680.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled(format!("Photometry results: {mark}")).width(920.0).show_body(ctx, |ui| {
             ui.label(RichText::new(LIMITS).small().color(WARN()));
             let Some(run) = &self.photo.run else {
                 ui.label(RichText::new("No run yet.").weak());
@@ -961,6 +964,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         self.photo.results_open = open;
         if csv {
             if let Some(run) = &self.photo.run {

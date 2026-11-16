@@ -939,7 +939,7 @@ impl AfroBimApp {
         let (mut csv, mut rerun, mut edit, mut draw) = (false, false, false, false);
         let mut copy: Option<String> = None;
         let mut pick: Option<ElementId> = None;
-        crate::win::new(ctx, "Sign visibility results").open(&mut open).default_width(920.0).default_height(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Sign visibility results").width(920.0).show_body(ctx, |ui| {
             ui.label(RichText::new("An analysis aid. Each line is OK, FAILS, DIFFERS, INPUT NEEDED or INFORMATION with the provision it rests on; it states no compliance and the engineer decides. The road surface is the centreline level of the profile (no cross-fall); obstruction is geometric only.").small().weak());
             ui.horizontal(|ui| {
                 if ui.button("Run all signs").clicked() {
@@ -1017,6 +1017,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         self.vis.results_open = open;
         if let Some(id) = pick {
             self.vis.selected = Some(id);
@@ -1049,7 +1052,7 @@ impl AfroBimApp {
         let exaggeration = self.vis.exaggeration.trim().parse::<f64>().ok().filter(|v| *v > 0.0);
         let drawings = self.vis.analysis().map(|a| drawings_of(a, self.vis.scene.as_ref(), exaggeration.unwrap_or(5.0)));
         let mark = self.vis.analysis().map(|a| a.mark.clone()).unwrap_or_default();
-        crate::win::new(ctx, format!("Visibility drawings: {mark}")).open(&mut open).default_width(900.0).default_height(700.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled(format!("Visibility drawings: {mark}")).width(900.0).show_body(ctx, |ui| {
             ui.label(RichText::new("The plan shows the eye positions along the approach coloured by what they see, the sight lines at the limit and the obstruction. The profile is the limiting sight line over the road and ground. Add either to a drawing sheet as a Detail sheet in SHEETSET (kinds 'Sign visibility, plan envelope' and 'Sign visibility, sight-line profile').").small().weak());
             ui.horizontal(|ui| {
                 ui.label("Profile vertical exaggeration");
@@ -1075,6 +1078,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         self.vis.drawings_open = open;
     }
 }

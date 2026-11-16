@@ -10,6 +10,8 @@ mod civil_sheets;
 mod u3_tests;
 #[cfg(test)]
 mod u4_tests;
+#[cfg(test)]
+mod u4_dialogs_test;
 mod civil_assembly;
 mod civil_cmds;
 mod civil_corridor;

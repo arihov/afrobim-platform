@@ -527,13 +527,16 @@ impl AfroBimApp {
         changed |= self.schedule_ext_windows(ctx);
         if let Some(lines) = self.sched.import_report.clone() {
             let mut open = true;
-            crate::win::new(ctx, "MS Project import report").open(&mut open).default_width(560.0).show(ctx, |ui| {
+            let dlg = crate::ui_kit::Dialog::titled("MS Project import report").width(560.0).show_body(ctx, |ui| {
                 egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
                     for l in &lines {
                         ui.label(l);
                     }
                 });
             });
+            if dlg.closed {
+                open = false;
+            }
             if !open {
                 self.sched.import_report = None;
             }
@@ -552,7 +555,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut changed = false;
         let s = &mut self.sched;
-        crate::win::new(ctx, "Programme: activities and logic").open(&mut open).default_width(900.0).default_height(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Programme: activities and logic").width(900.0).show_body(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
                 ui.label("There is no programme yet. Enter its name, its start date and its working weekdays. None are assumed.");
                 egui::Grid::new("new-prog").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
@@ -855,6 +858,9 @@ impl AfroBimApp {
                 None => {}
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.sched.table_open = open;
         changed
     }
@@ -865,7 +871,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut changed = false;
         let s = &mut self.sched;
-        crate::win::new(ctx, "Programme calendar").open(&mut open).default_width(460.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Programme calendar").width(460.0).show_body(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
                 ui.label("Create the programme first (PROGRAMME).");
                 return;
@@ -964,6 +970,9 @@ impl AfroBimApp {
                 ui.label(RichText::new(&s.problem).color(BAD()));
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.sched.calendar_open = open;
         changed
     }
@@ -975,7 +984,7 @@ impl AfroBimApp {
         let mut rerun = false;
         let mut open_critical = false;
         let s = &self.sched;
-        crate::win::new(ctx, "Schedule").open(&mut open).default_width(1000.0).default_height(480.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Schedule").width(1000.0).show_body(ctx, |ui| {
             match &s.result {
                 None => {
                     ui.label("There is no programme yet (PROGRAMME).");
@@ -1042,6 +1051,9 @@ impl AfroBimApp {
                 }
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.sched.schedule_open = open;
         if open_critical {
             self.sched.ext.critical_open = true;
@@ -1057,7 +1069,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut rebuild = false;
         let s = &mut self.sched;
-        crate::win::new(ctx, "Gantt chart").open(&mut open).default_width(1100.0).default_height(520.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Gantt chart").width(1100.0).show_body(ctx, |ui| {
             match (&s.result, &s.gantt) {
                 (Some(Ok(_)), Some(g)) => {
                     ui.horizontal(|ui| {
@@ -1097,6 +1109,9 @@ impl AfroBimApp {
                 }
             };
         });
+        if dlg.closed {
+            open = false;
+        }
         self.sched.gantt_open = open;
         if rebuild {
             self.sched.rebuild_gantt();
@@ -1109,7 +1124,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut set = false;
         let s = &mut self.sched;
-        crate::win::new(ctx, "Set baseline").open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Set baseline").resizable(false).show_body(ctx, |ui| {
             match (&s.prog, &s.result) {
                 (Some(p), Some(Ok(sch))) => {
                     if let Some(b) = &p.baseline {
@@ -1128,6 +1143,9 @@ impl AfroBimApp {
                 }
             };
         });
+        if dlg.closed {
+            open = false;
+        }
         self.sched.baseline_open = open;
         if set {
             let name = self.sched.baseline_name.trim().to_string();
@@ -1145,7 +1163,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut csv = false;
         let s = &self.sched;
-        crate::win::new(ctx, "Variance against the baseline").open(&mut open).default_width(760.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Variance against the baseline").width(760.0).show_body(ctx, |ui| {
             let (Some(p), Some(Ok(sch))) = (&s.prog, &s.result) else {
                 ui.label("There is no schedule yet.");
                 return;
@@ -1184,6 +1202,9 @@ impl AfroBimApp {
                 }
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.sched.variance_open = open;
         if csv {
             let (Some(p), Some(Ok(sch))) = (&self.sched.prog, &self.sched.result) else { return };
@@ -1208,7 +1229,7 @@ impl AfroBimApp {
         let mut changed = false;
         let mut reschedule = false;
         let s = &mut self.sched;
-        crate::win::new(ctx, "Progress").open(&mut open).default_width(820.0).default_height(460.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Progress").width(820.0).show_body(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
                 ui.label("There is no programme yet (PROGRAMME).");
                 return;
@@ -1271,6 +1292,9 @@ impl AfroBimApp {
                 None => {}
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.sched.progress_open = open;
         if reschedule {
             self.run_schedule();
@@ -1296,7 +1320,7 @@ impl AfroBimApp {
         layers.dedup();
         let doc = &self.doc;
         let s = &mut self.sched;
-        crate::win::new(ctx, "Link elements to activities").open(&mut open).default_width(760.0).default_height(520.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Link elements to activities").width(760.0).show_body(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
                 ui.label("There is no programme yet (PROGRAMME).");
                 return;
@@ -1393,6 +1417,9 @@ impl AfroBimApp {
                 changed = true;
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.sched.link_open = open;
         if let Some(t) = status {
             self.status = t;
@@ -1405,7 +1432,7 @@ impl AfroBimApp {
         let mut select: Option<ElementId> = None;
         let doc = &self.doc;
         let s = &self.sched;
-        crate::win::new(ctx, "Link report").open(&mut open).default_width(620.0).default_height(480.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Link report").width(620.0).show_body(ctx, |ui| {
             let Some(p) = &s.prog else {
                 ui.label("There is no programme yet (PROGRAMME).");
                 return;
@@ -1445,6 +1472,9 @@ impl AfroBimApp {
                 });
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         self.sched.report_open = open;
         if let Some(id) = select {
             self.doc.select(&[id], SelectMode::Replace);
@@ -1473,7 +1503,7 @@ impl AfroBimApp {
         let doc = &self.doc;
         let s = &mut self.sched;
         let by_record = &mut self.construction.colour_by_record;
-        crate::win::new(ctx, "4D date").open(&mut open).default_width(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("4D date").width(560.0).show_body(ctx, |ui| {
             let (Some((lo, hi)), Some(date)) = (span, s.date) else {
                 ui.label("Create and schedule a programme to use the date control (PROGRAMME).");
                 return;
@@ -1528,6 +1558,9 @@ impl AfroBimApp {
             ui.label(RichText::new("Not started: ghosted or hidden. In progress: amber. Complete: normal. Demolished or temporary work that is over: removed.").small().weak());
             let _ = doc;
         });
+        if dlg.closed {
+            open = false;
+        }
         self.sched.date_open = open;
         if toggle_play {
             self.play_toggle(ctx);
