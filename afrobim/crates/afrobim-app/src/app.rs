@@ -2175,7 +2175,9 @@ impl AfroBimApp {
                         self.zoom_extents_visible();
                     }
                     if pressed {
-                        if self.anno_press(s, shift) {
+                        if self.civil_pick_press(s) {
+                            // A civil dialog asked for a point and took the click.
+                        } else if self.anno_press(s, shift) {
                             // An annotation command took the click (or a grip was picked up).
                             self.canvas_drag = self.anno.grip_drag.is_some();
                         } else {

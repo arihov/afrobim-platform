@@ -26,6 +26,12 @@ pub struct LandXmlForm {
     surfaces: Result<SurfaceImport, String>,
     take_alignment: Vec<bool>,
     take_surface: Vec<bool>,
+    /// Civil data of the file: point groups, parcels and ground profiles to bring in, and whether
+    /// a surface that has source data comes in as a definition that keeps it.
+    take_points: Vec<bool>,
+    take_parcels: Vec<bool>,
+    take_profiles: Vec<bool>,
+    as_definition: bool,
     tab: usize,
 }
 
@@ -44,11 +50,16 @@ impl LandXmlForm {
         };
         let file = read_landxml_file(&path).map_err(|e| e.to_string());
         let file_crs = file.as_ref().ok().and_then(|f| f.coordinate_system.as_ref()).and_then(crate::crs_ui::from_landxml);
-        LandXmlForm { path, file, file_crs, use_file_crs: true, alignments, surfaces, take_alignment, take_surface, tab }
+        let (np, nr, nf) = file.as_ref().map(|f| (crate::civil_landxml::point_groups(f).len(), crate::civil_landxml::all_parcels(f).len(), f.ground_profiles.len())).unwrap_or((0, 0, 0));
+        LandXmlForm { path, file, file_crs, use_file_crs: true, alignments, surfaces, take_alignment, take_surface, take_points: vec![true; np], take_parcels: vec![true; nr], take_profiles: vec![true; nf], as_definition: true, tab }
     }
 
     fn picked(&self) -> (usize, usize) {
         (self.take_alignment.iter().filter(|b| **b).count(), self.take_surface.iter().filter(|b| **b).count())
+    }
+
+    fn civil_picked(&self) -> usize {
+        [&self.take_points, &self.take_parcels, &self.take_profiles].iter().map(|v| v.iter().filter(|b| **b).count()).sum()
     }
 }
 
@@ -67,14 +78,15 @@ impl AfroBimApp {
         let units = crate::anno_ui::units_of(&self.doc);
         let file = form.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         let (na, ns) = form.picked();
-        let nothing_in_file = form.alignments.as_ref().map(|a| a.alignments.is_empty()).unwrap_or(true) && form.surfaces.as_ref().map(|s| s.surfaces.is_empty()).unwrap_or(true);
+        let nothing_in_file = form.alignments.as_ref().map(|a| a.alignments.is_empty()).unwrap_or(true) && form.surfaces.as_ref().map(|s| s.surfaces.is_empty()).unwrap_or(true) && form.take_points.is_empty() && form.take_parcels.is_empty() && form.take_profiles.is_empty();
         let reason = if nothing_in_file { "The file holds no alignment or surface" } else { "Tick something to import" };
         let alignment_count = form.alignments.as_ref().map(|a| a.alignments.len()).unwrap_or(0);
         let surface_count = form.surfaces.as_ref().map(|s| s.surfaces.len()).unwrap_or(0);
         let project = project_crs(&self.doc);
-        let labels = ["The file".to_string(), format!("Alignments ({alignment_count})"), format!("Surfaces ({surface_count})")];
+        let labels = ["The file".to_string(), format!("Alignments ({alignment_count})"), format!("Surfaces ({surface_count})"), format!("Points ({})", form.take_points.len()), format!("Parcels ({})", form.take_parcels.len()), format!("Profiles ({})", form.take_profiles.len())];
         let tab_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
-        let button = format!("Import {}", match (na, ns) {
+        let nc = form.civil_picked();
+        let button = format!("Import {}{}", if nc > 0 { format!("{nc} civil object(s) and ") } else { String::new() }, match (na, ns) {
             (0, 0) => "nothing".to_string(),
             (a, 0) => format!("{a} alignment(s)"),
             (0, s) => format!("{s} surface(s)"),
@@ -91,10 +103,13 @@ impl AfroBimApp {
                     match form.tab {
                         0 => file_tab(ui, &mut form, project.as_ref()),
                         1 => alignments_tab(ui, &mut form, &units),
-                        _ => surfaces_tab(ui, &mut form),
+                        2 => surfaces_tab(ui, &mut form),
+                        3 => civil_tab(ui, &mut form, 0),
+                        4 => civil_tab(ui, &mut form, 1),
+                        _ => civil_tab(ui, &mut form, 2),
                     }
                 },
-                |ui| Footer::new(&button).enabled(na + ns > 0, reason).icon(crate::glyphs::by_name("LANDXML")).show(ui),
+                |ui| Footer::new(&button).enabled(na + ns + nc > 0, reason).icon(crate::glyphs::by_name("LANDXML")).show(ui),
             );
         if out.closed || out.inner.is_some_and(|(_, f)| f.cancel) {
             return;
@@ -135,10 +150,30 @@ impl AfroBimApp {
             }
         }
         let mut last_surface = None;
+        // A surface that has source data comes in as a definition that keeps it (the engine rebuilds
+        // it), when the dialog says so; its TIN is then not added a second time.
+        let mut as_definition: Vec<bool> = vec![false; form.take_surface.len()];
+        if form.as_definition {
+            if let Ok(f) = &form.file {
+                for (i, ls) in f.surfaces.iter().enumerate() {
+                    if form.take_surface.get(i).copied().unwrap_or(false) && !ls.source_data.is_empty() {
+                        let src = form.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                        if let Some(def) = crate::civil_landxml::surface_definition(ls, &src) {
+                            let id = crate::civil_landxml::add_surface_def(&mut self.doc, def, &src);
+                            last_surface = Some(id);
+                            added_s += 1;
+                            if let Some(slot) = as_definition.get_mut(i) {
+                                *slot = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         if let Ok(s) = &form.surfaces {
             let source = form.path.file_name().map(|n| n.to_string_lossy().to_string());
-            for (surface, take) in s.surfaces.iter().zip(&form.take_surface) {
-                if *take {
+            for (i, (surface, take)) in s.surfaces.iter().zip(&form.take_surface).enumerate() {
+                if *take && !as_definition.get(i).copied().unwrap_or(false) {
                     match crate::alignment_glue::add_surface_at_source(&mut self.doc, &surface.name, &surface.tin, source.as_deref()) {
                         Ok(id) => {
                             added_s += 1;
@@ -159,7 +194,8 @@ impl AfroBimApp {
                 self.doc.select(&[id], SelectMode::Replace);
             }
         }
-        self.status = format!("Imported {added_a} alignment(s) and {added_s} surface(s) from {}.", form.path.display());
+        let added_c = self.landxml_apply_civil(form, &mut notes);
+        self.status = format!("Imported {added_a} alignment(s), {added_s} surface(s) and {added_c} civil object(s) from {}.", form.path.display());
         for n in notes.iter().take(6) {
             self.log(n.clone());
         }
@@ -363,4 +399,91 @@ fn notes(ui: &mut egui::Ui, notes: &[String], heading: &str) {
             ui.add_space(2.0);
         }
     });
+}
+
+/// The Points, Parcels and Profiles tabs: what the file holds beyond alignments and surfaces.
+fn civil_tab(ui: &mut egui::Ui, form: &mut LandXmlForm, which: usize) {
+    let Ok(file) = &form.file else {
+        ui_kit::callout(ui, Level::Error, "The file cannot be read as LandXML.");
+        return;
+    };
+    match which {
+        0 => {
+            let groups = crate::civil_landxml::point_groups(file);
+            if groups.is_empty() {
+                ui_kit::callout(ui, Level::Info, "The file has no control points (CgPoints).");
+                return;
+            }
+            ui_kit::section(ui, "Point groups in the file (each becomes a point set)", |ui| {
+                for (i, (name, g)) in groups.iter().enumerate() {
+                    ui.checkbox(&mut form.take_points[i], format!("{name}  ({} points)", g.points.len()));
+                }
+            });
+        }
+        1 => {
+            let parcels = crate::civil_landxml::all_parcels(file);
+            if parcels.is_empty() {
+                ui_kit::callout(ui, Level::Info, "The file has no parcels.");
+                return;
+            }
+            ui_kit::section(ui, "Parcels in the file", |ui| {
+                for (i, p) in parcels.iter().enumerate() {
+                    let area = p.area_m2.map(|a| format!("{a:.2} m2 in the file")).unwrap_or_else(|| "no area in the file".into());
+                    ui.checkbox(&mut form.take_parcels[i], format!("{}  ({area}{})", p.name, if p.coord_geoms.is_empty() { ", no geometry" } else { "" }));
+                }
+            });
+            ui.label(RichText::new("A spiral in a parcel boundary is carried as its chord. The area is recomputed from the boundary.").small().weak());
+        }
+        _ => {
+            if file.ground_profiles.is_empty() {
+                ui_kit::callout(ui, Level::Info, "The file has no ground profiles (ProfSurf).");
+                return;
+            }
+            ui_kit::section(ui, "Ground profiles in the file (shown in profile views)", |ui| {
+                for (i, p) in file.ground_profiles.iter().enumerate() {
+                    ui.checkbox(&mut form.take_profiles[i], format!("{}  on {}  ({} line(s))", p.name, p.alignment, p.point_lists.len()));
+                }
+            });
+        }
+    }
+}
+
+impl AfroBimApp {
+    /// The points, parcels and ground profiles ticked in the dialog. Returns how many were added.
+    fn landxml_apply_civil(&mut self, form: &LandXmlForm, notes: &mut Vec<String>) -> usize {
+        let Ok(file) = &form.file else { return 0 };
+        let source = form.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let mut added = 0;
+        for ((name, g), take) in crate::civil_landxml::point_groups(file).into_iter().zip(&form.take_points) {
+            if *take {
+                let (_, n) = crate::civil_landxml::add_points(&mut self.doc, &name, g, &source);
+                notes.push(format!("LandXML: {n} point(s) from {name}."));
+                added += 1;
+            }
+        }
+        let mut number = self.doc.elements().iter().filter(|e| e.category == crate::civil::PARCEL).count() as u32 + 1;
+        for (p, take) in crate::civil_landxml::all_parcels(file).into_iter().zip(&form.take_parcels) {
+            if *take {
+                match crate::civil_landxml::parcel_from(p, number).map(|pc| (pc.area().ok(), crate::civil_landxml::add_parcel(&mut self.doc, &pc, &source))) {
+                    Ok((area, Some(_))) => {
+                        added += 1;
+                        number += 1;
+                        if let (Some(a), Some(fa)) = (area, p.area_m2) {
+                            if (a - fa).abs() > 0.01 * fa.max(1.0) {
+                                notes.push(format!("LandXML: parcel {} has {fa:.2} m2 in the file and {a:.2} m2 from its boundary.", p.name));
+                            }
+                        }
+                    }
+                    Ok((_, None)) => notes.push(format!("LandXML: parcel {} could not be drawn.", p.name)),
+                    Err(e) => notes.push(format!("LandXML: parcel {} not added: {e}", p.name)),
+                }
+            }
+        }
+        for (ps, take) in file.ground_profiles.iter().zip(&form.take_profiles) {
+            if *take {
+                added += crate::civil_landxml::add_profile(&mut self.doc, ps, &source).len();
+            }
+        }
+        added
+    }
 }
