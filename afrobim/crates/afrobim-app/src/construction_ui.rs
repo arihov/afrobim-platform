@@ -386,15 +386,27 @@ impl AfroBimApp {
                 (mark, self.construction.book.log.target_of(*id).map(|t| format!("{} {}", t.quantity, t.unit)))
             })
             .collect();
+        let (rec_ok, rec_reason) = {
+            let r = &self.construction.rec;
+            if targets.is_empty() {
+                (false, "Select elements, or choose a rule that picks some")
+            } else if r.by.trim().is_empty() {
+                (false, "Enter who recorded it")
+            } else if date_of(&r.date).is_none() {
+                (false, "Enter the date as YYYY-MM-DD")
+            } else if r.correction && r.reason.trim().is_empty() {
+                (false, "A correction needs a reason")
+            } else {
+                (true, "")
+            }
+        };
         let c = &mut self.construction;
-        let dlg = crate::ui_kit::Dialog::titled("Record site progress").subtitle("Percent complete of the elements, by date").width(560.0).show_body(ctx, |ui| {
-            egui::ScrollArea::vertical().max_height(620.0).auto_shrink([true, true]).show(ui, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Record site progress").subtitle("Percent complete of the elements, by date").width(560.0).show(ctx, |ui| {
+            {
                 let r = &mut c.rec;
                 crate::ui_kit::heading(ui, "Elements");
-                ui.horizontal(|ui| {
-                    ui.radio_value(&mut r.source, Source::Selection, format!("the selected elements ({})", selection.len()));
-                    ui.radio_value(&mut r.source, Source::Rule, "by rule");
-                });
+                let sel_label = format!("Selected elements ({})", selection.len());
+                crate::ui_kit::segmented_of(ui, &mut r.source, &[(Source::Selection, sel_label.as_str()), (Source::Rule, "By rule")]);
                 if r.source == Source::Rule {
                     ui.horizontal(|ui| {
                         egui::ComboBox::from_id_salt("rec-category").selected_text(r.rule_category.clone().unwrap_or_else(|| "any category".into())).show_ui(ui, |ui| {
@@ -416,10 +428,7 @@ impl AfroBimApp {
                 ui.label(RichText::new(format!("{} element(s): {}{}", marks.len(), shown.join(", "), if marks.len() > 12 { ", ..." } else { "" })).small().weak());
                 ui.separator();
                 crate::ui_kit::heading(ui, "What was measured");
-                ui.horizontal(|ui| {
-                    ui.radio_value(&mut r.quantity, false, "percent complete");
-                    ui.radio_value(&mut r.quantity, true, "quantity done to date");
-                });
+                crate::ui_kit::segmented_of(ui, &mut r.quantity, &[(false, "Percent complete"), (true, "Quantity done to date")]);
                 crate::ui_kit::grid(ui, "rec-measure", |ui| {
                     if r.quantity {
                         ui.label("Quantity done");
@@ -442,7 +451,7 @@ impl AfroBimApp {
                     tf(ui, &mut r.note, "optional", 300.0);
                     ui.end_row();
                 });
-                ui.label("Files and photos (paths only; AfroBIM does not open or copy them)");
+                crate::ui_kit::heading(ui, "Files and photos (paths only; AfroBIM does not open or copy them)");
                 let mut remove = None;
                 for (i, f) in r.files.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
@@ -458,7 +467,7 @@ impl AfroBimApp {
                 if ui.button("Add a file…").clicked() {
                     pick_file = true;
                 }
-                ui.checkbox(&mut r.correction, "This is a correction of earlier records");
+                crate::ui_kit::toggle(ui, &mut r.correction, "This is a correction of earlier records");
                 if r.correction {
                     ui.horizontal(|ui| {
                         ui.label("Reason");
@@ -467,7 +476,6 @@ impl AfroBimApp {
                 }
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "A percent below the previous record is refused unless it is a correction with a reason. A quantity needs a target quantity in the same unit.");
                 if r.quantity {
-                    ui.separator();
                     crate::ui_kit::heading(ui, "Target quantities");
                     for (mark, target) in &target_info {
                         ui.label(RichText::new(format!("{mark}: {}", target.as_deref().unwrap_or("no target (input needed)"))).small());
@@ -493,15 +501,22 @@ impl AfroBimApp {
                         });
                     }
                 }
-                ui.add_space(6.0);
-                if ui.button("Add the record").clicked() {
-                    add = true;
-                }
                 message(ui, &r.message);
-            });
+            }
+        }, |ui| {
+            let out = crate::ui_kit::Footer::new("Add the record").enabled(rec_ok, rec_reason).cancel(Some("Close")).show(ui);
+            out
         });
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                add = true;
+            }
         }
         self.construction.record_open = open;
         if pick_file {
@@ -589,34 +604,35 @@ impl AfroBimApp {
             ids.dedup();
             ids.into_iter().map(|id| (id, doc.find(id).map(|e| e.name.clone()).unwrap_or_else(|| format!("element {}", id.0)))).collect()
         };
-        let dlg = crate::ui_kit::Dialog::titled("Site records").subtitle("The progress records kept in the document").width(860.0).show_body(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Element");
-                let shown = c.filter.element.and_then(|id| with_records.iter().find(|w| w.0 == id)).map(|w| w.1.clone()).unwrap_or_else(|| "all".into());
-                egui::ComboBox::from_id_salt("log-element").selected_text(shown).show_ui(ui, |ui| {
-                    ui.selectable_value(&mut c.filter.element, None, "all");
-                    for (id, name) in &with_records {
-                        ui.selectable_value(&mut c.filter.element, Some(*id), name);
-                    }
+        let dlg = crate::ui_kit::Dialog::titled("Site records").subtitle("The progress records kept in the document").width(860.0).show_close(ctx, |ui| {
+            crate::ui_kit::heading(ui, "Filter");
+            crate::ui_kit::form(ui, "log-filter", |f| {
+                f.row("Element", |ui| {
+                    let shown = c.filter.element.and_then(|id| with_records.iter().find(|w| w.0 == id)).map(|w| w.1.clone()).unwrap_or_else(|| "all".into());
+                    egui::ComboBox::from_id_salt("log-element").selected_text(shown).show_ui(ui, |ui| {
+                        ui.selectable_value(&mut c.filter.element, None, "all");
+                        for (id, name) in &with_records {
+                            ui.selectable_value(&mut c.filter.element, Some(*id), name);
+                        }
+                    });
                 });
-                ui.label("from");
-                tf(ui, &mut c.filter.from, "YYYY-MM-DD", 90.0);
-                ui.label("to");
-                tf(ui, &mut c.filter.to, "YYYY-MM-DD", 90.0);
-                if ui.button("Export CSV…").clicked() {
-                    export = true;
-                }
+                f.row("From", |ui| {
+                    tf(ui, &mut c.filter.from, "YYYY-MM-DD", 100.0);
+                });
+                f.row("To", |ui| {
+                    tf(ui, &mut c.filter.to, "YYYY-MM-DD", 100.0);
+                });
             });
             let (from, to) = (date_of(&c.filter.from), date_of(&c.filter.to));
             if (!c.filter.from.trim().is_empty() && from.is_none()) || (!c.filter.to.trim().is_empty() && to.is_none()) {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "A date is typed as YYYY-MM-DD; a date that is not read is not used.");
             }
             let rows = glue::filtered_records(&c.book.log, c.filter.element, from, to);
-            ui.label(RichText::new(format!("{} of {} record(s)", rows.len(), c.book.log.records().len())).small().weak());
+            crate::ui_kit::heading(ui, &format!("Records ({} of {})", rows.len(), c.book.log.records().len()));
             egui::ScrollArea::both().max_height(ui.available_height() - 30.0).auto_shrink([false, false]).show(ui, |ui| {
                 egui::Grid::new("log-grid").num_columns(8).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
-                    for h in ["Date", "Element", "Measured", "Percent", "Recorded by", "Note", "Files", "Correction"] {
-                        crate::ui_kit::th(ui, &h);
+                    for (k, h) in ["Date", "Element", "Measured", "Percent (%)", "Recorded by", "Note", "Files", "Correction"].iter().enumerate() {
+                        if k == 3 { crate::ui_kit::th_num(ui, h) } else { crate::ui_kit::th(ui, h) }
                     }
                     ui.end_row();
                     for (_, r, percent) in &rows {
@@ -626,7 +642,7 @@ impl AfroBimApp {
                             afrobim_progress::Measurement::Percent(p) => format!("{p} %"),
                             afrobim_progress::Measurement::Quantity { measured, unit } => format!("{measured} {unit}"),
                         });
-                        ui.label(percent.map(|p| format!("{p} %")).unwrap_or_else(|| "input needed".into()));
+                        crate::ui_kit::cell_num(ui, percent.map(|p| format!("{p}")).unwrap_or_else(|| "input needed".into()));
                         ui.label(&r.recorded_by);
                         ui.label(&r.note);
                         ui.label(r.files.join("; "));
@@ -642,9 +658,12 @@ impl AfroBimApp {
                     }
                 }
             });
-        });
+        }, &["Export CSV..."]);
         if dlg.closed {
             open = false;
+        }
+        if matches!(dlg.inner, Some((_, Some(0)))) {
+            export = true;
         }
         self.construction.log_open = open;
         if export {
@@ -668,25 +687,21 @@ impl AfroBimApp {
         let has_prog = self.sched.prog.is_some();
         let doc = &self.doc;
         let c = &mut self.construction;
-        let dlg = crate::ui_kit::Dialog::titled("Roll up site progress and update the programme").subtitle("Activity progress from the records of the elements").width(900.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Roll up site progress and update the programme").subtitle("Activity progress from the records of the elements").width(900.0).show(ctx, |ui| {
             if !has_prog {
-                ui.label("There is no programme yet. Create one in PROGRAMME and link the elements to its activities.");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "There is no programme yet. Create one in PROGRAMME and link the elements to its activities.");
                 return;
             }
-            ui.label(
-                RichText::new("Each activity's percent is the weighted mean of the percent of the elements linked to it, whatever the link action. The weights are the priced values of the elements when every element of the activity is priced above zero, otherwise equal; the basis used is shown. Actual dates are inferred from the records and are marked so: check them against the site diary before you accept.")
-                    .small()
-                    .weak(),
-            );
-            ui.horizontal(|ui| {
-                ui.label("Data date");
-                if tf(ui, &mut c.settings.data_date, "YYYY-MM-DD", 100.0).changed() {
-                    c.evm_dirty = true;
-                }
-                if ui.button("Roll up at this date").clicked() {
-                    preview = true;
-                }
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Each activity's percent is the weighted mean of the percent of the elements linked to it, whatever the link action. The weights are the priced values of the elements when every element of the activity is priced above zero, otherwise equal; the basis used is shown. Actual dates are inferred from the records and are marked so: check them against the site diary before you accept.");
+            crate::ui_kit::heading(ui, "Date");
+            crate::ui_kit::form(ui, "rollup-date", |f| {
+                f.row("Data date", |ui| {
+                    if tf(ui, &mut c.settings.data_date, "YYYY-MM-DD", 100.0).changed() {
+                        c.evm_dirty = true;
+                    }
+                });
             });
+            crate::ui_kit::heading(ui, "Roll-up of the records");
             match &c.preview {
                 Some(Err(e)) => {
                     crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
@@ -694,13 +709,13 @@ impl AfroBimApp {
                 Some(Ok(r)) => {
                     egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
                         egui::Grid::new("rollup-grid").num_columns(7).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
-                            for h in ["Activity", "Percent", "Weights", "Elements recorded", "Actual start", "Actual finish", ""] {
-                                crate::ui_kit::th(ui, &h);
+                            for (k, h) in ["Activity", "Percent (%)", "Weights", "Elements recorded", "Actual start", "Actual finish", "Note"].iter().enumerate() {
+                                if k == 1 { crate::ui_kit::th_num(ui, h) } else { crate::ui_kit::th(ui, h) }
                             }
                             ui.end_row();
                             for a in &r.activities {
                                 ui.label(&a.activity);
-                                ui.label(format!("{} %", a.percent));
+                                crate::ui_kit::cell_num(ui, format!("{}", a.percent));
                                 ui.label(a.basis.label()).on_hover_text(a.basis_note.clone().unwrap_or_default());
                                 ui.label(format!("{} of {}", a.elements_recorded, a.elements_total));
                                 ui.label(a.actual_start.as_ref().map(|d| format!("{} (inferred)", d.date)).unwrap_or_else(|| "none".into())).on_hover_text(a.actual_start.as_ref().map(|d| d.basis.clone()).unwrap_or_default());
@@ -714,17 +729,12 @@ impl AfroBimApp {
                             crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("No element is linked to: {}. Their progress is left as it is.", r.unlinked_activities.join(", ")));
                         }
                     });
-                    ui.add_space(4.0);
-                    ui.label(RichText::new("Accepting replaces the percent complete and the actual dates of these activities in the programme, sets its data date and reschedules it. Activities no element reaches keep their own progress.").small());
-                    if ui.button("Accept: apply to the programme and reschedule").clicked() {
-                        apply = true;
-                    }
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "Accepting replaces the percent complete and the actual dates of these activities in the programme, sets its data date and reschedules it. Activities no element reaches keep their own progress.");
                 }
                 None => {}
             }
             if let Some((report, outcome)) = &c.applied {
-                ui.separator();
-                ui.label(RichText::new(format!("Applied to {} activities at the data date {}.", report.applied.len(), report.data_date)).strong());
+                crate::ui_kit::heading(ui, &format!("Applied to {} activities at the data date {}", report.applied.len(), report.data_date));
                 for (activity, what, date) in &report.inferred_dates {
                     ui.label(RichText::new(format!("{activity}: {what} {date} (inferred from the records)")).small());
                 }
@@ -741,9 +751,20 @@ impl AfroBimApp {
                 }
             }
             let _ = doc;
-        });
+        }, |ui| crate::ui_kit::Footer::new("Roll up at this date").enabled(has_prog, "Create the programme first").secondary(&["Accept: apply to the programme and reschedule"]).cancel(Some("Close")).show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                preview = true;
+            }
+            if out.secondary == Some(0) {
+                apply = true;
+            }
         }
         self.construction.rollup_open = open;
         if preview {
@@ -792,6 +813,7 @@ impl AfroBimApp {
     fn evm_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let mut store_report = false;
+        let store_ok = std::cell::Cell::new(false);
         let mut export = false;
         let mut changed = false;
         if self.construction.evm_dirty {
@@ -803,21 +825,24 @@ impl AfroBimApp {
         let baselined: Vec<String> = self.sched.prog.as_ref().and_then(|p| p.baseline.as_ref()).map(|b| b.entries.iter().map(|e| e.id.clone()).collect()).unwrap_or_default();
         let has_estimate = matches!(self.cost.result, Some(Ok(_)));
         let c = &mut self.construction;
-        let dlg = crate::ui_kit::Dialog::titled("Earned value").subtitle("Planned, earned and actual cost against the data date").width(980.0).show_body(ctx, |ui| {
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                ui.label(
-                    RichText::new("Definitions are in the afrobim-progress README and are algebraic: no published standard was held. Actual cost is entered, never derived: until it is, every cost figure reads input needed. Name the EAC formula wherever you quote the EAC.")
-                        .small()
-                        .weak(),
-                );
+        let dlg = crate::ui_kit::Dialog::titled("Earned value").subtitle("Planned, earned and actual cost against the data date").width(980.0).show(ctx, |ui| {
+            {
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Definitions are in the afrobim-progress README and are algebraic: no published standard was held. Actual cost is entered, never derived: until it is, every cost figure reads input needed. Name the EAC formula wherever you quote the EAC.");
+                crate::ui_kit::heading(ui, "Set-up");
                 crate::ui_kit::grid(ui, "evm-setup", |ui| {
                     ui.label("Data date");
                     changed |= tf(ui, &mut c.settings.data_date, "YYYY-MM-DD", 100.0).changed();
                     ui.end_row();
                     ui.label("Budget at completion");
                     ui.vertical(|ui| {
-                        changed |= ui.radio_value(&mut c.settings.budget_from_estimate, true, if has_estimate { "from the estimate (priced element values)" } else { "from the estimate (it has no result yet)" }).changed();
-                        changed |= ui.radio_value(&mut c.settings.budget_from_estimate, false, "entered per activity").changed();
+                        let mut ix = (!c.settings.budget_from_estimate) as usize;
+                        if crate::ui_kit::segmented(ui, &mut ix, &["From the estimate", "Entered per activity"]) {
+                            c.settings.budget_from_estimate = ix == 0;
+                            changed = true;
+                        }
+                        if c.settings.budget_from_estimate && !has_estimate {
+                            crate::ui_kit::note(ui, "The estimate has no result yet.");
+                        }
                     });
                     ui.end_row();
                     ui.label("EAC formula");
@@ -851,7 +876,7 @@ impl AfroBimApp {
                     ui.end_row();
                 });
                 if !c.settings.budget_from_estimate {
-                    ui.label(RichText::new("Budget per activity (activities with a baseline can carry one)").strong());
+                    crate::ui_kit::heading(ui, "Budget per activity (activities with a baseline can carry one)");
                     egui::Grid::new("evm-budget").num_columns(3).spacing([10.0, 3.0]).show(ui, |ui| {
                         for (id, name) in &activities {
                             ui.label(id);
@@ -922,21 +947,25 @@ impl AfroBimApp {
                     }
                     Some(Ok(out)) => {
                         evm_output(ui, &out, decimals);
-                        ui.horizontal(|ui| {
-                            if ui.add_enabled(!out.eac_unchosen && c.id.is_some(), egui::Button::new("Store this report in the document")).on_hover_text("Keeps the figures and draws the S-curve on the sheet. It needs a chosen EAC formula.").clicked() {
-                                store_report = true;
-                            }
-                            if ui.button("Export every table as CSV…").clicked() {
-                                export = true;
-                            }
-                        });
+                        store_ok.set(!out.eac_unchosen && c.id.is_some());
                     }
                     None => {}
                 }
-            });
-        });
+            }
+        }, |ui| crate::ui_kit::Footer::new("Store this report in the document").enabled(store_ok.get(), "Choose an EAC formula; the report is stored with the estimate").secondary(&["Export every table as CSV..."]).cancel(Some("Close")).show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                store_report = true;
+            }
+            if out.secondary == Some(0) {
+                export = true;
+            }
         }
         self.construction.evm_open = open;
         if changed {
@@ -1000,10 +1029,10 @@ impl AfroBimApp {
                 }
                 Ok((look, delays)) => {
                     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                        ui.label(RichText::new(format!("Look-ahead ({} activities)", look.len())).strong());
+                        crate::ui_kit::heading(ui, &format!("Look-ahead ({} activities)", look.len()));
                         egui::Grid::new("look-grid").num_columns(7).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
-                            for h in ["Activity", "WBS", "Name", "Event", "Start", "Finish", "Float (days)"] {
-                                crate::ui_kit::th(ui, &h);
+                            for (k, h) in ["Activity", "WBS", "Name", "Event", "Start", "Finish", "Float (days)"].iter().enumerate() {
+                                if k == 6 { crate::ui_kit::th_num(ui, h) } else { crate::ui_kit::th(ui, h) }
                             }
                             ui.end_row();
                             for r in look {
@@ -1017,15 +1046,14 @@ impl AfroBimApp {
                                 });
                                 ui.label(r.start.to_string());
                                 ui.label(r.finish.to_string());
-                                ui.label(if r.critical { format!("{} (critical)", r.total_float) } else { r.total_float.to_string() });
+                                crate::ui_kit::cell_num(ui, if r.critical { format!("{} (critical)", r.total_float) } else { r.total_float.to_string() });
                                 ui.end_row();
                             }
                         });
-                        ui.add_space(8.0);
-                        ui.label(RichText::new(format!("Delay list ({} activities)", delays.len())).strong());
+                        crate::ui_kit::heading(ui, &format!("Delay list ({} activities)", delays.len()));
                         egui::Grid::new("delay-grid").num_columns(6).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
-                            for h in ["Activity", "Name", "Baseline finish", "Forecast finish", "Finish variance (working days)", "Start variance"] {
-                                crate::ui_kit::th(ui, &h);
+                            for (k, h) in ["Activity", "Name", "Baseline finish", "Forecast finish", "Finish variance (working days)", "Start variance (working days)"].iter().enumerate() {
+                                if k >= 4 { crate::ui_kit::th_num(ui, h) } else { crate::ui_kit::th(ui, h) }
                             }
                             ui.end_row();
                             for r in delays {
@@ -1033,8 +1061,8 @@ impl AfroBimApp {
                                 ui.label(&r.name);
                                 ui.label(r.baseline_finish.to_string());
                                 ui.label(r.finish.to_string());
-                                ui.label(r.finish_variance.to_string());
-                                ui.label(r.start_variance.to_string());
+                                crate::ui_kit::cell_num(ui, r.finish_variance.to_string());
+                                crate::ui_kit::cell_num(ui, r.start_variance.to_string());
                                 ui.end_row();
                             }
                         });
