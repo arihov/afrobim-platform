@@ -157,8 +157,23 @@ pub fn build(doc: &mut Document) -> Vec<String> {
     notes.extend(pipe_demo(doc, surf_id, &al));
     notes.extend(grading_demo(doc, surf_id));
     notes.extend(junction_demo(doc, surf_id, &al));
+    notes.extend(survey_demo(doc));
     let _ = pts_id;
     let _: Option<ElementId> = None;
+    notes
+}
+
+/// The survey figures of the synthetic survey database and its points as a linked point set.
+fn survey_demo(doc: &mut Document) -> Vec<String> {
+    let db = crate::survey_db::demo_database(E0, N0);
+    let mut notes = Vec::new();
+    match crate::survey_db::figure_records(&db, "Main", 0.05) {
+        Ok(data) if !data.figures.is_empty() => {
+            crate::survey_db::add_figures(doc, &data);
+        }
+        Ok(_) => notes.push("The synthetic survey made no figure.".into()),
+        Err(e) => notes.push(format!("Survey figures: {e}")),
+    }
     notes
 }
 
@@ -287,6 +302,13 @@ impl crate::app::AfroBimApp {
     /// CIVILDEMO: builds the data, selects the surface and fits the view.
     pub(crate) fn civil_demo(&mut self) {
         let notes = build(&mut self.doc);
+        self.sdb_install_demo();
+        // The survey points as a point set linked to the (synthetic, unsaved) database.
+        if let Some(db) = self.civil_ui.sdb.db.clone() {
+            if let Err(e) = crate::survey_db::insert_points(&mut self.doc, &db, "(demonstration database, not saved)", "Main", 1000) {
+                self.log(format!("Survey points: {e}"));
+            }
+        }
         self.sync_generated();
         self.civil_build_now();
         self.schedule_commit_now();

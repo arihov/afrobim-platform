@@ -66,13 +66,26 @@ pub enum Cv {
     // Reprojection
     Transform,
     Calibrate,
+    // Survey database
+    SurveyNew,
+    SurveyOpen,
+    SurveySettings,
+    SurveyImport,
+    SurveyObs,
+    SurveyTraverse,
+    SurveyAdjust,
+    SurveyApply,
+    SurveyFigures,
+    SurveyInsert,
+    SurveyUpdate,
+    SurveyEvents,
 }
 
 
 
 /// Every civil command (a test checks each one is in the command table).
 #[cfg(test)]
-pub const ALL: [Cv; 49] = [
+pub const ALL: [Cv; 61] = [
     Cv::Toolspace,
     Cv::Points,
     Cv::PointCreate,
@@ -122,6 +135,18 @@ pub const ALL: [Cv; 49] = [
     Cv::Roundabout,
     Cv::Transform,
     Cv::Calibrate,
+    Cv::SurveyNew,
+    Cv::SurveyOpen,
+    Cv::SurveySettings,
+    Cv::SurveyImport,
+    Cv::SurveyObs,
+    Cv::SurveyTraverse,
+    Cv::SurveyAdjust,
+    Cv::SurveyApply,
+    Cv::SurveyFigures,
+    Cv::SurveyInsert,
+    Cv::SurveyUpdate,
+    Cv::SurveyEvents,
 ];
 
 pub fn glyph(c: Cv) -> &'static str {
@@ -175,5 +200,18 @@ pub fn glyph(c: Cv) -> &'static str {
         Cv::Roundabout => ph::CIRCLE_NOTCH,
         Cv::Transform => ph::GLOBE_HEMISPHERE_WEST,
         Cv::Calibrate => ph::CROSSHAIR,
+        Cv::SurveyNew => ph::FILE_PLUS,
+        Cv::SurveyOpen => ph::FOLDER_OPEN,
+        Cv::SurveySettings => ph::SLIDERS_HORIZONTAL,
+        Cv::SurveyImport => ph::DOWNLOAD_SIMPLE,
+        Cv::SurveyObs => ph::TABLE,
+        Cv::SurveyTraverse => ph::PATH,
+        Cv::SurveyAdjust => ph::CHART_SCATTER,
+        Cv::SurveyApply => ph::CHECK_FAT,
+        Cv::SurveyFigures => ph::SHAPES,
+        Cv::SurveyInsert => ph::MAP_PIN_PLUS,
+        Cv::SurveyUpdate => ph::ARROWS_CLOCKWISE,
+        Cv::SurveyEvents => ph::CLOCK_COUNTER_CLOCKWISE,
+
     }
 }

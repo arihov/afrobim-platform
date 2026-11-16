@@ -296,6 +296,11 @@ impl AfroBimApp {
                             a(ui, &mut pick, c(cv), l);
                         }
                     });
+                    submenu(ui, egui_phosphor::regular::CHART_SCATTER, "Survey database", |ui| {
+                        for (cv, l) in [(SurveyNew, "New database…"), (SurveyOpen, "Open database…"), (SurveySettings, "Settings…"), (SurveyImport, "Import field data…"), (SurveyObs, "Observations…"), (SurveyTraverse, "Traverse analysis…"), (SurveyAdjust, "Network adjustment…"), (SurveyApply, "Apply adjusted coordinates…"), (SurveyFigures, "Figures…"), (SurveyInsert, "Insert points…"), (SurveyUpdate, "Update linked points…"), (SurveyEvents, "Import events…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
                     submenu(ui, egui_phosphor::regular::GLOBE_HEMISPHERE_WEST, "Reprojection", |ui| {
                         for (cv, l) in [(Transform, "Transform coordinates…"), (Calibrate, "Site calibration…")] {
                             a(ui, &mut pick, c(cv), l);

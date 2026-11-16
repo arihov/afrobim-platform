@@ -293,6 +293,7 @@ impl AfroBimApp {
             frames: 0,
         };
 
+        app.civil_ui.tree.tab = crate::workspace::WORKSPACES[app.workspace.min(crate::workspace::WORKSPACES.len() - 1)].toolspace_tab;
         if app.options.civil_demo {
             app.civil_demo();
         }
@@ -709,6 +710,7 @@ impl AfroBimApp {
         let ws = &crate::workspace::WORKSPACES[index];
         self.workspace = index;
         self.show_left = ws.show_left;
+        self.civil_ui.tree.tab = ws.toolspace_tab;
         self.show_right = ws.show_right;
         if !ws.shows_tab(self.ribbon_tab) {
             self.ribbon_tab = crate::ribbon::Tab::Home;
@@ -770,6 +772,11 @@ impl AfroBimApp {
             }
             None => self.status = "Nothing to redo.".into(),
         }
+    }
+
+    /// The file the document was opened from or saved to, if it has one.
+    pub(crate) fn doc_path(&self) -> Option<&std::path::Path> {
+        self.path.as_deref()
     }
 
     pub(crate) fn log(&mut self, line: impl Into<String>) {

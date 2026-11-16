@@ -42,7 +42,7 @@ pub const POINTCLOUD: &str = "civil-pointcloud";
 pub const FIGURES: &str = "civil-figures";
 
 /// Category, display name and the plural the toolspace shows.
-pub const KINDS: [(&str, &str, &str); 14] = [
+pub const KINDS: [(&str, &str, &str); 15] = [
     (POINTS, "Point set", "Points"),
     (SURFACE, "Surface", "Surfaces"),
     (PROFILE, "Ground profile", "Profiles"),
@@ -57,6 +57,7 @@ pub const KINDS: [(&str, &str, &str); 14] = [
     (GRADING, "Grading group", "Grading Groups"),
     (INTERSECTION, "Intersection", "Intersections"),
     (ROUNDABOUT, "Roundabout", "Roundabouts"),
+    (FIGURES, "Survey figures", "Survey Figures"),
 ];
 
 pub fn is_civil(category: &str) -> bool {
@@ -333,6 +334,7 @@ fn readable(category: &str, data: &serde_json::Value) -> Result<(), String> {
         GRADING => ok::<crate::civil_grading::GradingData>(data),
         INTERSECTION => ok::<crate::civil_junction::IntersectionData>(data),
         ROUNDABOUT => ok::<crate::civil_junction::RoundaboutData>(data),
+        FIGURES => ok::<crate::survey_db::FigureData>(data),
         _ => Ok(()),
     }
 }

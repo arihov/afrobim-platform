@@ -39,7 +39,7 @@ struct Row {
 
 #[derive(Default)]
 pub struct TreeState {
-    /// 0 Prospector, 1 Settings.
+    /// 0 Prospector, 1 Survey, 2 Settings.
     pub tab: usize,
     pub renaming: Option<(ElementId, String)>,
 }
@@ -60,6 +60,8 @@ fn icon_of(category: &str) -> &'static str {
         GRADING => ph::MOUNTAINS,
         INTERSECTION => ph::ARROWS_SPLIT,
         ROUNDABOUT => ph::CIRCLE_NOTCH,
+        FIGURES => ph::SHAPES,
+        POINTCLOUD => ph::CLOUD,
         c if c == afrobim_alignment::CATEGORY => ph::PATH,
         _ => ph::SQUARE,
     }
@@ -161,11 +163,15 @@ impl AfroBimApp {
     pub(crate) fn toolspace(&mut self, ui: &mut Ui) {
         let mut tab = self.civil_ui.tree.tab;
         ui.horizontal(|ui| {
-            crate::ui_kit::tabs(ui, &mut tab, &["Prospector", "Settings"]);
+            crate::ui_kit::tabs(ui, &mut tab, &["Prospector", "Survey", "Settings"]);
         });
         self.civil_ui.tree.tab = tab;
         ui.separator();
         if tab == 1 {
+            self.sdb_tab(ui);
+            return;
+        }
+        if tab == 2 {
             self.toolspace_settings(ui);
             return;
         }
@@ -398,6 +404,12 @@ impl AfroBimApp {
                     self.row_ui(ui, r, acts, &[("Parcel properties...", Cv::ParcelProps)]);
                 }
             });
+            let figures = self.rows(FIGURES);
+            self.node(ui, "ts-figures", ph::SHAPES, "Survey Figures", figures.len(), Some(("Survey figures...", Cv::SurveyFigures)), &mut acts, |ui, acts| {
+                for r in &figures {
+                    self.row_ui(ui, r, acts, &[("Figures...", Cv::SurveyFigures)]);
+                }
+            });
             ui.separator();
             // The existing categories (signs, markings, drainage and the rest).
             let categories: Vec<(String, String)> = self.modules.categories().filter(|(c, _)| !civil::is_civil(c) && *c != afrobim_alignment::CATEGORY && *c != afrobim_corridor::SURFACE_CATEGORY).map(|(c, n)| (c.to_string(), n.to_string())).collect();
@@ -521,6 +533,7 @@ pub fn edit_command(category: &str) -> Option<Cv> {
         GRADING => Cv::GradeGroup,
         INTERSECTION => Cv::Intersection,
         ROUNDABOUT => Cv::Roundabout,
+        FIGURES => Cv::SurveyFigures,
         _ => return None,
     })
 }

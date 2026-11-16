@@ -48,6 +48,8 @@ pub struct Workspace {
     pub show_right: bool,
     /// Everything: no filtering at all (today's behaviour).
     pub everything: bool,
+    /// The toolspace tab the workspace starts on: 0 Prospector, 1 Survey, 2 Settings.
+    pub toolspace_tab: usize,
 }
 
 use egui_phosphor::regular as ph;
@@ -69,6 +71,7 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: true,
         show_right: true,
         everything: true,
+        toolspace_tab: 0,
     },
     Workspace {
         name: "Civil",
@@ -80,6 +83,18 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: true,
         show_right: true,
         everything: false,
+        toolspace_tab: 0,
+    },
+    Workspace {
+        name: "Survey, Clouds and Data",
+        glyph: ph::CHART_SCATTER,
+        blurb: "Survey database, adjustment, point clouds, data shortcuts and reprojection",
+        tabs: &[WsTab::only(Tab::Civil, &["Points", "Surfaces", "Survey database", "Reprojection"]), WsTab::all(Tab::Insert)],
+        palettes: Palettes { signs: false, modify: false },
+        show_left: true,
+        show_right: true,
+        everything: false,
+        toolspace_tab: 1,
     },
     Workspace {
         name: "Pipes, Grading and Junctions",
@@ -90,6 +105,7 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: true,
         show_right: true,
         everything: false,
+        toolspace_tab: 0,
     },
     Workspace {
         name: "Survey and Terrain",
@@ -100,6 +116,7 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: true,
         show_right: true,
         everything: false,
+        toolspace_tab: 0,
     },
     Workspace {
         name: "Road Design",
@@ -110,6 +127,7 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: true,
         show_right: true,
         everything: false,
+        toolspace_tab: 0,
     },
     Workspace {
         name: "Signs and Markings",
@@ -120,6 +138,7 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: true,
         show_right: true,
         everything: false,
+        toolspace_tab: 0,
     },
     Workspace {
         name: "Drainage",
@@ -130,6 +149,7 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: true,
         show_right: true,
         everything: false,
+        toolspace_tab: 0,
     },
     Workspace {
         name: "Lighting and Restraint",
@@ -140,6 +160,7 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: true,
         show_right: true,
         everything: false,
+        toolspace_tab: 0,
     },
     Workspace {
         name: "Structures and Supports",
@@ -150,6 +171,7 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: true,
         show_right: true,
         everything: false,
+        toolspace_tab: 0,
     },
     Workspace {
         name: "Coordination",
@@ -160,6 +182,7 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: false,
         show_right: true,
         everything: false,
+        toolspace_tab: 0,
     },
     Workspace {
         name: "Construction",
@@ -170,6 +193,7 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: false,
         show_right: true,
         everything: false,
+        toolspace_tab: 0,
     },
     Workspace {
         name: "Documentation",
@@ -180,6 +204,7 @@ pub const WORKSPACES: &[Workspace] = &[
         show_left: false,
         show_right: false,
         everything: false,
+        toolspace_tab: 0,
     },
 ];
 

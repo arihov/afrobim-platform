@@ -174,7 +174,7 @@ fn put(v: &mut Value, x: f64) {
 /// A node that is an array of numbers (a position) or an array of such arrays.
 fn map_array(v: &mut Value, m: &mut Mapper) {
     let Value::Array(a) = v else { return };
-    if a.len() >= 2 && a.iter().all(|x| x.is_number()) {
+    if a.len() >= 2 && a[0].is_number() && a[1].is_number() {
         let (e, n) = (num(&a[0]).unwrap_or(f64::NAN), num(&a[1]).unwrap_or(f64::NAN));
         let z = a.get(2).and_then(num).unwrap_or(0.0);
         let (e2, n2) = m.map(e, n, z);

@@ -17,6 +17,7 @@ pub struct CivilUi {
     pub grade: crate::grading_ui::GradeUi,
     pub junction: crate::junction_ui::JunctionUi,
     pub transform: crate::transform_ui::TransformUi,
+    pub sdb: crate::sdb_ui::SdbUi,
     /// Positions picked in the model for the dialog that asked (easting, northing).
     pub queue: Vec<(f64, f64)>,
     /// Keep picking after each click (until the dialog closes).
@@ -57,6 +58,7 @@ impl AfroBimApp {
             Cv::Intersection | Cv::Roundabout => self.junction_cmd(cv),
             Cv::Transform => self.transform_cmd(),
             Cv::Calibrate => self.calibrate_cmd(),
+            Cv::SurveyNew | Cv::SurveyOpen | Cv::SurveySettings | Cv::SurveyImport | Cv::SurveyObs | Cv::SurveyTraverse | Cv::SurveyAdjust | Cv::SurveyApply | Cv::SurveyFigures | Cv::SurveyInsert | Cv::SurveyUpdate | Cv::SurveyEvents => self.sdb_cmd(cv),
             Cv::ParcelPick | Cv::ParcelDeed | Cv::ParcelProps | Cv::ParcelTopology | Cv::ParcelSplit | Cv::ParcelSchedule => self.civil_parcel_cmd(cv),
             Cv::Earthworks => self.civil_quantities_cmd(),
             Cv::Assembly => self.civil_assembly_cmd(),
@@ -79,5 +81,6 @@ impl AfroBimApp {
         self.grading_windows(ctx);
         self.junction_windows(ctx);
         self.transform_windows(ctx);
+        self.sdb_windows(ctx);
     }
 }
