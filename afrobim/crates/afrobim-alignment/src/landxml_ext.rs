@@ -756,7 +756,7 @@ impl LandXmlSummary {
 }
 
 /// A whole LandXML file, read.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct LandXmlFile {
     pub header: LandXmlHeader,
     pub units: LandXmlUnits,
