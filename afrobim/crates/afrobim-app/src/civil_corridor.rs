@@ -2,6 +2,8 @@
 //! ground surface), sample line groups with a per-line swath edit, and the section view array.
 //! The older CORRIDOR command, with its single typical section, stays for old documents.
 
+use std::collections::BTreeMap;
+
 use afrobim_corridor::{Assembly, AssemblyRegion, Baseline, CorridorModel, Frequency, SampleLineGroup, SampleStations, VolumeOptions};
 use afrobim_kernel::{ElementId, SelectMode};
 use egui::RichText;
@@ -9,6 +11,7 @@ use egui::RichText;
 use crate::app::AfroBimApp;
 use crate::civil::{self, Bounds, CorridorData, SampleData, ASSEMBLY, CORRIDOR, SAMPLES};
 use crate::civil_dlg::{self as d};
+use crate::civil_targets::{self as tg, DocObjs, TargetRef};
 use crate::ui_kit::{self, Dialog, Footer, Level, NumRule};
 
 #[derive(Default)]
@@ -23,8 +26,27 @@ pub struct RgForm {
     start: String,
     end: String,
     assembly: Option<ElementId>,
+    /// Spacing on tangents; the spacing on curves and spirals when those are blank.
     spacing: String,
+    curve: String,
+    spiral: String,
+    curve_none: bool,
+    spiral_none: bool,
     at_geometry: bool,
+    at_critical: bool,
+    /// Extra stations, separated by commas.
+    extra: String,
+    /// The region's own copy of the assembly, whose declared targets are bound here, and the
+    /// assembly of the document it was copied from.
+    asm: Option<Assembly>,
+    src: Option<ElementId>,
+    refs: BTreeMap<String, TargetRef>,
+}
+
+impl RgForm {
+    fn new(name: String, start: String, end: String, assembly: Option<ElementId>, asm: Option<Assembly>) -> RgForm {
+        RgForm { name, start, end, assembly, spacing: String::new(), curve: String::new(), spiral: String::new(), curve_none: false, spiral_none: false, at_geometry: true, at_critical: true, extra: String::new(), asm, src: assembly, refs: BTreeMap::new() }
+    }
 }
 
 pub struct BlForm {
@@ -76,7 +98,26 @@ impl AfroBimApp {
                             .map(|b| BlForm {
                                 name: b.name.clone(),
                                 alignment: aligns.iter().find(|a| crate::alignment_glue::alignment_of(&self.doc, a.0).is_some_and(|x| x.name == b.alignment)).map(|a| a.0),
-                                regions: b.regions.iter().map(|r| RgForm { name: r.name.clone(), start: r.start_station_m.to_string(), end: r.end_station_m.to_string(), assembly: civil::of_category(&self.doc, ASSEMBLY).into_iter().find(|(aid, _)| self.assembly_of(*aid).is_some_and(|a| a == r.assembly)).map(|x| x.0), spacing: r.frequency.tangent_m.map(|v| v.to_string()).unwrap_or_default(), at_geometry: r.frequency.at_geometry_points }).collect(),
+                                regions: b
+                                    .regions
+                                    .iter()
+                                    .map(|r| {
+                                        let src = civil::of_category(&self.doc, ASSEMBLY).into_iter().find(|(aid, nm)| self.assembly_of(*aid).is_some_and(|a| a == r.assembly || (a.name == r.assembly.name && *nm == r.assembly.name))).map(|x| x.0);
+                                        let fq = &r.frequency;
+                                        let t = fq.tangent_m;
+                                        let same = |v: Option<f64>| if v == t { String::new() } else { v.map(|x| x.to_string()).unwrap_or_default() };
+                                        let mut rg = RgForm::new(r.name.clone(), r.start_station_m.to_string(), r.end_station_m.to_string(), src, Some(r.assembly.clone()));
+                                        rg.spacing = t.map(|v| v.to_string()).unwrap_or_default();
+                                        rg.curve = same(fq.curve_m);
+                                        rg.spiral = same(fq.spiral_m);
+                                        rg.curve_none = fq.curve_m.is_none();
+                                        rg.spiral_none = fq.spiral_m.is_none();
+                                        rg.at_geometry = fq.at_geometry_points;
+                                        rg.at_critical = fq.at_superelevation_critical;
+                                        rg.extra = fq.extra_stations.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", ");
+                                        rg
+                                    })
+                                    .collect(),
                             })
                             .collect(),
                         message: String::new(),
@@ -90,7 +131,10 @@ impl AfroBimApp {
                             edit: None,
                             name: String::new(),
                             ground: civil::surface_choices(&self.doc).first().map(|s| s.0),
-                            baselines: vec![BlForm { name: "Baseline 1".into(), alignment: al, regions: vec![RgForm { name: "Region 1".into(), start: s0.to_string(), end: s1.to_string(), assembly: civil::of_category(&self.doc, ASSEMBLY).first().map(|a| a.0), spacing: String::new(), at_geometry: true }] }],
+                            baselines: vec![BlForm { name: "Baseline 1".into(), alignment: al, regions: vec![{
+                                let a0 = civil::of_category(&self.doc, ASSEMBLY).first().map(|a| a.0);
+                                RgForm::new("Region 1".into(), s0.to_string(), s1.to_string(), a0, a0.and_then(|i| self.assembly_of(i)))
+                            }] }],
                             message: String::new(),
                             area: 0,
                             emax: String::new(),
@@ -150,22 +194,24 @@ impl AfroBimApp {
         let aligns = crate::alignment_glue::alignments(&self.doc);
         let asms = civil::of_category(&self.doc, ASSEMBLY);
         let surfaces = civil::surface_choices(&self.doc);
-        let pos = NumRule::required().above(0.0);
-        let out = Dialog::new(if f.edit.is_some() { "Edit corridor" } else { "Corridor" }, crate::glyphs::by_name("CORRIDORMODEL")).width(760.0).resizable(true).max_body_height(560.0).help("A corridor has baselines (an alignment with a design profile), each with regions that follow one another along the stations. A region has an assembly and a frequency: the spacing of sections in tangents, curves and spirals, with sections also at geometry points when ticked. The side slopes of the assembly's daylight part meet the ground surface chosen here. Everything is an input; Example values fills demonstration numbers.").show(
+        let objs = DocObjs::gather(&self.doc);
+        let aligns_data: Vec<(ElementId, afrobim_alignment::Alignment)> = aligns.iter().filter_map(|(id, _)| crate::alignment_glue::alignment_of(&self.doc, *id).map(|a| (*id, a))).collect();
+        let mut open_se: Option<ElementId> = None;
+        let out = Dialog::new(if f.edit.is_some() { "Edit corridor" } else { "Corridor" }, crate::glyphs::by_name("CORRIDORMODEL")).width(820.0).resizable(true).max_body_height(620.0).help("A corridor has baselines (an alignment with a design profile), each with regions that follow one another along the stations. A region has an assembly and a frequency of sections. The targets the assembly declares (a width or offset target, a level target, the ground surface of a side slope) are bound per region below; one that is not yet bound blocks the corridor and says why. Lanes that follow the alignment's cross-fall take it from the superelevation stored on the alignment. Everything is an input.").show(
             ctx,
             |ui| {
-                ui_kit::form(ui, "cor", |fm| {
-                    fm.row("Name", |ui| d::text(ui, &mut f.name, "e.g. Main road corridor"));
-                    fm.row("Ground surface (target)", |ui| {
-                        d::pick_from(ui, "cor-g", &surfaces, &mut f.ground);
-                    });
-                    fm.row_note("Superelevation limit", "Compared with the superelevation stored on each baseline's alignment", |ui| {
-                        ui.vertical(|ui| {
-                            ui_kit::segmented(ui, &mut f.area, &["Rural", "Urban"]);
-                            let key = if f.area == 0 { "link.superelevation.max_rural" } else { "link.superelevation.max_urban" };
-                            ui_kit::default_num_field(ui, "cor-emax", &mut f.emax, "%", key, &afrobim_defaults::Conditions::none(), 1.0, &NumRule::default().above(0.0));
-                        });
-                    });
+                ui.horizontal(|ui| {
+                    ui.label("Name");
+                    d::text(ui, &mut f.name, "e.g. Main road corridor");
+                    ui.add_space(8.0);
+                    ui.label("Ground surface (target)");
+                    d::pick_from(ui, "cor-g", &surfaces, &mut f.ground);
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Superelevation limit").on_hover_text("Compared with the superelevation stored on each baseline's alignment");
+                    ui_kit::segmented(ui, &mut f.area, &["Rural", "Urban"]);
+                    let key = if f.area == 0 { "link.superelevation.max_rural" } else { "link.superelevation.max_urban" };
+                    ui_kit::default_num_field(ui, "cor-emax", &mut f.emax, "%", key, &afrobim_defaults::Conditions::none(), 1.0, &NumRule::default().above(0.0));
                 });
                 if let Some(limit) = d::num_rule_peek(&f.emax, &NumRule::default().above(0.0)) {
                     for b in &f.baselines {
@@ -189,31 +235,25 @@ impl AfroBimApp {
                             }
                         });
                         let mut remove_rg = None;
-                        egui::Grid::new(("cor-regions", bi)).num_columns(7).spacing([6.0, 4.0]).show(ui, |ui| {
-                            for h in ["Region", "From (m)", "To (m)", "Assembly", "Spacing (m)", "At geometry points", ""] {
-                                ui.label(RichText::new(h).small().strong());
+                        for (ri, r) in b.regions.iter_mut().enumerate() {
+                            if r.assembly != r.src {
+                                r.asm = r.assembly.and_then(|id| civil::get::<Assembly>(&self.doc, id, ASSEMBLY));
+                                r.src = r.assembly;
+                                r.refs.clear();
                             }
-                            ui.end_row();
-                            for (ri, r) in b.regions.iter_mut().enumerate() {
-                                ui.add(egui::TextEdit::singleline(&mut r.name).desired_width(140.0));
-                                d::num(ui, &mut r.start, "");
-                                d::num(ui, &mut r.end, "");
-                                d::pick_from(ui, &format!("rg-as{bi}-{ri}"), &asms, &mut r.assembly);
-                                d::num_rule(ui, &mut r.spacing, "", pos);
-                                ui.checkbox(&mut r.at_geometry, "");
-                                if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
-                                    remove_rg = Some(ri);
-                                }
-                                ui.end_row();
+                            let al = b.alignment.and_then(|id| aligns_data.iter().find(|a| a.0 == id)).map(|a| &a.1);
+                            if region_ui(ui, bi, ri, r, &asms, &surfaces, f.ground, &objs, al, &mut open_se, b.alignment) {
+                                remove_rg = Some(ri);
                             }
-                        });
+                        }
                         if let Some(i) = remove_rg {
                             b.regions.remove(i);
                         }
                         ui.horizontal(|ui| {
                             if ui.button("Add region").clicked() {
                                 let start = b.regions.last().map(|r| r.end.clone()).unwrap_or_default();
-                                b.regions.push(RgForm { name: format!("Region {}", b.regions.len() + 1), start, end: String::new(), assembly: asms.first().map(|a| a.0), spacing: String::new(), at_geometry: true });
+                                let a0 = asms.first().map(|a| a.0);
+                                b.regions.push(RgForm::new(format!("Region {}", b.regions.len() + 1), start, String::new(), a0, a0.and_then(|i| civil::get::<Assembly>(&self.doc, i, ASSEMBLY))));
                             }
                             if ui.button("Example spacing").on_hover_text("20 m: a demonstration number, not from any standard").clicked() {
                                 for r in &mut b.regions {
@@ -235,6 +275,11 @@ impl AfroBimApp {
             },
             |ui| Footer::new(if f.edit.is_some() { "Apply" } else { "Create corridor" }).icon(crate::glyphs::by_name("CORRIDORMODEL")).show(ui),
         );
+        if let Some(id) = open_se {
+            // The Superelevation tab of the alignment's Definition area in the Properties panel.
+            self.doc.select(&[id], SelectMode::Replace);
+            self.align_tab = 1;
+        }
         if out.closed || out.inner.as_ref().is_some_and(|(_, fo)| fo.cancel) {
             return;
         }
@@ -249,6 +294,7 @@ impl AfroBimApp {
 
     fn corridor_from_form(&mut self, f: &CorForm) -> Result<(), String> {
         let ground = f.ground.ok_or("Choose the ground surface.")?;
+        let objs = DocObjs::gather(&self.doc);
         let mut baselines = Vec::new();
         let mut bounds: Option<Bounds> = None;
         for b in &f.baselines {
@@ -259,10 +305,37 @@ impl AfroBimApp {
             let mut regions = Vec::new();
             for r in &b.regions {
                 let num = |t: &str, what: &str| t.trim().parse::<f64>().ok().filter(|v| v.is_finite()).ok_or_else(|| format!("{} / {}: enter the {what}.", b.name, r.name));
-                let spacing = num(&r.spacing, "spacing")?;
-                let assembly = r.assembly.and_then(|id| self.assembly_of(id)).ok_or_else(|| format!("{} / {}: choose an assembly.", b.name, r.name))?;
-                let mut freq = Frequency::uniform(spacing);
-                freq.at_geometry_points = r.at_geometry;
+                let spacing = num(&r.spacing, "spacing on tangents")?;
+                if spacing <= 0.0 {
+                    return Err(format!("{} / {}: the spacing must be greater than 0.", b.name, r.name));
+                }
+                let mut assembly = r.asm.clone().or_else(|| r.assembly.and_then(|id| self.assembly_of(id))).ok_or_else(|| format!("{} / {}: choose an assembly.", b.name, r.name))?;
+                for note in tg::rebind_all(&mut assembly, &r.refs, &objs) {
+                    return Err(format!("{} / {}: {note}", b.name, r.name));
+                }
+                for d in tg::declared(&assembly) {
+                    if let Some(why) = tg::declared_status(&mut assembly, &d) {
+                        return Err(format!("{} / {}: the target of '{}' ({}) is not yet bound: {why}.", b.name, r.name, d.part, d.label));
+                    }
+                }
+                let opt = |t: &str, none: bool, what: &str| -> Result<Option<f64>, String> {
+                    if none {
+                        Ok(None)
+                    } else if t.trim().is_empty() {
+                        Ok(Some(spacing))
+                    } else {
+                        let v = num(t, what)?;
+                        if v <= 0.0 {
+                            return Err(format!("{} / {}: the {what} must be greater than 0.", b.name, r.name));
+                        }
+                        Ok(Some(v))
+                    }
+                };
+                let mut extra = Vec::new();
+                for t in r.extra.split([',', ';']).map(str::trim).filter(|t| !t.is_empty()) {
+                    extra.push(num(t, "extra station")?);
+                }
+                let freq = Frequency { tangent_m: Some(spacing), curve_m: opt(&r.curve, r.curve_none, "spacing on curves")?, spiral_m: opt(&r.spiral, r.spiral_none, "spacing on spirals")?, at_geometry_points: r.at_geometry, at_superelevation_critical: r.at_critical, extra_stations: extra };
                 regions.push(AssemblyRegion { name: r.name.clone(), start_station_m: num(&r.start, "start station")?, end_station_m: num(&r.end, "end station")?, assembly, frequency: freq });
             }
             let baseline = Baseline { name: b.name.clone(), alignment: al.name.clone(), regions, crossfall_table: vec![] };
@@ -296,6 +369,113 @@ impl AfroBimApp {
         self.schedule_commit_now();
         Ok(())
     }
+}
+
+/// One region of a baseline: its stations and assembly, the targets the assembly declares (each
+/// bound here, with a message for one that is not yet), the surface the side slopes meet, the
+/// imported superelevation it follows, and the frequency of sections. True when it is to be removed.
+#[allow(clippy::too_many_arguments)]
+fn region_ui(ui: &mut egui::Ui, bi: usize, ri: usize, r: &mut RgForm, asms: &[(ElementId, String)], surfaces: &[(ElementId, String)], ground: Option<ElementId>, objs: &DocObjs, al: Option<&afrobim_alignment::Alignment>, open_se: &mut Option<ElementId>, al_id: Option<ElementId>) -> bool {
+    use afrobim_corridor::{Side, SubKind};
+    let mut remove = false;
+    let pos = NumRule::required().above(0.0);
+    let title = format!("Region {}: {}", ri + 1, if r.name.trim().is_empty() { "unnamed" } else { r.name.trim() });
+    ui_kit::section(ui, &title, |ui| {
+        ui.horizontal_wrapped(|ui| {
+            ui.label("Name");
+            ui.add(egui::TextEdit::singleline(&mut r.name).desired_width(130.0));
+            ui.label("From");
+            d::num(ui, &mut r.start, "m");
+            ui.label("To");
+            d::num(ui, &mut r.end, "m");
+            ui.label("Assembly");
+            d::pick_from(ui, &format!("rg-as{bi}-{ri}"), asms, &mut r.assembly);
+        });
+        ui_kit::heading(ui, "Targets");
+        let (asm, refs) = (&mut r.asm, &mut r.refs);
+        match asm {
+            None => {
+                ui_kit::callout(ui, Level::Warning, "Choose an assembly to see the targets it declares.");
+            }
+            Some(a) => {
+                let decl = tg::declared(a);
+                let day: Vec<(Side, usize, String)> = [Side::Left, Side::Right].into_iter().flat_map(|sd| a.side(sd).iter().enumerate().filter(|(_, p)| matches!(p.kind, SubKind::Daylight(_))).map(move |(i, p)| (sd, i, p.name.clone())).collect::<Vec<_>>()).collect();
+                if decl.is_empty() && day.is_empty() {
+                    ui.label(RichText::new("This assembly declares no targets: every width and link in it is entered in the assembly editor.").size(crate::theme::FONT_SMALL).weak());
+                }
+                for dcl in &decl {
+                    let bound = tg::declared_status(a, dcl).is_none();
+                    let side = if dcl.side == Side::Left { "Left" } else { "Right" };
+                    let head = format!("{side} side, part {} ({}): {}{}", dcl.index + 1, dcl.part, dcl.label, if bound { "" } else { "  (not yet bound)" });
+                    egui::CollapsingHeader::new(RichText::new(head).strong()).id_salt(("cor-tg", bi, ri, dcl.key())).default_open(!bound).show(ui, |ui| {
+                        let rf = refs.entry(dcl.key()).or_default();
+                        tg::declared_ui(ui, &format!("cor-tg-{bi}-{ri}-{}", dcl.key()), a, dcl, rf, objs);
+                    });
+                }
+                for (sd, i, name) in &day {
+                    let side = if *sd == Side::Left { "Left" } else { "Right" };
+                    let shown = ground.and_then(|g| surfaces.iter().find(|s| s.0 == g)).map(|s| s.1.clone());
+                    match shown {
+                        Some(n) => ui.label(format!("{side} side, part {} ({name}): the side slope meets the ground surface '{n}' (chosen above).", i + 1)),
+                        None => ui.label(RichText::new(format!("{side} side, part {} ({name}): the side slope needs a ground surface. Not yet bound: choose the ground surface above.", i + 1)).color(ui.visuals().warn_fg_color)),
+                    };
+                }
+                let follows: Vec<String> = [Side::Left, Side::Right]
+                    .into_iter()
+                    .flat_map(|sd| a.side(sd).iter().filter(|p| matches!(&p.kind, SubKind::Lane(s) | SubKind::Shoulder(s) | SubKind::Footway(s) | SubKind::Verge(s) if s.follows_superelevation)).map(|p| format!("{} ({})", p.name, if sd == Side::Left { "left" } else { "right" })).collect::<Vec<_>>())
+                    .collect();
+                if !follows.is_empty() {
+                    let stored = al.and_then(|a| a.superelevation.as_ref()).map(|se| se.sections.iter().map(|s| s.points.len()).sum::<usize>()).unwrap_or(0);
+                    let msg = if stored > 0 { format!("Lanes that follow the alignment's cross-fall: {}. The cross-fall is read from the superelevation stored on the alignment ({stored} stations), so it is shown here and not edited here.", follows.join(", ")) } else { format!("Lanes that follow the alignment's cross-fall: {}. The alignment has no superelevation stored, so they keep the cross-slope of their own template.", follows.join(", ")) };
+                    ui_kit::callout(ui, Level::Info, msg);
+                    if let Some(id) = al_id {
+                        if ui.link("Show the alignment's Superelevation tab").clicked() {
+                            *open_se = Some(id);
+                        }
+                    }
+                }
+            }
+        }
+        ui_kit::heading(ui, "Frequency of sections");
+        ui_kit::form(ui, &format!("cor-fq-{bi}-{ri}"), |fm| {
+            fm.row_note("Spacing on tangents", "Sections stand on whole multiples of the spacing", |ui| {
+                d::num_rule(ui, &mut r.spacing, "m", pos);
+            });
+            fm.row("Sections at geometry points", |ui| {
+                ui_kit::toggle(ui, &mut r.at_geometry, "Every element, PVI and vertical curve end");
+            });
+            fm.row("Sections at critical stations", |ui| {
+                ui_kit::toggle(ui, &mut r.at_critical, "Where cross-fall is stored (superelevation, crossfall table)");
+            });
+        });
+        ui_kit::advanced(ui, &format!("cor-adv-{bi}-{ri}"), |ui| {
+            ui_kit::form(ui, &format!("cor-fq2-{bi}-{ri}"), |fm| {
+                fm.row_note("Spacing on curves", "Blank: the spacing on tangents", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.add_enabled_ui(!r.curve_none, |ui| {
+                            let _ = d::num_opt_rule(ui, &mut r.curve, "m", &pos);
+                        });
+                        ui_kit::toggle(ui, &mut r.curve_none, "No regular sections");
+                    });
+                });
+                fm.row_note("Spacing on spirals", "Blank: the spacing on tangents", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.add_enabled_ui(!r.spiral_none, |ui| {
+                            let _ = d::num_opt_rule(ui, &mut r.spiral, "m", &pos);
+                        });
+                        ui_kit::toggle(ui, &mut r.spiral_none, "No regular sections");
+                    });
+                });
+                fm.row_note("Extra stations", "Comma separated", |ui| {
+                    ui_kit::text_field(ui, &mut r.extra, "e.g. 120, 340.5");
+                });
+            });
+        });
+        if ui.small_button("Remove region").clicked() {
+            remove = true;
+        }
+    });
+    remove
 }
 
 // ─── sample lines ──────────────────────────────────────────────────────────

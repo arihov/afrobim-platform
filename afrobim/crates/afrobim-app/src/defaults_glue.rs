@@ -132,6 +132,13 @@ struct Bound {
 /// note says so. `factor` converts the pack's number to the field's convention (for example -1 for
 /// a cross-fall typed as negative when falling away). Returns the value of the field when valid.
 pub fn field(ui: &mut Ui, salt: impl std::hash::Hash, text: &mut String, unit: &str, key: &str, cond: &Conditions, factor: f64, rule: &NumRule) -> Option<f64> {
+    // Always stacked: a form cell lays out left to right, which would put the note and the citation
+    // beside the field and widen the dialog.
+    ui.vertical(|ui| field_inner(ui, salt, text, unit, key, cond, factor, rule)).inner
+}
+
+#[allow(clippy::too_many_arguments)]
+fn field_inner(ui: &mut Ui, salt: impl std::hash::Hash, text: &mut String, unit: &str, key: &str, cond: &Conditions, factor: f64, rule: &NumRule) -> Option<f64> {
     let dv = get(key, cond).and_then(|v| v.number().map(|n| (v.clone(), n * factor)));
     let id = ui.id().with(("bound", key, salt));
     let sig = dv.as_ref().map(|(v, n)| format!("{key}|{n}|{}", v.citation.clause)).unwrap_or_else(|| format!("{key}|none"));
@@ -172,18 +179,29 @@ pub fn field(ui: &mut Ui, salt: impl std::hash::Hash, text: &mut String, unit: &
                     }
                 }
             });
-            ui.label(RichText::new(citation_line(v)).size(crate::theme::FONT_SMALL - 1.0).color(t.text_muted)).on_hover_text(format!("{}\nCondition: {}\n{}", v.title, v.citation.condition, project_note()));
-            if v.interpolated {
-                ui.label(RichText::new("interpolated between two values of the document").size(crate::theme::FONT_SMALL - 1.0).color(t.warning));
-            }
+            // A grid cell does not wrap a label, so the citation is given a width of its own: a long
+            // clause must not widen the column (and with it the dialog) it stands in.
+            ui.scope(|ui| {
+                ui.set_max_width(CITATION_WIDTH);
+                ui.add(egui::Label::new(RichText::new(citation_line(v)).size(crate::theme::FONT_SMALL - 1.0).color(t.text_muted)).wrap()).on_hover_text(format!("{}\nCondition: {}\n{}", v.title, v.citation.condition, project_note()));
+                if v.interpolated {
+                    ui.add(egui::Label::new(RichText::new("interpolated between two values of the document").size(crate::theme::FONT_SMALL - 1.0).color(t.warning)).wrap());
+                }
+            });
         }
         None => {
             let why = with(|d| d.active_set().is_none()).then_some("No defaults basis is chosen for the project.").unwrap_or("No default under this condition in the basis: enter a value.");
-            ui.label(RichText::new(why).size(crate::theme::FONT_SMALL - 1.0).color(crate::theme::tokens_ui(ui).text_muted));
+            ui.scope(|ui| {
+                ui.set_max_width(CITATION_WIDTH);
+                ui.add(egui::Label::new(RichText::new(why).size(crate::theme::FONT_SMALL - 1.0).color(crate::theme::tokens_ui(ui).text_muted)).wrap());
+            });
         }
     }
     out.check.value()
 }
+
+/// The width a citation line wraps at, in points.
+const CITATION_WIDTH: f32 = 340.0;
 
 fn project_note() -> &'static str {
     "A default is a starting value, not a requirement of the project. The pack was not reviewed by an engineer."

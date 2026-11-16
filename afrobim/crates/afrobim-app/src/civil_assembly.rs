@@ -287,7 +287,7 @@ impl AfroBimApp {
         let (assembly, problems) = f.ed.build();
         let preview_h = f.preview_height.trim().parse::<f64>().ok();
         let can_save = problems.is_empty() && !f.ed.name.trim().is_empty() && (!f.ed.left.is_empty() || !f.ed.right.is_empty());
-        let out = Dialog::new("Assembly editor", crate::glyphs::by_name("ASSEMBLY")).width(980.0).resizable(true).max_body_height(620.0).default_pos(crate::win::work_rect(ctx).min + egui::vec2(24.0, 6.0)).help("Parts are listed from the centreline outwards on each side. Every dimension is an input: a part is not drawn until its fields are filled. The Example values button fills demonstration numbers that are not from any standard. The preview puts the assembly on level ground below the centreline so the side slopes show; it is a drawing aid, not a design. IFC entity: only IfcPavement (the constant the corridor crate provides) is offered; anything else is free text and is marked unverified.").show(
+        let out = Dialog::new("Assembly editor", crate::glyphs::by_name("ASSEMBLY")).width(1000.0).resizable(true).max_body_height(620.0).help("Parts are listed from the centreline outwards on each side. Every dimension is an input: a part is not drawn until its fields are filled. The Example values button fills demonstration numbers that are not from any standard. The preview puts the assembly on level ground below the centreline so the side slopes show; it is a drawing aid, not a design. IFC entity: only IfcPavement (the constant the corridor crate provides) is offered; anything else is free text and is marked unverified.").show(
             ctx,
             |ui| {
                 ui.horizontal(|ui| {
@@ -298,13 +298,13 @@ impl AfroBimApp {
                     crate::defaults_glue::road_selector(ui, "asm-road", &mut f.road);
                 });
                 // Side by side when there is room, one under the other in a narrow work area.
-                let wide = ui.available_width() > 900.0;
+                let wide = ui.available_width() > 880.0;
                 let col_h = (crate::win::work_rect(ctx).height() - 160.0 - 70.0).clamp(240.0, 620.0);
                 let layout = if wide { egui::Layout::left_to_right(egui::Align::Min) } else { egui::Layout::top_down(egui::Align::Min) };
                 ui.with_layout(layout, |ui| {
                     ui.vertical(|ui| {
                         if wide {
-                            ui.set_width(250.0);
+                            ui.set_width(230.0);
                         }
                         egui::ScrollArea::vertical().id_salt("asm-left").max_height(if wide { col_h } else { f32::INFINITY }).auto_shrink([false, true]).show(ui, |ui| {
                         ui_kit::section(ui, &format!("Parts, {} side, from the centreline outwards", if f.side == 0 { "left" } else { "right" }), |ui| {
@@ -376,7 +376,7 @@ impl AfroBimApp {
                     });
                     ui.vertical(|ui| {
                         if wide {
-                            ui.set_width(400.0);
+                            ui.set_width(380.0);
                         }
                         egui::ScrollArea::vertical().id_salt("asm-mid").max_height(if wide { col_h } else { f32::INFINITY }).auto_shrink([false, true]).show(ui, |ui| {
                         let sel = f.sel;
@@ -390,6 +390,9 @@ impl AfroBimApp {
                         });
                     });
                     ui.vertical(|ui| {
+                        if wide {
+                            ui.set_width(330.0);
+                        }
                         egui::ScrollArea::vertical().id_salt("asm-right").max_height(if wide { col_h } else { f32::INFINITY }).auto_shrink([false, true]).show(ui, |ui| {
                         ui_kit::section(ui, "Preview", |ui| {
                             let mut names: Vec<String> = vec!["Level ground, made-up straight".into()];

@@ -602,10 +602,9 @@ pub fn civil_panel(ui: &mut Ui, e: &mut afrobim_kernel::Element) -> (bool, Optio
             changed = true;
         }
         ui.end_row();
-        ui.label("IFC mapping");
-        ui.label(RichText::new(crate::civil_ifc::mapping_note(&e.category)).small().weak());
-        ui.end_row();
     });
+    // Outside the grid: a long note in a grid cell would widen the whole panel.
+    crate::ui_kit::note(ui, format!("IFC mapping: {}", crate::civil_ifc::mapping_note(&e.category)));
     if e.category == SAMPLES {
         if let Ok(mut sd) = serde_json::from_value::<crate::civil::SampleData>(e.data.clone()) {
             if !sd.imported.is_empty() {
