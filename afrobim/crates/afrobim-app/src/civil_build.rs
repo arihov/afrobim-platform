@@ -115,6 +115,11 @@ fn build_points(e: &Element) -> Result<Built, String> {
             desc: if p.full_description.is_empty() { p.raw_description.clone() } else { p.full_description.clone() },
         })
         .collect();
+    if let Some(l) = e.properties.get(crate::survey_db::LINK_PROP).and_then(|t| serde_json::from_str::<crate::survey_db::Link>(t).ok()) {
+        scene.derived.push(("Survey network".into(), l.network.clone()));
+        scene.derived.push(("Survey database".into(), l.db_name.clone()));
+        scene.derived.push(("Last update".into(), format!("coordinates as of hash {} (no time is kept)", l.hash.chars().take(8).collect::<String>())));
+    }
     scene.derived.push(("Points".into(), d.store.len().to_string()));
     scene.derived.push(("Groups".into(), d.groups.groups().len().to_string()));
     let with_z = d.store.iter().filter(|p| p.elevation.is_some()).count();

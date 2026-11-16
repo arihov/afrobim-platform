@@ -166,7 +166,13 @@ pub fn build_featureline(e: &Element) -> Result<Built, String> {
     s.derived.push(("Site".into(), d.site.clone()));
     s.derived.push(("Length (m)".into(), d.line.length().map(|l| format!("{l:.3}")).unwrap_or_default()));
     s.derived.push(("Vertices".into(), format!("{} ({} PIs)", d.line.vertices.len(), d.line.pi_indices().len())));
-    s.derived.push(("Elevation range (m)".into(), format!("{:.3} to {:.3}", zs.iter().cloned().fold(f64::INFINITY, f64::min), zs.iter().cloned().fold(f64::NEG_INFINITY, f64::max))));
+    s.derived.push(("Lowest level (m)".into(), format!("{:.3}", zs.iter().cloned().fold(f64::INFINITY, f64::min))));
+    s.derived.push(("Highest level (m)".into(), format!("{:.3}", zs.iter().cloned().fold(f64::NEG_INFINITY, f64::max))));
+    if let Ok(rows) = d.line.grade_table() {
+        if let Some(r) = rows.iter().max_by(|a, b| a.grade_percent.abs().total_cmp(&b.grade_percent.abs())) {
+            s.derived.push(("Steepest grade (%)".into(), format!("{:+.2} between stations {:.2} and {:.2} m along the line", r.grade_percent, r.station_from, r.station_to)));
+        }
+    }
     s.derived.push(("Closed".into(), if d.line.closed { "yes".into() } else { "no".to_string() }));
     s.derived.push(("Style priority".into(), d.line.style_priority.to_string()));
     if d.example {
@@ -237,6 +243,10 @@ pub fn build_grading(e: &Element, ctx: &Ctx) -> Result<Built, String> {
     s.derived.push(("Gradings".into(), d.group.gradings.len().to_string()));
     s.derived.push(("Triangles".into(), b.tin.triangles().len().to_string()));
     s.derived.push(("Shift (m)".into(), format!("{:.3}", d.group.shift)));
+    // The footprint lines of the gradings, by name, in the group's site.
+    let footprint_len: f64 = d.group.gradings.iter().filter_map(|g| ctx.elements.iter().filter(|x| x.category == FEATURELINE && x.name == g.footprint).find_map(|x| serde_json::from_value::<FeatureLineData>(x.data.clone()).ok().filter(|fl| fl.site == d.site))).filter_map(|fl| fl.line.length().ok()).sum();
+    s.derived.push(("Footprint length (m)".into(), format!("{footprint_len:.3}")));
+    s.derived.push(("Surface area (m2)".into(), format!("{:.2}", afrobim_terrain::areas(&b.tin).surface)));
     let (rays, failed) = (b.gradings.iter().map(|g| g.rays.len()).sum::<usize>(), b.gradings.iter().flat_map(|g| g.rays.iter()).filter(|r| r.status != afrobim_grading::RayStatus::Ok).count());
     s.derived.push(("Rays".into(), format!("{rays} ({failed} without daylight or trimmed)")));
     if let Some(base) = d.base.or(d.ground).and_then(|g| ctx.tin(g)) {

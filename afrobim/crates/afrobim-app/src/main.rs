@@ -54,6 +54,8 @@ mod a1_tests;
 mod a2_tests;
 #[cfg(test)]
 mod a3_tests;
+#[cfg(test)]
+mod a3b_tests;
 mod alignment_glue;
 mod anno_glue;
 mod anno_ui;

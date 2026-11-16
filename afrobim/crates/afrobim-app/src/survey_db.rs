@@ -462,6 +462,15 @@ pub fn build_figures_scene(e: &afrobim_kernel::Element) -> Result<crate::civil_b
         }
     }
     scene.derived.push(("Figures".into(), d.figures.len().to_string()));
+    let total: f64 = d.figures.iter().map(|f| {
+        let mut len: f64 = f.vertices.windows(2).map(|w| ((w[1][0] - w[0][0]).powi(2) + (w[1][1] - w[0][1]).powi(2)).sqrt()).sum();
+        if f.closed && f.vertices.len() > 2 {
+            let (a, b) = (f.vertices[f.vertices.len() - 1], f.vertices[0]);
+            len += ((b[0] - a[0]).powi(2) + (b[1] - a[1]).powi(2)).sqrt();
+        }
+        len
+    }).sum();
+    scene.derived.push(("Total length in plan (m)".into(), format!("{total:.3}")));
     scene.derived.push(("Breaklines".into(), d.figures.iter().filter(|f| f.breakline).count().to_string()));
     scene.derived.push(("Network".into(), d.network.clone()));
     scene.notes.extend(d.notes.iter().cloned());

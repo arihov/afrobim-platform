@@ -1602,6 +1602,20 @@ pub fn build_cloud_scene(e: &afrobim_kernel::Element) -> Result<crate::civil_bui
     }
     let h = &d.reference.header;
     scene.derived.push(("Points".into(), format!("{}", h.point_count)));
+    if let Some(b) = &h.bounds {
+        scene.derived.push(("Easting range (m)".into(), format!("{:.3} to {:.3}", b.min[0], b.max[0])));
+        scene.derived.push(("Northing range (m)".into(), format!("{:.3} to {:.3}", b.min[1], b.max[1])));
+        scene.derived.push(("Level range (m)".into(), format!("{:.3} to {:.3}{}", b.min[2], b.max[2], if h.bounds_exact { "" } else { " (as the header states)" })));
+    }
+    scene.derived.push(("Class meanings".into(), format!("{:?} (the classes present are counted when the points are loaded)", h.class_table)));
+    scene.derived.push(("Coordinate system".into(), match (&d.reference.crs.epsg, &d.reference.crs.wkt) {
+        (Some(e), _) => format!("EPSG:{e}"),
+        (None, Some(_)) => "WKT in the file".to_string(),
+        _ => "none stated".to_string(),
+    }));
+    if !h.system_identifier.is_empty() || !h.generating_software.is_empty() {
+        scene.derived.push(("Source system".into(), format!("{} {}", h.system_identifier, h.generating_software).trim().to_string()));
+    }
     scene.derived.push(("Source".into(), if d.synthetic { "synthetic".into() } else { d.reference.source_path.clone() }));
     scene.derived.push(("Colour".into(), format!("{:?}", d.reference.display.color_mode).chars().take(24).collect()));
     Ok(crate::civil_build::Built { scene, ..Default::default() })

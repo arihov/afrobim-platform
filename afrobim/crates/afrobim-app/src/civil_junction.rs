@@ -251,6 +251,28 @@ pub fn build_intersection_scene(e: &Element, _ctx: &Ctx) -> Result<Built, String
             s.notes.push(format!("{code}: {msg}"));
         }
     }
+    s.derived.push(("Kind".into(), format!("Intersection of two roads, {}", match d.inputs.corridor_type { afrobim_junction::CorridorType::PrimaryCrownMaintained => "primary crown maintained", afrobim_junction::CorridorType::AllCrownsMaintained => "all crowns maintained" })));
+    // The angle between the two centrelines at the crossing, from the alignments of the document.
+    let al = |name: &str| _ctx.elements.iter().filter(|x| x.category == crate::alignment_glue::CATEGORY).filter_map(|x| serde_json::from_value::<Alignment>(x.data.clone()).ok()).find(|a| a.name == name);
+    let angle = (|| -> Option<f64> {
+        let (a, b) = (al(&d.inputs.primary)?, al(&d.inputs.secondary)?);
+        let (sa, _) = a.station_offset(d.crossing[0], d.crossing[1])?;
+        let (sb, _) = b.station_offset(d.crossing[0], d.crossing[1])?;
+        // The direction of an alignment at a station from two points a centimetre apart.
+        let dir = |al: &Alignment, st: f64| -> Option<f64> {
+            let (p, q) = (al.point_at(st - 0.005)?, al.point_at(st + 0.005)?);
+            Some((q.y - p.y).atan2(q.x - p.x))
+        };
+        let diff = (dir(&a, sa)? - dir(&b, sb)?).rem_euclid(std::f64::consts::PI);
+        Some(diff.min(std::f64::consts::PI - diff).to_degrees())
+    })();
+    if let Some(acute) = angle {
+        s.derived.push(("Crossing angle, acute (deg)".into(), format!("{acute:.2}")));
+    }
+    s.derived.push(("Kerb returns".into(), d.inputs.returns.len().to_string()));
+    if let Some(low) = d.low_points.iter().map(|p| p[2]).filter(|z| z.is_finite()).reduce(f64::min) {
+        s.derived.push(("Lowest kerb return low point (m)".into(), format!("{low:.3}")));
+    }
     s.derived.push(("Primary".into(), d.inputs.primary.clone()));
     s.derived.push(("Secondary".into(), d.inputs.secondary.clone()));
     s.derived.push(("Alignments made".into(), d.created.len().to_string()));
@@ -274,10 +296,15 @@ pub fn build_roundabout_scene(e: &Element) -> Result<Built, String> {
             s.notes.push(format!("{code}: {msg}"));
         }
     }
+    s.derived.push(("Kind".into(), format!("Roundabout, {}", match d.inputs.circulation { afrobim_junction::Circulation::Clockwise => "clockwise", afrobim_junction::Circulation::Anticlockwise => "anticlockwise" })));
     s.derived.push(("Inscribed diameter (m)".into(), format!("{:.2}", d.inputs.inscribed_diameter_m)));
+    s.derived.push(("Circulatory width (m)".into(), format!("{:.2}", d.inputs.circulatory_width_m)));
+    s.derived.push(("Apron width (m)".into(), format!("{:.2}", d.inputs.apron_width_m)));
     s.derived.push(("Arms".into(), d.arms.len().to_string()));
     for a in &d.arms {
         s.derived.push((format!("Entry angle, {}", a.name), format!("{:.1} deg (AfroBIM's own construction)", a.entry_angle_deg)));
+        s.derived.push((format!("Entry and exit width, {} (m)", a.name), format!("{:.2} and {:.2}", a.entry_width_m, a.exit_width_m)));
+        s.derived.push((format!("Entry and exit radius, {} (m)", a.name), format!("{:.2} and {:.2}", a.entry_radius_m, a.exit_radius_m)));
         if let Some(r) = a.entry_path_radius_m {
             s.derived.push((format!("Entry path radius, {}", a.name), format!("{r:.1} m (AfroBIM's own construction)")));
         }
