@@ -1119,6 +1119,9 @@ impl AfroBimApp {
             }
             Action::Undo => self.undo(),
             Action::Redo => self.redo(),
+            Action::CopyClip if crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).is_some() => {
+                self.status = crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).unwrap_or_default();
+            }
             Action::CopyClip => {
                 self.clipboard = self.doc.selection().iter().filter_map(|id| self.doc.find(*id).cloned()).collect();
                 self.paste_count = 0;
