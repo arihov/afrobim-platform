@@ -36,7 +36,7 @@ impl CrsPick {
         ui.label(RichText::new(self.chosen.as_ref().map(|c| c.label()).unwrap_or_else(|| "(none chosen)".into())).strong());
         ui.horizontal(|ui| {
             ui.label("Search");
-            ui_kit::text_field(ui, &mut self.query, "EPSG code or name, for example arc 1960 or 21036");
+            ui_kit::text_field(ui, &mut self.query, "EPSG code or name");
         });
         let mut found: Vec<ProjectCrs> = if self.query.trim().is_empty() { Vec::new() } else { ProjectCrs::search(&self.query, 8) };
         if allow_geographic && !self.query.trim().is_empty() {
