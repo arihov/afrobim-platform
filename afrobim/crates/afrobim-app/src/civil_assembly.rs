@@ -100,6 +100,11 @@ impl EdPart {
     /// The engine part, or what is missing in words.
     pub fn build(&self) -> Result<Subassembly, String> {
         if let Some(r) = &self.raw {
+            // The two kinds the editor can change are checked, so that a value entered here is
+            // refused in words; every other carried part passes through unchanged.
+            if matches!(r.kind, afrobim_corridor::SubKind::Daylight(_) | afrobim_corridor::SubKind::Link(_)) {
+                r.check().map_err(|e| format!("{}: {e}", self.name))?;
+            }
             return Ok(r.clone());
         }
         let k = &KINDS[self.kind];
@@ -506,8 +511,136 @@ pub fn describe(s: &Subassembly) -> Vec<(String, String)> {
     }
 }
 
+/// Edits a slope in the form it already has: a percent, or a rise in a run.
+fn slope_rows(fm: &mut ui_kit::Form, label: &str, s: &mut Slope) {
+    match s {
+        Slope::Percent(v) => {
+            fm.row(label, |ui| {
+                ui_kit::f64_field(ui, v, "%", -1000.0..=1000.0, 0.05);
+            });
+        }
+        Slope::Ratio { run, rise } => {
+            fm.row(&format!("{label}, run"), |ui| {
+                ui_kit::f64_field(ui, run, "m", 0.0..=1000.0, 0.05);
+            });
+            fm.row(&format!("{label}, rise"), |ui| {
+                ui_kit::f64_field(ui, rise, "m", -1000.0..=1000.0, 0.05);
+            });
+        }
+    }
+}
+
+/// The benching of one side of a daylight rule: off, or a step height, a width and a slope. Switching
+/// it on starts from zeros, which are not valid: every value is the engineer's.
+fn bench_rows(ui: &mut Ui, id: &str, label: &str, b: &mut Option<afrobim_corridor::Bench>) {
+    let mut on = b.is_some();
+    ui_kit::toggle(ui, &mut on, label);
+    if on && b.is_none() {
+        *b = Some(afrobim_corridor::Bench { step_height_m: 0.0, width_m: 0.0, slope: Slope::Percent(0.0) });
+    } else if !on {
+        *b = None;
+    }
+    if let Some(bench) = b {
+        ui_kit::form(ui, id, |fm| {
+            fm.row("Step height", |ui| {
+                ui_kit::f64_field(ui, &mut bench.step_height_m, "m", 0.0..=1000.0, 0.05);
+            });
+            fm.row("Bench width", |ui| {
+                ui_kit::f64_field(ui, &mut bench.width_m, "m", 0.0..=1000.0, 0.05);
+            });
+            slope_rows(fm, "Bench cross-slope (rising outward)", &mut bench.slope);
+        });
+        if bench.step_height_m <= 0.0 || bench.width_m <= 0.0 {
+            ui_kit::callout(ui, Level::Warning, "Enter a step height and a width greater than 0.");
+        }
+    }
+}
+
+/// The parameters of a carried part that the engine lets the editor change: the benched daylight
+/// rule and the generic link. Returns true when it showed them (any other kind is read only).
+fn raw_editor(ui: &mut Ui, name: &str, raw: &mut Subassembly) -> bool {
+    use afrobim_corridor::{Dim, ElevationTarget, LinkMode, OffsetTarget, SubKind};
+    match &mut raw.kind {
+        SubKind::Daylight(r) => {
+            ui_kit::callout(ui, Level::Info, format!("{name}: the side slope to the ground. The run per rise is yours to enter; a bench is optional, and when it is on every value of it is an input."));
+            ui_kit::section(ui, "Side slopes", |ui| {
+                ui_kit::form(ui, "asm-day", |fm| {
+                    fm.row("Cut run per rise", |ui| {
+                        ui_kit::f64_field(ui, &mut r.cut_run_per_rise, "", 0.0..=1000.0, 0.05);
+                    });
+                    fm.row("Fill run per rise", |ui| {
+                        ui_kit::f64_field(ui, &mut r.fill_run_per_rise, "", 0.0..=1000.0, 0.05);
+                    });
+                });
+            });
+            ui_kit::section(ui, "Bench in cut", |ui| bench_rows(ui, "asm-bench-cut", "Bench the cut slope", &mut r.bench_in_cut));
+            ui_kit::section(ui, "Bench in fill", |ui| bench_rows(ui, "asm-bench-fill", "Bench the fill slope", &mut r.bench_in_fill));
+            true
+        }
+        SubKind::Link(l) => {
+            ui_kit::callout(ui, Level::Info, format!("{name}: a generic link. Its codes, point code, width or target, and slope can be changed here; a table, polyline or profile target is shown but not editable."));
+            let mut codes = l.codes.join(", ");
+            ui_kit::form(ui, "asm-link", |fm| {
+                fm.row("Link codes", |ui| {
+                    if ui_kit::text_field(ui, &mut codes, "comma separated").changed() {
+                        l.codes = codes.split(',').map(|c| c.trim().to_string()).filter(|c| !c.is_empty()).collect();
+                    }
+                });
+                fm.row("Point code", |ui| {
+                    ui_kit::text_field(ui, &mut l.point_code, "");
+                });
+                match &mut l.mode {
+                    LinkMode::WidthSlope { width, slope } => {
+                        match width {
+                            Dim::Fixed(w) => fm.row("Width", |ui| {
+                                ui_kit::f64_field(ui, w, "m", 0.0..=1000.0, 0.05);
+                            }),
+                            Dim::ToOffset(_) => fm.row("Width", |ui| {
+                                ui.label("to an offset target (not editable here)");
+                            }),
+                        }
+                        slope_rows(fm, "Slope", slope);
+                    }
+                    LinkMode::ToElevation { target, slope } => {
+                        match target {
+                            ElevationTarget::Fixed(z) => fm.row("Runs to level", |ui| {
+                                ui_kit::f64_field(ui, z, "m", -10000.0..=10000.0, 0.05);
+                            }),
+                            _ => fm.row("Runs to", |ui| {
+                                ui.label("a level table or a profile (not editable here)");
+                            }),
+                        }
+                        slope_rows(fm, "Slope", slope);
+                    }
+                    LinkMode::ToOffset { target, slope } => {
+                        match target {
+                            OffsetTarget::Fixed(o) => fm.row("Runs to offset", |ui| {
+                                ui_kit::f64_field(ui, o, "m", -10000.0..=10000.0, 0.05);
+                            }),
+                            _ => fm.row("Runs to", |ui| {
+                                ui.label("an offset table or a plan polyline (not editable here)");
+                            }),
+                        }
+                        slope_rows(fm, "Slope", slope);
+                    }
+                }
+            });
+            if l.codes.is_empty() {
+                ui_kit::callout(ui, Level::Warning, "A link needs at least one code.");
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
 fn part_editor(ui: &mut Ui, p: &mut EdPart) {
     let k = &KINDS[p.kind.min(KINDS.len() - 1)];
+    if let Some(raw) = p.raw.as_mut() {
+        if raw_editor(ui, &p.name, raw) {
+            return;
+        }
+    }
     if let Some(raw) = &p.raw {
         ui_kit::callout(ui, Level::Info, format!("{}: a part carried unchanged from the assembly it came in. Its parameters are shown below; to change them, remove it and add a library part.", p.name));
         let rows = describe(raw);

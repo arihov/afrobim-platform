@@ -172,7 +172,7 @@ impl AfroBimApp {
                             }
                             ui.end_row();
                             for (ri, r) in b.regions.iter_mut().enumerate() {
-                                ui.add(egui::TextEdit::singleline(&mut r.name).desired_width(80.0));
+                                ui.add(egui::TextEdit::singleline(&mut r.name).desired_width(140.0));
                                 d::num(ui, &mut r.start, "");
                                 d::num(ui, &mut r.end, "");
                                 d::pick_from(ui, &format!("rg-as{bi}-{ri}"), &asms, &mut r.assembly);

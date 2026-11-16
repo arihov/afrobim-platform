@@ -3,7 +3,7 @@
 //! (the part of the screen left once the menu, ribbon, toolbar, side panels and status bar have
 //! taken theirs) and is kept inside it, so its title bar always stays reachable.
 
-use egui::{vec2, Context, Id, Pos2, Rect, WidgetText};
+use egui::{vec2, Context, Id, Pos2, Rect};
 
 const WORK_RECT: &str = "afrobim-work-rect";
 
@@ -149,18 +149,6 @@ pub fn end_frame(ctx: &Context) {
     }
 }
 
-/// A window that opens inside the central area and cannot leave it. Its size is capped to the
-/// area, so a window made for a large screen shrinks (and scrolls) rather than hang off the top.
-/// It has the glass frame and an icon in its title bar, and opens where it was left last time.
-/// Its id is that of the plain title, whatever the decoration.
-pub fn new<'a>(ctx: &Context, title: impl Into<WidgetText>) -> egui::Window<'a> {
-    let title: WidgetText = title.into();
-    let text = title.text().to_string();
-    let t = crate::theme::tokens(ctx);
-    let decorated = WidgetText::from(crate::theme::icon_text(icon_for(&text), &text, crate::theme::FONT_TITLE, t.text));
-    place(ctx, egui::Window::new(decorated), &text)
-}
-
 /// A window with the same placement rules and frame and no title bar decoration, for the dialog
 /// kit, which draws its own header.
 pub fn plain<'a>(ctx: &Context, title: &str) -> egui::Window<'a> {
@@ -206,7 +194,7 @@ mod tests {
         for _ in 0..3 {
             let _ = ctx.run(input(), |ctx| {
                 set_work_rect(ctx, work);
-                new(ctx, "Test window").default_width(900.0).default_height(2000.0).show(ctx, |ui| {
+                plain(ctx, "Test window").default_width(900.0).default_height(2000.0).show(ctx, |ui| {
                     ui.label("body");
                 });
             });

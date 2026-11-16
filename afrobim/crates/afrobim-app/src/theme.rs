@@ -210,7 +210,6 @@ pub const SP_LG: f32 = 16.0;
 pub const FONT_SMALL: f32 = 11.5;
 pub const FONT_BODY: f32 = 13.5;
 pub const FONT_HEADING: f32 = 16.0;
-pub const FONT_TITLE: f32 = 14.5;
 pub const FONT_MONO: f32 = 12.5;
 
 static GLOBAL: std::sync::RwLock<Option<Tokens>> = std::sync::RwLock::new(None);

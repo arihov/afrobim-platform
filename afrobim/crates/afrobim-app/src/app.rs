@@ -2306,16 +2306,27 @@ impl AfroBimApp {
         let mut help = self.show_help;
         if help {
             let dlg = crate::ui_kit::Dialog::titled("Commands").subtitle("Every command, its aliases and what it does").width(520.0).show_body(ctx, |ui| {
+                let fid = egui::Id::new("commands-filter");
+                let mut filter: String = ui.data(|d| d.get_temp(fid)).unwrap_or_default();
+                crate::ui_kit::heading(ui, "Find a command");
+                let r = crate::ui_kit::text_field_wide(ui, &mut filter, "name, alias or words of the help");
+                crate::ui_kit::focus_once(ui, &r, "commands-filter");
+                ui.data_mut(|d| d.insert_temp(fid, filter.clone()));
+                let needle = filter.trim().to_lowercase();
+                crate::ui_kit::heading(ui, "Commands");
                 egui::Grid::new("cmds").num_columns(3).striped(true).spacing([14.0, 4.0]).show(ui, |ui| {
-                    for c in COMMANDS {
+                    for h in ["Command", "Aliases", "What it does"] {
+                        crate::ui_kit::th(ui, h);
+                    }
+                    ui.end_row();
+                    for c in COMMANDS.iter().filter(|c| needle.is_empty() || c.name.to_lowercase().contains(&needle) || c.aliases.iter().any(|a| a.to_lowercase().contains(&needle)) || c.help.to_lowercase().contains(&needle)) {
                         ui.label(RichText::new(c.name).monospace().strong());
                         ui.label(RichText::new(c.aliases.join(" ")).monospace().weak());
                         ui.label(c.help);
                         ui.end_row();
                     }
                 });
-                ui.add_space(6.0);
-                ui.label(RichText::new("Points: x,y absolute  ·  @dx,dy relative  ·  @distance<angle polar. MOVE, COPY and the signs commands take millimetres; the annotation, dimension and measure commands take the document units (UNITS).").weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Points: x,y absolute  ·  @dx,dy relative  ·  @distance<angle polar. MOVE, COPY and the signs commands take millimetres; the annotation, dimension and measure commands take the document units (UNITS).");
             });
             if dlg.closed {
                 help = false;
@@ -2327,11 +2338,10 @@ impl AfroBimApp {
         let mut insert: Option<(String, serde_json::Value)> = None;
         if library_open {
             let dlg = crate::ui_kit::Dialog::titled("Standard signs").subtitle("The sign library of the loaded standard").width(420.0).show_body(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Find");
-                    ui.add(egui::TextEdit::singleline(&mut self.library_filter).hint_text("key or name").desired_width(f32::INFINITY));
-                });
-                ui.separator();
+                crate::ui_kit::heading(ui, "Find a sign");
+                let r = crate::ui_kit::text_field_wide(ui, &mut self.library_filter, "key or name");
+                crate::ui_kit::focus_once(ui, &r, "library-filter");
+                crate::ui_kit::heading(ui, "Signs of the loaded standard");
                 let filter = self.library_filter.trim().to_lowercase();
                 egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                     let mut classes: Vec<&str> = self.library.iter().map(|i| i.class.as_str()).collect();
@@ -2819,11 +2829,14 @@ impl AfroBimApp {
         }
 
         if let Some(command) = self.options.preview.clone() {
-            crate::win::new(ctx, "Command preview").collapsible(false).resizable(false).title_bar(false).default_pos([420.0, 190.0]).show(ctx, |ui| {
+            let dlg = ui_kit::Dialog::titled("Command preview").subtitle(format!("What the ribbon shows for {command}")).width(420.0).resizable(false).default_pos(egui::pos2(420.0, 190.0)).show_body(ctx, |ui| {
                 if !crate::ribbon::preview_of(ui, &command) {
-                    ui.label(format!("No ribbon button runs {command}."));
+                    ui_kit::callout(ui, ui_kit::Level::Info, format!("No ribbon button runs {command}."));
                 }
             });
+            if dlg.closed {
+                self.options.preview = None;
+            }
         }
 
         if let Some((mark, lines)) = self.design_report.take() {
@@ -2919,13 +2932,15 @@ impl AfroBimApp {
         let mut about = self.show_about;
         if about {
             let dlg = crate::ui_kit::Dialog::titled("About AfroBIM").subtitle("Version and licence of this build").resizable(false).show_body(ctx, |ui| {
-                ui.heading("AfroBIM");
-                ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
-                ui.add_space(6.0);
-                ui.label("Building information modelling for roads and infrastructure.");
-                ui.label("Traffic signs module: UK Traffic Signs Manual Chapter 7.");
-                ui.add_space(6.0);
-                ui.label(RichText::new(&self.module_status).weak());
+                crate::ui_kit::heading(ui, "This build");
+                crate::ui_kit::form(ui, "about-form", |f| {
+                    f.row("Product", |ui| ui.label("AfroBIM"));
+                    f.row("Version", |ui| ui.label(env!("CARGO_PKG_VERSION")));
+                    f.row("Purpose", |ui| ui.label("Building information modelling for roads and infrastructure."));
+                    f.row("Traffic signs module", |ui| ui.label("UK Traffic Signs Manual Chapter 7"));
+                });
+                crate::ui_kit::heading(ui, "Modules loaded");
+                crate::ui_kit::note(ui, self.module_status.clone());
             });
             if dlg.closed {
                 about = false;
