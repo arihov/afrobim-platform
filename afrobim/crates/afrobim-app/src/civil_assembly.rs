@@ -73,6 +73,12 @@ pub struct EdPart {
     /// stored (the library's superelevated lane and shoulder).
     #[serde(default)]
     pub superelevated: bool,
+    /// The lane of the road type a lane part takes its default width from (for example L1).
+    #[serde(default)]
+    pub lane: String,
+    /// Which shoulder element a shoulder part takes its default from (0 hard shoulder, 1 hard strip nearside, 2 offside).
+    #[serde(default)]
+    pub element: usize,
     /// A part carried unchanged (not made in this editor).
     pub raw: Option<Subassembly>,
 }
@@ -228,6 +234,8 @@ pub struct AsmForm {
     /// The height of the centreline above the level ground the preview is drawn on.
     preview_height: String,
     message: String,
+    /// The road type the defaults are looked up for.
+    road: crate::defaults_glue::RoadChoice,
 }
 
 impl AfroBimApp {
@@ -236,9 +244,9 @@ impl AfroBimApp {
         let form = match sel.and_then(|id| self.doc.find(id).map(|e| (id, e))) {
             Some((id, e)) => {
                 let ed = e.properties.get(PROP_EDITOR).and_then(|t| serde_json::from_str::<EdAssembly>(t).ok()).or_else(|| civil::get::<Assembly>(&self.doc, id, ASSEMBLY).map(|a| EdAssembly::from_assembly(&a))).unwrap_or_default();
-                AsmForm { id: Some(id), ed, side: 1, sel: 0, add_kind: 0, preview_height: "1".into(), message: String::new() }
+                AsmForm { id: Some(id), ed, side: 1, sel: 0, add_kind: 0, preview_height: "1".into(), message: String::new(), road: Default::default() }
             }
-            None => AsmForm { id: None, ed: EdAssembly { name: String::new(), ..Default::default() }, side: 1, sel: 0, add_kind: 0, preview_height: "1".into(), message: String::new() },
+            None => AsmForm { id: None, ed: EdAssembly { name: String::new(), ..Default::default() }, side: 1, sel: 0, add_kind: 0, preview_height: "1".into(), message: String::new(), road: Default::default() },
         };
         self.civil_ui.asm.form = Some(form);
     }
@@ -258,6 +266,9 @@ impl AfroBimApp {
                     });
                     fm.row("Side shown", |ui| {
                         ui_kit::segmented(ui, &mut f.side, &["Left", "Right"]);
+                    });
+                    fm.row_note("Road type", "Pre-fills lane, hard strip and verge widths and the crossfall from the defaults basis", |ui| {
+                        crate::defaults_glue::road_selector(ui, "asm-road", &mut f.road);
                     });
                 });
                 // Side by side when there is room, one under the other in a narrow work area.
@@ -331,7 +342,7 @@ impl AfroBimApp {
                         let sel = f.sel;
                         ui_kit::section(ui, "Selected part", |ui| {
                             if let Some(p) = f.ed.side_mut(side).get_mut(sel) {
-                                part_editor(ui, p);
+                                part_editor(ui, p, &f.road);
                             } else {
                                 ui.label(RichText::new("Add a part, then select it to enter its dimensions.").size(crate::theme::FONT_SMALL).weak());
                             }
@@ -634,7 +645,7 @@ fn raw_editor(ui: &mut Ui, name: &str, raw: &mut Subassembly) -> bool {
     }
 }
 
-fn part_editor(ui: &mut Ui, p: &mut EdPart) {
+fn part_editor(ui: &mut Ui, p: &mut EdPart, road: &crate::defaults_glue::RoadChoice) {
     let k = &KINDS[p.kind.min(KINDS.len() - 1)];
     if let Some(raw) = p.raw.as_mut() {
         if raw_editor(ui, &p.name, raw) {
@@ -655,12 +666,41 @@ fn part_editor(ui: &mut Ui, p: &mut EdPart) {
     }
     ui_kit::form(ui, "asm-part", |fm| {
         fm.row("Name", |ui| d::text(ui, &mut p.name, ""));
+        if p.kind == 0 && road.prefix().is_some() {
+            fm.row("Lane", |ui| {
+                let lanes: Vec<String> = crate::defaults_glue::labels_of(&road.key("lane_width").unwrap_or_default()).into_iter().filter_map(|l| l.strip_prefix(&format!("{}/", road.road)).map(str::to_string)).collect();
+                let mut i = lanes.iter().position(|l| *l == p.lane).unwrap_or(0);
+                if ui_kit::combo_owned(ui, "asm-lane", &mut i, &lanes) || p.lane.is_empty() {
+                    p.lane = lanes.get(i).cloned().unwrap_or_default();
+                }
+            });
+        }
+        if p.kind == 1 && road.prefix().is_some() {
+            fm.row("Element", |ui| {
+                ui_kit::combo(ui, "asm-elem", &mut p.element, &["Hard shoulder", "Hard strip, nearside", "Hard strip, offside"]);
+            });
+        }
         for (i, (label, unit)) in k.params.iter().enumerate() {
             fm.row(label, |ui| {
                 if p.vals.len() <= i {
                     p.vals.resize(i + 1, String::new());
                 }
-                d::num(ui, &mut p.vals[i], unit);
+                // The pack's key and condition for this field, where the part and the road type give one.
+                let bind: Option<(String, afrobim_defaults::Conditions, f64)> = match (p.kind, i, road.prefix()) {
+                    (0, 0, Some(_)) => road.key("lane_width").map(|k| (k, afrobim_defaults::Conditions::none().label("road_type/lane", &format!("{}/{}", road.road, p.lane)), 1.0)),
+                    (0, 1, _) => Some(("link.crossfall.normal".to_string(), afrobim_defaults::Conditions::none(), -1.0)),
+                    (1, 0, Some(_)) => road.key(["hard_shoulder_width", "hard_strip_nearside_width", "hard_strip_offside_width"][p.element.min(2)]).map(|k| (k, road.cond(), 1.0)),
+                    (3, 0, Some(_)) => road.key("verge_width").map(|k| (k, road.cond(), 1.0)),
+                    _ => None,
+                };
+                match bind {
+                    Some((key, cond, factor)) => {
+                        crate::defaults_glue::field(ui, ("asm", p.kind, i), &mut p.vals[i], unit, &key, &cond, factor, &ui_kit::NumRule::required());
+                    }
+                    None => {
+                        d::num(ui, &mut p.vals[i], unit);
+                    }
+                }
             });
         }
         if p.kind <= 1 {

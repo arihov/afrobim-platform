@@ -387,6 +387,7 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "PARCELSPLIT", aliases: &["RESERVE", "ROADRESERVE"], help: "Split the parcels by an alignment offset (road reserve): take and remainder parcels", action: Action::Civil(crate::civil_cmds::Cv::ParcelSplit) },
     CommandInfo { name: "ACQUISITION", aliases: &["PARCELSCHEDULE", "LANDSCHEDULE"], help: "Land acquisition schedule and parcel area table, with CSV export", action: Action::Civil(crate::civil_cmds::Cv::ParcelSchedule) },
     CommandInfo { name: "CIVILXML", aliases: &["LANDXMLALL", "LANDXMLCIVIL"], help: "Write everything civil that the document holds to a LandXML file, with the project coordinate system", action: Action::Civil(crate::civil_cmds::Cv::CivilLandXml) },
+    CommandInfo { name: "DEFAULTS", aliases: &["DEFAULTSBASIS", "STANDARDVALUES"], help: "Browse the engineering defaults of the project's basis (DMRB today): every value with its document, version, clause and status, and the statement that the values were not reviewed by an engineer", action: Action::Civil(crate::civil_cmds::Cv::Defaults) },
     CommandInfo { name: "CIVILDEMO", aliases: &["DEMOCIVIL"], help: "Build a small set of demonstration civil data at UTM-sized coordinates (example values, not a design)", action: Action::Civil(crate::civil_cmds::Cv::CivilDemo) },
 ];
 

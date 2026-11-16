@@ -39,6 +39,9 @@ pub struct CorForm {
     ground: Option<ElementId>,
     baselines: Vec<BlForm>,
     message: String,
+    /// 0 rural, 1 urban: the area the superelevation limit of the defaults basis is read for.
+    area: usize,
+    emax: String,
 }
 
 impl AfroBimApp {
@@ -77,6 +80,8 @@ impl AfroBimApp {
                             })
                             .collect(),
                         message: String::new(),
+                        area: 0,
+                        emax: String::new(),
                     },
                     None => {
                         let al = aligns.first().map(|a| a.0);
@@ -87,6 +92,8 @@ impl AfroBimApp {
                             ground: civil::surface_choices(&self.doc).first().map(|s| s.0),
                             baselines: vec![BlForm { name: "Baseline 1".into(), alignment: al, regions: vec![RgForm { name: "Region 1".into(), start: s0.to_string(), end: s1.to_string(), assembly: civil::of_category(&self.doc, ASSEMBLY).first().map(|a| a.0), spacing: String::new(), at_geometry: true }] }],
                             message: String::new(),
+                            area: 0,
+                            emax: String::new(),
                         }
                     }
                 };
@@ -152,7 +159,23 @@ impl AfroBimApp {
                     fm.row("Ground surface (target)", |ui| {
                         d::pick_from(ui, "cor-g", &surfaces, &mut f.ground);
                     });
+                    fm.row_note("Superelevation limit", "Compared with the superelevation stored on each baseline's alignment", |ui| {
+                        ui.vertical(|ui| {
+                            ui_kit::segmented(ui, &mut f.area, &["Rural", "Urban"]);
+                            let key = if f.area == 0 { "link.superelevation.max_rural" } else { "link.superelevation.max_urban" };
+                            crate::defaults_glue::field(ui, "cor-emax", &mut f.emax, "%", key, &afrobim_defaults::Conditions::none(), 1.0, &NumRule::default().above(0.0));
+                        });
+                    });
                 });
+                if let Some(limit) = d::num_rule_peek(&f.emax, &NumRule::default().above(0.0)) {
+                    for b in &f.baselines {
+                        let Some(al) = b.alignment.and_then(|id| crate::alignment_glue::alignment_of(&self.doc, id)) else { continue };
+                        let worst = al.superelevation.as_ref().map(|se| se.sections.iter().flat_map(|s| s.points.iter()).flat_map(|p| [p.left_pct, p.right_pct]).flatten().fold(0.0_f64, |m, v| m.max(v.abs())));
+                        if let Some(w) = worst.filter(|w| *w > limit + 1e-9) {
+                            ui_kit::callout(ui, Level::Warning, format!("Baseline {}: the alignment's stored cross-fall reaches {:.2} %, above the limit of {:.2} %.", b.name, w, limit));
+                        }
+                    }
+                }
                 let mut remove_bl = None;
                 for (bi, b) in f.baselines.iter_mut().enumerate() {
                     ui_kit::section(ui, &format!("Baseline {}", bi + 1), |ui| {

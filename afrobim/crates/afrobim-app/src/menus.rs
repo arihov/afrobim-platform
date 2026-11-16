@@ -284,6 +284,7 @@ impl AfroBimApp {
                     a(ui, &mut pick, c(Earthworks), "Earthworks and mass haul…");
                     sep(ui);
                     a(ui, &mut pick, c(CivilLandXml), "Export civil data as LandXML…");
+                    a(ui, &mut pick, c(Defaults), "Engineering defaults…");
                     a(ui, &mut pick, c(CivilDemo), "Demonstration data");
                 });
                 ui.menu_button("Modify", |ui| {

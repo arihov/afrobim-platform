@@ -96,7 +96,10 @@ pub const CRS_TAB: usize = 1;
 /// The index of the display units tab.
 pub const UNITS_TAB: usize = 2;
 
-const TABS: [&str; 4] = ["General", "Coordinate system", "Display units", "Speed limits"];
+/// The index of the defaults basis tab.
+pub const DEFAULTS_TAB: usize = 4;
+
+const TABS: [&str; 5] = ["General", "Coordinate system", "Display units", "Speed limits", "Defaults basis"];
 
 impl AfroBimApp {
     /// PROJECTSETTINGS and UNITS: one dialog with the project's design standard, its display
@@ -114,6 +117,8 @@ impl AfroBimApp {
         let (elements, file) = (self.doc.elements().len(), self.title_for_pack());
         let mut tab = self.projset.tab;
         let mut std_pick: Option<usize> = None;
+        let mut basis_pick: Option<String> = None;
+        let mut open_defaults = false;
         let table_text = &mut self.projset.table_text;
         let crs_state = &mut self.projset.crs;
         let current_crs = afrobim_kernel::project_crs(&self.doc);
@@ -131,6 +136,12 @@ impl AfroBimApp {
                         0 => general_tab(ui, &standard, &mut std_pick),
                         CRS_TAB => crs_out = crate::crs_ui::tab(ui, crs_state, &current_crs, objects),
                         UNITS_TAB => units_tab(ui, &mut st, &mut set_dims),
+                        DEFAULTS_TAB => {
+                            crate::defaults_glue::basis_section(ui, &mut basis_pick);
+                            if ui.button("Browse the defaults table...").clicked() {
+                                open_defaults = true;
+                            }
+                        }
                         _ => speed_tab(ui, &mut rule, table_text),
                     }
                 },
@@ -142,6 +153,14 @@ impl AfroBimApp {
             self.apply_project_crs(crs);
         } else if crs_out.clear {
             self.remove_project_crs();
+        }
+        if let Some(id) = basis_pick {
+            crate::defaults_glue::store_basis(&mut self.doc, &id);
+            self.schedule_commit_now();
+            self.status = format!("Defaults basis: {}.", crate::defaults_glue::basis_name());
+        }
+        if open_defaults {
+            self.defaults_ui.open = true;
         }
         if let Some(i) = std_pick {
             self.run(ctx, crate::commands::Action::Standard(i as u8));

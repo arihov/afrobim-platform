@@ -34,6 +34,7 @@ impl AfroBimApp {
             Cv::Toolspace => self.show_left = !self.show_left,
             Cv::CivilLandXml => self.civil_landxml_out(),
             Cv::CivilDemo => self.civil_demo(),
+            Cv::Defaults => self.defaults_cmd(),
             Cv::ParcelPick | Cv::ParcelDeed | Cv::ParcelProps | Cv::ParcelTopology | Cv::ParcelSplit | Cv::ParcelSchedule => self.civil_parcel_cmd(cv),
             Cv::Earthworks => self.civil_quantities_cmd(),
             Cv::Assembly => self.civil_assembly_cmd(),

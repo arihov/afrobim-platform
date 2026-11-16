@@ -28,6 +28,8 @@ pub struct AlignCheckUi {
     /// Where the limits come from, and the built-in selection (class, terrain, speed, emax).
     pub source: LimitSource,
     pub builtin: BuiltinChoice,
+    /// The design speed row of the defaults basis shown in the reference panel (0 follows the chosen design speed).
+    pub ref_speed: usize,
 }
 
 impl AlignCheckUi {
@@ -169,6 +171,53 @@ fn builtin_picker(ui: &mut egui::Ui, b: &mut BuiltinChoice) {
     });
 }
 
+/// The reference values of the project's defaults basis at a design speed: sight distance, minimum
+/// radii by superelevation, K values and gradients, each with its citation. They are shown for
+/// comparison with the limits chosen below; the checks use the limits source chosen, not these.
+fn defaults_reference(ui: &mut egui::Ui, pick: &mut usize, from_choice: Option<f64>) {
+    use afrobim_defaults::Conditions;
+    let speeds = crate::defaults_glue::speeds_of("link.ssd.desirable_min");
+    egui::CollapsingHeader::new(format!("Reference values from the defaults basis ({})", crate::defaults_glue::basis_name())).id_salt("chk-defaults-ref").default_open(false).show(ui, |ui| {
+        if speeds.is_empty() {
+            crate::ui_kit::note(ui, "The project has no defaults basis, or it holds no design speed tables.");
+            return;
+        }
+        let mut labels: Vec<String> = vec![match from_choice { Some(s) => format!("follow the design speed chosen ({s} km/h)"), None => "choose".to_string() }];
+        labels.extend(speeds.iter().map(|v| format!("{} km/h", afrobim_defaults::fmt_num(*v))));
+        ui.horizontal(|ui| {
+            ui.label("Design speed");
+            crate::ui_kit::combo_owned(ui, "chk-ref-speed", pick, &labels);
+        });
+        let speed = if *pick > 0 { speeds.get(*pick - 1).copied() } else { from_choice };
+        let Some(v) = speed else {
+            crate::ui_kit::note(ui, "Choose a design speed to see the values.");
+            return;
+        };
+        if !speeds.iter().any(|s| (s - v).abs() < 1e-9) {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, format!("The basis has no row for {v} km/h; choose one of its own design speeds."));
+            return;
+        }
+        let c = Conditions::none().design_speed(v);
+        let items: Vec<(&str, &str, Conditions)> = vec![
+            ("Stopping sight distance, desirable minimum", "link.ssd.desirable_min", c.clone()),
+            ("Stopping sight distance, one step below", "link.ssd.one_step_below", c.clone()),
+            ("Minimum radius, superelevation 2.5 %", "link.horizontal.min_radius_superelevation_2_5", c.clone()),
+            ("Minimum radius, superelevation 3.5 %", "link.horizontal.min_radius_superelevation_3_5", c.clone()),
+            ("Desirable minimum radius, superelevation 5 %", "link.horizontal.desirable_min_radius_superelevation_5", c.clone()),
+            ("Radius one step below, superelevation 7 %", "link.horizontal.one_step_below_radius_superelevation_7", c.clone()),
+            ("Crest K, desirable minimum", "link.vertical.crest_k_desirable_min", c.clone()),
+            ("Sag K, desirable minimum", "link.vertical.sag_k_desirable_min", c.clone()),
+            ("Desirable maximum gradient, motorway", "link.gradient.desirable_max", Conditions::none().label("road_type", "motorway")),
+            ("Desirable maximum gradient, all-purpose dual", "link.gradient.desirable_max", Conditions::none().label("road_type", "all_purpose_dual")),
+            ("Desirable maximum gradient, all-purpose single", "link.gradient.desirable_max", Conditions::none().label("road_type", "all_purpose_single")),
+            ("Minimum gradient for drainage", "link.gradient.min_desirable", Conditions::none()),
+        ];
+        let rows = crate::defaults_glue::reference_rows(&items);
+        crate::ui_kit::results_table(ui, "chk-ref", &["Value", "Number", "Unit", "Source"], &[crate::ui_kit::Col::Text, crate::ui_kit::Col::Num, crate::ui_kit::Col::Text, crate::ui_kit::Col::Text], &rows);
+        crate::ui_kit::note(ui, "Not reviewed by an engineer. A starting point for the project's own limits; see DEFAULTS.");
+    });
+}
+
 /// What the manual does not cover, and the slips found in it.
 fn mowt_panels(ui: &mut egui::Ui) {
     // A screenshot aid: AFROBIM_AID_OPEN_PANELS opens the panels so that they can be captured.
@@ -270,6 +319,7 @@ impl AfroBimApp {
                     c.report = None;
                 }
             }
+            defaults_reference(ui, &mut c.ref_speed, c.builtin.speed_kmh.map(|s| s as f64));
             if c.source != LimitSource::UserFile {
                 builtin_picker(ui, &mut c.builtin);
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, glue::THIRD_PARTY_NOTE);

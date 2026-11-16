@@ -27,6 +27,9 @@ pub struct FitForm {
     pub min_curve: String,
     pub k_crest: String,
     pub k_sag: String,
+    /// The design speed row of the defaults basis (0 none, i the i-th speed) and the road type of the gradient default.
+    pub speed_idx: usize,
+    pub road_idx: usize,
 }
 
 struct PvDrag {
@@ -317,15 +320,65 @@ fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &m
             (crate::disp::head(u, "Sample spacing"), &mut f.spacing, ""),
             (crate::disp::head(u, "Tolerance on the ground"), &mut f.tolerance, ""),
             (crate::disp::head(u, "Minimum segment length"), &mut f.min_segment, ""),
-            ("Maximum grade (%)".to_string(), &mut f.max_grade_percent, ""),
         ] {
             ui.label(label);
             ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(field).hint_text(hint));
         }
         ui.end_row();
-        for (label, field, hint) in [(crate::disp::head(u, "Minimum curve length"), &mut f.min_curve, ""), (format!("K for crests, {} per % (optional)", crate::disp::suffix(u)), &mut f.k_crest, "none"), (format!("K for sags, {} per % (optional)", crate::disp::suffix(u)), &mut f.k_sag, "none")] {
-            ui.label(label);
-            ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(field).hint_text(hint));
+        ui.label(crate::disp::head(u, "Minimum curve length"));
+        ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(&mut f.min_curve));
+        ui.end_row();
+        // K and the gradient come from the defaults basis once the design speed (and for the
+        // gradient the road type) is chosen; with none chosen they stay as typed.
+        let speeds = crate::defaults_glue::speeds_of("link.vertical.crest_k_desirable_min");
+        let speed = (f.speed_idx > 0).then(|| speeds.get(f.speed_idx - 1).copied()).flatten();
+        let cond = speed.map(|v| afrobim_defaults::Conditions::none().design_speed(v));
+        let k_factor = if u.length == afrobim_annotate::LengthUnit::Millimetre { 1000.0 } else { 1.0 };
+        let roads = ["motorway", "all_purpose_dual", "all_purpose_single"];
+        let road_key = (f.road_idx > 0).then(|| afrobim_defaults::Conditions::none().label("road_type", roads[(f.road_idx - 1).min(2)]));
+        ui.label("Design speed and road type (for the defaults)");
+        ui.horizontal(|ui| {
+            let mut labels: Vec<String> = vec!["none".into()];
+            labels.extend(speeds.iter().map(|v| format!("{} km/h", afrobim_defaults::fmt_num(*v))));
+            crate::ui_kit::combo_owned(ui, "fit-speed", &mut f.speed_idx, &labels);
+            crate::ui_kit::combo(ui, "fit-road", &mut f.road_idx, &["road type: none", "Motorway", "All-purpose dual", "All-purpose single"]);
+        });
+        ui.end_row();
+        let rule = crate::ui_kit::NumRule::default();
+        ui.label(format!("K for crests, {} per % (optional)", crate::disp::suffix(u)));
+        match &cond {
+            Some(c) => {
+                ui.vertical(|ui| {
+                    crate::defaults_glue::field(ui, "fit-kc", &mut f.k_crest, crate::disp::suffix(u), "link.vertical.crest_k_desirable_min", c, k_factor, &rule);
+                });
+            }
+            None => {
+                ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(&mut f.k_crest).hint_text("none"));
+            }
+        }
+        ui.end_row();
+        ui.label(format!("K for sags, {} per % (optional)", crate::disp::suffix(u)));
+        match &cond {
+            Some(c) => {
+                ui.vertical(|ui| {
+                    crate::defaults_glue::field(ui, "fit-ks", &mut f.k_sag, crate::disp::suffix(u), "link.vertical.sag_k_desirable_min", c, k_factor, &rule);
+                });
+            }
+            None => {
+                ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(&mut f.k_sag).hint_text("none"));
+            }
+        }
+        ui.end_row();
+        ui.label("Maximum grade (%)");
+        match &road_key {
+            Some(r) => {
+                ui.vertical(|ui| {
+                    crate::defaults_glue::field(ui, "fit-grade", &mut f.max_grade_percent, "%", "link.gradient.desirable_max", r, 1.0, &rule);
+                });
+            }
+            None => {
+                ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(&mut f.max_grade_percent));
+            }
         }
         ui.end_row();
     });

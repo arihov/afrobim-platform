@@ -183,7 +183,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Sections", items: &[Big(Icon::Section, "Sample lines", "SAMPLELINES"), Big(Icon::Section, "Views", "SECTIONVIEWS")] },
         Panel { title: "Corridors", items: &[Big(Icon::Pavement, "Assembly", "ASSEMBLY"), Big(Icon::Corridor, "Corridor", "CORRIDORMODEL")] },
         Panel { title: "Parcels", items: &[Big(Icon::Area, "Create", "PARCELPICK"), Big(Icon::Measure, "Deed", "PARCELDEED"), Small(Icon::Project, "Properties", "PARCELPROPS"), Small(Icon::CheckAll, "Topology", "PARCELTOPOLOGY"), Small(Icon::Design, "Split", "PARCELSPLIT"), Small(Icon::Schedule, "Schedule", "ACQUISITION")] },
-        Panel { title: "Quantities", items: &[Big(Icon::Quantities, "Earthworks", "EARTHWORKS"), Small(Icon::LandXmlOut, "LandXML", "CIVILXML"), Small(Icon::Help, "Demo", "CIVILDEMO")] },
+        Panel { title: "Quantities", items: &[Big(Icon::Quantities, "Earthworks", "EARTHWORKS"), Small(Icon::LandXmlOut, "LandXML", "CIVILXML"), Small(Icon::Help, "Demo", "CIVILDEMO"), Small(Icon::Options, "Defaults", "DEFAULTS")] },
     ];
     const DESIGN: &[Panel] = &[
         Panel { title: "Alignment", items: &[Big(Icon::AlignDesign, "New alignment", "ALIGNDESIGN"), Big(Icon::AlignEdit, "Edit in plan", "ALIGNEDIT"), Big(Icon::PiTable, "PI table", "PITABLE"), Big(Icon::Labels, "Curve labels", "ALIGNLABELS")] },

@@ -28,6 +28,9 @@ mod civil_surface;
 mod civil_scene;
 mod civil_tree;
 mod civil_ui;
+mod defaults_glue;
+#[cfg(test)]
+mod a1_tests;
 mod alignment_glue;
 mod anno_glue;
 mod anno_ui;

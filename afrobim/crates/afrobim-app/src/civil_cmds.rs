@@ -42,13 +42,15 @@ pub enum Cv {
     // Exchange and demo
     CivilLandXml,
     CivilDemo,
+    // Defaults
+    Defaults,
 }
 
 
 
 /// Every civil command (a test checks each one is in the command table).
 #[cfg(test)]
-pub const ALL: [Cv; 30] = [
+pub const ALL: [Cv; 31] = [
     Cv::Toolspace,
     Cv::Points,
     Cv::PointCreate,
@@ -79,6 +81,7 @@ pub const ALL: [Cv; 30] = [
     Cv::ParcelSchedule,
     Cv::CivilLandXml,
     Cv::CivilDemo,
+    Cv::Defaults,
 ];
 
 pub fn glyph(c: Cv) -> &'static str {
@@ -113,5 +116,6 @@ pub fn glyph(c: Cv) -> &'static str {
         Cv::ParcelSchedule => ph::TABLE,
         Cv::CivilLandXml => ph::FILE_CODE,
         Cv::CivilDemo => ph::FLASK,
+        Cv::Defaults => ph::BOOK_BOOKMARK,
     }
 }

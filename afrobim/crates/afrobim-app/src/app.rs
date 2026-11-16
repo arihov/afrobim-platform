@@ -73,6 +73,7 @@ pub struct AfroBimApp {
     /// The civil objects: built scenes, the toolspace tree and the dialogs of the civil commands.
     pub(crate) civil: crate::civil_cache::CivilState,
     pub(crate) civil_ui: crate::civil_ui::CivilUi,
+    pub(crate) defaults_ui: crate::defaults_glue::DefaultsUi,
     /// A civil command or an action a toolspace row asked for, run at the start of the next frame.
     pub(crate) civil_run_pending: Option<crate::civil_cmds::Cv>,
     pub(crate) pending_action: Option<Action>,
@@ -224,6 +225,7 @@ impl AfroBimApp {
             survey: Default::default(),
             civil: Default::default(),
             civil_ui: Default::default(),
+            defaults_ui: Default::default(),
             civil_run_pending: None,
             pending_action: None,
             landxml: Default::default(),
@@ -2287,6 +2289,7 @@ impl AfroBimApp {
         self.underlay_window(ctx);
         self.signsched_windows(ctx);
         self.projset_window(ctx);
+        self.defaults_window(ctx);
         self.survey_window(ctx);
         self.civil_windows(ctx);
         self.landxml_window(ctx);
@@ -3051,6 +3054,7 @@ impl eframe::App for AfroBimApp {
         if let Some(cv) = self.civil_run_pending.take() {
             self.run(ctx, Action::Civil(cv));
         }
+        crate::defaults_glue::sync(&self.doc, false);
         self.civil_sync();
         self.drop_tick(ctx);
         self.sched_tick(ctx);
