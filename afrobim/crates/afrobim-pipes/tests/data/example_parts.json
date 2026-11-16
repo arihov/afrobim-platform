@@ -1,0 +1,34 @@
+{
+  "name": "EXAMPLE parts list for tests only (not a catalogue, not engineering data)",
+  "source": "written for the afrobim-pipes tests",
+  "parts": [
+    {
+      "id": "EXAMPLE-EGG",
+      "name": "Example egg test only",
+      "family": "pipe",
+      "pipe_shape": { "shape": "egg", "width_m": 0.8, "height_m": 1.2, "profile": [[0.0, 0.0], [0.4, 0.7], [1.2, 0.0]] },
+      "structure_kind": null,
+      "structure_inner": null,
+      "material": "example material C",
+      "wall_thickness_m": 0.06,
+      "roughness": { "law": "manning", "n": 0.012 },
+      "ifc_entity": "IFCPIPESEGMENT",
+      "ifc_predefined_type": null,
+      "cost_item_code": "EX-0201"
+    },
+    {
+      "id": "EXAMPLE-NULL",
+      "name": "Example null node test only",
+      "family": "structure",
+      "pipe_shape": null,
+      "structure_kind": "null",
+      "structure_inner": null,
+      "material": null,
+      "wall_thickness_m": null,
+      "roughness": null,
+      "ifc_entity": null,
+      "ifc_predefined_type": null,
+      "cost_item_code": null
+    }
+  ]
+}
