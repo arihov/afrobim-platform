@@ -149,7 +149,7 @@ pub struct AfroBimApp {
     path: Option<PathBuf>,
     pub(crate) drops: crate::dropped::DropUi,
     pub(crate) status: String,
-    fitted: bool,
+    pub(crate) fitted: bool,
     pub(crate) view_3d: bool,
     pub(crate) camera: crate::view3d::Camera,
     /// World point under the pointer where a 3D drag began: the pivot of the orbit.
@@ -281,6 +281,9 @@ impl AfroBimApp {
             frames: 0,
         };
 
+        if app.options.civil_demo {
+            app.civil_demo();
+        }
         if let Some(path) = app.options.open.clone() {
             app.open_path(path);
         } else if app.options.demo && app.signs_ready {
@@ -1488,7 +1491,7 @@ impl AfroBimApp {
             .doc
             .elements()
             .iter()
-            .filter(|e| self.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY)
+            .filter(|e| self.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY && crate::civil::has_plan_position(&e.category))
             .map(|e| e.bounds())
             .reduce(|a, b| a.union(&b))
             .unwrap_or(afrobim_kernel::BBox::new(0.0, 0.0, 5000.0, 3000.0));
@@ -1850,7 +1853,7 @@ impl AfroBimApp {
             return;
         }
         let palettes = crate::workspace::WORKSPACES[self.workspace].palettes;
-        egui::SidePanel::left("tools").resizable(true).default_width(220.0).min_width(180.0).show(ctx, |ui| {
+        egui::SidePanel::left("tools").resizable(true).default_width(250.0).min_width(180.0).max_width(420.0).show(ctx, |ui| {
             let mut pick = None;
             ui.add_space(4.0);
             ui.label(RichText::new("TOOL SETS").small().strong().weak());
@@ -1906,6 +1909,7 @@ impl AfroBimApp {
             ui.label(RichText::new("PROPERTIES").small().strong().weak());
             ui.separator();
             let mut definition_edited: Option<ElementId> = None;
+            let mut civil_open: Option<crate::civil_cmds::Cv> = None;
             let mut changed = false;
             let props_h = (ui.available_height() - 170.0).max(120.0);
             let props_bg = ui.interact(egui::Rect::from_min_size(ui.cursor().min, egui::vec2(ui.available_width(), props_h)), egui::Id::new("props-context"), egui::Sense::click());
@@ -1933,7 +1937,7 @@ impl AfroBimApp {
                 let ann_settings = afrobim_annotate::settings::load(&self.doc);
                 let align_names = crate::anno_ui::alignment_names(&self.doc);
                 let module_name = self.doc.find(id).and_then(|e| self.modules.get(&e.category)).map(|m| m.display_name().to_string());
-                let derived = self.cache.get(&id).and_then(|c| c.generated.as_ref().ok()).map(|g| (g.derived.clone(), g.notes.clone()));
+                let derived = self.civil_derived(id).or_else(|| self.cache.get(&id).and_then(|c| c.generated.as_ref().ok()).map(|g| (g.derived.clone(), g.notes.clone())));
                 let error = self.cache.get(&id).and_then(|c| c.generated.as_ref().err().cloned());
                 let Some(e) = self.doc.find_mut(id) else { return };
 
@@ -1964,7 +1968,11 @@ impl AfroBimApp {
 
                 ui.add_space(8.0);
                 ui.label(RichText::new("Definition").strong());
-                if e.category == signs_glue::CATEGORY {
+                if crate::civil::is_civil(&e.category) {
+                    let (c, open) = crate::civil_tree::civil_panel(ui, e);
+                    changed |= c;
+                    civil_open = civil_open.or(open);
+                } else if e.category == signs_glue::CATEGORY {
                     changed |= signs_glue::edit_ui(ui, &mut e.data);
                 } else if afrobim_annotate::is_annotation(e) {
                     changed |= crate::anno_ui::edit_ui(ui, e, &ann_settings, &align_names);
@@ -2037,6 +2045,9 @@ impl AfroBimApp {
                     }
                 });
             });
+            if let Some(cv) = civil_open {
+                self.civil_run_pending = Some(cv);
+            }
             if let Some(id) = definition_edited {
                 if let Some(problem) = modules_glue::after_edit(&mut self.doc, id) {
                     self.status = format!("Not applied yet: {problem}");

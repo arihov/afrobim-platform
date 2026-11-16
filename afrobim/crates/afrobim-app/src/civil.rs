@@ -353,3 +353,9 @@ pub fn counts(doc: &Document) -> BTreeMap<&'static str, usize> {
 pub fn element_bounds_m(e: &Element) -> Bounds {
     Bounds { min_e: e.origin.x / 1000.0, min_n: e.origin.y / 1000.0, max_e: (e.origin.x + e.width) / 1000.0, max_n: (e.origin.y + e.height) / 1000.0 }
 }
+
+/// Whether the category has a place in the plan (an assembly and a ground profile do not: they sit
+/// at the origin and do not count when the view is fitted to the drawing).
+pub fn has_plan_position(category: &str) -> bool {
+    category != ASSEMBLY && category != PROFILE
+}

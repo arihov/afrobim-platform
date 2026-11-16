@@ -101,6 +101,7 @@ impl AfroBimApp {
                 }
             }
         }
+        self.civil_ui.overlay.paint(painter, &self.view, rect, ink, false);
         // Layer colour and line weight: black is "automatic" (the canvas ink); the weight is drawn
         // as a pen width in pixels (about 4 px per millimetre, between 1 and 6).
         let layer_props = afrobim_annotate::settings::load(&self.doc).layers;
@@ -130,7 +131,7 @@ impl AfroBimApp {
                     painter.line_segment([r.right_top(), r.left_bottom()], Stroke::new(1.0_f32, label));
                 }
             }
-            if self.show_labels && r.width() > 46.0 {
+            if self.show_labels && r.width() > 46.0 && !crate::civil::is_civil(&e.category) {
                 painter.text(pos2(r.left(), r.bottom() + 4.0), Align2::LEFT_TOP, &e.name, FontId::proportional(11.0), label);
             }
         }

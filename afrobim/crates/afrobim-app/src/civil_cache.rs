@@ -24,6 +24,8 @@ pub struct CivilState {
     pub held: Option<u64>,
     /// How many builds have been applied (a test and the status line read it).
     pub applied: u64,
+    /// Decoded TINs of imported surfaces: element id to (size of its data, TIN).
+    pub imported: HashMap<ElementId, (usize, Arc<afrobim_corridor::Tin>)>,
 }
 
 impl CivilState {
@@ -68,6 +70,26 @@ fn snapshot(doc: &Document) -> Vec<Element> {
 }
 
 impl crate::app::AfroBimApp {
+    /// The TIN of any surface element: a civil surface (built) or an imported one (decoded once).
+    pub(crate) fn tin_for(&mut self, id: ElementId) -> Option<Arc<afrobim_corridor::Tin>> {
+        if let Some(t) = self.civil.tin_of(id) {
+            return Some(t);
+        }
+        let e = self.doc.find(id)?;
+        if e.category != afrobim_corridor::SURFACE_CATEGORY {
+            return None;
+        }
+        let size = e.data.to_string().len();
+        if let Some((n, t)) = self.civil.imported.get(&id) {
+            if *n == size {
+                return Some(t.clone());
+            }
+        }
+        let t = Arc::new(serde_json::from_value::<afrobim_corridor::SurfaceDefinition>(e.data.clone()).ok()?.tin);
+        self.civil.imported.insert(id, (size, t.clone()));
+        Some(t)
+    }
+
     /// Once a frame: starts a build for the stale civil elements when none is running.
     pub(crate) fn civil_sync(&mut self) {
         if self.bg.civil.is_some() {
@@ -107,6 +129,22 @@ impl crate::app::AfroBimApp {
         let label = if stale.len() == 1 { "Building a civil object".to_string() } else { format!("Building {} civil objects", stale.len()) };
         let fp = crate::background::fingerprint(&self.doc);
         self.bg.civil = Some(Job::spawn(&label, fp, move || build_all(elements, tins, stale, dep)));
+    }
+
+    /// The derived figures and notes of a civil element for the Properties panel.
+    pub(crate) fn civil_derived(&self, id: ElementId) -> Option<(std::collections::BTreeMap<String, String>, Vec<afrobim_kernel::Note>)> {
+        let e = self.doc.find(id)?;
+        if !is_civil(&e.category) {
+            return None;
+        }
+        let Some((_, b)) = self.civil.built.get(&id) else {
+            return Some((std::iter::once(("Build".to_string(), "waiting".to_string())).collect(), vec![]));
+        };
+        let derived = b.scene.derived.iter().cloned().collect();
+        let note = |sev, code: &str, m: &String| afrobim_kernel::Note { severity: sev, code: code.to_string(), message: m.clone() };
+        let mut notes: Vec<afrobim_kernel::Note> = b.scene.notes.iter().map(|m| note(afrobim_kernel::Severity::Warning, "CIVIL", m)).collect();
+        notes.extend(b.report.iter().filter(|m| !b.scene.notes.contains(m)).map(|m| note(afrobim_kernel::Severity::Info, "BUILD", m)));
+        Some((derived, notes))
     }
 
     pub(crate) fn civil_tick(&mut self) {

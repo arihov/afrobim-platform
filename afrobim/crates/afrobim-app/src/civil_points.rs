@@ -40,8 +40,6 @@ pub struct PointsUi {
     pub export: Option<ExportForm>,
     pub cogo: Option<CogoForm>,
     pub traverse: Option<TraverseForm>,
-    /// The next click in the model is a point for the create dialog.
-    pub pick: bool,
 }
 
 // ─── shared ────────────────────────────────────────────────────────────────
@@ -120,19 +118,30 @@ impl AfroBimApp {
 
     /// The click of the pick mode: easting and northing of the model point.
     pub(crate) fn civil_pick_press(&mut self, screen: afrobim_kernel::Pt) -> bool {
-        if !self.civil_ui.points.pick {
-            return false;
-        }
-        self.civil_ui.points.pick = false;
+        use crate::civil_ui::PickFor;
+        let Some(kind) = self.civil_ui.pick.take() else { return false };
         let w = self.view.to_world(screen);
         let (e, n) = (w.x / 1000.0, w.y / 1000.0);
-        if let Some(f) = &mut self.civil_ui.points.create {
-            f.e = format!("{e:.3}");
-            f.n = format!("{n:.3}");
-            // A picked point on a surface takes its level.
-            if let Some(sid) = f.surface {
-                if let Some(z) = self.civil.tin_of(sid).and_then(|t| t.elevation_at(e, n)) {
-                    f.z = format!("{z:.3}");
+        match kind {
+            PickFor::Create => {
+                let surface = self.civil_ui.points.create.as_ref().and_then(|f| f.surface);
+                let z = surface.and_then(|sid| self.tin_for(sid)).and_then(|t| t.elevation_at(e, n));
+                if let Some(f) = &mut self.civil_ui.points.create {
+                    f.e = format!("{e:.3}");
+                    f.n = format!("{n:.3}");
+                    if let Some(z) = z {
+                        f.z = format!("{z:.3}");
+                    }
+                }
+            }
+            PickFor::Spot => {
+                if let Some(f) = &mut self.civil_ui.surf.spot {
+                    f.set(e, n);
+                }
+            }
+            PickFor::Flow => {
+                if let Some(f) = &mut self.civil_ui.surf.flow {
+                    f.set(e, n);
                 }
             }
         }
@@ -403,11 +412,11 @@ impl AfroBimApp {
                 |ui| Footer::new("Add point").icon(crate::glyphs::by_name("POINTCREATE")).cancel(Some("Close")).enabled(vals.get().0.is_some() && vals.get().1.is_some(), "Type an easting and a northing").show(ui),
             );
         if out.closed || out.inner.as_ref().is_some_and(|(_, fo)| fo.cancel) {
-            self.civil_ui.points.pick = false;
+            self.civil_ui.pick = None;
             return;
         }
         if pick {
-            self.civil_ui.points.pick = true;
+            self.civil_ui.pick = Some(crate::civil_ui::PickFor::Create);
             self.status = "Click the point in the model.".into();
         }
         if out.inner.as_ref().is_some_and(|(_, fo)| fo.primary) {

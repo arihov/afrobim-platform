@@ -72,7 +72,8 @@ impl AfroBimApp {
     fn row_ui(&self, ui: &mut Ui, r: &Row, acts: &mut Vec<Act>, menu: &[(&str, Cv)]) {
         ui.horizontal(|ui| {
             let eye = if r.hidden { ph::EYE_SLASH } else { ph::EYE };
-            if ui.add(egui::Button::new(RichText::new(eye).small()).frame(false)).on_hover_text(if r.hidden { "Show" } else { "Hide" }).clicked() {
+            let tc = ui.visuals().weak_text_color();
+            if ui.add(egui::Button::new(crate::theme::icon_text(eye, "", 12.0, tc)).frame(false)).on_hover_text(if r.hidden { "Show" } else { "Hide" }).clicked() {
                 acts.push(Act::ToggleHidden(r.id));
             }
             let renaming = self.civil_ui.tree.renaming.as_ref().is_some_and(|(id, _)| *id == r.id);
@@ -80,8 +81,8 @@ impl AfroBimApp {
                 return;
             }
             let selected = self.doc.is_selected(r.id);
-            let text = RichText::new(format!("{}  {}", icon_of(&r.category), r.name));
-            let text = if r.hidden { text.weak() } else { text };
+            let tcol = if r.hidden { ui.visuals().weak_text_color() } else { ui.visuals().text_color() };
+            let text = crate::theme::icon_text(icon_of(&r.category), &r.name, 13.0, tcol);
             let resp = ui.selectable_label(selected, text);
             if resp.clicked() {
                 acts.push(Act::Select(r.id));
@@ -123,15 +124,13 @@ impl AfroBimApp {
                     ui.close_menu();
                 }
             });
-            if !r.detail.is_empty() {
-                ui.label(RichText::new(&r.detail).small().weak());
-            }
         });
     }
 
     /// A group node: header with an icon and a count, a "new" button, rows inside.
     fn node(&self, ui: &mut Ui, id: &str, icon: &str, title: &str, count: usize, new: Option<(&str, Cv)>, acts: &mut Vec<Act>, body: impl FnOnce(&mut Ui, &mut Vec<Act>)) {
-        let header = egui::CollapsingHeader::new(RichText::new(format!("{icon}  {title} ({count})")).strong()).id_salt(id).default_open(count > 0 && count < 40);
+        let hc = ui.visuals().strong_text_color();
+        let header = egui::CollapsingHeader::new(crate::theme::icon_text(icon, &format!("{title} ({count})"), 13.0, hc)).id_salt(id).default_open(count > 0 && count < 40);
         header
             .show(ui, |ui| {
                 body(ui, acts);
@@ -213,7 +212,7 @@ impl AfroBimApp {
                 .collect();
             self.node(ui, "ts-groups", ph::STACK, "Point Groups", groups.len(), Some(("Point groups...", Cv::PointGroups)), &mut acts, |ui, acts| {
                 for (id, name, n) in &groups {
-                    let resp = ui.selectable_label(false, format!("{}  {name}  ({n})", ph::STACK));
+                    let resp = ui.selectable_label(false, crate::theme::icon_text(ph::STACK, &format!("{name}  ({n})"), 13.0, ui.visuals().text_color()));
                     if resp.double_clicked() {
                         acts.push(Act::Run(Cv::PointGroups, Some(*id)));
                     }
@@ -236,7 +235,7 @@ impl AfroBimApp {
                     self.row_ui(ui, r, acts, menu);
                 }
                 for (id, n) in &corridor_surfaces {
-                    if ui.selectable_label(false, format!("{}  {n}", ph::ROAD_HORIZON)).double_clicked() {
+                    if ui.selectable_label(false, crate::theme::icon_text(ph::MOUNTAINS, n, 13.0, ui.visuals().text_color())).double_clicked() {
                         acts.push(Act::Zoom(*id));
                     }
                 }
@@ -248,16 +247,16 @@ impl AfroBimApp {
             self.node(ui, "ts-align", ph::PATH, "Alignments", aligns.len(), None, &mut acts, |ui, acts| {
                 for r in &aligns {
                     let name = crate::alignment_glue::alignment_of(&self.doc, r.id).map(|a| a.name).unwrap_or_default();
-                    egui::CollapsingHeader::new(RichText::new(format!("{}  {}", ph::PATH, r.name))).id_salt(("align", r.id.0)).default_open(true).show(ui, |ui| {
+                    egui::CollapsingHeader::new(crate::theme::icon_text(ph::PATH, &r.name, 13.0, ui.visuals().text_color())).id_salt(("align", r.id.0)).default_open(true).show(ui, |ui| {
                         let mine = |rows: &[Row], f: &dyn Fn(&afrobim_kernel::Element) -> bool| -> Vec<usize> { rows.iter().enumerate().filter(|(_, row)| self.doc.find(row.id).is_some_and(f)).map(|(i, _)| i).collect() };
                         let ps = mine(&profiles, &|e| civil::get::<ProfileData>(&self.doc, e.id, PROFILE).is_some_and(|d| d.alignment == name));
                         let vs = mine(&views, &|e| civil::get::<ProfileViewData>(&self.doc, e.id, PROFILE_VIEW).is_some_and(|d| d.alignment == name));
                         let ss = mine(&samples, &|e| civil::get::<SampleData>(&self.doc, e.id, SAMPLES).is_some_and(|d| d.group.alignment == name));
                         let has_design = crate::alignment_glue::alignment_of(&self.doc, r.id).is_some_and(|a| a.profile.is_some());
                         let mut sub = |title: &str, icon: &str, rows: &[Row], idx: Vec<usize>, extra: Option<&str>| {
-                            egui::CollapsingHeader::new(RichText::new(format!("{icon}  {title} ({})", idx.len() + extra.is_some() as usize))).id_salt((title, r.id.0)).default_open(true).show(ui, |ui| {
+                            egui::CollapsingHeader::new(crate::theme::icon_text(icon, &format!("{title} ({})", idx.len() + extra.is_some() as usize), 12.0, ui.visuals().text_color())).id_salt((title, r.id.0)).default_open(true).show(ui, |ui| {
                                 if let Some(x) = extra {
-                                    ui.label(RichText::new(format!("{}  {x}", ph::CHART_LINE_UP)).small());
+                                    ui.label(crate::theme::icon_text(ph::CHART_LINE_UP, x, 11.0, ui.visuals().weak_text_color()));
                                 }
                                 for i in idx {
                                     self.row_ui(ui, &rows[i], acts, &[]);
@@ -312,7 +311,16 @@ impl AfroBimApp {
     fn apply_act(&mut self, a: Act) {
         match a {
             Act::Select(id) => self.doc.select(&[id], SelectMode::Replace),
-            Act::Zoom(id) => self.zoom_to_element(id),
+            Act::Zoom(id) => {
+                let cat = self.doc.find(id).map(|e| e.category.clone()).unwrap_or_default();
+                if civil::is_civil(&cat) && !civil::has_plan_position(&cat) {
+                    // Nothing to zoom to in the plan: open its editor.
+                    self.doc.select(&[id], SelectMode::Replace);
+                    self.civil_run_pending = edit_command(&cat);
+                } else {
+                    self.zoom_to_element(id);
+                }
+            }
             Act::Rename(id) => {
                 let name = self.doc.find(id).map(|e| e.name.clone()).unwrap_or_default();
                 self.civil_ui.tree.renaming = Some((id, name));
@@ -379,4 +387,62 @@ impl AfroBimApp {
             ui.label(format!("{plural}: {}", self.doc.elements().iter().filter(|e| e.category == c).count()));
         }
     }
+}
+
+/// The editing command of a civil category (the button in Properties and the double-click).
+pub fn edit_command(category: &str) -> Option<Cv> {
+    Some(match category {
+        POINTS => Cv::PointTable,
+        SURFACE => Cv::SurfaceDef,
+        PROFILE => Cv::GroundProfile,
+        PROFILE_VIEW => Cv::ProfileView,
+        ASSEMBLY => Cv::Assembly,
+        CORRIDOR => Cv::CorridorModel,
+        SAMPLES => Cv::SampleLines,
+        PARCEL => Cv::ParcelProps,
+        _ => return None,
+    })
+}
+
+/// The Properties panel block of a civil object: status, source and the button that opens its
+/// editor. Returns whether a property changed and the command to open.
+pub fn civil_panel(ui: &mut Ui, e: &mut afrobim_kernel::Element) -> (bool, Option<Cv>) {
+    let mut changed = false;
+    let mut open = None;
+    egui::Grid::new("civil-props").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+        ui.label("Status");
+        let cur = e.properties.get(PROP_STATUS).cloned().unwrap_or_else(|| STATUSES[0].into());
+        let mut chosen = cur.clone();
+        egui::ComboBox::from_id_salt("civil-status").selected_text(cur.clone()).show_ui(ui, |ui| {
+            for s in STATUSES {
+                ui.selectable_value(&mut chosen, s.to_string(), s);
+            }
+        });
+        if chosen != cur {
+            e.properties.insert(PROP_STATUS.into(), chosen);
+            changed = true;
+        }
+        ui.end_row();
+        ui.label("Source");
+        let mut src = e.properties.get(PROP_SOURCE).cloned().unwrap_or_default();
+        if ui.text_edit_singleline(&mut src).changed() {
+            e.properties.insert(PROP_SOURCE.into(), src);
+            changed = true;
+        }
+        ui.end_row();
+        ui.label("IFC mapping");
+        ui.label(RichText::new(crate::civil_ifc::mapping_note(&e.category)).small().weak());
+        ui.end_row();
+    });
+    if let Some(cv) = edit_command(&e.category) {
+        ui.horizontal(|ui| {
+            if ui.button(format!("{}  Edit...", ph::PENCIL_SIMPLE)).clicked() {
+                open = Some(cv);
+            }
+            if e.category == SURFACE && ui.button("Style...").clicked() {
+                open = Some(Cv::SurfaceStyle);
+            }
+        });
+    }
+    (changed, open)
 }

@@ -138,12 +138,12 @@ fn build_surface(e: &Element) -> Result<Built, String> {
     let d: SurfaceData = serde_json::from_value(e.data.clone()).map_err(|x| format!("The surface data cannot be read: {x}"))?;
     let (tin, report) = build_tin(&d)?;
     let tin = Arc::new(tin);
-    let scene = surface_scene(&tin, &d.style);
+    let scene = surface_scene(&tin, &d.style, (e.origin.x / 1000.0, e.origin.y / 1000.0));
     Ok(Built { scene, tin: Some(tin), extra: vec![], report })
 }
 
 /// The scene of a TIN in a style. Also used for imported TIN surfaces and corridor surfaces.
-pub fn surface_scene(tin: &Tin, style: &SurfaceStyle) -> Scene {
+pub fn surface_scene(tin: &Tin, style: &SurfaceStyle, origin_m: (f64, f64)) -> Scene {
     let mut s = Scene::default();
     let b = tin.bounds();
     let ext = afrobim_terrain::extremes(tin);
@@ -247,7 +247,7 @@ pub fn surface_scene(tin: &Tin, style: &SurfaceStyle) -> Scene {
         }
     }
     // The 3D mesh: element-local millimetres (see `afrobim_corridor::surface_display_mesh`).
-    let (mesh, thinned) = afrobim_corridor::surface_display_mesh(tin, MESH_CAP);
+    let (mesh, thinned) = crate::civil_build2::mesh_local(tin, origin_m, MESH_CAP);
     if thinned {
         s.notes.push("The 3D view shows a thinned copy of this surface (the 2D view and every calculation use the full surface).".into());
     }

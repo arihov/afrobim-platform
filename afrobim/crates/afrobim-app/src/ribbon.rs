@@ -176,14 +176,14 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Earthworks", items: &[Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Surface, "Survey points", "SURVEY"), Big(Icon::Corridor, "Corridor", "CORRIDOR"), Big(Icon::Section, "Sections", "SECTIONS")] },
     ];
     const CIVIL: &[Panel] = &[
-        Panel { title: "Points", items: &[Big(Icon::Surface, "Import", "POINTS"), Big(Icon::Surface, "Create", "POINTCREATE"), Big(Icon::ResultsList, "Table", "POINTTABLE"), Big(Icon::Layers, "Groups", "POINTGROUPS"), Small(Icon::Options, "Keys", "DESCKEYS"), Small(Icon::Csv, "Export", "POINTEXPORT"), Small(Icon::Measure, "COGO", "COGO"), Small(Icon::AlignDesign, "Traverse", "TRAVERSE")] },
-        Panel { title: "Surfaces", items: &[Big(Icon::Surface, "New", "SURFACENEW"), Big(Icon::Options, "Definition", "SURFACEDEF"), Big(Icon::Surface, "Style", "SURFACESTYLE"), Small(Icon::IdPoint, "Spot", "SPOT"), Small(Icon::Drainage, "Flow", "FLOWPATH"), Big(Icon::Estimate, "Volumes", "VOLUMES")] },
-        Panel { title: "Alignments", items: &[Big(Icon::AlignDesign, "New", "ALIGNDESIGN"), Big(Icon::Alignment, "Import", "LANDXML"), Big(Icon::AlignEdit, "Edit", "ALIGNEDIT")] },
-        Panel { title: "Profiles", items: &[Big(Icon::ProfileDesign, "Ground", "GROUNDPROFILE"), Big(Icon::ProfileDesign, "Profile view", "PROFILEVIEW"), Big(Icon::ProfileDesign, "Design", "PROFILEDESIGN")] },
-        Panel { title: "Sections", items: &[Big(Icon::Section, "Sample lines", "SAMPLELINES"), Big(Icon::Section, "Section views", "SECTIONVIEWS")] },
+        Panel { title: "Points", items: &[Big(Icon::Surface, "Import", "POINTS"), Big(Icon::Surface, "Create", "POINTCREATE"), Big(Icon::ResultsList, "Table", "POINTTABLE"), Small(Icon::Layers, "Groups", "POINTGROUPS"), Small(Icon::Options, "Keys", "DESCKEYS"), Small(Icon::Csv, "Export", "POINTEXPORT"), Small(Icon::Measure, "COGO", "COGO"), Small(Icon::AlignDesign, "Traverse", "TRAVERSE")] },
+        Panel { title: "Surfaces", items: &[Big(Icon::Surface, "New", "SURFACENEW"), Big(Icon::Options, "Definition", "SURFACEDEF"), Big(Icon::Surface, "Style", "SURFACESTYLE"), Small(Icon::IdPoint, "Spot", "SPOT"), Small(Icon::Drainage, "Flow", "FLOWPATH"), Small(Icon::Estimate, "Volumes", "VOLUMES")] },
+        Panel { title: "Alignments", items: &[Big(Icon::AlignDesign, "New", "ALIGNDESIGN"), Big(Icon::Alignment, "Import", "LANDXML")] },
+        Panel { title: "Profiles", items: &[Big(Icon::ProfileDesign, "Ground", "GROUNDPROFILE"), Big(Icon::ProfileDesign, "View", "PROFILEVIEW")] },
+        Panel { title: "Sections", items: &[Big(Icon::Section, "Sample lines", "SAMPLELINES"), Big(Icon::Section, "Views", "SECTIONVIEWS")] },
         Panel { title: "Corridors", items: &[Big(Icon::Pavement, "Assembly", "ASSEMBLY"), Big(Icon::Corridor, "Corridor", "CORRIDORMODEL")] },
         Panel { title: "Parcels", items: &[Big(Icon::Area, "Create", "PARCELPICK"), Big(Icon::Measure, "Deed", "PARCELDEED"), Small(Icon::Project, "Properties", "PARCELPROPS"), Small(Icon::CheckAll, "Topology", "PARCELTOPOLOGY"), Small(Icon::Design, "Split", "PARCELSPLIT"), Small(Icon::Schedule, "Schedule", "ACQUISITION")] },
-        Panel { title: "Quantities", items: &[Big(Icon::Quantities, "Earthworks", "EARTHWORKS"), Big(Icon::LandXmlOut, "LandXML", "CIVILXML"), Big(Icon::Help, "Demo", "CIVILDEMO")] },
+        Panel { title: "Quantities", items: &[Big(Icon::Quantities, "Earthworks", "EARTHWORKS"), Small(Icon::LandXmlOut, "LandXML", "CIVILXML"), Small(Icon::Help, "Demo", "CIVILDEMO")] },
     ];
     const DESIGN: &[Panel] = &[
         Panel { title: "Alignment", items: &[Big(Icon::AlignDesign, "New alignment", "ALIGNDESIGN"), Big(Icon::AlignEdit, "Edit in plan", "ALIGNEDIT"), Big(Icon::PiTable, "PI table", "PITABLE"), Big(Icon::Labels, "Curve labels", "ALIGNLABELS")] },

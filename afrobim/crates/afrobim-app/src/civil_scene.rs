@@ -135,11 +135,11 @@ impl Scene {
             painter.text(to(t.at), text_anchor(t.anchor), &t.text, FontId::proportional(size), col(t.rgb));
         }
         if !self.points.is_empty() {
-            self.paint_points(painter, view, (x0, y0, x1, y1), ink, selected);
+            self.paint_points(painter, view, (x0, y0, x1, y1), rect, ink, selected);
         }
     }
 
-    fn paint_points(&self, painter: &Painter, view: &ViewTransform, (x0, y0, x1, y1): (f64, f64, f64, f64), ink: Color32, selected: bool) {
+    fn paint_points(&self, painter: &Painter, view: &ViewTransform, (x0, y0, x1, y1): (f64, f64, f64, f64), rect: Rect, ink: Color32, selected: bool) {
         let visible: Vec<&PMark> = self.points.iter().filter(|p| p.at[0] >= x0 && p.at[0] <= x1 && p.at[1] >= y0 && p.at[1] <= y1).collect();
         // More than this many markers cannot be told apart: draw an even share of them.
         const MARK_CAP: usize = 20_000;
@@ -154,9 +154,24 @@ impl Scene {
             painter.line_segment([c - egui::vec2(3.0, 0.0), c + egui::vec2(3.0, 0.0)], Stroke::new(1.0, colour));
             painter.line_segment([c - egui::vec2(0.0, 3.0), c + egui::vec2(0.0, 3.0)], Stroke::new(1.0, colour));
         }
-        // Labels only when there is room: at most a few hundred in view, each 10 px high.
-        const LABEL_CAP: usize = 600;
-        if visible.len() > LABEL_CAP || (!self.label_number && !self.label_elevation && !self.label_description) {
+        // Labels only when there is room. The typical spacing of the points on screen decides how
+        // much is written: nothing when they are closer than a label is high, the number first,
+        // then the elevation, then the description.
+        const LABEL_CAP: usize = 3000;
+        if visible.is_empty() || visible.len() > LABEL_CAP || (!self.label_number && !self.label_elevation && !self.label_description) {
+            return;
+        }
+        let (mut bx0, mut by0, mut bx1, mut by1) = (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+        for p in &visible {
+            bx0 = bx0.min(p.at[0]);
+            by0 = by0.min(p.at[1]);
+            bx1 = bx1.max(p.at[0]);
+            by1 = by1.max(p.at[1]);
+        }
+        let area_px = (((bx1 - bx0) * view.scale).max(1.0) * ((by1 - by0) * view.scale).max(1.0)).min((rect.width() * rect.height()) as f64);
+        let spacing = (area_px / visible.len() as f64).sqrt();
+        let lines = if spacing >= 58.0 { 3 } else if spacing >= 40.0 { 2 } else if spacing >= 26.0 { 1 } else { 0 };
+        if lines == 0 {
             return;
         }
         let font = FontId::proportional(10.5);
@@ -164,19 +179,23 @@ impl Scene {
         for p in &visible {
             let s = view.to_screen(Pt::new(p.at[0], p.at[1]));
             let c = pos2(s.x as f32 + 5.0, s.y as f32);
-            let mut y = c.y - 9.0;
+            let mut parts: Vec<(String, bool)> = Vec::new();
             if self.label_number {
-                painter.text(pos2(c.x, y), Align2::LEFT_CENTER, p.number.to_string(), font.clone(), colour);
-                y += 11.0;
+                parts.push((p.number.to_string(), true));
             }
             if self.label_elevation {
                 if let Some(z) = p.z {
-                    painter.text(pos2(c.x, y), Align2::LEFT_CENTER, format!("{z:.*}", self.decimals), font.clone(), weak);
-                    y += 11.0;
+                    parts.push((format!("{z:.*}", self.decimals), false));
                 }
             }
             if self.label_description && !p.desc.is_empty() {
-                painter.text(pos2(c.x, y), Align2::LEFT_CENTER, &p.desc, font.clone(), weak);
+                parts.push((p.desc.clone(), false));
+            }
+            let shown = parts.len().min(lines);
+            let mut y = c.y - 5.5 * shown as f32;
+            for (t, strong) in parts.into_iter().take(shown) {
+                painter.text(pos2(c.x, y), Align2::LEFT_CENTER, t, font.clone(), if strong { colour } else { weak });
+                y += 11.0;
             }
         }
     }

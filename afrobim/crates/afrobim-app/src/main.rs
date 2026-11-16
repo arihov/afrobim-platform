@@ -6,9 +6,12 @@ mod civil_build;
 mod civil_build2;
 mod civil_cache;
 mod civil_cmds;
+mod civil_demo;
 mod civil_dlg;
+mod civil_ifc;
 mod civil_landxml;
 mod civil_points;
+mod civil_surface;
 mod civil_scene;
 mod civil_tree;
 mod civil_ui;
@@ -106,6 +109,8 @@ use eframe::egui;
 pub struct Options {
     pub screenshot: Option<PathBuf>,
     pub demo: bool,
+    /// `--demo civil`: the civil demonstration data (see `civil_demo`).
+    pub civil_demo: bool,
     /// Ribbon tab to start on, e.g. `Roads`.
     pub tab: Option<String>,
     /// Show the ribbon preview card of this command at start-up (to check it without a pointer).
@@ -230,11 +235,18 @@ fn parse_args() -> Options {
 /// open (the Windows file association passes the file that way).
 fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
     let mut o = Options::default();
-    let mut args = args;
+    let mut args = args.peekable();
     while let Some(a) = args.next() {
         match a.as_str() {
             "--screenshot" => o.screenshot = args.next().map(PathBuf::from),
-            "--demo" => o.demo = true,
+            "--demo" => {
+                if args.peek().is_some_and(|n| n == "civil") {
+                    args.next();
+                    o.civil_demo = true;
+                } else {
+                    o.demo = true;
+                }
+            }
             "--tab" => o.tab = args.next(),
             "--preview" => o.preview = args.next(),
             "--design" => o.design = true,

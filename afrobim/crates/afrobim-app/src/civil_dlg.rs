@@ -64,3 +64,12 @@ pub fn fmt(v: f64, decimals: usize) -> String {
 pub fn needs(ui: &mut Ui, text: &str) {
     ui_kit::callout(ui, ui_kit::Level::Info, text);
 }
+
+/// As `num_opt` with a rule (for example greater than zero).
+pub fn num_opt_rule(ui: &mut Ui, text: &mut String, unit: &str, rule: &NumRule) -> Result<Option<f64>, ()> {
+    match ui_kit::num_field(ui, text, unit, rule).check {
+        Check::Empty => Ok(None),
+        Check::Ok(v) | Check::Warn(v, _) => Ok(Some(v)),
+        Check::Bad(_) => Err(()),
+    }
+}
