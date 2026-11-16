@@ -1,0 +1,16 @@
+[package]
+name = "afrobim-pipes"
+description = "Gravity pipe networks: structures, pipes, parts, rules, hydraulic and clearance checks, profile and plan geometry, quantities, LandXML PipeNetworks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-alignment = { path = "../afrobim-alignment" }
+afrobim-corridor = { path = "../afrobim-corridor" }
+afrobim-drainage = { path = "../afrobim-drainage" }
+serde.workspace = true
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+thiserror.workspace = true
+roxmltree = "0.20"
