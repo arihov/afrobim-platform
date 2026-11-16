@@ -133,7 +133,7 @@ impl Binder<'_> {
             let empty = match &*t {
                 ElevationTarget::Table(v) => v.is_empty(),
                 ElevationTarget::Profile(p) => p.pvis.is_empty(),
-                ElevationTarget::Fixed(_) => false,
+                ElevationTarget::Fixed(_) | ElevationTarget::NearestOnAlignment(_) => false,
             };
             if empty {
                 self.out.push(TargetBinding { baseline: self.baseline.into(), region: self.region.into(), slot: format!("{side} level"), source: src.clone(), points: rows.len() });
@@ -174,6 +174,10 @@ fn bind_assembly(a: &Assembly, slots: &Slots, binder: &mut Binder) -> Assembly {
                     }
                     LinkMode::ToElevation { target, .. } => {
                         binder.level(side, lev, target);
+                    }
+                    LinkMode::ToOffsetAndElevation { offset, elevation } => {
+                        binder.offset(side, off, offset);
+                        binder.level(side, lev, elevation);
                     }
                 },
                 _ => {}
@@ -407,6 +411,7 @@ fn assembly_has_slot(a: &Assembly) -> bool {
             LinkMode::ToOffset { target: OffsetTarget::Polyline(v), .. } => v.is_empty(),
             LinkMode::ToElevation { target: ElevationTarget::Table(v), .. } => v.is_empty(),
             LinkMode::ToElevation { target: ElevationTarget::Profile(p), .. } => p.pvis.is_empty(),
+            LinkMode::ToOffsetAndElevation { offset, elevation } => matches!(offset, OffsetTarget::Polyline(v) if v.is_empty()) || matches!(elevation, ElevationTarget::Table(v) if v.is_empty()),
             _ => false,
         },
         _ => false,

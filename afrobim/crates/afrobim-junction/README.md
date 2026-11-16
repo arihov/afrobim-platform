@@ -130,13 +130,16 @@ path method.
   The locked profile is piecewise linear across the primary carriageway (more PVIs if you enter a spacing).
 * A widening taper on a curved road is a straight chord; the offset of a spiral is piecewise.
 * The edge level is the road's crossfall plane extended to the edge, including a widened edge.
-* Corridor limits (also returned in `JunctionCorridor::missing`): no link takes an offset target and an
-  elevation target together, so a return's sliver gets its width from the corner line but its level
-  from the assembly's own slope (the edge levels are given as tables keyed by the baseline station, so
-  the implied cross slope can be entered); `ElevationTarget` reads the baseline's station only; the
-  corridor crate has no region bounded by an outline, so islands are returned as outlines only; regions
-  are laid out by station, so on a skewed junction the wedge between a secondary arm and the primary
-  edge is not clipped between regions.
+* Corridor limits (also returned in `JunctionCorridor::missing`): the corridor crate now has a link that
+  takes an offset target and an elevation target together (`LinkMode::ToOffsetAndElevation`), and the
+  slot binding fills both of its targets (the edge polyline and the edge level table); an assembly whose
+  return link uses it gets the sliver's width and level from the edge. An assembly that still uses the older
+  separate links keeps their behaviour (width from the corner line, level from the assembly's own slope).
+  `ElevationTarget::NearestOnAlignment` reads another alignment's profile at its station nearest the section
+  point; the junction binds tables keyed by the baseline station only. The corridor crate has no region
+  bounded by an outline (see its README: not feasible in a section-based model), so islands are returned as
+  outlines only; regions are laid out by station, so on a skewed junction the wedge between a secondary arm
+  and the primary edge is not clipped between regions.
 * `end_inset_m` (an input) moves the first and last section of each region in from its end. A section
   line through the end vertex of a target polyline meets it or not by rounding, and a return's sliver has
   no width at its tangent points. On a curved edge the target polyline is a chord of step `h` with

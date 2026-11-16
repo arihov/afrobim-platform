@@ -619,3 +619,81 @@ fn everything_round_trips_through_json_and_old_documents_load() {
     let old_def = serde_json::to_string(&CorridorDefinition::single("C", t, 20.0)).unwrap();
     assert!(serde_json::from_str::<CorridorDefinition>(&old_def).is_ok());
 }
+
+// ─── one link, an offset target and an elevation target together ───────────────────────────
+
+/// Centre 102. Right: the end is at offset 4 and level 103, so the link rises 1 m in 4 m (25 %) with
+/// no slope entered. Left: offset -4, level 101: falls 1 m in 4 m. A table pair varies with the
+/// station: at station 50 the offset is (3 + 5)/2 = 4 and the level (103 + 105)/2 = 104.
+#[test]
+fn a_link_takes_an_offset_target_and_an_elevation_target_together() {
+    let mut asm = Assembly::new("A");
+    asm.right.push(library::link_to_offset_and_elevation("R", &["Top"], "PR", OffsetTarget::Fixed(4.0), ElevationTarget::Fixed(103.0)));
+    asm.left.push(library::link_to_offset_and_elevation("L", &["Top"], "PL", OffsetTarget::Fixed(-4.0), ElevationTarget::Fixed(101.0)));
+    let m = section(asm, &straight(102.0), &plane(0.0), 50.0);
+    close(pt(&m, "PR", Side::Right).offset_m, 4.0, "right end offset");
+    close(pt(&m, "PR", Side::Right).elevation_m, 103.0, "right end level");
+    close(pt(&m, "PL", Side::Left).offset_m, -4.0, "left end offset");
+    close(pt(&m, "PL", Side::Left).elevation_m, 101.0, "left end level");
+
+    let mut asm = Assembly::new("A");
+    asm.right.push(library::link_to_offset_and_elevation("R", &["Top"], "PR", OffsetTarget::Table(vec![(0.0, 3.0), (100.0, 5.0)]), ElevationTarget::Table(vec![(0.0, 103.0), (100.0, 105.0)])));
+    let m = section(asm, &straight(102.0), &plane(0.0), 50.0);
+    close(pt(&m, "PR", Side::Right).offset_m, 4.0, "table offset");
+    close(pt(&m, "PR", Side::Right).elevation_m, 104.0, "table level");
+
+    // An offset that is not outward of the attachment point is an error naming the part.
+    let mut asm = Assembly::new("A");
+    asm.right.push(library::link_to_offset_and_elevation("R", &["Top"], "PR", OffsetTarget::Fixed(-1.0), ElevationTarget::Fixed(103.0)));
+    let err = design_section_at(&one_region(asm, Frequency::uniform(20.0)), 0, &straight(102.0), &plane(0.0), 50.0).unwrap_err();
+    assert!(err.to_string().contains("subassembly 'R'"), "{err}");
+}
+
+/// The target alignment runs east at northing -4 (offset 4 to the right of the baseline) from
+/// x = 20, station 1000, profile 105 at 1000 rising 0.01 per metre. The link end at baseline station
+/// 50 is at (50, -4): station 1030 of the target, level 105 + 0.3 = 105.3. Read at the baseline
+/// station (50) the target profile would be off its range (1000 to 1200).
+#[test]
+fn an_elevation_target_is_read_at_the_station_of_the_target_alignment_nearest_the_section_point() {
+    let mut target = AlignmentBuilder::new("T", 1000.0, 20.0, -4.0, 0.0).line(200.0).build().unwrap();
+    target.profile = Some(Profile::new("TP", vec![Pvi::point(1000.0, 105.0), Pvi::point(1200.0, 107.0)]).unwrap());
+    let nearest = ElevationTarget::NearestOnAlignment(Box::new(target.clone()));
+    let mut asm = Assembly::new("A");
+    asm.right.push(library::link_to_offset_and_elevation("R", &["Top"], "PR", OffsetTarget::Fixed(4.0), nearest.clone()));
+    let m = section(asm, &straight(102.0), &plane(0.0), 50.0);
+    close(pt(&m, "PR", Side::Right).elevation_m, 105.3, "level at the nearest station of the target");
+    let m = section({ let mut a = Assembly::new("A"); a.right.push(library::link_to_offset_and_elevation("R", &["Top"], "PR", OffsetTarget::Fixed(4.0), nearest.clone())); a }, &straight(102.0), &plane(0.0), 90.0);
+    close(pt(&m, "PR", Side::Right).elevation_m, 105.0 + 0.01 * 70.0, "level at station 90");
+
+    // A link to an elevation alone reads at its attachment point: a lane 4 m wide then a link at 25 %
+    // to the target level 105.3 ... the attachment point (4, level 102) is at (50, -4), station 1030.
+    let mut asm = Assembly::new("A");
+    asm.right.push(library::lane("Lane", 4.0, pct(0.0), vec![]));
+    asm.right.push(library::link_to_elevation("E", &["Top"], "PE", nearest, pct(25.0)));
+    let m = section(asm, &straight(102.0), &plane(0.0), 50.0);
+    // (105.3 - 102) / 0.25 = 13.2 m further out, to offset 17.2.
+    close(pt(&m, "PE", Side::Right).offset_m, 4.0 + 13.2, "link to the level of the target alignment");
+
+    // No foot on the target (the section point is beyond its end) and no profile are errors that say so.
+    let mut short = AlignmentBuilder::new("T", 1000.0, 20.0, -4.0, 0.0).line(10.0).build().unwrap();
+    short.profile = target.profile.clone();
+    let mut asm = Assembly::new("A");
+    asm.right.push(library::link_to_offset_and_elevation("R", &["Top"], "PR", OffsetTarget::Fixed(4.0), ElevationTarget::NearestOnAlignment(Box::new(short))));
+    let err = design_section_at(&one_region(asm, Frequency::uniform(20.0)), 0, &straight(102.0), &plane(0.0), 50.0).unwrap_err();
+    assert!(err.to_string().contains("perpendicular foot"), "{err}");
+    let mut bare = target.clone();
+    bare.profile = None;
+    let mut asm = Assembly::new("A");
+    asm.right.push(library::link_to_offset_and_elevation("R", &["Top"], "PR", OffsetTarget::Fixed(4.0), ElevationTarget::NearestOnAlignment(Box::new(bare))));
+    let err = design_section_at(&one_region(asm, Frequency::uniform(20.0)), 0, &straight(102.0), &plane(0.0), 50.0).unwrap_err();
+    assert!(err.to_string().contains("has no profile"), "{err}");
+}
+
+#[test]
+fn the_new_targets_round_trip_through_json() {
+    let mut asm = Assembly::new("A");
+    let t = AlignmentBuilder::new("T", 0.0, 0.0, 0.0, 0.0).line(10.0).build().unwrap();
+    asm.right.push(library::link_to_offset_and_elevation("R", &["Top"], "PR", OffsetTarget::Fixed(4.0), ElevationTarget::NearestOnAlignment(Box::new(t))));
+    let s = serde_json::to_string(&asm).unwrap();
+    assert_eq!(serde_json::from_str::<Assembly>(&s).unwrap(), asm);
+}

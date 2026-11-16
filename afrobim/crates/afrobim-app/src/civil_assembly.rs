@@ -503,12 +503,23 @@ pub fn describe(s: &Subassembly) -> Vec<(String, String)> {
                         ElevationTarget::Fixed(z) => format!("level {z} m"),
                         ElevationTarget::Table(t) => format!("a level table of {} stations", t.len()),
                         ElevationTarget::Profile(_) => "the level of a profile".into(),
+                        ElevationTarget::NearestOnAlignment(a) => format!("the level of alignment '{}' at its station nearest the section point", a.name),
                     }));
                     v.push(("Slope".into(), slope(sl)));
                 }
                 LinkMode::ToOffset { target, slope: sl } => {
                     v.push(("Runs to".into(), offset_target(target)));
                     v.push(("Slope".into(), slope(sl)));
+                }
+                LinkMode::ToOffsetAndElevation { offset, elevation } => {
+                    v.push(("Runs to the offset".into(), offset_target(offset)));
+                    v.push(("and to the level".into(), match elevation {
+                        ElevationTarget::Fixed(z) => format!("level {z} m"),
+                        ElevationTarget::Table(t) => format!("a level table of {} stations", t.len()),
+                        ElevationTarget::Profile(_) => "the level of a profile".into(),
+                        ElevationTarget::NearestOnAlignment(a) => format!("the level of alignment '{}' at its station nearest the end point", a.name),
+                    }));
+                    v.push(("Slope".into(), "whatever joins the two (not entered)".into()));
                 }
             }
             v
@@ -601,6 +612,11 @@ fn raw_editor(ui: &mut Ui, name: &str, raw: &mut Subassembly) -> bool {
                     ui_kit::text_field(ui, &mut l.point_code, "");
                 });
                 match &mut l.mode {
+                    LinkMode::ToOffsetAndElevation { .. } => {
+                        fm.row("Runs to", |ui| {
+                            ui.label("an offset target and a level target together (not editable here)");
+                        });
+                    }
                     LinkMode::WidthSlope { width, slope } => {
                         match width {
                             Dim::Fixed(w) => fm.row("Width", |ui| {

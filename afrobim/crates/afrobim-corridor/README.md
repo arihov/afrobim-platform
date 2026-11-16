@@ -313,8 +313,15 @@ the standard.
 `OffsetTarget`: `Fixed`, `Table` of (station, offset), or a plan `Polyline` (use
 `polyline_from_alignment` to sample another alignment). `ElevationTarget`: `Fixed`, `Table`, or a
 `Profile`. A table gives no value outside its stations (an error, not an extrapolation). A strip
-width can run to an offset target (lane widening); a link can run to an offset or an elevation.
-The ground ("surface target") is the corridor's ground TIN, used by `Daylight`.
+width can run to an offset target (lane widening); a link can run to an offset or an elevation, or
+(`LinkMode::ToOffsetAndElevation`, `library::link_to_offset_and_elevation`) to **both together**: the
+end point is fixed in plan and in level and the slope is whatever joins it to the attachment point
+(the slope is not entered). `ElevationTarget::NearestOnAlignment` reads the profile of another
+alignment at the station of that alignment nearest the **section point**, not at the baseline
+station: the section point is the link's attachment point for a link to an elevation, and the end
+point (at the offset target) for a link to an offset and an elevation. It needs the perpendicular
+foot of that point on the target alignment (a point beyond its ends is an error that says so) and a
+profile on the target alignment. The ground ("surface target") is the corridor's ground TIN, used by `Daylight`.
 
 A strip with `follows_superelevation` takes the alignment's stored cross-fall for its side at the
 station (`Superelevation::cross_fall_at`); where the alignment has none for that side, the
@@ -377,6 +384,14 @@ the swath. A surface that does not cover the line gives no run and a note.
   distance.
 
 ### Limits of this part
+
+- **No region bounded by an outline.** A corridor region is a range of stations along a baseline;
+  a section-based model cannot represent a closed outline (an island), because it has no station
+  along it. Round 6 looked at it and did not build it: an island is made as a grading (a feature
+  line footprint with infill, `afrobim-grading`) or as an outline the junction crate returns.
+- A link to a level and an offset together has no slope input, so a kerb return sliver is as steep
+  as the two targets make it; where the two targets are far apart in level the link is steep and
+  the section says so only through its geometry.
 
 - Everything is straight links in section; no curved or variable-width transitions except by
   targets, and a target is evaluated at each section only (between sections the surface is the

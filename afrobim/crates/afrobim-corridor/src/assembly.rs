@@ -115,6 +115,12 @@ pub enum ElevationTarget {
     Table(Vec<(f64, f64)>),
     /// A profile (for example the profile of another alignment) read at the station.
     Profile(Profile),
+    /// The profile of another alignment, read at the station of that alignment nearest the
+    /// section point (the point the link is at in plan: its attachment point for a link to an
+    /// elevation, its end point for a link to an offset and an elevation together), not at the
+    /// baseline station. Needs the perpendicular foot of the point on the target alignment and a
+    /// profile on it.
+    NearestOnAlignment(Box<afrobim_alignment::Alignment>),
 }
 
 /// A plan polyline along an alignment at a spacing, for use as an [`OffsetTarget::Polyline`].
@@ -177,12 +183,24 @@ impl OffsetTarget {
     }
 }
 
+/// The plan position of the point at `offset` on the section line through the baseline station.
+fn section_point(ctx: &EvalContext, offset: f64) -> (f64, f64) {
+    (ctx.x + offset * ctx.heading_rad.sin(), ctx.y - offset * ctx.heading_rad.cos())
+}
+
 impl ElevationTarget {
-    fn value(&self, ctx: &EvalContext) -> Result<f64, String> {
+    /// The level of the target. `at` is the section point in plan, used by
+    /// [`ElevationTarget::NearestOnAlignment`] only.
+    fn value(&self, ctx: &EvalContext, at: (f64, f64)) -> Result<f64, String> {
         match self {
             ElevationTarget::Fixed(z) => Ok(*z),
             ElevationTarget::Table(t) => table_at(t, ctx.station_m, "elevation target"),
             ElevationTarget::Profile(p) => p.elevation_at(ctx.station_m).map_err(|e| format!("the target profile: {e}")),
+            ElevationTarget::NearestOnAlignment(a) => {
+                let (station, _) = a.station_offset(at.0, at.1).ok_or_else(|| format!("the section point at station {:.3} has no perpendicular foot on the target alignment '{}'", ctx.station_m, a.name))?;
+                let profile = a.profile.as_ref().ok_or_else(|| format!("the target alignment '{}' has no profile", a.name))?;
+                profile.elevation_at(station).map_err(|e| format!("the profile of the target alignment '{}' at station {station:.3}: {e}", a.name))
+            }
         }
     }
 }
@@ -312,6 +330,11 @@ pub enum LinkMode {
     ToElevation { target: ElevationTarget, slope: Slope },
     /// Runs at `slope` to the offset of the target.
     ToOffset { target: OffsetTarget, slope: Slope },
+    /// Runs from the attachment point to the offset of one target and the level of another
+    /// together: the end point is fixed in both, so the slope is whatever joins them (a kerb
+    /// return's sliver that must meet an edge in plan and in level, a link that ties two
+    /// alignments). The offset must be outward of the attachment point.
+    ToOffsetAndElevation { offset: OffsetTarget, elevation: ElevationTarget },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -454,6 +477,7 @@ impl Subassembly {
                     slope(s)
                 }
                 LinkMode::ToElevation { slope: s, .. } | LinkMode::ToOffset { slope: s, .. } => slope(s),
+                LinkMode::ToOffsetAndElevation { .. } => Ok(()),
             },
             SubKind::Daylight(d) => {
                 pos("the cut run", d.cut_run_per_rise)?;
@@ -636,7 +660,7 @@ fn generic_local(g: &GenericLink, ctx: &EvalContext, side: Side, start: P) -> Re
     let (w, rise) = match &g.mode {
         LinkMode::WidthSlope { width, slope } => (width.resolve(ctx, side, start.0)?, slope.rise_per_m()),
         LinkMode::ToElevation { target, slope } => {
-            let (zt, s) = (target.value(ctx)?, slope.rise_per_m());
+            let (zt, s) = (target.value(ctx, section_point(ctx, start.0))?, slope.rise_per_m());
             let w = if s == 0.0 { f64::NAN } else { (zt - start.1) / s };
             if !(w.is_finite() && w > 0.0) {
                 return Err(format!("the link cannot reach level {zt:.3} from {:.3} at that slope", start.1));
@@ -650,6 +674,16 @@ fn generic_local(g: &GenericLink, ctx: &EvalContext, side: Side, start: P) -> Re
                 return Err(format!("the target offset {o:.3} is not outward of the attachment point {:.3}", start.0));
             }
             (w, slope.rise_per_m())
+        }
+        LinkMode::ToOffsetAndElevation { offset, elevation } => {
+            let o = offset.value(ctx, side)?;
+            let w = side.sign() * (o - start.0);
+            if !(w.is_finite() && w > 0.0) {
+                return Err(format!("the target offset {o:.3} is not outward of the attachment point {:.3}", start.0));
+            }
+            let zt = elevation.value(ctx, section_point(ctx, o))?;
+            // The slope is what joins the attachment point to the target level at that offset.
+            (w, (zt - start.1) / w)
         }
     };
     let end = (w, rise * w);
@@ -1186,6 +1220,10 @@ pub mod library {
     }
     pub fn link_to_offset(name: &str, codes_: &[&str], point_code: &str, target: OffsetTarget, slope: Slope) -> Subassembly {
         Subassembly::new(name, SubKind::Link(GenericLink { codes: codes(codes_), point_code: point_code.into(), mode: LinkMode::ToOffset { target, slope } }))
+    }
+    /// A link whose end is fixed in plan and in level by two targets together.
+    pub fn link_to_offset_and_elevation(name: &str, codes_: &[&str], point_code: &str, offset: OffsetTarget, elevation: ElevationTarget) -> Subassembly {
+        Subassembly::new(name, SubKind::Link(GenericLink { codes: codes(codes_), point_code: point_code.into(), mode: LinkMode::ToOffsetAndElevation { offset, elevation } }))
     }
     /// The side slope to the ground, without benching.
     pub fn daylight(cut_run_per_rise: f64, fill_run_per_rise: f64) -> Subassembly {
