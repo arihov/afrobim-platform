@@ -299,3 +299,101 @@ fn private_zoom_extents_has_nothing_at_the_origin() {
         }
     }
 }
+
+// ─── superelevation used by corridors, and the design check ─────────────────────────────────
+
+/// A lane of a template that follows superelevation takes the stored cross-fall of its side at the
+/// critical stations of an imported alignment.
+fn lanes_follow(a: &afrobim_alignment::Alignment) -> usize {
+    use afrobim_corridor::{Daylight, Link, Slope, Template, Tin};
+    let se = a.superelevation.as_ref().expect("superelevation");
+    let mut checked = 0;
+    for p in se.sections.iter().flat_map(|s| s.points.iter()) {
+        let (Some(l), Some(r)) = (p.left_pct, p.right_pct) else { continue };
+        if p.station_m < a.start_station_m || p.station_m > a.end_station_m() {
+            continue;
+        }
+        let at = a.point_at(p.station_m).unwrap();
+        let tin = Tin::from_grid(at.x - 300.0, at.y - 300.0, 600.0, 600.0, 2, 2, |_, _| 0.0).unwrap();
+        let t = Template::symmetric("se", vec![Link::new("lane", 3.0, Slope::Percent(-2.0)).following_superelevation()], Daylight { cut_run_per_rise: 1.0, fill_run_per_rise: 2.0 }, 0.0);
+        let Ok(s) = afrobim_corridor::section_at(&t, 0, a, &tin, p.station_m) else { continue };
+        let centre = s.centre_elevation_m();
+        let level = |o: f64| s.finished.iter().find(|q| (q.offset_m - o).abs() < 1e-6).map(|q| q.elevation_m).expect("a point at the lane edge");
+        assert!((level(-3.0) - (centre + 3.0 * l / 100.0)).abs() < 1e-6, "left lane at station {}", p.station_m);
+        assert!((level(3.0) - (centre + 3.0 * r / 100.0)).abs() < 1e-6, "right lane at station {}", p.station_m);
+        checked += 1;
+    }
+    checked
+}
+
+#[test]
+fn private_corridor_lanes_follow_the_imported_superelevation() {
+    let Some(path) = private_path() else { return };
+    let (_c, app) = imported(&path);
+    let mut total = 0;
+    let mut alignments = 0;
+    for e in app.doc.elements().iter().filter(|e| e.category == afrobim_alignment::CATEGORY) {
+        let a = crate::alignment_glue::alignment_of(&app.doc, e.id).unwrap();
+        if a.superelevation.is_some() && a.profile.is_some() {
+            alignments += 1;
+            total += lanes_follow(&a);
+        }
+        // The table as the file wrote it is kept and shown for every alignment that has one.
+        let kept = crate::civil_super::kept_table(e);
+        assert_eq!(kept.is_some(), a.superelevation.is_some() || kept.is_some());
+        if let Some(t) = &kept {
+            assert!(!crate::civil_super::file_rows(t, &a).is_empty());
+        }
+    }
+    eprintln!("SUPERELEVATION lanes followed the stored cross-fall at {total} station(s) on {alignments} alignment(s)");
+    assert!(alignments > 0 && total > 0);
+}
+
+#[test]
+fn the_design_check_of_an_imported_alignment_names_what_it_could_not_check() {
+    crate::defaults_glue::set_basis("dmrb");
+    let doc = crate::a1_tests::demo_doc();
+    let e = doc.elements().iter().find(|e| e.category == afrobim_alignment::CATEGORY).unwrap();
+    let a = crate::alignment_glue::alignment_of(&doc, e.id).unwrap();
+    // No design speed: no report, and the message says what to do.
+    let (none, notes) = crate::civil_check::check(&a, None);
+    assert!(none.is_none() && notes.iter().any(|n| n.contains("no design speed is set")), "{notes:?}");
+    // A speed the pack holds: a report whose items cite the pack.
+    let speeds = crate::defaults_glue::speeds_of(crate::civil_check::KEYS[1].1);
+    assert!(!speeds.is_empty());
+    let (report, notes) = crate::civil_check::check(&a, Some(speeds[0]));
+    let report = report.expect("a report");
+    assert!(report.items.iter().any(|i| i.status != afrobim_design::CheckStatus::NotChecked), "something is checked: {notes:?}");
+    // A speed the pack does not hold: nothing is borrowed from a neighbour, and the missing keys are named.
+    let (row, missing) = crate::civil_check::pack_row(speeds[0] + 0.5);
+    assert!(row.min_radius_m.is_none() && row.min_k_crest.is_none());
+    assert_eq!(missing.len(), crate::civil_check::KEYS.len());
+    // With no basis chosen nothing is checked at all.
+    crate::defaults_glue::set_basis(crate::defaults_glue::NO_BASIS);
+    let (none, notes) = crate::civil_check::check(&a, Some(speeds[0]));
+    assert!(none.is_none() && notes.iter().any(|n| n.contains("no defaults basis")));
+    crate::defaults_glue::set_basis("dmrb");
+}
+
+#[test]
+fn private_the_design_check_runs_on_every_imported_alignment() {
+    let Some(path) = private_path() else { return };
+    crate::defaults_glue::set_basis("dmrb");
+    let (_c, app) = imported(&path);
+    let speeds = crate::defaults_glue::speeds_of(crate::civil_check::KEYS[1].1);
+    let speed = speeds.iter().cloned().find(|s| *s >= 60.0).unwrap_or(speeds[0]);
+    let (mut with_report, mut items, mut failed) = (0, 0, 0);
+    for e in app.doc.elements().iter().filter(|e| e.category == afrobim_alignment::CATEGORY) {
+        let a = crate::alignment_glue::alignment_of(&app.doc, e.id).unwrap();
+        let (none, notes) = crate::civil_check::check(&a, None);
+        assert!(none.is_none() && !notes.is_empty());
+        let (report, _notes) = crate::civil_check::check(&a, Some(speed));
+        let r = report.expect("a report at a design speed");
+        with_report += 1;
+        items += r.items.len();
+        failed += r.count(afrobim_design::CheckStatus::Fail);
+        assert!(!crate::civil_check::summary(&r).is_empty());
+    }
+    eprintln!("DESIGNCHECK {with_report} alignment(s) at {speed} km/h: {items} item(s), {failed} failing");
+    assert_eq!(with_report, 17);
+}
