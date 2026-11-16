@@ -242,16 +242,16 @@ fn panels(tab: Tab) -> &'static [Panel] {
                 Big(Icon::ProjectSettings, "Project settings", "PROJECTSETTINGS"),
             ],
         },
-        Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS")] },
+        Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS"), Big(Icon::Theme, "Look and scale", "APPEARANCE")] },
     ];
     const VIEW: &[Panel] = &[
         Panel { title: "Zoom", items: &[Big(Icon::ZoomExtents, "Extents", "ZOOM"), Big(Icon::ZoomWindow, "Window", "ZOOMWINDOW"), Big(Icon::ZoomIn, "In", "ZOOMIN"), Big(Icon::ZoomOut, "Out", "ZOOMOUT")] },
         Panel { title: "Views", items: &[Big(Icon::View3d, "2D / 3D", "3D")] },
         Panel { title: "Display", items: &[Big(Icon::Real, "Real", "REAL"), Big(Icon::Outlined, "Outlined", "OUTLINED"), Big(Icon::Marks, "Element marks", "MARKS")] },
         DRAFTING,
-        Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS")] },
+        Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS"), Big(Icon::Theme, "Look and scale", "APPEARANCE")] },
     ];
-    const HELP: &[Panel] = &[Panel { title: "Help", items: &[Big(Icon::Help, "Command list", "HELP"), Big(Icon::About, "About AfroBIM", "ABOUT")] }];
+    const HELP: &[Panel] = &[Panel { title: "Help", items: &[Big(Icon::Help, "Command list", "HELP"), Big(Icon::Help, "Command palette", "PALETTE"), Big(Icon::About, "About AfroBIM", "ABOUT")] }];
     match tab {
         Tab::Home => HOME,
         Tab::Edit => EDIT,
@@ -299,20 +299,42 @@ pub fn shortcut(action: Action) -> &'static str {
     }
 }
 
-const BIG: Vec2 = Vec2::new(62.0, 62.0);
-const SMALL_H: f32 = 20.0;
-#[allow(non_snake_case)]
-fn PLANNED() -> egui::Color32 {
-    crate::theme::warn()
+/// What a button shows: a glyph of the icon font, or a hand-drawn icon where no glyph fits.
+#[derive(Clone, Copy)]
+pub enum Pic {
+    Glyph(&'static str),
+    Drawn(Icon),
 }
 
+/// The glyph of the command when it has one, else the hand-drawn icon.
+fn pic_of(info: Option<&CommandInfo>, fallback: Icon) -> Pic {
+    match info.and_then(|c| crate::glyphs::glyph(c.action)) {
+        Some(g) => Pic::Glyph(g),
+        None => Pic::Drawn(fallback),
+    }
+}
+
+pub fn paint_pic(painter: &egui::Painter, rect: Rect, pic: Pic, colour: Color32) {
+    match pic {
+        Pic::Drawn(i) => icons::paint(painter, rect, i, colour),
+        Pic::Glyph(g) => {
+            let side = rect.width().min(rect.height());
+            painter.text(rect.center(), Align2::CENTER_CENTER, g, crate::theme::icon_font(side * 0.98), colour);
+        }
+    }
+}
+
+const BIG: Vec2 = Vec2::new(62.0, 62.0);
+const SMALL_H: f32 = 20.0;
+
+
 /// The preview card shown when the pointer rests on a button.
-fn preview(ui: &mut Ui, icon: Icon, label: &str, info: Option<&CommandInfo>, planned: Option<&str>) {
+fn preview(ui: &mut Ui, icon: Pic, label: &str, info: Option<&CommandInfo>, planned: Option<&str>) {
     ui.set_max_width(300.0);
     ui.horizontal(|ui| {
         let (rect, _) = ui.allocate_exact_size(Vec2::splat(44.0), Sense::hover());
         ui.painter().rect_stroke(rect, 4.0, ui.visuals().widgets.noninteractive.bg_stroke, egui::StrokeKind::Inside);
-        icons::paint(ui.painter(), rect.shrink(8.0), icon, ui.visuals().strong_text_color());
+        paint_pic(ui.painter(), rect.shrink(8.0), icon, ui.visuals().strong_text_color());
         ui.vertical(|ui| {
             ui.label(RichText::new(label).strong());
             match (info, planned) {
@@ -336,7 +358,7 @@ fn preview(ui: &mut Ui, icon: Icon, label: &str, info: Option<&CommandInfo>, pla
         }
         ui.label(RichText::new("Click, or type the command and press Enter. Esc cancels.").small().weak());
     } else {
-        ui.label(RichText::new("Planned: not built yet.").small().color(PLANNED()));
+        ui.label(RichText::new("Planned: not built yet.").small().color(crate::theme::warn()));
     }
 }
 
@@ -348,7 +370,7 @@ pub fn preview_of(ui: &mut Ui, command: &str) -> bool {
         for item in panels(tab).iter().flat_map(|p| p.items) {
             if let Big(icon, label, name) | Small(icon, label, name) = *item {
                 if commands::resolve(name).is_some_and(|c| c.action == info.action) {
-                    preview(ui, icon, label, Some(info), None);
+                    preview(ui, pic_of(Some(info), icon), label, Some(info), None);
                     return true;
                 }
             }
@@ -358,7 +380,7 @@ pub fn preview_of(ui: &mut Ui, command: &str) -> bool {
 }
 
 /// Draws one button and returns true when it was clicked.
-fn button(ui: &mut Ui, big: bool, icon: Icon, label: &str, info: Option<&CommandInfo>, planned: Option<&str>, on: bool) -> bool {
+fn button(ui: &mut Ui, big: bool, icon: Pic, label: &str, info: Option<&CommandInfo>, planned: Option<&str>, on: bool) -> bool {
     let enabled = info.is_some() && ui.is_enabled();
     let font = FontId::proportional(11.0);
     let size = if big {
@@ -380,7 +402,7 @@ fn button(ui: &mut Ui, big: bool, icon: Icon, label: &str, info: Option<&Command
     let colour = if enabled { ui.visuals().text_color() } else { ui.visuals().weak_text_color().gamma_multiply(0.7) };
     if big {
         let icon_rect = Rect::from_center_size(pos2(rect.center().x, rect.top() + 19.0), Vec2::splat(26.0));
-        icons::paint(ui.painter(), icon_rect, icon, colour);
+        paint_pic(ui.painter(), icon_rect, icon, colour);
         let galley = ui.painter().layout(label.to_string(), font, colour, size.x - 4.0);
         // Centre each wrapped line under the icon.
         let mut y = rect.top() + 36.0;
@@ -391,7 +413,7 @@ fn button(ui: &mut Ui, big: bool, icon: Icon, label: &str, info: Option<&Command
         }
     } else {
         let icon_rect = Rect::from_min_size(rect.min + Vec2::new(4.0, 3.0), Vec2::splat(14.0));
-        icons::paint(ui.painter(), icon_rect, icon, colour);
+        paint_pic(ui.painter(), icon_rect, icon, colour);
         ui.painter().text(pos2(icon_rect.right() + 6.0, rect.center().y), Align2::LEFT_CENTER, label, font, colour);
     }
     let clicked = response.clicked() && enabled;
@@ -423,13 +445,13 @@ fn items(ui: &mut Ui, list: &[Item], pick: &mut Option<Action>, is_on: &dyn Fn(A
         match list[i] {
             Big(icon, label, command) => {
                 let info = commands::resolve(command);
-                if button(ui, true, icon, label, info, None, info.is_some_and(|c| is_on(c.action))) {
+                if button(ui, true, pic_of(info, icon), label, info, None, info.is_some_and(|c| is_on(c.action))) {
                     *pick = info.map(|c| c.action);
                 }
                 i += 1;
             }
             Planned(icon, label, what) => {
-                button(ui, true, icon, label, None, Some(what), false);
+                button(ui, true, Pic::Drawn(icon), label, None, Some(what), false);
                 i += 1;
             }
             Small(..) => {
@@ -439,7 +461,7 @@ fn items(ui: &mut Ui, list: &[Item], pick: &mut Option<Action>, is_on: &dyn Fn(A
                     for item in &run {
                         if let Small(icon, label, command) = *item {
                             let info = commands::resolve(command);
-                            if button(ui, false, icon, label, info, None, info.is_some_and(|c| is_on(c.action))) {
+                            if button(ui, false, pic_of(info, icon), label, info, None, info.is_some_and(|c| is_on(c.action))) {
                                 *pick = info.map(|c| c.action);
                             }
                         }
@@ -473,7 +495,7 @@ pub fn show(ui: &mut Ui, tab: &mut Tab, standard: &str, signs_ready: bool, is_on
                     for (title, range) in [("Direction signs", 0..5.min(templates.len())), ("Map-type and temporary", 5.min(templates.len())..templates.len())] {
                         panel(ui, title, &mut pick, is_on, |ui, pick, _| {
                             for (i, t) in templates.iter().enumerate().filter(|(i, _)| range.contains(i)) {
-                                if button(ui, true, t.icon, t.label, commands::resolve(t.command), None, false) {
+                                if button(ui, true, Pic::Drawn(t.icon), t.label, commands::resolve(t.command), None, false) {
                                     *pick = Some(Action::InsertSign(i as u8));
                                 }
                             }

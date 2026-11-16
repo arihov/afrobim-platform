@@ -162,6 +162,10 @@ pub enum Action {
     Help,
     About,
     Quit,
+    /// Interface look and scale.
+    Appearance,
+    /// The searchable command palette.
+    Palette,
 }
 
 pub struct CommandInfo {
@@ -340,6 +344,8 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "ZOOMOUT", aliases: &["ZO"], help: "Zoom out about the centre of the view", action: Action::ZoomOut },
     CommandInfo { name: "MARKS", aliases: &["LABELS"], help: "Show or hide the mark under each element", action: Action::ToggleMarks },
     CommandInfo { name: "CANVAS", aliases: &[], help: "Switch the model space between dark and light", action: Action::ToggleCanvas },
+    CommandInfo { name: "APPEARANCE", aliases: &["LOOK", "SCALE", "INTERFACE"], help: "Interface look (dark glass, light glass, solid) and scale", action: Action::Appearance },
+    CommandInfo { name: "PALETTE", aliases: &["COMMANDS", "FIND"], help: "Search every command by name, alias or description (Ctrl+K)", action: Action::Palette },
     CommandInfo { name: "THEME", aliases: &[], help: "Switch between the light and dark themes", action: Action::ToggleTheme },
     CommandInfo { name: "HELP", aliases: &["?"], help: "List every command", action: Action::Help },
     CommandInfo { name: "ABOUT", aliases: &[], help: "About AfroBIM", action: Action::About },

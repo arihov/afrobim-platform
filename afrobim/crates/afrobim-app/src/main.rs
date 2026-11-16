@@ -26,6 +26,7 @@ mod design_ui;
 mod disp;
 mod dropped;
 mod design_windows;
+mod glyphs;
 mod icons;
 mod ifc_options;
 mod issues_ui;

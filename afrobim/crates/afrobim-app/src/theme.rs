@@ -246,6 +246,25 @@ pub fn current(ctx: &Context) -> Theme {
     ctx.data(|d| d.get_temp::<Theme>(Id::new(THEME_ID))).unwrap_or_default()
 }
 
+/// The font family of the icon glyphs.
+pub fn icon_family() -> FontFamily {
+    FontFamily::Name("icons".into())
+}
+
+pub fn icon_font(size: f32) -> FontId {
+    FontId::new(size, icon_family())
+}
+
+/// A layout of an icon glyph followed by text, for buttons, menu items and titles.
+pub fn icon_text(glyph: &str, text: &str, size: f32, colour: Color32) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    job.append(glyph, 0.0, egui::TextFormat { font_id: icon_font(size + 1.0), color: colour, valign: egui::Align::Center, ..Default::default() });
+    if !text.is_empty() {
+        job.append(text, 7.0, egui::TextFormat { font_id: FontId::new(size, FontFamily::Proportional), color: colour, valign: egui::Align::Center, ..Default::default() });
+    }
+    job
+}
+
 /// The user-interface fonts: Inter for text (SIL OFL 1.1) and the Phosphor icon font (MIT), both
 /// bundled in the binary. The egui default fonts stay behind them for any glyph they lack.
 pub fn install_fonts(ctx: &Context) {
@@ -254,7 +273,10 @@ pub fn install_fonts(ctx: &Context) {
     if let Some(list) = fonts.families.get_mut(&FontFamily::Proportional) {
         list.insert(0, "inter".into());
     }
-    egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+    // The icons live in a family of their own: Inter has glyphs in the same private-use range,
+    // and the icon font is made of ligatures that would otherwise catch ordinary letters.
+    fonts.font_data.insert("phosphor".into(), egui_phosphor::Variant::Regular.font_data().into());
+    fonts.families.insert(icon_family(), vec!["phosphor".into()]);
     ctx.set_fonts(fonts);
 }
 
