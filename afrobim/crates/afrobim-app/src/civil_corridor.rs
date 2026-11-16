@@ -178,7 +178,7 @@ impl AfroBimApp {
                                 d::pick_from(ui, &format!("rg-as{bi}-{ri}"), &asms, &mut r.assembly);
                                 d::num_rule(ui, &mut r.spacing, "", pos);
                                 ui.checkbox(&mut r.at_geometry, "");
-                                if ui.small_button("x").clicked() {
+                                if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                                     remove_rg = Some(ri);
                                 }
                                 ui.end_row();
@@ -398,7 +398,7 @@ impl AfroBimApp {
                                     if a || b {
                                         let _ = g.set_swath(i, l, r);
                                     }
-                                    if ui.small_button("x").clicked() {
+                                    if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                                         remove = Some(i);
                                     }
                                     ui.end_row();

@@ -511,7 +511,7 @@ pub fn edit_ui(ui: &mut egui::Ui, data: &mut Value) -> bool {
                         }
                     });
                     changed |= ui.add(egui::TextEdit::singleline(&mut e.symbol_id).hint_text("Label").desired_width(96.0)).changed();
-                    if ui.add(egui::Button::new("x").small()).on_hover_text("Remove this embedded sign").clicked() {
+                    if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this embedded sign").clicked() {
                         remove = Some(i);
                     }
                 });
@@ -542,13 +542,13 @@ pub fn edit_ui(ui: &mut egui::Ui, data: &mut Value) -> bool {
                         changed |= ui.selectable_value(&mut d.direction, dir, format!("{dir:?}")).changed();
                     }
                 });
-                if ui.add_enabled(i > 0, egui::Button::new("Up").small()).on_hover_text("Move up").clicked() {
+                if ui.add_enabled_ui(i > 0, |ui| crate::ui_kit::icon_button(ui, crate::glyphs::ui::ARROW_UP, "Move up")).inner.clicked() {
                     swap = Some((i, i - 1));
                 }
-                if ui.add_enabled(i + 1 < count, egui::Button::new("Dn").small()).on_hover_text("Move down").clicked() {
+                if ui.add_enabled_ui(i + 1 < count, |ui| crate::ui_kit::icon_button(ui, crate::glyphs::ui::ARROW_DOWN, "Move down")).inner.clicked() {
                     swap = Some((i, i + 1));
                 }
-                if ui.add_enabled(count > 1, egui::Button::new("x").small()).on_hover_text("Remove this destination").clicked() {
+                if ui.add_enabled_ui(count > 1, |ui| crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this destination")).inner.clicked() {
                     remove = Some(i);
                 }
             });

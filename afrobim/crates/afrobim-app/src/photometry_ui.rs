@@ -644,7 +644,7 @@ impl AfroBimApp {
             polar_diagram(&l.photometry, &planes)
         });
         let check_lines = self.photo.loaded.as_ref().map(file_check_lines);
-        let dlg = crate::ui_kit::Dialog::titled("Photometry").width(900.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Photometry").subtitle("Luminaire data files and the lighting calculation").width(900.0).show_body(ctx, |ui| {
             ui.label(RichText::new(LIMITS).small().color(WARN()));
             ui.horizontal(|ui| {
                 ui.label("Installation");
@@ -657,7 +657,7 @@ impl AfroBimApp {
                     }
                 });
                 if !class.is_empty() {
-                    ui.label(RichText::new(format!("lighting class entered: {class}")).small().weak());
+                    crate::ui_kit::note(ui, format!("lighting class entered: {class}"));
                 }
             });
             ui.horizontal(|ui| {
@@ -707,7 +707,7 @@ impl AfroBimApp {
                     ui.checkbox(&mut f.orient_ccw, "C increases counter-clockwise seen from above");
                 });
                 ui.label(RichText::new("to confirm").strong().color(WARN()));
-                ui.label(RichText::new("The file does not say which C-plane faces the road. The value above is the crate's assumption for this format (IES: C0; EULUMDAT: C270; counter-clockwise). Judge it from the polar diagram and the shares of flux in the checks above: a road luminaire throws most of its light to the street side.").small().weak());
+                crate::ui_kit::note(ui, "The file does not say which C-plane faces the road. The value above is the crate's assumption for this format (IES: C0; EULUMDAT: C270; counter-clockwise). Judge it from the polar diagram and the shares of flux in the checks above: a road luminaire throws most of its light to the street side.");
                 ui.checkbox(&mut f.orient_confirmed, "I have checked this orientation against the polar diagram");
                 ui.add_space(4.0);
                 ui.label(RichText::new("4. Calculation settings (none is prefilled)").strong());
@@ -747,7 +747,7 @@ impl AfroBimApp {
                                 }
                             }
                             None => {
-                                ui.label(RichText::new("none: luminance is not calculated (no r-table values ship)").small().weak());
+                                crate::ui_kit::note(ui, "none: luminance is not calculated (no r-table values ship)");
                             }
                         }
                     });
@@ -924,7 +924,7 @@ impl AfroBimApp {
                 if let Some(e) = &run.result.eir {
                     ui.label(RichText::new(format!("Edge illuminance ratio (strip width {} m): left {:.3}, right {:.3}, value {:.3}", e.lane_width_m, e.left, e.right, e.value)).small());
                 }
-                ui.label(RichText::new("Not computed: threshold increment TI, longitudinal uniformity U_l, wet overall uniformity. Luminance appears only with your r-table and observer.").small().weak());
+                crate::ui_kit::note(ui, "Not computed: threshold increment TI, longitudinal uniformity U_l, wet overall uniformity. Luminance appears only with your r-table and observer.");
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     ui.label("Area for the drawings and the class");
@@ -957,7 +957,7 @@ impl AfroBimApp {
                             ui.label("No contours for this area.");
                         }
                     }
-                    ui.label(RichText::new("Grid values").strong());
+                    crate::ui_kit::heading(ui, "Grid values");
                     if let Some(v) = values {
                         paint_labelled(ui, v, 820.0, 300.0);
                     }

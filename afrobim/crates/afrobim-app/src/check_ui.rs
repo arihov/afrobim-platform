@@ -219,7 +219,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
             });
             ui.add(egui::TextEdit::singleline(&mut u.percent).hint_text("share %").desired_width(60.0));
             ui.add(egui::TextEdit::singleline(&mut u.factor).hint_text("factor").desired_width(60.0));
-            if ui.small_button("x").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                 remove = Some(i);
             }
         });
@@ -243,7 +243,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
             }
             ui.add(egui::TextEdit::singleline(&mut r.length).hint_text(if r.kind == 2 { "length m" } else { "length km" }).desired_width(70.0));
             ui.add(egui::TextEdit::singleline(&mut r.slope_or_velocity).hint_text(if r.kind == 2 { "velocity m/s" } else { "slope m/m" }).desired_width(80.0));
-            if ui.small_button("x").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                 remove = Some(i);
             }
         });
@@ -255,7 +255,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
         s.reaches.push(inputs::ReachRow::default());
     }
     ui.add_space(6.0);
-    ui.label(RichText::new("Rainfall (always yours)").strong());
+    crate::ui_kit::heading(ui, "Rainfall (always yours)");
     crate::ui_kit::grid(ui, "sanral-rain", |ui| {
         field(ui, "Point rainfall depth for Tc and T (mm)", &mut s.point_rainfall_mm, "from the DDF, Hershfield or Design Rainfall Estimation");
         field(ui, "Where the depth comes from", &mut s.rainfall_source, "your source and its date");
@@ -270,7 +270,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
         });
         ui.end_row();
     });
-    ui.label(RichText::new("SANRAL Drainage Manual, 6th edition (2013), Section 3.5.1. AfroBIM holds no rainfall data and no map: the depth, the shares and the factors are yours. Every field starts empty.").small().weak());
+    crate::ui_kit::note(ui, "SANRAL Drainage Manual, 6th edition (2013), Section 3.5.1. AfroBIM holds no rainfall data and no map: the depth, the shares and the factors are yours. Every field starts empty.");
 }
 
 /// The SANRAL culvert entries below the flow. The slope unit is a question with no default.
@@ -472,7 +472,7 @@ impl AfroBimApp {
             self.checks.report_open = false;
             return;
         };
-        let dlg = crate::ui_kit::Dialog::titled("Check the whole model").width(900.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Check the whole model").subtitle("Every check of every element, with its status").width(900.0).show_body(ctx, |ui| {
             ui.label(
                 RichText::new("Every check an engine has, on every element it applies to, with the inputs kept on each element. A pass means the engine's own lines passed on those inputs: it is a calculation for an engineer to check, not a certification. Warnings the engines raise are in the calculation lines, as the engines wrote them.")
                     .small()
@@ -551,7 +551,7 @@ impl AfroBimApp {
             });
             egui::CollapsingHeader::new(format!("Categories with no check ({})", report.no_check.len())).default_open(true).show(ui, |ui| {
                 for (category, why) in &report.no_check {
-                    ui.label(RichText::new(format!("{category}: {why}")).small().weak());
+                    crate::ui_kit::note(ui, format!("{category}: {why}"));
                 }
             });
         });
@@ -623,7 +623,7 @@ impl AfroBimApp {
                 field(ui, "Required freeboard (m)", &mut d.form.required_freeboard_m, "only if the project states one");
             });
             ui.add_space(4.0);
-            ui.label(RichText::new("The design flow is the engineer's: AfroBIM holds no rainfall data. Every field starts empty. The drain's gradient, lining and roughness are those entered in Properties. What you enter is kept on the drain, for CHECKALL.").small().weak());
+            crate::ui_kit::note(ui, "The design flow is the engineer's: AfroBIM holds no rainfall data. Every field starts empty. The drain's gradient, lining and roughness are those entered in Properties. What you enter is kept on the drain, for CHECKALL.");
         }, |ui| crate::ui_kit::Footer::new("Check").enabled(footer_ok, "Complete the inputs").cancel(Some("Cancel")).show(ui));
         if let Some((_, f)) = &dlg.inner {
             run = f.primary;
@@ -688,7 +688,7 @@ impl AfroBimApp {
                     });
                     if let Some(w) = d.wall {
                         let (lo, hi) = w.manning_n_range();
-                        ui.label(RichText::new(format!("The appendix recommends {lo} to {hi}. The value within it is yours to choose and type above.")).small().weak());
+                        crate::ui_kit::note(ui, format!("The appendix recommends {lo} to {hi}. The value within it is yours to choose and type above."));
                     }
                 });
                 ui.end_row();
@@ -734,7 +734,7 @@ impl AfroBimApp {
                 }
             });
             ui.add_space(4.0);
-            ui.label(RichText::new("MoWT: the complete check is inlet control (FHWA HDS-5 equations, the inlet edge you choose) and outlet control (DDM Section 9.4.2); the greater governs and is named, and the outlet lines are shown first. With no inlet edge or allowable headwater only the outlet half is shown, and it is marked as incomplete. SANRAL: SDM Table 7.2 and Eq. 7.4, for the barrel of this element. Each basis keeps its own values. Every field starts empty and what you enter is kept on the culvert, for CHECKALL.").small().weak());
+            crate::ui_kit::note(ui, "MoWT: the complete check is inlet control (FHWA HDS-5 equations, the inlet edge you choose) and outlet control (DDM Section 9.4.2); the greater governs and is named, and the outlet lines are shown first. With no inlet edge or allowable headwater only the outlet half is shown, and it is marked as incomplete. SANRAL: SDM Table 7.2 and Eq. 7.4, for the barrel of this element. Each basis keeps its own values. Every field starts empty and what you enter is kept on the culvert, for CHECKALL.");
         }, |ui| crate::ui_kit::Footer::new("Check").enabled(footer_ok, "Complete the inputs").cancel(Some("Cancel")).show(ui));
         if let Some((_, f)) = &dlg.inner {
             run = f.primary;
@@ -795,7 +795,7 @@ impl AfroBimApp {
                 if d.form.use_sanral {
                     sanral_rational_form(ui, &mut d.form.sanral);
                 } else {
-                ui.label(RichText::new("Parts of the catchment").strong());
+                crate::ui_kit::heading(ui, "Parts of the catchment");
                 let mut remove = None;
                 egui::Grid::new("rational-rows").num_columns(4).spacing([8.0, 4.0]).show(ui, |ui| {
                     for h in ["What the part is", "Area (ha)", "Runoff coefficient C", ""] {
@@ -806,7 +806,7 @@ impl AfroBimApp {
                         ui.add(egui::TextEdit::singleline(&mut r.description).hint_text("description").desired_width(180.0));
                         ui.add(egui::TextEdit::singleline(&mut r.area_ha).hint_text("area").desired_width(80.0));
                         ui.add(egui::TextEdit::singleline(&mut r.runoff_coefficient).hint_text("C").desired_width(80.0));
-                        if ui.small_button("x").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                             remove = Some(i);
                         }
                         ui.end_row();
@@ -826,7 +826,7 @@ impl AfroBimApp {
                     field(ui, "Storage factor Cs", &mut d.form.storage_factor, "empty: the basic method");
                 });
                 ui.add_space(4.0);
-                ui.label(RichText::new("MoWT Road Design Manual Vol. 2, Sections 4.4.2 and 4.4.3. AfroBIM holds no rainfall data: the intensity, the areas and the runoff coefficients are yours. Every field starts empty.").small().weak());
+                crate::ui_kit::note(ui, "MoWT Road Design Manual Vol. 2, Sections 4.4.2 and 4.4.3. AfroBIM holds no rainfall data: the intensity, the areas and the runoff coefficients are yours. Every field starts empty.");
                 }
                 match &d.result {
                     Some(Ok((q, lines))) => {

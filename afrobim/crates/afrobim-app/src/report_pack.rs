@@ -901,9 +901,9 @@ impl AfroBimApp {
         }
         let mut open = true;
         let (mut export, mut recompose) = (false, false);
-        let dlg = crate::ui_kit::Dialog::titled("Calculation report pack").width(640.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Calculation report pack").subtitle("The calculations of the model in one document").width(640.0).show_body(ctx, |ui| {
             ui.label(RichText::new(STATEMENT).strong());
-            ui.label(RichText::new("One A4 portrait PDF, with a plain-text and a CSV variant beside it. Every calculation line is as the engine wrote it; sections with no data are listed as not included.").small().weak());
+            crate::ui_kit::note(ui, "One A4 portrait PDF, with a plain-text and a CSV variant beside it. Every calculation line is as the engine wrote it; sections with no data are listed as not included.");
             let Some(pack) = &self.pack.pack else { return };
             ui.label(format!("Composed {} for '{}': {} page(s). {}", pack.composed, pack.project, self.pack.pages, summary_line(pack)));
             ui.horizontal(|ui| {

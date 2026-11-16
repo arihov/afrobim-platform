@@ -119,7 +119,9 @@ impl Dialog {
                     }
                 }
                 ui.add_space(theme::SP_XS);
-                let r = egui::ScrollArea::vertical().id_salt("kit-body").max_height(body_cap).auto_shrink([false, true]).show(ui, |ui| egui::Frame::NONE.inner_margin(egui::Margin { left: 0, right: 12, top: 0, bottom: 0 }).show(ui, |ui| body(ui)).inner).inner;
+                // A window wider than the work area scrolls sideways as well, so that nothing is out of reach.
+                let scroll = if self.width > work.width() - 8.0 { egui::ScrollArea::both() } else { egui::ScrollArea::vertical() };
+                let r = scroll.id_salt("kit-body").max_height(body_cap).auto_shrink([false, true]).show(ui, |ui| egui::Frame::NONE.inner_margin(egui::Margin { left: 0, right: 12, top: 0, bottom: 0 }).show(ui, |ui| body(ui)).inner).inner;
                 ui.add_space(theme::SP_SM);
                 let f = footer(ui);
                 (r, f)
@@ -547,6 +549,18 @@ pub fn element_combo(ui: &mut Ui, id: &str, choices: &[(afrobim_kernel::ElementI
         }
     });
     changed
+}
+
+/// A heading inside a body: small capitals over a thin rule (a `section` with no closure).
+pub fn heading(ui: &mut Ui, text: &str) {
+    let t = tokens_ui(ui);
+    ui.add_space(theme::SP_SM);
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(text.to_uppercase()).size(theme::FONT_SMALL).strong().color(t.text_muted));
+        let r = ui.available_rect_before_wrap();
+        ui.painter().hline(r.x_range(), r.center().y, Stroke::new(1.0_f32, t.border));
+    });
+    ui.add_space(theme::SP_XS);
 }
 
 /// A muted explanatory paragraph (a source, a limit, a note under a form).

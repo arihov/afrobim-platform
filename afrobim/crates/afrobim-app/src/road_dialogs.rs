@@ -278,7 +278,7 @@ fn layer_list(ui: &mut Ui, salt: &str, rows: &mut Vec<LayerRow>) {
             text(ui, &mut row.name, "layer name", 150.0);
             pick(ui, &format!("{salt}-material-{i}"), &mut row.material, &materials);
             number(ui, &mut row.thickness_mm, 5.0, " mm");
-            if ui.small_button("x").on_hover_text("Remove this layer").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this layer").clicked() {
                 remove = Some(i);
             }
             ui.end_row();
@@ -350,7 +350,7 @@ fn mowt_fill_row(ui: &mut Ui, salt: &str) -> Option<MowtFill> {
         }
     });
     if let Some(note) = &filled {
-        ui.label(RichText::new(format!("Filled from: {note} Check them against your project before using them.")).small().weak());
+        crate::ui_kit::note(ui, format!("Filled from: {note} Check them against your project before using them."));
     }
     ui.data_mut(|d| {
         match class {
@@ -699,7 +699,7 @@ fn pavement_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
                 shoulder_row(ui, "Right shoulder", &mut req.right_shoulder);
             });
             ui.add_space(6.0);
-            ui.label(RichText::new("Layers, top first").strong());
+            crate::ui_kit::heading(ui, "Layers, top first");
             layer_list(ui, "pavement", &mut req.layers);
         });
         not_a_design(ui, "Enter the layers, or run a design method first. Shoulders take the layers of the carriageway; edit them in Properties.");
@@ -759,7 +759,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
                 }
             });
         });
-        ui.label(RichText::new("Inputs kept on a pavement are used by CHECKALL, which compares the method's layers with the pavement's own.").small().weak());
+        crate::ui_kit::note(ui, "Inputs kept on a pavement are used by CHECKALL, which compares the method's layers with the pavement's own.");
         ui.separator();
         ui.scope(|ui| match d.form.method {
             0 => mowt_form(ui, &mut d.form.mowt),
@@ -770,7 +770,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
         not_a_design(ui, "Every figure is the engineer's: traffic, strength, climate and the AASHTO coefficients are not defaulted. The methods are not interchangeable. The result is a calculation for an engineer to check, not a certified design; the warnings of the method are in the calculation.");
         if let Some(layers) = &d.layers {
             ui.separator();
-            ui.label(RichText::new("The method arrives at these layers").strong());
+            crate::ui_kit::heading(ui, "The method arrives at these layers");
             for l in layers {
                 ui.label(format!("{}: {} mm", l.name, l.thickness_mm));
             }
@@ -855,7 +855,7 @@ fn mowt_form(ui: &mut Ui, f: &mut MowtForm) {
             text(ui, &mut c.name, "e.g. buses", 120.0);
             number(ui, &mut c.daily_first_year, 1.0, "");
             number(ui, &mut c.esa_per_vehicle, 0.01, "");
-            if ui.small_button("x").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                 remove = Some(i);
             }
             ui.end_row();
@@ -867,7 +867,7 @@ fn mowt_form(ui: &mut Ui, f: &mut MowtForm) {
     if ui.button("Add a vehicle category").clicked() {
         f.classes.push(ClassRow { name: String::new(), daily_first_year: 0.0, esa_per_vehicle: 0.0 });
     }
-    ui.label(RichText::new("The damage factor is entered as ESAs per vehicle from an axle load survey. Entering axle loads is not offered here.").small().weak());
+    crate::ui_kit::note(ui, "The damage factor is entered as ESAs per vehicle from an axle load survey. Entering axle loads is not offered here.");
     crate::ui_kit::grid(ui, "mowt", |ui| {
         ui.label("Growth rate");
         number(ui, &mut f.growth_percent, 0.1, " % a year");
@@ -930,7 +930,7 @@ fn dmrb_form(ui: &mut Ui, f: &mut DmrbForm) {
         for (i, (group, aadf)) in f.flows.iter_mut().enumerate() {
             pick(ui, &format!("dmrb-group-{i}"), group, &groups);
             number(ui, aadf, 1.0, " cv/day");
-            if ui.small_button("x").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                 remove = Some(i);
             }
             ui.end_row();
@@ -966,7 +966,7 @@ fn dmrb_form(ui: &mut Ui, f: &mut DmrbForm) {
         pick(ui, "dmrb-pavement", &mut f.pavement, &kinds);
         ui.end_row();
     });
-    ui.label(RichText::new("This method gives design traffic and, over an HBGM base, the asphalt thickness. It gives no layer stack, so no pavement can be made from it.").small().weak());
+    crate::ui_kit::note(ui, "This method gives design traffic and, over an HBGM base, the asphalt thickness. It gives no layer stack, so no pavement can be made from it.");
 }
 
 fn trh4_form(ui: &mut Ui, f: &mut road_glue::Trh4Form) {
@@ -1035,7 +1035,7 @@ fn trh4_form(ui: &mut Ui, f: &mut road_glue::Trh4Form) {
         optional(ui, &mut f.subgrade_cbr_percent, 0.5, " %");
         ui.end_row();
     });
-    ui.label(RichText::new("Growth rates are entered in per cent a year. The run gives the design traffic, the traffic class (ES0.003 to ES100), the climatic class and the action on the subgrade, with the engine's warnings. It gives no layers.").small().weak());
+    crate::ui_kit::note(ui, "Growth rates are entered in per cent a year. The run gives the design traffic, the traffic class (ES0.003 to ES100), the climatic class and the action on the subgrade, with the engine's warnings. It gives no layers.");
 }
 
 fn aashto_form(ui: &mut Ui, f: &mut AashtoForm) {
@@ -1057,7 +1057,7 @@ fn aashto_form(ui: &mut Ui, f: &mut AashtoForm) {
         ui.end_row();
     });
     ui.add_space(4.0);
-    ui.label(RichText::new("Structure to check, top first").strong());
+    crate::ui_kit::heading(ui, "Structure to check, top first");
     let materials = index_options(road_glue::materials().iter().map(|m| m.label().to_string()).collect());
     let mut remove = None;
     egui::Grid::new("aashto-layers").num_columns(7).spacing([8.0, 4.0]).show(ui, |ui| {
@@ -1072,7 +1072,7 @@ fn aashto_form(ui: &mut Ui, f: &mut AashtoForm) {
             number(ui, &mut l.layer_coefficient, 0.005, "");
             number(ui, &mut l.drainage_coefficient, 0.05, "");
             optional(ui, &mut l.resilient_modulus_psi, 100.0, "");
-            if ui.small_button("x").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                 remove = Some(i);
             }
             ui.end_row();
@@ -1084,7 +1084,7 @@ fn aashto_form(ui: &mut Ui, f: &mut AashtoForm) {
     if ui.button("Add a layer").clicked() {
         f.layers.push(SnRow { name: String::new(), material: 0, thickness_mm: 0.0, layer_coefficient: 0.0, drainage_coefficient: 1.0, resilient_modulus_psi: None });
     }
-    ui.label(RichText::new("The layer and drainage coefficients are entered; drainage coefficient 1 applies to bound layers. With no layers the required structural number is all that is computed.").small().weak());
+    crate::ui_kit::note(ui, "The layer and drainage coefficients are entered; drainage coefficient 1 applies to bound layers. With no layers the required structural number is all that is computed.");
 }
 
 // ─── corridor ───────────────────────────────────────────────────────────────────────────
@@ -1307,7 +1307,7 @@ fn sections_window(ctx: &egui::Context, slot: &mut Option<SectionsView>) {
                 painter.circle_filled(map(l.at), 2.5, colour(None, dark));
             }
         }
-        ui.label(RichText::new("Ground green, earthworks line red, finished surface black, centreline grey. Looking up-station, left on the left.").small().weak());
+        crate::ui_kit::note(ui, "Ground green, earthworks line red, finished surface black, centreline grey. Looking up-station, left on the left.");
         for l in &drawn.labels {
             match l.kind {
                 corridor::LabelKind::Title | corridor::LabelKind::Areas => {

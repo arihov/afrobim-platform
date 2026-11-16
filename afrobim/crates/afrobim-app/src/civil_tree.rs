@@ -134,7 +134,7 @@ impl AfroBimApp {
             .show(ui, |ui| {
                 body(ui, acts);
                 if count == 0 {
-                    ui.label(RichText::new("None").small().weak());
+                    crate::ui_kit::note(ui, "None");
                 }
             })
             .header_response
@@ -354,11 +354,11 @@ impl AfroBimApp {
         let crs = afrobim_kernel::project_crs(&self.doc);
         let units = crate::anno_ui::units_of(&self.doc);
         ui.add_space(4.0);
-        ui.label(RichText::new("Project coordinate system").strong());
+        crate::ui_kit::heading(ui, "Project coordinate system");
         match &crs {
             Some(c) => {
                 ui.label(c.label());
-                ui.label(RichText::new("Objects sit at their source coordinates. Nothing is reprojected or shifted.").small().weak());
+                crate::ui_kit::note(ui, "Objects sit at their source coordinates. Nothing is reprojected or shifted.");
             }
             None => {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "No coordinate system is set for this project.");
@@ -369,19 +369,19 @@ impl AfroBimApp {
             self.pending_action = Some(Action::CoordSystem);
         }
         ui.add_space(8.0);
-        ui.label(RichText::new("Units").strong());
+        crate::ui_kit::heading(ui, "Units");
         ui.label(format!("Length shown as {}", units.length_u(1000.0)));
         if ui.button(format!("{}  Edit units...", ph::RULER)).clicked() {
             self.pending_action = Some(Action::Units);
         }
         ui.add_space(8.0);
-        ui.label(RichText::new("Design standard").strong());
+        crate::ui_kit::heading(ui, "Design standard");
         ui.label(self.standard.clone());
         if ui.button(format!("{}  Edit project settings...", ph::GEAR)).clicked() {
             self.pending_action = Some(Action::ProjectSettings);
         }
         ui.add_space(8.0);
-        ui.label(RichText::new("Civil objects").strong());
+        crate::ui_kit::heading(ui, "Civil objects");
         for (c, _, plural) in KINDS {
             ui.label(format!("{plural}: {}", self.doc.elements().iter().filter(|e| e.category == c).count()));
         }

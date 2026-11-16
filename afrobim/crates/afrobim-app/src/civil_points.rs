@@ -732,7 +732,7 @@ fn rule_ui(ui: &mut Ui, r: &mut Rule, salt: &str) -> bool {
                 ui.add(egui::DragValue::new(max).speed(0.1));
             }
         }
-        if ui.small_button("x").clicked() {
+        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
             remove = true;
         }
     });
@@ -772,7 +772,7 @@ impl AfroBimApp {
                 let members = g.data.groups.members_of(&store, &name).map(|m| m.len()).unwrap_or(0);
                 ui.label(RichText::new(format!("{name}: {members} point(s)")).strong());
                 if is_all {
-                    ui.label(RichText::new("The built-in group of every point cannot be edited.").small().weak());
+                    crate::ui_kit::note(ui, "The built-in group of every point cannot be edited.");
                     return;
                 }
                 let mut edit: Option<PointGroup> = g.data.groups.get(&name).cloned();
@@ -881,7 +881,7 @@ impl AfroBimApp {
                         let c = key.classification.get_or_insert_with(|| afrobim_cogo::Classification { scheme: String::new(), code: String::new(), title: None });
                         ui.add(egui::TextEdit::singleline(&mut c.scheme).desired_width(80.0));
                         ui.add(egui::TextEdit::singleline(&mut c.code).desired_width(80.0));
-                        if ui.small_button("x").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                             remove = Some(i);
                         }
                         ui.end_row();
@@ -1270,7 +1270,7 @@ impl AfroBimApp {
                     });
                 });
                 let end = if f.closure == 2 { pt_in(ui, "Known end", &mut f.end) } else { None };
-                ui.label(RichText::new("Courses").strong());
+                crate::ui_kit::heading(ui, "Courses");
                 let mut remove = None;
                 egui::Grid::new("tv-courses").num_columns(3).show(ui, |ui| {
                     ui.label("Bearing");
@@ -1280,7 +1280,7 @@ impl AfroBimApp {
                     for (i, (b, dist)) in f.courses.iter_mut().enumerate() {
                         ui.add(egui::TextEdit::singleline(b).desired_width(150.0).hint_text("123.4567 or N45-30-00E"));
                         ui.add(egui::TextEdit::singleline(dist).desired_width(90.0));
-                        if ui.small_button("x").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                             remove = Some(i);
                         }
                         ui.end_row();
@@ -1303,7 +1303,7 @@ impl AfroBimApp {
                         Ok(adj) => {
                             let m = &adj.misclosure;
                             ui.separator();
-                            ui.label(RichText::new("Misclosure").strong());
+                            crate::ui_kit::heading(ui, "Misclosure");
                             let ratio_text = m.precision_denominator.map(|r| format!("1 in {r:.0}")).unwrap_or_else(|| "not defined".into());
                             ui_kit::results_table(ui, "tv-m", &["Quantity", "Value"], &[Col::Text, Col::Num], &[vec!["Error in easting (m)".into(), fmt(m.error_e, 4)], vec!["Error in northing (m)".into(), fmt(m.error_n, 4)], vec!["Linear misclosure (m)".into(), fmt(m.linear, 4)], vec!["Perimeter (m)".into(), fmt(m.perimeter, 3)], vec!["Precision".into(), ratio_text]]);
                             ui_kit::form(ui, "tv-r", |fm| {

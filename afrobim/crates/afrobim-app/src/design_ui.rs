@@ -687,7 +687,7 @@ impl AfroBimApp {
     fn plan_toolbar(&mut self, ui: &mut Ui) {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Plan").strong());
+                crate::ui_kit::heading(ui, "Plan");
                 for (tool, label, tip) in [
                     (PlanTool::Select, "Select and drag PIs", "Drag a PI grip. A move the engine refuses shows its reason and the PI goes back."),
                     (PlanTool::Insert, "Insert PI", "Click on a tangent to add a PI there."),
@@ -921,7 +921,7 @@ impl AfroBimApp {
                         if nd.mode == 0 {
                             ui.label(format!("Click each PI on the plan, or type x,y on the command line (in {length_unit}; @dx,dy is relative to the last PI). Enter or C finishes, U removes the last."));
                         } else {
-                            ui.label(RichText::new(format!("One PI a line, in {length_unit}: easting, northing. A line that starts with @ is relative to the PI before it.")).small().weak());
+                            crate::ui_kit::note(ui, format!("One PI a line, in {length_unit}: easting, northing. A line that starts with @ is relative to the PI before it."));
                             ui.add(egui::TextEdit::multiline(&mut nd.pis_text).font(egui::TextStyle::Monospace).desired_rows(5).desired_width(f32::INFINITY).hint_text("0, 0\n250, 40\n@300, -20"));
                             match &typed {
                                 Err(e) => {
@@ -999,7 +999,7 @@ impl AfroBimApp {
         let work = crate::win::work_rect(ctx);
         let dlg = crate::ui_kit::Dialog::titled("PI table").subtitle("The points of intersection of the horizontal geometry").width(900.0).default_pos(egui::pos2(work.min.x + 16.0, (work.max.y - 250.0).max(work.min.y + 40.0))).show_body(ctx, |ui| {
             ui.label(RichText::new(format!("{name}: start station {}", units.station(design.horizontal.start_station_m))).strong());
-            ui.label(RichText::new("Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.").small().weak());
+            crate::ui_kit::note(ui, "Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.");
             if let Err(e) = &solution {
                 ui.label(RichText::new(format!("The design cannot be solved: {e}")).color(BAD()));
             }

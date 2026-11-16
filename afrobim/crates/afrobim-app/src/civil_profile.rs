@@ -2,7 +2,6 @@
 //! profile views drawn in the model.
 
 use afrobim_kernel::{ElementId, SelectMode};
-use egui::RichText;
 
 use crate::app::AfroBimApp;
 use crate::civil::{self, Bounds, ProfileData, ProfileViewData, PROFILE, PROFILE_VIEW};
@@ -172,7 +171,7 @@ impl AfroBimApp {
                     fm.row("Ground profiles", |ui| {
                         ui.vertical(|ui| {
                             if profiles.is_empty() {
-                                ui.label(RichText::new("None on this alignment: make one with GROUNDPROFILE.").small().weak());
+                                crate::ui_kit::note(ui, "None on this alignment: make one with GROUNDPROFILE.");
                             }
                             for (id, name) in &profiles {
                                 let mut on = f.profiles.contains(id);

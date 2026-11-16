@@ -1879,7 +1879,7 @@ impl AfroBimApp {
                 ui.separator();
             }
             if palettes.signs {
-                ui.label(RichText::new("Traffic signs").small().weak());
+                crate::ui_kit::note(ui, "Traffic signs");
                 ui.add_enabled_ui(self.signs_ready, |ui| {
                     for (i, t) in signs_glue::templates(&self.standard).iter().enumerate() {
                         if icons::palette_button(ui, t.icon, t.label, t.tip).clicked() {
@@ -1895,14 +1895,14 @@ impl AfroBimApp {
                 ui.add_space(6.0);
             }
             if palettes.modify {
-                ui.label(RichText::new("Modify").small().weak());
+                crate::ui_kit::note(ui, "Modify");
                 for (label, tip, a) in [("Move", "MOVE (M)", Action::Move), ("Copy", "COPY (CO)", Action::Copy), ("Erase", "ERASE (E or Delete)", Action::Erase), ("Arrange", "Arrange every element in rows", Action::Arrange)] {
                     if icons::palette_glyph(ui, crate::glyphs::glyph(a).unwrap_or(""), label, tip).clicked() {
                         pick = Some(a);
                     }
                 }
                 ui.add_space(6.0);
-                ui.label(RichText::new("Zoom").small().weak());
+                crate::ui_kit::note(ui, "Zoom");
                 for (label, tip, a) in [("Extents", "Zoom extents (Z)", Action::ZoomExtents), ("Window", "Zoom window (ZW)", Action::ZoomWindow), ("Selection", "Zoom to selection (ZS)", Action::ZoomSelection), ("Previous", "Previous view (ZP)", Action::ZoomPrevious)] {
                     if icons::palette_glyph(ui, crate::glyphs::glyph(a).unwrap_or(""), label, tip).clicked() {
                         pick = Some(a);
@@ -1988,7 +1988,7 @@ impl AfroBimApp {
                 });
 
                 ui.add_space(8.0);
-                ui.label(RichText::new("Definition").strong());
+                crate::ui_kit::heading(ui, "Definition");
                 if crate::civil::is_civil(&e.category) {
                     let (c, open) = crate::civil_tree::civil_panel(ui, e);
                     changed |= c;
@@ -2005,13 +2005,13 @@ impl AfroBimApp {
                         definition_edited = Some(id);
                     }
                 } else if modules_glue::is_surface(&e.category) {
-                    ui.label(RichText::new("An imported ground surface. Its triangles are not edited here: import it again to change it. Its figures are under Derived.").small().weak());
+                    crate::ui_kit::note(ui, "An imported ground surface. Its triangles are not edited here: import it again to change it. Its figures are under Derived.");
                 }
 
                 if let Some((derived, notes)) = derived {
                     if !derived.is_empty() {
                         ui.add_space(8.0);
-                        ui.label(RichText::new("Derived").strong());
+                        crate::ui_kit::heading(ui, "Derived");
                         crate::ui_kit::grid(ui, "derived", |ui| {
                             for (k, v) in &derived {
                                 ui.label(k);
@@ -2022,7 +2022,7 @@ impl AfroBimApp {
                     }
                     if !notes.is_empty() {
                         ui.add_space(8.0);
-                        ui.label(RichText::new("Checks").strong());
+                        crate::ui_kit::heading(ui, "Checks");
                         for n in &notes {
                             let colour = match n.severity {
                                 Severity::Error => crate::theme::danger(),
@@ -2039,14 +2039,14 @@ impl AfroBimApp {
                 }
 
                 ui.add_space(8.0);
-                ui.label(RichText::new("Property set").strong());
+                crate::ui_kit::heading(ui, "Property set");
                 let mut remove = None;
                 egui::Grid::new("pset").num_columns(3).spacing([8.0, 4.0]).show(ui, |ui| {
                     // The entries the check dialogs and the construction windows keep are theirs.
                     for (k, v) in e.properties.iter_mut().filter(|(k, _)| !crate::check_inputs::is_check_key(k) && !k.starts_with("construction.") && !k.starts_with("civil.") && !(crate::civil::is_civil(&cat_now) && (k.as_str() == crate::civil::PROP_STATUS || k.as_str() == crate::civil::PROP_SOURCE))) {
                         ui.label(k);
                         changed |= ui.text_edit_singleline(v).changed();
-                        if ui.small_button("x").on_hover_text("Remove this property").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this property").clicked() {
                             remove = Some(k.clone());
                         }
                         ui.end_row();
@@ -2304,7 +2304,7 @@ impl AfroBimApp {
         self.sheets_windows(ctx);
         self.design_windows(ctx);
         let mut help = self.show_help;
-        let dlg = crate::ui_kit::Dialog::titled("Commands").width(520.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Commands").subtitle("Every command, its aliases and what it does").width(520.0).show_body(ctx, |ui| {
             egui::Grid::new("cmds").num_columns(3).striped(true).spacing([14.0, 4.0]).show(ui, |ui| {
                 for c in COMMANDS {
                     ui.label(RichText::new(c.name).monospace().strong());
@@ -2323,7 +2323,7 @@ impl AfroBimApp {
 
         let mut library_open = self.show_library;
         let mut insert: Option<(String, serde_json::Value)> = None;
-        let dlg = crate::ui_kit::Dialog::titled("Standard signs").width(420.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Standard signs").subtitle("The sign library of the loaded standard").width(420.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Find");
                 ui.add(egui::TextEdit::singleline(&mut self.library_filter).hint_text("key or name").desired_width(f32::INFINITY));
@@ -2913,7 +2913,7 @@ impl AfroBimApp {
         }
 
         let mut about = self.show_about;
-        let dlg = crate::ui_kit::Dialog::titled("About AfroBIM").resizable(false).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("About AfroBIM").subtitle("Version and licence of this build").resizable(false).show_body(ctx, |ui| {
             ui.heading("AfroBIM");
             ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
             ui.add_space(6.0);

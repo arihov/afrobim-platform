@@ -455,7 +455,7 @@ impl AfroBimApp {
         let mut refresh = false;
         let mut status: Option<String> = None;
         let c = &mut self.cost;
-        let dlg = crate::ui_kit::Dialog::titled("Bill of quantities").width(980.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Bill of quantities").subtitle("Sections, items and the rules that map quantities to them").width(980.0).show_body(ctx, |ui| {
             if c.est.is_none() {
                 ui.label("There is no estimate yet.");
                 return;
@@ -512,7 +512,7 @@ impl AfroBimApp {
                     if !c.problem.is_empty() {
                         ui.label(RichText::new(&c.problem).color(BAD()));
                     }
-                    ui.label(RichText::new("The bill has no standard structure of its own: sections, items, units and descriptions are yours, loaded from a CSV (kind,code,section,description,unit) or typed here.").small().weak());
+                    crate::ui_kit::note(ui, "The bill has no standard structure of its own: sections, items, units and descriptions are yours, loaded from a CSV (kind,code,section,description,unit) or typed here.");
                     ui.add_space(4.0);
                     ui.label(RichText::new(format!("Sections ({})", bill.sections.len())).strong());
                     let mut delete_section = None;
@@ -654,7 +654,7 @@ impl AfroBimApp {
                             c.rule_rows.push([String::new(), String::new(), String::new(), String::new(), String::new()]);
                         }
                     });
-                    ui.label(RichText::new("A rule sends the quantity lines of one category (a trailing * matches a prefix; * alone matches all) that satisfy its conditions to an item. Rules are tried in order and a line goes to the first that fits. Conditions: key=value, key=a|b, key~text, key>=n, key<=n, key?, separated by ;. The unit of a line must equal the item's unit unless you enter a factor (your own conversion).").small().weak());
+                    crate::ui_kit::note(ui, "A rule sends the quantity lines of one category (a trailing * matches a prefix; * alone matches all) that satisfy its conditions to an item. Rules are tried in order and a line goes to the first that fits. Conditions: key=value, key=a|b, key~text, key>=n, key<=n, key?, separated by ;. The unit of a line must equal the item's unit unless you enter a factor (your own conversion).");
                     let items: Vec<String> = est.bill.items.iter().map(|i| i.code.clone()).collect();
                     let mut delete = None;
                     let mut edited = false;
@@ -737,7 +737,7 @@ impl AfroBimApp {
                                 }
                             });
                         }
-                        ui.label(RichText::new("Click an item to see the elements that make up its quantity; click an element to select it.").small().weak());
+                        crate::ui_kit::note(ui, "Click an item to see the elements that make up its quantity; click an element to select it.");
                         egui::ScrollArea::vertical().id_salt("measured-scroll").max_height(200.0).auto_shrink([false, true]).show(ui, |ui| {
                             egui::Grid::new("measured-grid").num_columns(5).striped(true).spacing([10.0, 3.0]).show(ui, |ui| {
                                 for h in ["Item", "Description", "Unit", "Quantity", "Lines"] {
@@ -812,7 +812,7 @@ impl AfroBimApp {
                         egui::ScrollArea::vertical().id_salt("unmapped-scroll").auto_shrink([false, false]).show(ui, |ui| {
                             ui.label(RichText::new(format!("Unmapped lines ({}): not in any item and not priced", r.measured.unmapped.len())).strong().color(if r.measured.unmapped.is_empty() { GOOD() } else { WARN() }));
                             if !r.measured.unmapped.is_empty() {
-                                ui.label(RichText::new("By category and unit").small().weak());
+                                crate::ui_kit::note(ui, "By category and unit");
                                 egui::Grid::new("unmapped-totals").num_columns(4).striped(true).spacing([10.0, 2.0]).show(ui, |ui| {
                                     for (cat, unit, n, total) in r.measured.unmapped_totals() {
                                         ui.label(RichText::new(cat).monospace());
@@ -894,7 +894,7 @@ impl AfroBimApp {
         let c = &mut self.cost;
         let currencies = c.defined_currencies();
         let unpriced: Vec<(String, String)> = c.live().map(|r| r.unpriced.iter().map(|u| (u.code.clone(), u.reason.clone())).collect()).unwrap_or_default();
-        let dlg = crate::ui_kit::Dialog::titled("Rate library").width(960.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Rate library").subtitle("Unit rates entered or loaded by the engineer").width(960.0).show_body(ctx, |ui| {
             let Some(est) = c.est.as_mut() else {
                 ui.label("There is no estimate yet.");
                 return;
@@ -933,7 +933,7 @@ impl AfroBimApp {
             if !c.problem.is_empty() {
                 ui.label(RichText::new(&c.problem).color(BAD()));
             }
-            ui.label(RichText::new("The library is empty until you enter or load rates. Every rate carries its currency, a source note and the date it was taken. An item with no rate is listed as unpriced; it is not priced at zero.").small().weak());
+            crate::ui_kit::note(ui, "The library is empty until you enter or load rates. Every rate carries its currency, a source note and the date it was taken. An item with no rate is listed as unpriced; it is not priced at zero.");
             if est.bill.items.is_empty() {
                 ui.label(RichText::new("The bill has no items yet (BILL).").weak());
             }
@@ -997,7 +997,7 @@ impl AfroBimApp {
             let known: Vec<String> = est.bill.items.iter().map(|i| i.code.clone()).collect();
             let stray = est.rates.rates.iter().filter(|r| !known.contains(&r.item_code)).count();
             if stray > 0 {
-                ui.label(RichText::new(format!("{stray} rate(s) in the library are for item codes that are not in the bill.")).small().weak());
+                crate::ui_kit::note(ui, format!("{stray} rate(s) in the library are for item codes that are not in the bill."));
             }
             if !unpriced.is_empty() {
                 ui.separator();
@@ -1024,7 +1024,7 @@ impl AfroBimApp {
         let mut changed = false;
         let mut status: Option<String> = None;
         let c = &mut self.cost;
-        let dlg = crate::ui_kit::Dialog::titled("Currency").width(620.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Currency").subtitle("The currency of the estimate and its exchange rates").width(620.0).show_body(ctx, |ui| {
             let Some(est) = c.est.as_mut() else {
                 ui.label("There is no estimate yet.");
                 return;
@@ -1032,7 +1032,7 @@ impl AfroBimApp {
             if c.primary_text.0.is_empty() {
                 c.primary_text = (est.reporting_currency.clone(), est.currencies.currency(&est.reporting_currency).map(|x| x.decimals.to_string()).unwrap_or_else(|_| "0".into()));
             }
-            ui.label(RichText::new("The primary currency is a label for the totals. UGX with no decimals is the starting label only: it carries no exchange rate and no rate for any item.").small().weak());
+            crate::ui_kit::note(ui, "The primary currency is a label for the totals. UGX with no decimals is the starting label only: it carries no exchange rate and no rate for any item.");
             ui.horizontal(|ui| {
                 ui.label("Primary");
                 tf(ui, &mut c.primary_text.0, "code", 60.0);
@@ -1051,7 +1051,7 @@ impl AfroBimApp {
                 }
             });
             ui.separator();
-            ui.label(RichText::new("Secondary currency (optional)").strong());
+            crate::ui_kit::heading(ui, "Secondary currency (optional)");
             ui.horizontal(|ui| {
                 let shown = est.secondary_currency.clone().unwrap_or_else(|| "none".to_string());
                 ui.label(format!("Shown beside the primary totals: {shown}"));
@@ -1077,7 +1077,7 @@ impl AfroBimApp {
             });
             ui.separator();
             ui.label(RichText::new("Exchange rates (entered by you, each with its date and source)").strong());
-            ui.label(RichText::new("A rate reads 1 FROM = RATE TO. It converts the other way by its reciprocal. The estimate uses the latest rate on or before the as-of date.").small().weak());
+            crate::ui_kit::note(ui, "A rate reads 1 FROM = RATE TO. It converts the other way by its reciprocal. The estimate uses the latest rate on or before the as-of date.");
             let codes: Vec<String> = est.currencies.currencies.iter().map(|x| x.code.clone()).collect();
             let mut delete = None;
             egui::Grid::new("xr-grid").num_columns(6).striped(true).spacing([10.0, 3.0]).show(ui, |ui| {
@@ -1169,7 +1169,7 @@ impl AfroBimApp {
         let current_id = self.cost.id;
         let c = &mut self.cost;
         let decimals = c.decimals();
-        let dlg = crate::ui_kit::Dialog::titled("Estimate").width(1020.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Estimate").subtitle("The bill priced with the rate library").width(1020.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Estimate");
                 let name = c.est.as_ref().map(|e| e.name.clone()).unwrap_or_default();
@@ -1316,7 +1316,7 @@ impl AfroBimApp {
                 1 => {
                     let sections: Vec<String> = est.bill.sections.iter().map(|s| s.code.clone()).collect();
                     let currencies: Vec<String> = est.currencies.currencies.iter().map(|x| x.code.clone()).collect();
-                    ui.label(RichText::new("Additions are applied in list order, each rounded to the primary currency. Preliminaries, contingency, provisional sums, dayworks and taxes are whatever you name here, with your own percentages and amounts. None are built in.").small().weak());
+                    crate::ui_kit::note(ui, "Additions are applied in list order, each rounded to the primary currency. Preliminaries, contingency, provisional sums, dayworks and taxes are whatever you name here, with your own percentages and amounts. None are built in.");
                     let mut delete = None;
                     let mut mv: Option<(usize, isize)> = None;
                     egui::Grid::new("additions-grid").num_columns(5).striped(true).spacing([10.0, 3.0]).show(ui, |ui| {
@@ -1336,10 +1336,10 @@ impl AfroBimApp {
                                 AdditionKind::LumpSum(m) => format!("lump sum {} {}", m.amount, m.currency),
                             });
                             ui.horizontal(|ui| {
-                                if ui.add_enabled(i > 0, egui::Button::new("Up").small()).clicked() {
+                                if ui.add_enabled_ui(i > 0, |ui| crate::ui_kit::icon_button(ui, crate::glyphs::ui::ARROW_UP, "Move up")).inner.clicked() {
                                     mv = Some((i, -1));
                                 }
-                                if ui.add_enabled(i + 1 < est.additions.len(), egui::Button::new("Down").small()).clicked() {
+                                if ui.add_enabled_ui(i + 1 < est.additions.len(), |ui| crate::ui_kit::icon_button(ui, crate::glyphs::ui::ARROW_DOWN, "Move down")).inner.clicked() {
                                     mv = Some((i, 1));
                                 }
                             });
@@ -1359,7 +1359,7 @@ impl AfroBimApp {
                         changed = true;
                     }
                     ui.separator();
-                    ui.label(RichText::new("Add an addition").strong());
+                    crate::ui_kit::heading(ui, "Add an addition");
                     let f = &mut c.add_form;
                     ui.horizontal(|ui| {
                         tf(ui, &mut f.id, "id", 60.0);
@@ -1448,7 +1448,7 @@ impl AfroBimApp {
                 2 => match &c.result {
                     Some(Ok(r)) => {
                         egui::ScrollArea::vertical().id_salt("audit-scroll").auto_shrink([false, false]).show(ui, |ui| {
-                            ui.label(RichText::new("How each quantity was made: every line, element, rule and factor, then adjustments and manual quantities.").small().weak());
+                            crate::ui_kit::note(ui, "How each quantity was made: every line, element, rule and factor, then adjustments and manual quantities.");
                             for m in &r.measured.items {
                                 egui::CollapsingHeader::new(format!("{}  {}: {} {}", m.item.code, m.item.description, m.quantity, m.item.unit)).id_salt(("audit", &m.item.code)).show(ui, |ui| {
                                     egui::Grid::new(("audit-grid", &m.item.code)).num_columns(5).striped(true).spacing([10.0, 2.0]).show(ui, |ui| {
@@ -1467,7 +1467,7 @@ impl AfroBimApp {
                                     if let Some(q) = m.manual {
                                         ui.label(format!("Manual quantity {q}"));
                                     }
-                                    ui.label(RichText::new(format!("From lines {}, unrounded {}, rounded {}.", m.from_lines, m.unrounded, m.quantity)).small().weak());
+                                    crate::ui_kit::note(ui, format!("From lines {}, unrounded {}, rounded {}.", m.from_lines, m.unrounded, m.quantity));
                                 });
                             }
                         });
@@ -1477,7 +1477,7 @@ impl AfroBimApp {
                     }
                 },
                 _ => {
-                    ui.label(RichText::new("Compare the estimate with an earlier state of the model, or with another estimate in this document (priced against today's model).").small().weak());
+                    crate::ui_kit::note(ui, "Compare the estimate with an earlier state of the model, or with another estimate in this document (priced against today's model).");
                     ui.horizontal(|ui| {
                         tf(ui, &mut c.snapshot_name, "name of the snapshot", 180.0);
                         if ui.add_enabled(!c.snapshot_name.trim().is_empty() && c.lines.is_some(), egui::Button::new("Save a snapshot of the measured model")).clicked() {
@@ -1632,12 +1632,12 @@ impl AfroBimApp {
         let sched_ready = matches!(self.sched.result, Some(Ok(_))) && self.sched.states.is_some();
         let c = &mut self.cost;
         let decimals = c.decimals();
-        let dlg = crate::ui_kit::Dialog::titled("Cash flow").width(900.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Cash flow").subtitle("Spend over time from the programme and the estimate").width(900.0).show_body(ctx, |ui| {
             let Some(est) = c.est.as_mut() else {
                 ui.label("There is no estimate yet.");
                 return;
             };
-            ui.label(RichText::new("Each window spreads an item's whole amount evenly by calendar day, start and finish both counted. Whatever has no window is reported as unphased, never guessed.").small().weak());
+            crate::ui_kit::note(ui, "Each window spreads an item's whole amount evenly by calendar day, start and finish both counted. Whatever has no window is reported as unphased, never guessed.");
             let items: Vec<String> = est.bill.items.iter().map(|i| i.code.clone()).collect();
             let sections: Vec<String> = est.bill.sections.iter().map(|s| s.code.clone()).collect();
             let mut delete = None;
@@ -1713,7 +1713,7 @@ impl AfroBimApp {
                     propose = true;
                 }
                 if !sched_ready {
-                    ui.label(RichText::new("No scheduled programme: enter the windows by hand.").small().weak());
+                    crate::ui_kit::note(ui, "No scheduled programme: enter the windows by hand.");
                 }
                 if ui.button("Export cash flow CSV…").clicked() {
                     export = true;
@@ -1827,7 +1827,7 @@ impl AfroBimApp {
         let sched_percent = self.sched.prog.is_some();
         let c = &mut self.cost;
         let decimals = c.decimals();
-        let dlg = crate::ui_kit::Dialog::titled("Interim payment certificate").width(960.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Interim payment certificate").subtitle("A certificate built from the progress records").width(960.0).show_body(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(620.0).auto_shrink([false, true]).show(ui, |ui| {
             ui.label(RichText::new("This module encodes no FIDIC clause and no other contract's terms. Every percentage, cap, threshold and amount below is your own contract data, entered by you: AfroBIM only does the arithmetic on it and does not decide what a contract entitles anyone to.").color(WARN()));
             let (Some(est), Some(Ok(result))) = (c.est.as_ref(), c.result.as_ref()) else {
@@ -1923,7 +1923,7 @@ impl AfroBimApp {
                     }
                 });
             });
-            ui.label(RichText::new("Quantities to date: type them, or give a percent complete per item and press the button. Percent complete is taken from the linked activities where the programme has them, and from the percent you enter for an item otherwise; an element with neither is 0 %.").small().weak());
+            crate::ui_kit::note(ui, "Quantities to date: type them, or give a percent complete per item and press the button. Percent complete is taken from the linked activities where the programme has them, and from the percent you enter for an item otherwise; an element with neither is 0 %.");
             egui::ScrollArea::vertical().id_salt("cert-qty").max_height(210.0).auto_shrink([false, true]).show(ui, |ui| {
                 egui::Grid::new("cert-qty-grid").num_columns(6).striped(true).spacing([10.0, 3.0]).show(ui, |ui| {
                     for h in ["Item", "Description", "Unit", "Bill quantity", "Quantity to date", "Percent complete"] {
@@ -1998,7 +1998,7 @@ impl AfroBimApp {
                             ui.label(money(r.this_period, decimals));
                             ui.end_row();
                         }
-                        ui.label(RichText::new("Net").strong());
+                        crate::ui_kit::heading(ui, "Net");
                         ui.label(RichText::new(money(cert.net_to_date, decimals)).strong());
                         ui.label("");
                         ui.label(RichText::new(money(cert.net_this_period, decimals)).strong());

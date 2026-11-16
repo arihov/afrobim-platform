@@ -1009,8 +1009,8 @@ impl AfroBimApp {
         let mut open = true;
         let mut apply = false;
         let mut s = std::mem::take(&mut self.sheets);
-        let dlg = crate::ui_kit::Dialog::titled("Project information").width(640.0).show_body(ctx, |ui| {
-            ui.label(RichText::new("What every title block of the project says. Nothing is filled in for you: every field starts empty. A sheet can override the revision, date and the three names for itself.").small().weak());
+        let dlg = crate::ui_kit::Dialog::titled("Project information").subtitle("Names and numbers printed on every sheet").width(640.0).show_body(ctx, |ui| {
+            crate::ui_kit::note(ui, "What every title block of the project says. Nothing is filled in for you: every field starts empty. A sheet can override the revision, date and the three names for itself.");
             ui.add_space(4.0);
             egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(430.0).show(ui, |ui| {
                 crate::ui_kit::grid(ui, "project-info", |ui| {
@@ -1031,7 +1031,7 @@ impl AfroBimApp {
                     }
                 });
                 ui.add_space(8.0);
-                ui.label(RichText::new("Revisions").strong());
+                crate::ui_kit::heading(ui, "Revisions");
                 let mut remove: Option<usize> = None;
                 egui::Grid::new("revisions").num_columns(6).spacing([6.0, 4.0]).show(ui, |ui| {
                     for h in ["Rev", "Date", "Description", "By", "Checked", ""] {
@@ -1044,7 +1044,7 @@ impl AfroBimApp {
                         edit(ui, &mut r.description, 220.0, "");
                         edit(ui, &mut r.by, 44.0, "");
                         edit(ui, &mut r.checked, 44.0, "");
-                        if ui.small_button("x").on_hover_text("Remove this revision").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this revision").clicked() {
                             remove = Some(i);
                         }
                         ui.end_row();
@@ -1057,14 +1057,14 @@ impl AfroBimApp {
                     s.info.revisions.push(Revision::default());
                 }
                 ui.add_space(8.0);
-                ui.label(RichText::new("Other fields").strong());
-                ui.label(RichText::new("A caption and its text. A title block layout can show any of them (Title block editor).").small().weak());
+                crate::ui_kit::heading(ui, "Other fields");
+                crate::ui_kit::note(ui, "A caption and its text. A title block layout can show any of them (Title block editor).");
                 let mut remove: Option<usize> = None;
                 egui::Grid::new("user-fields").num_columns(3).spacing([6.0, 4.0]).show(ui, |ui| {
                     for (i, f) in s.info.user_fields.iter_mut().enumerate() {
                         edit(ui, &mut f.label, 150.0, "caption");
                         edit(ui, &mut f.value, 300.0, "text");
-                        if ui.small_button("x").on_hover_text("Remove this field").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this field").clicked() {
                             remove = Some(i);
                         }
                         ui.end_row();
@@ -1134,7 +1134,7 @@ impl AfroBimApp {
             })
             .collect();
 
-        let dlg = crate::ui_kit::Dialog::titled("Sheet sets").width(900.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Sheet sets").subtitle("Sets of sheets made from the live model").width(900.0).show_body(ctx, |ui| {
             // ── choose, make, delete a set ──
             ui.horizontal(|ui| {
                 ui.label("Sheet set");
@@ -1174,7 +1174,7 @@ impl AfroBimApp {
                 // ── name and numbering ──
                 ui.horizontal(|ui| {
                     ui.label("Numbering");
-                    ui.label(RichText::new("(defaults, editable)").small().weak());
+                    crate::ui_kit::note(ui, "(defaults, editable)");
                     changed |= ui.add(egui::TextEdit::singleline(&mut set.numbering.prefix).hint_text("prefix").desired_width(90.0)).changed();
                     ui.label("digits");
                     changed |= ui.add(egui::DragValue::new(&mut set.numbering.digits).range(1..=8)).changed();
@@ -1187,7 +1187,7 @@ impl AfroBimApp {
                 });
                 // ── defaults: paper, frame, pens, text ──
                 egui::CollapsingHeader::new("Defaults: paper, frame, pens and text heights (neutral starting values, editable)").default_open(false).show(ui, |ui| {
-                    ui.label(RichText::new("These are the program's neutral defaults. None comes from a drafting standard or from an organisation: set them to the contract's requirement.").small().weak());
+                    crate::ui_kit::note(ui, "These are the program's neutral defaults. None comes from a drafting standard or from an organisation: set them to the contract's requirement.");
                     ui.label("New sheets start on");
                     page_editor(ui, "defaults-page", &mut s.defaults);
                     crate::ui_kit::grid(ui, "text-heights", |ui| {
@@ -1214,7 +1214,7 @@ impl AfroBimApp {
                 });
                 ui.add_space(4.0);
                 // ── the sheets ──
-                ui.label(RichText::new("Sheets").strong());
+                crate::ui_kit::heading(ui, "Sheets");
                 let mut remove: Option<usize> = None;
                 let mut up: Option<usize> = None;
                 let mut edit: Option<usize> = None;
@@ -1235,7 +1235,7 @@ impl AfroBimApp {
                             if ui.small_button("Edit").clicked() {
                                 edit = Some(i);
                             }
-                            if ui.add_enabled(i > 0, egui::Button::new("Up").small()).clicked() {
+                            if ui.add_enabled_ui(i > 0, |ui| crate::ui_kit::icon_button(ui, crate::glyphs::ui::ARROW_UP, "Move up")).inner.clicked() {
                                 up = Some(i);
                             }
                             if ui.small_button("Delete").clicked() {
@@ -1246,7 +1246,7 @@ impl AfroBimApp {
                     }
                 });
                 if set.sources.is_empty() {
-                    ui.label(RichText::new("No sheets yet. Add one from a template below.").small().weak());
+                    crate::ui_kit::note(ui, "No sheets yet. Add one from a template below.");
                 }
                 if let Some(i) = edit {
                     let mut form = SourceForm::from_source(i, &set.sources[i], s.defaults, &crate::anno_ui::units_of(&self.doc));
@@ -1419,9 +1419,9 @@ impl AfroBimApp {
         let mut save_json = false;
         let mut load_json = false;
         let has_set = s.set.is_some();
-        let dlg = crate::ui_kit::Dialog::titled("Title block").width(860.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Title block").subtitle("The layout of the title block as data").width(860.0).show_body(ctx, |ui| {
             let Some(tb) = s.tb.as_mut() else { return };
-            ui.label(RichText::new("The title block is data: rows of cells, a revision table and a logo box. Nothing here reproduces any organisation's title block; build your own, or load one from a file you keep.").small().weak());
+            crate::ui_kit::note(ui, "The title block is data: rows of cells, a revision table and a logo box. Nothing here reproduces any organisation's title block; build your own, or load one from a file you keep.");
             ui.horizontal_wrapped(|ui| {
                 if ui.add_enabled(has_set, egui::Button::new("Apply to every sheet of the set")).clicked() {
                     apply = true;
@@ -1496,7 +1496,7 @@ impl AfroBimApp {
         let mut s = std::mem::take(&mut self.sheets);
         let mut open = true;
         let mut recompose = false;
-        let dlg = crate::ui_kit::Dialog::titled("Sheet preview").width(1100.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Sheet preview").subtitle("The sheets as they will print").width(1100.0).show_body(ctx, |ui| {
             let Some(c) = s.composed.as_ref() else {
                 ui.label("Nothing composed yet.");
                 if ui.button("Compose the selected set").clicked() {
@@ -1537,9 +1537,9 @@ impl AfroBimApp {
                 if ui.button("Zoom out").clicked() {
                     s.zoom /= 1.4;
                 }
-                ui.label(RichText::new(format!("{:.0} %", s.zoom * 100.0 / 3.7795)).small().weak());
+                crate::ui_kit::note(ui, format!("{:.0} %", s.zoom * 100.0 / 3.7795));
             });
-            ui.label(RichText::new(format!("Set '{}', composed {} from the live model. Scroll to zoom, drag to pan.", c.set_name, c.at)).small().weak());
+            crate::ui_kit::note(ui, format!("Set '{}', composed {} from the live model. Scroll to zoom, drag to pan.", c.set_name, c.at));
             // Warnings of the composer for the sheet shown, and for the set.
             let sheet_number = c.composed.sheets.get(s.page).map(|sh| sh.number.clone()).unwrap_or_default();
             let mine: Vec<&String> = c.composed.sheets.get(s.page).map(|sh| sh.warnings.iter().collect()).unwrap_or_default();
@@ -1547,7 +1547,7 @@ impl AfroBimApp {
             let total = c.composed.warnings.len() + c.feed_notes.len();
             egui::CollapsingHeader::new(RichText::new(format!("Warnings: {} on this sheet, {total} in the set", mine.len())).color(if total > 0 { WARN() } else { ui.visuals().text_color() })).id_salt("preview-warnings").default_open(!mine.is_empty()).show(ui, |ui| {
                 if total == 0 {
-                    ui.label(RichText::new("The composer had nothing to report.").small().weak());
+                    crate::ui_kit::note(ui, "The composer had nothing to report.");
                 }
                 for w in &mine {
                     ui.label(RichText::new(format!("{sheet_number}: {w}")).small().color(WARN()));
@@ -1808,7 +1808,7 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
                         }
                     }
                     ui.label("");
-                    ui.label(RichText::new("Fitted to the sheet; filled from the model each time the set is composed.").small().weak());
+                    crate::ui_kit::note(ui, "Fitted to the sheet; filled from the model each time the set is composed.");
                     ui.end_row();
                 }
             }
@@ -1826,10 +1826,10 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
     });
     if !range_note.is_empty() && matches!(f.kind, FormKind::Plan | FormKind::Profile) {
         ui.label(RichText::new(range_note).small().weak());
-        ui.label(RichText::new("Stations are entered as the stations shown on the drawings, as 1+250.000 or as a number of metres; lengths and intervals are in the document's display unit (a trailing m or mm overrides it). With station equations, pick the region where a station occurs more than once; AfroBIM converts to internal stations.").small().weak());
+        crate::ui_kit::note(ui, "Stations are entered as the stations shown on the drawings, as 1+250.000 or as a number of metres; lengths and intervals are in the document's display unit (a trailing m or mm overrides it). With station equations, pick the region where a station occurs more than once; AfroBIM converts to internal stations.");
     }
     if f.kind == FormKind::Props {
-        ui.label(RichText::new("This sheet was not made by these forms: its title, paper and numbering can be changed here.").small().weak());
+        crate::ui_kit::note(ui, "This sheet was not made by these forms: its title, paper and numbering can be changed here.");
     }
 }
 
@@ -1926,10 +1926,10 @@ fn titleblock_editor(ui: &mut Ui, tb: &mut TitleBlockLayout, user_labels: &[Stri
                 }
             }
         });
-        ui.label(RichText::new("Unticking removes the field's cells; ticking adds a row for it at the end. Order, sizes and captions are edited below.").small().weak());
+        crate::ui_kit::note(ui, "Unticking removes the field's cells; ticking adds a row for it at the end. Order, sizes and captions are edited below.");
     });
     ui.add_space(4.0);
-    ui.label(RichText::new("Blocks, top down").strong());
+    crate::ui_kit::heading(ui, "Blocks, top down");
     let n = tb.blocks.len();
     let mut remove: Option<usize> = None;
     let mut up: Option<usize> = None;
@@ -1943,7 +1943,7 @@ fn titleblock_editor(ui: &mut Ui, tb: &mut TitleBlockLayout, user_labels: &[Stri
                 Block::Spacer { .. } => "Spacer",
             };
             ui.label(RichText::new(format!("{}. {title}", bi + 1)).strong());
-            if ui.add_enabled(bi > 0, egui::Button::new("Up").small()).clicked() {
+            if ui.add_enabled_ui(bi > 0, |ui| crate::ui_kit::icon_button(ui, crate::glyphs::ui::ARROW_UP, "Move up")).inner.clicked() {
                 up = Some(bi);
             }
             if ui.small_button("Delete block").clicked() {
@@ -2005,7 +2005,7 @@ fn titleblock_editor(ui: &mut Ui, tb: &mut TitleBlockLayout, user_labels: &[Stri
                             ui.add(egui::DragValue::new(&mut cell.width_mm).speed(0.5).range(0.0..=400.0));
                             ui.checkbox(&mut cell.bold, "");
                             ui.horizontal(|ui| {
-                                if ui.small_button("x").on_hover_text("Delete this cell").clicked() {
+                                if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Delete this cell").clicked() {
                                     del_cell = Some(ci);
                                 }
                                 if ci + 1 == cells {
@@ -2057,7 +2057,7 @@ fn titleblock_editor(ui: &mut Ui, tb: &mut TitleBlockLayout, user_labels: &[Stri
                             }
                         });
                         ui.add(egui::DragValue::new(&mut c.width_mm).speed(0.5).range(2.0..=200.0));
-                        if ui.small_button("x").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                             del = Some(ci);
                         }
                         ui.end_row();

@@ -219,7 +219,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Primavera P6", items: &[Big(Icon::XerIn, "Import XER", "XERIN"), Big(Icon::XerOut, "Export XER", "XEROUT")] },
     ];
     const FIVED: &[Panel] = &[
-        Panel { title: "Bill", items: &[Big(Icon::Bill, "Bill and rules", "BILL")] },
+        Panel { title: "Bill", items: &[Big(Icon::Bill, "Bill of quantities", "BILL")] },
         Panel { title: "Rates", items: &[Big(Icon::Rates, "Rate library", "RATES"), Big(Icon::Currency, "Currency", "CURRENCY")] },
         Panel { title: "Estimate", items: &[Big(Icon::Estimate, "Estimate", "ESTIMATE")] },
         Panel { title: "Time", items: &[Big(Icon::CashFlow, "Cash flow", "CASHFLOW")] },
@@ -380,7 +380,7 @@ fn preview(ui: &mut Ui, icon: Pic, label: &str, info: Option<&CommandInfo>, plan
         if !keys.is_empty() {
             ui.label(RichText::new(format!("Shortcut: {keys}")).small().monospace());
         }
-        ui.label(RichText::new("Click, or type the command and press Enter. Esc cancels.").small().weak());
+        crate::ui_kit::note(ui, "Click, or type the command and press Enter. Esc cancels.");
     } else {
         ui.label(RichText::new("Planned: not built yet.").small().color(crate::theme::warn()));
     }

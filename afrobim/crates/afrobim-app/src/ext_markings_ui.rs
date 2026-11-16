@@ -150,7 +150,7 @@ fn dimension_rows(ui: &mut Ui, spec: &ExtSpec, req: &mut ExtRequest) {
             opt_mm(ui, &mut req.width_mm, 50.0, "");
             ui.end_row();
             ui.label("");
-            ui.label(RichText::new(format!("The sign page gives stripes {} to {} mm, gaps {} to {} mm, width {} to {} mm.", c.mark_min_mm, c.mark_max_mm, c.gap_min_mm, c.gap_max_mm, c.min_width_mm, c.max_width_mm)).small().weak());
+            crate::ui_kit::note(ui, format!("The sign page gives stripes {} to {} mm, gaps {} to {} mm, width {} to {} mm.", c.mark_min_mm, c.mark_max_mm, c.gap_min_mm, c.gap_max_mm, c.min_width_mm, c.max_width_mm));
             ui.end_row();
             if c.stripes {
                 ui.label("Gap between stripes (mm)");
@@ -462,13 +462,13 @@ fn stud_rows(ui: &mut Ui, d: &mut ExtDialog) {
                 ui.label(RichText::new(format!("Spacing {} m, colour {}.", s as f64 / 1000.0, c.label())).small());
             }
             _ => {
-                ui.label(RichText::new("No spacing chosen yet.").small().weak());
+                crate::ui_kit::note(ui, "No spacing chosen yet.");
             }
         }
     });
     ui.end_row();
     ui.label("Line the studs go with");
-    ui.label(RichText::new("The offset above is the line's offset; the studs run along it between the stations.").small().weak());
+    crate::ui_kit::note(ui, "The offset above is the line's offset; the studs run along it between the stations.");
     ui.end_row();
     let _ = StudColour::White;
 }
@@ -486,7 +486,7 @@ fn preview(ui: &mut Ui, doc: &Document, d: &ExtDialog) {
             None => Err(notes.iter().filter(|n| n.severity == afrobim_kernel::Severity::Error).map(|n| n.message.clone()).collect::<Vec<_>>().join(" ")),
         }
     });
-    ui.label(RichText::new("Preview in plan").strong());
+    crate::ui_kit::heading(ui, "Preview in plan");
     let (resolved, laid) = match outcome {
         Ok(v) => v,
         Err(why) => {

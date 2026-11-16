@@ -396,10 +396,10 @@ impl AfroBimApp {
             })
             .collect();
         let c = &mut self.construction;
-        let dlg = crate::ui_kit::Dialog::titled("Record site progress").width(560.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Record site progress").subtitle("Percent complete of the elements, by date").width(560.0).show_body(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(620.0).auto_shrink([true, true]).show(ui, |ui| {
                 let r = &mut c.rec;
-                ui.label(RichText::new("Elements").strong());
+                crate::ui_kit::heading(ui, "Elements");
                 ui.horizontal(|ui| {
                     ui.radio_value(&mut r.source, Source::Selection, format!("the selected elements ({})", selection.len()));
                     ui.radio_value(&mut r.source, Source::Rule, "by rule");
@@ -424,7 +424,7 @@ impl AfroBimApp {
                 let shown: Vec<&str> = marks.iter().take(12).map(String::as_str).collect();
                 ui.label(RichText::new(format!("{} element(s): {}{}", marks.len(), shown.join(", "), if marks.len() > 12 { ", ..." } else { "" })).small().weak());
                 ui.separator();
-                ui.label(RichText::new("What was measured").strong());
+                crate::ui_kit::heading(ui, "What was measured");
                 ui.horizontal(|ui| {
                     ui.radio_value(&mut r.quantity, false, "percent complete");
                     ui.radio_value(&mut r.quantity, true, "quantity done to date");
@@ -456,7 +456,7 @@ impl AfroBimApp {
                 for (i, f) in r.files.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
                         tf(ui, f, "path", 360.0);
-                        if ui.small_button("x").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                             remove = Some(i);
                         }
                     });
@@ -474,10 +474,10 @@ impl AfroBimApp {
                         tf(ui, &mut r.reason, "required for a correction", 340.0);
                     });
                 }
-                ui.label(RichText::new("A percent below the previous record is refused unless it is a correction with a reason. A quantity needs a target quantity in the same unit.").small().weak());
+                crate::ui_kit::note(ui, "A percent below the previous record is refused unless it is a correction with a reason. A quantity needs a target quantity in the same unit.");
                 if r.quantity {
                     ui.separator();
-                    ui.label(RichText::new("Target quantities").strong());
+                    crate::ui_kit::heading(ui, "Target quantities");
                     for (mark, target) in &target_info {
                         ui.label(RichText::new(format!("{mark}: {}", target.as_deref().unwrap_or("no target (input needed)"))).small());
                     }
@@ -598,7 +598,7 @@ impl AfroBimApp {
             ids.dedup();
             ids.into_iter().map(|id| (id, doc.find(id).map(|e| e.name.clone()).unwrap_or_else(|| format!("element {}", id.0)))).collect()
         };
-        let dlg = crate::ui_kit::Dialog::titled("Site records").width(860.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Site records").subtitle("The progress records kept in the document").width(860.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Element");
                 let shown = c.filter.element.and_then(|id| with_records.iter().find(|w| w.0 == id)).map(|w| w.1.clone()).unwrap_or_else(|| "all".into());
@@ -645,7 +645,7 @@ impl AfroBimApp {
                 });
                 if !c.book.log.targets().is_empty() {
                     ui.add_space(8.0);
-                    ui.label(RichText::new("Target quantities").strong());
+                    crate::ui_kit::heading(ui, "Target quantities");
                     for t in c.book.log.targets() {
                         ui.label(format!("{}: {} {}", doc.find(t.element).map(|e| e.name.clone()).unwrap_or_else(|| format!("element {}", t.element.0)), t.quantity, t.unit));
                     }
@@ -677,7 +677,7 @@ impl AfroBimApp {
         let has_prog = self.sched.prog.is_some();
         let doc = &self.doc;
         let c = &mut self.construction;
-        let dlg = crate::ui_kit::Dialog::titled("Roll up site progress and update the programme").width(900.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Roll up site progress and update the programme").subtitle("Activity progress from the records of the elements").width(900.0).show_body(ctx, |ui| {
             if !has_prog {
                 ui.label("There is no programme yet. Create one in PROGRAMME and link the elements to its activities.");
                 return;
@@ -812,7 +812,7 @@ impl AfroBimApp {
         let baselined: Vec<String> = self.sched.prog.as_ref().and_then(|p| p.baseline.as_ref()).map(|b| b.entries.iter().map(|e| e.id.clone()).collect()).unwrap_or_default();
         let has_estimate = matches!(self.cost.result, Some(Ok(_)));
         let c = &mut self.construction;
-        let dlg = crate::ui_kit::Dialog::titled("Earned value").width(980.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Earned value").subtitle("Planned, earned and actual cost against the data date").width(980.0).show_body(ctx, |ui| {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 ui.label(
                     RichText::new("Definitions are in the afrobim-progress README and are algebraic: no published standard was held. Actual cost is entered, never derived: until it is, every cost figure reads input needed. Name the EAC formula wherever you quote the EAC.")
@@ -845,7 +845,7 @@ impl AfroBimApp {
                                     changed |= tf(ui, &mut c.settings.cpi_weight, "wc", 60.0).changed();
                                     ui.label("SPI weight");
                                     changed |= tf(ui, &mut c.settings.spi_weight, "ws", 60.0).changed();
-                                    ui.label(RichText::new("each at least 0, adding to 1").small().weak());
+                                    crate::ui_kit::note(ui, "each at least 0, adding to 1");
                                 });
                             }
                             Some(EacKind::BottomUp) => {
@@ -869,14 +869,14 @@ impl AfroBimApp {
                                 let text = c.settings.budget_text.entry(id.clone()).or_default();
                                 changed |= tf(ui, text, "budget, none if empty", 120.0).changed();
                             } else {
-                                ui.label(RichText::new("no baseline").small().weak());
+                                crate::ui_kit::note(ui, "no baseline");
                             }
                             ui.end_row();
                         }
                     });
                 }
                 ui.separator();
-                ui.label(RichText::new("Actual cost").strong());
+                crate::ui_kit::heading(ui, "Actual cost");
                 let mut delete = None;
                 if !c.book.costs.entries.is_empty() {
                     egui::Grid::new("evm-costs").num_columns(5).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
@@ -892,7 +892,7 @@ impl AfroBimApp {
                         }
                     });
                 } else {
-                    ui.label(RichText::new("No actual cost entered.").small().weak());
+                    crate::ui_kit::note(ui, "No actual cost entered.");
                 }
                 if let Some(i) = delete {
                     c.book.costs.entries.remove(i);
@@ -991,7 +991,7 @@ impl AfroBimApp {
         let from = self.sched.prog.as_ref().and_then(|p| p.data_date);
         let c = &mut self.construction;
         let mut changed = false;
-        let dlg = crate::ui_kit::Dialog::titled("Look-ahead and delays").width(900.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Look-ahead and delays").subtitle("The weeks ahead, and what is late").width(900.0).show_body(ctx, |ui| {
             ui.label(
                 RichText::new("Taken from the programme as it stands after the roll-up was applied. The look-ahead lists activities not started whose early start, or not complete whose early finish, falls in the days after the data date. The delay list holds activities that finish later than their baseline, worst first.")
                     .small()
@@ -1067,7 +1067,7 @@ impl AfroBimApp {
 fn evm_output(ui: &mut Ui, out: &EvmOutput, decimals: u32) {
     let e = &out.evm;
     ui.label(RichText::new(format!("Earned value at {}", e.data_date)).strong());
-    ui.label(RichText::new(format!("Budget: {}", out.budget.source)).small().weak());
+    crate::ui_kit::note(ui, format!("Budget: {}", out.budget.source));
     let hidden = |f: &Figure<Decimal>, out: &EvmOutput| if out.eac_unchosen { "choose an EAC formula".to_string() } else { figure(f, decimals) };
     egui::Grid::new("evm-figures").num_columns(4).spacing([24.0, 3.0]).show(ui, |ui| {
         let rows: [(&str, String, &str, String); 6] = [
@@ -1085,7 +1085,7 @@ fn evm_output(ui: &mut Ui, out: &EvmOutput, decimals: u32) {
             ui.label(bv);
             ui.end_row();
         }
-        ui.label(RichText::new("TCPI to EAC").strong());
+        crate::ui_kit::heading(ui, "TCPI to EAC");
         ui.label(if out.eac_unchosen { "choose an EAC formula".to_string() } else { ratio(&e.tcpi_eac) });
         ui.end_row();
     });
@@ -1098,7 +1098,7 @@ fn evm_output(ui: &mut Ui, out: &EvmOutput, decimals: u32) {
         ui.label(RichText::new(n).small().color(WARN()));
     }
     ui.add_space(6.0);
-    ui.label(RichText::new("By activity").strong());
+    crate::ui_kit::heading(ui, "By activity");
     egui::Grid::new("evm-activities").num_columns(7).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
         for h in ["Activity", "Name", "BAC", "PV", "Percent", "EV", "AC"] {
             ui.label(RichText::new(h).strong());
@@ -1134,7 +1134,7 @@ fn evm_output(ui: &mut Ui, out: &EvmOutput, decimals: u32) {
         }
     });
     ui.add_space(6.0);
-    ui.label(RichText::new("S-curve").strong());
+    crate::ui_kit::heading(ui, "S-curve");
     paint_curve(ui, &out.curve);
 }
 

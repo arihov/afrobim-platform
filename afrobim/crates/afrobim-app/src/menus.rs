@@ -362,23 +362,23 @@ impl AfroBimApp {
                         a(ui, &mut pick, Action::MeasureResults, "Measure results…");
                     });
                     submenu(ui, egui_phosphor::regular::CLOCK_COUNTDOWN, "Programme (4D)", |ui| {
-                        a(ui, &mut pick, Action::Programme, "Activities and logic…");
+                        a(ui, &mut pick, Action::Programme, "Programme: activities and logic…");
                         a(ui, &mut pick, Action::Wbs, "Work breakdown structure…");
-                        a(ui, &mut pick, Action::Calendar, "Calendar…");
+                        a(ui, &mut pick, Action::Calendar, "Programme calendar…");
                         a(ui, &mut pick, Action::ScheduleRun, "Schedule (critical path)");
                         a(ui, &mut pick, Action::CriticalBasis, "Critical path basis…");
                         a(ui, &mut pick, Action::Gantt, "Gantt chart");
                         a(ui, &mut pick, Action::TimeLocation, "Time-location chart");
                         a(ui, &mut pick, Action::SetBaseline, "Set baseline…");
-                        a(ui, &mut pick, Action::Variance, "Variance");
-                        a(ui, &mut pick, Action::Progress, "Progress and data date…");
+                        a(ui, &mut pick, Action::Variance, "Variance against the baseline");
+                        a(ui, &mut pick, Action::Progress, "Progress…");
                         a(ui, &mut pick, Action::Link4d, "Link elements to activities…");
                         a(ui, &mut pick, Action::LinkReport, "Link report");
-                        a(ui, &mut pick, Action::FourD, "4D date control");
+                        a(ui, &mut pick, Action::FourD, "4D date…");
                         a(ui, &mut pick, Action::Play4d, "Play the programme");
                     });
                     submenu(ui, egui_phosphor::regular::COINS, "Cost (5D)", |ui| {
-                        a(ui, &mut pick, Action::Bill, "Bill and mapping rules…");
+                        a(ui, &mut pick, Action::Bill, "Bill of quantities…");
                         a(ui, &mut pick, Action::Rates, "Rate library…");
                         a(ui, &mut pick, Action::Currency, "Currency…");
                         a(ui, &mut pick, Action::Estimate, "Estimate…");
@@ -388,14 +388,14 @@ impl AfroBimApp {
                     submenu(ui, egui_phosphor::regular::NOTE_PENCIL, "Construction", |ui| {
                         a(ui, &mut pick, Action::SiteRecord, "Record site progress…");
                         a(ui, &mut pick, Action::SiteLog, "Site records…");
-                        a(ui, &mut pick, Action::RollUp, "Roll up and update the programme…");
+                        a(ui, &mut pick, Action::RollUp, "Roll up site progress and update the programme…");
                         a(ui, &mut pick, Action::LookAhead, "Look-ahead and delays…");
                         a(ui, &mut pick, Action::Evm, "Earned value…");
                         a(ui, &mut pick, Action::SiteView, "Colour the 3D view by progress");
                     });
                     submenu(ui, egui_phosphor::regular::FILES, "Sheets", |ui| {
                         a(ui, &mut pick, Action::SheetSets, "Sheet sets…");
-                        a(ui, &mut pick, Action::SheetPreview, "Preview the sheets…");
+                        a(ui, &mut pick, Action::SheetPreview, "Sheet preview…");
                         a(ui, &mut pick, Action::TitleBlock, "Title block…");
                     });
                     sep(ui);

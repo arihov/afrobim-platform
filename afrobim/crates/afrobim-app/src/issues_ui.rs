@@ -352,8 +352,8 @@ impl AfroBimApp {
         let mut raise_all_groups = false;
         let mut delete: Option<String> = None;
         let mut message: Option<String> = None;
-        let dlg = crate::ui_kit::Dialog::titled("Issues").width(960.0).show_body(ctx, |ui| {
-            ui.label(RichText::new("Issues are kept in the document with the clash tests. Raise one from a clash or a group of clashes, or write a free-standing one; add comments and viewpoints; exchange them as BCF 2.1 (BCFOUT, BCFIN).").small().weak());
+        let dlg = crate::ui_kit::Dialog::titled("Issues").subtitle("Problems raised against elements, with viewpoints").width(960.0).show_body(ctx, |ui| {
+            crate::ui_kit::note(ui, "Issues are kept in the document with the clash tests. Raise one from a clash or a group of clashes, or write a free-standing one; add comments and viewpoints; exchange them as BCF 2.1 (BCFOUT, BCFIN).");
             ui.horizontal(|ui| {
                 ui.label("Your name");
                 ui.add(egui::TextEdit::singleline(&mut self.issues.author).desired_width(140.0).hint_text("author of what you add"));
@@ -486,7 +486,7 @@ impl AfroBimApp {
                         }
                         ui.end_row();
                     });
-                    ui.label(RichText::new("Description").small().weak());
+                    crate::ui_kit::note(ui, "Description");
                     changed |= ui.add(egui::TextEdit::multiline(&mut issue.description).desired_rows(3).desired_width(f32::INFINITY)).changed();
                     if !issue.elements.is_empty() {
                         ui.label(RichText::new(format!("Elements: {}", issue.elements.iter().map(|e| if e.mark.is_empty() { e.ifc_guid.clone().unwrap_or_default() } else { e.mark.clone() }).collect::<Vec<_>>().join(", "))).small());
@@ -495,7 +495,7 @@ impl AfroBimApp {
                         ui.label(RichText::new(format!("Location: {}, {}, {}", units.length_u(p[0]), units.length_u(p[1]), units.length_u(p[2]))).small().weak());
                     }
                     ui.separator();
-                    ui.label(RichText::new("Comments").strong());
+                    crate::ui_kit::heading(ui, "Comments");
                     for c in &issue.comments {
                         ui.label(RichText::new(format!("{} ({}):", c.author, date_text(c.date))).small().weak());
                         ui.label(&c.text);
@@ -510,7 +510,7 @@ impl AfroBimApp {
                     });
                     ui.separator();
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Viewpoints").strong());
+                        crate::ui_kit::heading(ui, "Viewpoints");
                         if ui.button("Capture the 3D view").on_hover_text("Saves the current 3D camera and selection, with a snapshot of the 3D view").clicked() {
                             capture = Some(guid.clone());
                         }
@@ -627,7 +627,7 @@ impl AfroBimApp {
     fn bcf_out_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let mut export = false;
-        let dlg = crate::ui_kit::Dialog::titled("Export issues as BCF").width(560.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Export issues as BCF").subtitle("Write the issues to a BCF file").width(560.0).show_body(ctx, |ui| {
             ui.label(RichText::new(BCF_LIMITS).small().color(WARN()));
             ui.add_space(4.0);
             ui.label(format!("{} issue(s) in the document.", self.coord.co.issues.len()));
@@ -665,9 +665,9 @@ impl AfroBimApp {
     fn bcf_in_window(&mut self, ctx: &egui::Context) {
         let mut open = true;
         let mut import = false;
-        let dlg = crate::ui_kit::Dialog::titled("Import issues from BCF").width(560.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Import issues from BCF").subtitle("Read issues from a BCF file").width(560.0).show_body(ctx, |ui| {
             ui.label(RichText::new(BCF_LIMITS).small().color(WARN()));
-            ui.label(RichText::new("An issue with the same GUID replaces the one in the document; the others are added. What the model cannot hold is listed as not imported.").small().weak());
+            crate::ui_kit::note(ui, "An issue with the same GUID replaces the one in the document; the others are added. What the model cannot hold is listed as not imported.");
             if ui.button("Choose a file and import").clicked() {
                 import = true;
             }

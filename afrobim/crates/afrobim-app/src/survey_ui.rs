@@ -327,7 +327,7 @@ fn survey_body(ui: &mut egui::Ui, form: &mut SurveyForm) {
     if let Ok(survey) = &form.read {
         let codes = survey.codes();
         ui_kit::section(ui, &format!("Points left out ({} descriptions)", codes.len()), |ui| {
-            ui.label(RichText::new("Tick the descriptions that are not ground levels (inverts, tops of walls) to leave their points out.").small().weak());
+            crate::ui_kit::note(ui, "Tick the descriptions that are not ground levels (inverts, tops of walls) to leave their points out.");
             ui.horizontal(|ui| {
                 if ui.small_button("Untick all").clicked() {
                     form.excluded.clear();

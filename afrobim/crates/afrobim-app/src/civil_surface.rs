@@ -327,13 +327,13 @@ impl AfroBimApp {
                             if ui.selectable_label(sel, format!("{}.  {}", i + 1, op_summary(op))).clicked() {
                                 s.selected = Some(i);
                             }
-                            if ui.add_enabled(i > 0, egui::Button::new("Up").small()).clicked() {
+                            if ui.add_enabled_ui(i > 0, |ui| crate::ui_kit::icon_button(ui, crate::glyphs::ui::ARROW_UP, "Move up")).inner.clicked() {
                                 action = Some((i, -1));
                             }
-                            if ui.add_enabled(i + 1 < n, egui::Button::new("Down").small()).clicked() {
+                            if ui.add_enabled_ui(i + 1 < n, |ui| crate::ui_kit::icon_button(ui, crate::glyphs::ui::ARROW_DOWN, "Move down")).inner.clicked() {
                                 action = Some((i, 1));
                             }
-                            if ui.small_button("x").clicked() {
+                            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                                 action = Some((i, 0));
                             }
                         });
@@ -598,7 +598,7 @@ impl AfroBimApp {
                         f.major = e.major_interval.map(|v| v.to_string()).unwrap_or_default();
                         f.border = true;
                     }
-                    ui.label(RichText::new("Example values are for demonstration only.").small().weak());
+                    crate::ui_kit::note(ui, "Example values are for demonstration only.");
                 });
             },
             |ui| Footer::new("Apply style").icon(crate::glyphs::by_name("SURFACESTYLE")).enabled(ok.get(), "Correct the intervals").show(ui),
@@ -815,7 +815,7 @@ impl AfroBimApp {
                             } else {
                                 d::num(ui, &mut r.level, "m");
                             }
-                            if ui.small_button("x").clicked() {
+                            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                                 remove = Some(i);
                             }
                         });
@@ -848,7 +848,7 @@ impl AfroBimApp {
                             d::num_opt(ui, &mut f.stage_count, "").ok();
                         });
                     });
-                    ui.label(RichText::new("Leave these blank for no stage-storage table.").small().weak());
+                    crate::ui_kit::note(ui, "Leave these blank for no stage-storage table.");
                 });
                 if !f.message.is_empty() {
                     ui_kit::callout(ui, Level::Warning, f.message.clone());

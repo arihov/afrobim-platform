@@ -129,7 +129,7 @@ impl AfroBimApp {
                     for (i, (e, n)) in f.rows.iter_mut().enumerate() {
                         ui.add(egui::TextEdit::singleline(e).desired_width(120.0));
                         ui.add(egui::TextEdit::singleline(n).desired_width(120.0));
-                        if ui.small_button("x").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                             remove = Some(i);
                         }
                         ui.end_row();
@@ -284,7 +284,7 @@ impl AfroBimApp {
                         ui.add(egui::TextEdit::singleline(&mut r.distance).desired_width(90.0));
                         ui.add_enabled(r.curve, egui::TextEdit::singleline(&mut r.radius).desired_width(70.0));
                         ui.add_enabled(r.curve, egui::Checkbox::new(&mut r.left, ""));
-                        if ui.small_button("x").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                             remove = Some(i);
                         }
                         ui.end_row();
@@ -390,13 +390,13 @@ impl AfroBimApp {
                         ui.label(area.map(|a| format!("{a:.2} m2  ({:.4} ha)", a / afrobim_cogo::HECTARE_M2)).unwrap_or_else(|| "not computed".into()));
                     });
                 });
-                ui.label(RichText::new("Other fields").strong());
+                crate::ui_kit::heading(ui, "Other fields");
                 let mut remove = None;
                 for (i, (k, v)) in f.attrs.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
                         ui.add(egui::TextEdit::singleline(k).desired_width(140.0));
                         ui.add(egui::TextEdit::singleline(v).desired_width(220.0));
-                        if ui.small_button("x").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                             remove = Some(i);
                         }
                     });

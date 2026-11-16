@@ -133,7 +133,7 @@ impl AfroBimApp {
         let u = &units;
         let revision = self.design.revision;
         let _ = revision;
-        let dlg = crate::ui_kit::Dialog::titled("Profile editor").width(1020.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Profile editor").subtitle("The vertical alignment: points of intersection and curves").width(1020.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(format!("{name}: stations {} to {}", crate::disp::station(u, alignment.start_station_m), crate::disp::station(u, alignment.end_station_m()))).strong());
                 ui.separator();
@@ -174,7 +174,7 @@ impl AfroBimApp {
             // Pending PVIs of a profile not yet made.
             if design.vertical.is_none() {
                 ui.separator();
-                ui.label(RichText::new("This alignment has no profile yet.").strong());
+                crate::ui_kit::heading(ui, "This alignment has no profile yet.");
                 ui.label("Add at least two PVIs: switch on \"Add PVIs by clicking\" and click on the plot, or type a station and a level. Nothing is assumed.");
                 ui.horizontal(|ui| {
                     ui.label("Station");
@@ -309,7 +309,7 @@ impl AfroBimApp {
 }
 
 fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &mut bool, replaces: bool, u: &DisplayUnits) {
-    ui.label(RichText::new("Fit to ground").strong());
+    crate::ui_kit::heading(ui, "Fit to ground");
     ui.label("Proposes a profile from the ground by a least squares fit of straight segments. You enter every input: nothing is assumed, and the fit knows nothing of drainage, cover, sight distance, earthwork balance or any standard.");
     egui::Grid::new("fit-form").num_columns(4).spacing([10.0, 6.0]).show(ui, |ui| {
         let f = &mut st.fit;
@@ -362,7 +362,7 @@ fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &m
                     st.fit_result = None;
                 }
             });
-            ui.label(RichText::new("Nothing is inserted until you accept.").small().weak());
+            crate::ui_kit::note(ui, "Nothing is inserted until you accept.");
         }
         None => {}
     }
@@ -575,7 +575,7 @@ fn profile_plot(
 
 /// The PVI table: station, level, grades, curve by length or K, and the high or low point.
 fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::VerticalSolution, st: &mut ProfileUi, u: &DisplayUnits, edit: &mut Option<VEdit>) {
-    ui.label(RichText::new("PVI table").strong());
+    crate::ui_kit::heading(ui, "PVI table");
     ui.label(RichText::new(format!("Stations are shown as 1+250.000 and may be typed that way or as a number of metres. Lengths and levels are in the document's display unit ({}; a trailing m or mm overrides it when typing). Grades are in percent. Give a vertical curve by its length or by K ({} of curve per 1 % change of grade); the other is worked out. No K and no length are assumed.", crate::disp::suffix(u), crate::disp::suffix(u))).small().weak());
     egui::ScrollArea::both().id_salt("pvi-table").max_height(190.0).auto_shrink([false, true]).show(ui, |ui| {
         egui::Grid::new("pvi-grid").num_columns(11).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {

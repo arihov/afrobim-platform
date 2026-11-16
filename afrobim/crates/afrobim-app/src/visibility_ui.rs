@@ -723,7 +723,7 @@ impl AfroBimApp {
         let alignment = f.element.and_then(|id| self.doc.find(id)).and_then(|e| e.site.as_ref().and_then(|s| s.alignment.clone())).and_then(|name| crate::alignment_glue::alignments(&self.doc).into_iter().find(|a| a.1 == name).map(|a| a.0));
         let (mut keep, mut save, mut run) = (true, false, false);
         let dlg = crate::ui_kit::Dialog::titled(title).subtitle("The inputs of the sight-distance analysis").width(640.0).show_body(ctx, |ui| {
-            ui.label(RichText::new("An analysis aid: the result states no compliance. Every field starts empty except the one marked 'to confirm', which is the engine's own default and is not used until you accept it. The UK band of a speed is your decision.").small().weak());
+            crate::ui_kit::note(ui, "An analysis aid: the result states no compliance. Every field starts empty except the one marked 'to confirm', which is the engine's own default and is not used until you accept it. The UK band of a speed is your decision.");
             egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(500.0).show(ui, |ui| {
                 if f.element.is_some() {
                     ui.checkbox(&mut f.apply_all, "store these entries on every placed sign, not only this one");
@@ -743,7 +743,7 @@ impl AfroBimApp {
                             ui.label(RichText::new("to confirm").strong().color(WARN()));
                             ui.checkbox(&mut f.eye_height_accepted, "accept this value");
                         });
-                        ui.label(RichText::new(format!("Engine default, stated in held sources for other criteria, not for sign visibility: {UK_EYE_HEIGHT}; {UG_EYE_HEIGHT}.")).small().weak());
+                        crate::ui_kit::note(ui, format!("Engine default, stated in held sources for other criteria, not for sign visibility: {UK_EYE_HEIGHT}; {UG_EYE_HEIGHT}."));
                     });
                     ui.end_row();
                     ui.label("Traffic keeps to");
@@ -791,7 +791,7 @@ impl AfroBimApp {
                                 }
                             }
                             None => {
-                                ui.label(RichText::new("Enter the approach speed to have the band resolved by the project's rule, or choose one:").small().weak());
+                                crate::ui_kit::note(ui, "Enter the approach speed to have the band resolved by the project's rule, or choose one:");
                                 egui::ComboBox::from_id_salt("vis-band").selected_text(f.band.map(|b| b.label()).unwrap_or("not chosen")).show_ui(ui, |ui| {
                                     ui.selectable_value(&mut f.band, None, "not chosen");
                                     for b in SpeedBandMph::ALL {
@@ -876,7 +876,7 @@ impl AfroBimApp {
                         ui.add(egui::TextEdit::singleline(&mut r.offset).desired_width(70.0).hint_text("offset m"));
                         ui.add(egui::TextEdit::singleline(&mut r.top).desired_width(70.0).hint_text("top m (opt)"));
                         ui.add(egui::TextEdit::singleline(&mut r.label).desired_width(160.0).hint_text("what it is"));
-                        if ui.small_button("x").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                             remove = Some(k);
                         }
                     });
@@ -942,8 +942,8 @@ impl AfroBimApp {
         let (mut csv, mut rerun, mut edit, mut draw) = (false, false, false, false);
         let mut copy: Option<String> = None;
         let mut pick: Option<ElementId> = None;
-        let dlg = crate::ui_kit::Dialog::titled("Sign visibility results").width(920.0).show_body(ctx, |ui| {
-            ui.label(RichText::new("An analysis aid. Each line is OK, FAILS, DIFFERS, INPUT NEEDED or INFORMATION with the provision it rests on; it states no compliance and the engineer decides. The road surface is the centreline level of the profile (no cross-fall); obstruction is geometric only.").small().weak());
+        let dlg = crate::ui_kit::Dialog::titled("Sign visibility results").subtitle("What the sight lines found, with no compliance stated").width(920.0).show_body(ctx, |ui| {
+            crate::ui_kit::note(ui, "An analysis aid. Each line is OK, FAILS, DIFFERS, INPUT NEEDED or INFORMATION with the provision it rests on; it states no compliance and the engineer decides. The road surface is the centreline level of the profile (no cross-fall); obstruction is geometric only.");
             ui.horizontal(|ui| {
                 if ui.button("Run all signs").clicked() {
                     rerun = true;
@@ -1011,7 +1011,7 @@ impl AfroBimApp {
                     });
                     ui.label(&l.detail);
                     if !l.citation.is_empty() {
-                        ui.label(RichText::new(format!("Source: {}", l.citation)).small().weak());
+                        crate::ui_kit::note(ui, format!("Source: {}", l.citation));
                     }
                     ui.add_space(3.0);
                 }
@@ -1056,7 +1056,7 @@ impl AfroBimApp {
         let drawings = self.vis.analysis().map(|a| drawings_of(a, self.vis.scene.as_ref(), exaggeration.unwrap_or(5.0)));
         let mark = self.vis.analysis().map(|a| a.mark.clone()).unwrap_or_default();
         let dlg = crate::ui_kit::Dialog::titled(format!("Visibility drawings: {mark}")).width(900.0).show_body(ctx, |ui| {
-            ui.label(RichText::new("The plan shows the eye positions along the approach coloured by what they see, the sight lines at the limit and the obstruction. The profile is the limiting sight line over the road and ground. Add either to a drawing sheet as a Detail sheet in SHEETSET (kinds 'Sign visibility, plan envelope' and 'Sign visibility, sight-line profile').").small().weak());
+            crate::ui_kit::note(ui, "The plan shows the eye positions along the approach coloured by what they see, the sight lines at the limit and the obstruction. The profile is the limiting sight line over the road and ground. Add either to a drawing sheet as a Detail sheet in SHEETSET (kinds 'Sign visibility, plan envelope' and 'Sign visibility, sight-line profile').");
             ui.horizontal(|ui| {
                 ui.label("Profile vertical exaggeration");
                 ui.add(egui::TextEdit::singleline(&mut self.vis.exaggeration).desired_width(50.0));

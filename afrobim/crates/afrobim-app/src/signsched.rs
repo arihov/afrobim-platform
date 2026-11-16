@@ -234,7 +234,7 @@ impl AfroBimApp {
                 return;
             };
             ui.label(format!("{} columns, {} data rows, delimiter '{}'.", table.headers.len(), table.rows.len(), if table.delimiter == '\t' { "tab".to_string() } else { table.delimiter.to_string() }));
-            ui.label(RichText::new("Each column of the file is matched to a field of the schedule by its header (synonyms such as Chainage for Station). Correct any that are wrong.").small().weak());
+            crate::ui_kit::note(ui, "Each column of the file is matched to a field of the schedule by its header (synonyms such as Chainage for Station). Correct any that are wrong.");
             ui.add_space(4.0);
             let fields: Vec<Field> = {
                 let mut v: Vec<Field> = Field::FIXED.to_vec();
@@ -243,10 +243,10 @@ impl AfroBimApp {
             };
             egui::ScrollArea::vertical().max_height(130.0).show(ui, |ui| {
                 egui::Grid::new("sched-map").num_columns(4).spacing([10.0, 4.0]).striped(true).show(ui, |ui| {
-                    ui.label(RichText::new("File column").strong());
-                    ui.label(RichText::new("Schedule field").strong());
-                    ui.label(RichText::new("Unit").strong());
-                    ui.label(RichText::new("First value").strong());
+                    crate::ui_kit::heading(ui, "File column");
+                    crate::ui_kit::heading(ui, "Schedule field");
+                    crate::ui_kit::heading(ui, "Unit");
+                    crate::ui_kit::heading(ui, "First value");
                     ui.end_row();
                     for (i, h) in table.headers.iter().enumerate() {
                         ui.label(h);
@@ -434,7 +434,7 @@ impl AfroBimApp {
             });
             if !st.report.is_empty() {
                 ui.separator();
-                ui.label(RichText::new("Report").strong());
+                crate::ui_kit::heading(ui, "Report");
                 for l in &st.report {
                     ui.label(RichText::new(l).small());
                 }

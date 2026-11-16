@@ -664,9 +664,9 @@ impl AfroBimApp {
         let mut show_report: Option<String> = None;
         let mut accept: Option<String> = None;
         let mut zoom: Option<String> = None;
-        let dlg = crate::ui_kit::Dialog::titled("Reference models").width(900.0).show_body(ctx, |ui| {
-            ui.label(RichText::new("Reference models are read-only IFC files. The document stores each file's path and a hash, not its contents; the file is read again when the document opens. A model in another coordinate frame needs the offset and rotation that line it up: enter them below (rotation about the file's own origin, then the offset).").small().weak());
-            ui.label(RichText::new(format!("Limits: the importer reads the whole file into memory and refuses files of 4 GiB or more. Models above {DRAW_TRIANGLE_CAP} triangles in view are drawn as the boxes of their products.")).small().weak());
+        let dlg = crate::ui_kit::Dialog::titled("Reference models").subtitle("IFC models shown for reference and clash tests").width(900.0).show_body(ctx, |ui| {
+            crate::ui_kit::note(ui, "Reference models are read-only IFC files. The document stores each file's path and a hash, not its contents; the file is read again when the document opens. A model in another coordinate frame needs the offset and rotation that line it up: enter them below (rotation about the file's own origin, then the offset).");
+            crate::ui_kit::note(ui, format!("Limits: the importer reads the whole file into memory and refuses files of 4 GiB or more. Models above {DRAW_TRIANGLE_CAP} triangles in view are drawn as the boxes of their products."));
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.refs.apply_map_conversion, "apply the file's IfcMapConversion when it has one (on by default: the model is placed at its map coordinates; turn it off to use the file's own coordinates)");
                 if ui.button("Import IFC files...").clicked() {
@@ -723,7 +723,7 @@ impl AfroBimApp {
                                 ui.label(RichText::new(format!("File not read: {why}. The stored path and hash are kept; restore the file and reopen the document, or remove the model.")).small().color(BAD()));
                             }
                             (None, None) => {
-                                ui.label(RichText::new("Reading...").small().weak());
+                                crate::ui_kit::note(ui, "Reading...");
                             }
                         }
                         ui.horizontal(|ui| {
@@ -751,7 +751,7 @@ impl AfroBimApp {
                 }
                 if !self.refs.set.models.is_empty() {
                     ui.separator();
-                    ui.label(RichText::new("Products").strong());
+                    crate::ui_kit::heading(ui, "Products");
                     ui.add(egui::TextEdit::singleline(&mut self.refs.filter).hint_text("filter by name or type").desired_width(240.0));
                     let f = self.refs.filter.trim().to_lowercase();
                     let mut shown = 0;
@@ -766,7 +766,7 @@ impl AfroBimApp {
                             }
                             shown += 1;
                             if shown > 200 {
-                                ui.label(RichText::new("More than 200 match: narrow the filter.").small().weak());
+                                crate::ui_kit::note(ui, "More than 200 match: narrow the filter.");
                                 break 'outer;
                             }
                             let on = self.refs.picked.as_ref().is_some_and(|(lab, i)| *lab == e.label && *i == pi);
@@ -903,8 +903,8 @@ impl AfroBimApp {
             names.reverse();
             names.join(" > ")
         };
-        let dlg = crate::ui_kit::Dialog::titled("Reference product").width(420.0).show_body(ctx, |ui| {
-            ui.label(RichText::new("Read-only: the model is a reference.").small().weak());
+        let dlg = crate::ui_kit::Dialog::titled("Reference product").subtitle("One product of a reference model").width(420.0).show_body(ctx, |ui| {
+            crate::ui_kit::note(ui, "Read-only: the model is a reference.");
             crate::ui_kit::grid(ui, "ref-product", |ui| {
                 for (k, v) in [
                     ("Model", label.clone()),

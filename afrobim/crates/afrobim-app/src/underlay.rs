@@ -591,7 +591,7 @@ impl crate::app::AfroBimApp {
         let mut open = true;
         let (mut attach, mut detach, mut accept, mut zoom) = (false, None, None, None);
         let mut changes: Vec<(ElementId, UnderlayDef)> = Vec::new();
-        let dlg = crate::ui_kit::Dialog::titled("DXF underlays").width(660.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("DXF underlays").subtitle("Drawings attached behind the model, read only").width(660.0).show_body(ctx, |ui| {
             ui.label(egui::RichText::new("A DXF drawing attached here is a read-only background reference. The document stores its path and a hash, not the drawing: it is read again whenever the document opens, with a warning if the file is missing or has changed. AfroBIM ships no underlay: you supply the DXF. A DWG must be converted to DXF first (save it as DXF from AutoCAD or Civil 3D).").small());
             if ui.button("Attach a DXF...").clicked() {
                 attach = true;

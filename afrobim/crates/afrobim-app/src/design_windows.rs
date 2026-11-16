@@ -132,7 +132,7 @@ fn builtin_picker(ui: &mut egui::Ui, b: &mut BuiltinChoice) {
         if let Some(class) = class {
             for (terrain, why) in &class.refused_terrains {
                 ui.label("");
-                ui.label(RichText::new(format!("{terrain:?} is not offered for this class: {why}")).small().weak());
+                crate::ui_kit::note(ui, format!("{terrain:?} is not offered for this class: {why}"));
                 ui.end_row();
             }
         }
@@ -239,7 +239,7 @@ impl AfroBimApp {
         let mut template = false;
         let mut csv = false;
         let units = crate::anno_ui::units_of(&self.doc);
-        let dlg = crate::ui_kit::Dialog::titled("ALIGNCHECK: design checks").width(860.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Alignment design checks").id_title("ALIGNCHECK: design checks").subtitle("What the design standard asks of the alignment, and what it finds").width(860.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Alignment");
                 let current = c.design.and_then(|d| designs.iter().find(|x| x.0 == d)).map(|x| x.2.clone()).unwrap_or_else(|| "choose".into());
@@ -253,7 +253,7 @@ impl AfroBimApp {
                 });
             });
             ui.separator();
-            ui.label(RichText::new("Limits source").strong());
+            crate::ui_kit::heading(ui, "Limits source");
             ui.horizontal_wrapped(|ui| {
                 for s in LimitSource::ALL {
                     if ui.selectable_value(&mut c.source, s, s.label()).clicked() {
@@ -353,7 +353,7 @@ impl AfroBimApp {
                     }
                     egui::ScrollArea::both().auto_shrink([false, true]).max_height(330.0).show(ui, |ui| {
                         // By element: the worst status of each PI, PVI or grade.
-                        ui.label(RichText::new("By element").strong());
+                        crate::ui_kit::heading(ui, "By element");
                         egui::Grid::new("chk-elements").num_columns(5).striped(true).spacing([14.0, 3.0]).show(ui, |ui| {
                             for h in ["Element", "Status", "Pass", "Fail", "Not checked"] {
                                 ui.label(RichText::new(h).strong());
@@ -376,8 +376,8 @@ impl AfroBimApp {
                             }
                         });
                         ui.add_space(6.0);
-                        ui.label(RichText::new("Every check").strong());
-                        ui.label(RichText::new("Values and limits are shown in the document's units. The source of a limit keeps the unit the limits table prints, and the message is the engine's own text.").small().weak());
+                        crate::ui_kit::heading(ui, "Every check");
+                        crate::ui_kit::note(ui, "Values and limits are shown in the document's units. The source of a limit keeps the unit the limits table prints, and the message is the engine's own text.");
                         egui::Grid::new("chk-items").num_columns(7).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                             for h in ["Element", "Check", "Value", "Limit", "Status", "Source of the limit", "Message"] {
                                 ui.label(RichText::new(h).strong());
@@ -398,7 +398,7 @@ impl AfroBimApp {
                     });
                 }
             }
-            ui.label(RichText::new("These are checks of the geometry against the limits chosen: lateral sight distance, passing and decision sight distance, superelevation and combinations of horizontal and vertical alignment are not checked. A pass is not a certification.").small().weak());
+            crate::ui_kit::note(ui, "These are checks of the geometry against the limits chosen: lateral sight distance, passing and decision sight distance, superelevation and combinations of horizontal and vertical alignment are not checked. A pass is not a certification.");
         });
         if dlg.closed {
             open = false;
@@ -493,7 +493,7 @@ impl AfroBimApp {
         } else {
             o.cmp = None;
         }
-        let dlg = crate::ui_kit::Dialog::titled("OPTIONS: alignment options").width(1040.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Alignment options").id_title("OPTIONS: alignment options").subtitle("How alignments are checked, drawn and labelled").width(1040.0).show_body(ctx, |ui| {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Option set");
@@ -531,7 +531,7 @@ impl AfroBimApp {
                     }
                 };
                 ui.separator();
-                ui.label(RichText::new("What the options are measured against").strong());
+                crate::ui_kit::heading(ui, "What the options are measured against");
                 ui.horizontal(|ui| {
                     ui.label("Ground surface");
                     let cur = set.surface.and_then(|s| surfaces.iter().find(|x| x.0 == s)).map(|x| x.1.clone()).unwrap_or_else(|| "none".into());
@@ -578,9 +578,9 @@ impl AfroBimApp {
                         }
                     });
                 });
-                ui.label(RichText::new("Cut, fill and land take need a ground surface and a typical section; cost needs your estimate. A figure that cannot be computed says why.").small().weak());
+                crate::ui_kit::note(ui, "Cut, fill and land take need a ground surface and a typical section; cost needs your estimate. A figure that cannot be computed says why.");
                 ui.separator();
-                ui.label(RichText::new("Options").strong());
+                crate::ui_kit::heading(ui, "Options");
                 ui.horizontal(|ui| {
                     ui.label("Add the current design as");
                     ui.add_sized([160.0, 20.0], egui::TextEdit::singleline(&mut o.new_option).hint_text("option name"));
@@ -646,8 +646,8 @@ impl AfroBimApp {
                     Some(Ok(cmp)) if !cmp.options.is_empty() => {
                         let units = crate::anno_ui::units_of(&self.doc);
                         egui::Grid::new("opt-cmp").num_columns(cmp.options.len() + 2).striped(true).spacing([14.0, 3.0]).show(ui, |ui| {
-                            ui.label(RichText::new("Figure").strong());
-                            ui.label(RichText::new("Unit").strong());
+                            crate::ui_kit::heading(ui, "Figure");
+                            crate::ui_kit::heading(ui, "Unit");
                             for r in &cmp.options {
                                 ui.label(RichText::new(&r.name).strong());
                             }
@@ -711,8 +711,8 @@ impl AfroBimApp {
                             }
                         }
                         ui.separator();
-                        ui.label(RichText::new("Weighted scoring").strong());
-                        ui.label(RichText::new("You choose the criteria, their weights and which way is better. Each criterion is scaled 0 to 1 between the worst and the best option and weighted by your weight. None is prefilled, and the unweighted figures above stay in view.").small().weak());
+                        crate::ui_kit::heading(ui, "Weighted scoring");
+                        crate::ui_kit::note(ui, "You choose the criteria, their weights and which way is better. Each criterion is scaled 0 to 1 between the worst and the best option and weighted by your weight. None is prefilled, and the unweighted figures above stay in view.");
                         egui::Grid::new("opt-criteria").num_columns(4).spacing([10.0, 4.0]).show(ui, |ui| {
                             for (i, c) in set.criteria.iter().enumerate() {
                                 let label = figure_keys().iter().find(|k| k.0 == c.key).map(|k| k.1.to_string()).unwrap_or_else(|| c.key.clone());
@@ -770,11 +770,11 @@ impl AfroBimApp {
                         if !set.criteria.is_empty() {
                             let table = score(cmp, &set.criteria);
                             egui::Grid::new("opt-score").num_columns(set.criteria.len() + 2).striped(true).spacing([14.0, 3.0]).show(ui, |ui| {
-                                ui.label(RichText::new("Option").strong());
+                                crate::ui_kit::heading(ui, "Option");
                                 for c in &table.criteria {
                                     ui.label(RichText::new(figure_keys().iter().find(|k| k.0 == c.key).map(|k| k.1).unwrap_or(&c.key)).strong());
                                 }
-                                ui.label(RichText::new("Weighted score").strong());
+                                crate::ui_kit::heading(ui, "Weighted score");
                                 ui.end_row();
                                 for r in &table.options {
                                     ui.label(&r.name);

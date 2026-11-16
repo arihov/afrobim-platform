@@ -378,10 +378,10 @@ pub fn show(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<LightingC
     let (mut keep, mut run) = (true, false);
         let footer_ok = true;
     let dlg = crate::ui_kit::Dialog::titled(format!("Lighting check inputs for {mark}")).width(560.0).show(ctx, |ui| {
-        ui.label(RichText::new("Enter what you have established elsewhere. Every field starts empty; a field left empty stops the checks that need it and the report says so. Photometric values are the maintained results of a calculation: enter those from your lighting package, or run PHOTOMETRY on a luminaire file and use its results here (the entries are then labelled as computed by AfroBIM). AfroBIM's own photometry is not an EN 13201-3 calculation, has not been validated against DIALux, Relux or AGi32, calculates luminance only from an r-table you supply, and does not compute TI, U_l or the wet U_o: enter those from your own calculation.").small().weak());
+        crate::ui_kit::note(ui, "Enter what you have established elsewhere. Every field starts empty; a field left empty stops the checks that need it and the report says so. Photometric values are the maintained results of a calculation: enter those from your lighting package, or run PHOTOMETRY on a luminaire file and use its results here (the entries are then labelled as computed by AfroBIM). AfroBIM's own photometry is not an EN 13201-3 calculation, has not been validated against DIALux, Relux or AGi32, calculates luminance only from an r-table you supply, and does not compute TI, U_l or the wet U_o: enter those from your own calculation.");
         egui::ScrollArea::vertical().max_height(480.0).auto_shrink([false, false]).show(ui, |ui| {
             let f = &mut d.form;
-            ui.label(RichText::new("The road and the installation").strong());
+            crate::ui_kit::heading(ui, "The road and the installation");
             crate::ui_kit::grid(ui, "lc-road", |ui| {
                 ui.label("Lighting need appraised (TA 501)");
                 tri(ui, "lc-appraisal", &mut f.appraisal_done);
@@ -420,7 +420,7 @@ pub fn show(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<LightingC
                 for (i, (desc, len)) in f.gaps.iter_mut().enumerate() {
                     ui.add(egui::TextEdit::singleline(desc).hint_text("what the gap is").desired_width(200.0));
                     ui.add(egui::TextEdit::singleline(len).hint_text("length, m").desired_width(80.0));
-                    if ui.small_button("x").clicked() {
+                    if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                         remove = Some(i);
                     }
                     ui.end_row();

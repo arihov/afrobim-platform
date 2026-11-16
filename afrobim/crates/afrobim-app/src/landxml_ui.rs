@@ -432,7 +432,7 @@ fn civil_tab(ui: &mut egui::Ui, form: &mut LandXmlForm, which: usize) {
                     ui.checkbox(&mut form.take_parcels[i], format!("{}  ({area}{})", p.name, if p.coord_geoms.is_empty() { ", no geometry" } else { "" }));
                 }
             });
-            ui.label(RichText::new("A spiral in a parcel boundary is carried as its chord. The area is recomputed from the boundary.").small().weak());
+            crate::ui_kit::note(ui, "A spiral in a parcel boundary is carried as its chord. The area is recomputed from the boundary.");
         }
         _ => {
             if file.ground_profiles.is_empty() {

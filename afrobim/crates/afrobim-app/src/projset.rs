@@ -251,13 +251,13 @@ fn units_tab(ui: &mut egui::Ui, st: &mut afrobim_annotate::settings::AnnotationS
         ];
         ui_kit::results_table(ui, "units-examples", &["", "Stored", "Shown"], &[Col::Text, Col::Num, Col::Num], &rows);
         ui.add_space(4.0);
-        ui.label(RichText::new("Typed lengths, stations, areas and angles are read in these formats (12.5, 12.5m, 12500mm, 1+250.500, 45d30m15s). Applied to the status bar coordinates, Properties position and size, measure results, dimension text, the typed point input of annotation commands and the station fields.").small().weak());
+        crate::ui_kit::note(ui, "Typed lengths, stations, areas and angles are read in these formats (12.5, 12.5m, 12500mm, 1+250.500, 45d30m15s). Applied to the status bar coordinates, Properties position and size, measure results, dimension text, the typed point input of annotation commands and the station fields.");
     });
 }
 
 fn speed_tab(ui: &mut egui::Ui, rule: &mut SpeedBandRule, table_text: &mut Vec<(String, String)>) {
     ui_kit::section(ui, "Speed limits in km/h against UK thresholds in mph", |ui| {
-        ui.label(RichText::new("Used by the restraint check, sign visibility and the road marking choice. The rule is your decision for the project.").small().weak());
+        crate::ui_kit::note(ui, "Used by the restraint check, sign visibility and the road marking choice. The rule is your decision for the project.");
         ui.add_space(4.0);
         let labels = ["Round up within conversion rounding (default)", "Always the next band up", "Round up within a tolerance in mph", "Exact conversion", "Ask each time", "A table of limits"];
         let order = [Choice::RoundUp, Choice::NextBandUp, Choice::Tolerance, Choice::Exact, Choice::Ask, Choice::Table];
@@ -308,7 +308,7 @@ fn speed_tab(ui: &mut egui::Ui, rule: &mut SpeedBandRule, table_text: &mut Vec<(
                 table_text.remove(i);
             }
             *rows = table_text.iter().filter_map(|(a, b)| Some((a.trim().parse::<f64>().ok()?, b.trim().parse::<f64>().ok()?))).collect();
-            ui.label(RichText::new("A row is used once both numbers are valid.").small().weak());
+            crate::ui_kit::note(ui, "A row is used once both numbers are valid.");
         }
         ui.add_space(6.0);
         ui_kit::callout(ui, Level::Info, definition(rule));
@@ -328,7 +328,7 @@ fn speed_tab(ui: &mut egui::Ui, rule: &mut SpeedBandRule, table_text: &mut Vec<(
         }
         ui_kit::results_table(ui, "speed-examples", &["Check", "Limit", "Result"], &[Col::Text, Col::Num, Col::Text], &rows);
         ui.add_space(4.0);
-        ui.label(RichText::new("The thresholds belong to each check and are not part of the rule: restraint 50 mph; visibility 20, 30, 40, 50, 60 mph; markings 40, 50, 60, 70 mph.").small().weak());
+        crate::ui_kit::note(ui, "The thresholds belong to each check and are not part of the rule: restraint 50 mph; visibility 20, 30, 40, 50, 60 mph; markings 40, 50, 60, 70 mph.");
     });
 }
 

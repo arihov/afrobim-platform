@@ -329,7 +329,7 @@ impl AfroBimApp {
             Some(Ok(s)) => Some((s.critical().count(), s.rows.iter().filter(|r| r.on_longest_path).count(), s.rows.len())),
             _ => None,
         };
-        let dlg = crate::ui_kit::Dialog::titled("Critical path basis").width(640.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Critical path basis").subtitle("How the critical path is found").width(640.0).show_body(ctx, |ui| {
             ui.label("Choose what marks an activity as critical. The Gantt chart, the schedule table and the time-location chart follow the choice.");
             for (b, label, text) in [
                 (CriticalBasis::TotalFloat, "Total float of zero or less", glue::CRITICAL_TOTAL_FLOAT_TEXT),
@@ -374,13 +374,13 @@ impl AfroBimApp {
         let s = &mut self.sched;
         let ext = &mut s.ext;
         let result = &s.result;
-        let dlg = crate::ui_kit::Dialog::titled("WBS: summary tasks and roll-up").width(900.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("WBS: summary tasks and roll-up").subtitle("The work breakdown structure and its summary tasks").width(900.0).show_body(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
                 ui.label("There is no programme yet (PROGRAMME).");
                 return;
             };
-            ui.label(RichText::new("Summary tasks").strong());
-            ui.label(RichText::new("A summary task has no duration of its own: it spans the activities under it. Put an activity under a summary task in the Under column of PROGRAMME. Indent puts a summary task under the one above it; outdent moves it up a level.").small().weak());
+            crate::ui_kit::heading(ui, "Summary tasks");
+            crate::ui_kit::note(ui, "A summary task has no duration of its own: it spans the activities under it. Put an activity under a summary task in the Under column of PROGRAMME. Indent puts a summary task under the one above it; outdent moves it up a level.");
             let ids: Vec<String> = p.summaries.iter().map(|x| x.id.clone()).collect();
             let mut act: Option<(usize, u8)> = None;
             egui::ScrollArea::vertical().id_salt("wbs-sums").max_height(190.0).auto_shrink([false, true]).show(ui, |ui| {
@@ -463,7 +463,7 @@ impl AfroBimApp {
                 ui.label(RichText::new(&ext.problem).color(BAD()));
             }
             ui.separator();
-            ui.label(RichText::new("Roll-up").strong());
+            crate::ui_kit::heading(ui, "Roll-up");
             ui.horizontal(|ui| {
                 ui.label("Percent complete weighs each activity by its");
                 for (b, label) in [(RollupBasis::Duration, "duration"), (RollupBasis::Weight, "weight")] {
@@ -585,7 +585,7 @@ impl AfroBimApp {
         let doc = &self.doc;
         let ext = &mut self.sched.ext;
         let alignment_id = chosen.as_ref().and_then(|n| alignments.iter().find(|a| a.1 == *n)).map(|a| a.0);
-        let dlg = crate::ui_kit::Dialog::titled("Time-location chart").width(980.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Time-location chart").subtitle("Activities against station and time").width(980.0).show_body(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut ext.tl_tab, 0, "Chart");
                 ui.selectable_value(&mut ext.tl_tab, 1, "Location ranges");
@@ -614,7 +614,7 @@ impl AfroBimApp {
                     ui.label("time");
                     ui.add(egui::Slider::new(&mut ext.tl_px_per_day, 1.0..=20.0).show_value(false));
                 });
-                ui.label(RichText::new("Station is across the page and time up it. A diagonal is work moving along the alignment; a parallelogram shows the dwell you entered; a bar is work on the whole range at once (a culvert, a structure). Critical red, complete grey, others blue; thin grey outline is the baseline; green line the data date; brown line the required finish. Stations are internal stations (a designed or imported alignment's own, before any station equation).").small().weak());
+                crate::ui_kit::note(ui, "Station is across the page and time up it. A diagonal is work moving along the alignment; a parallelogram shows the dwell you entered; a bar is work on the whole range at once (a culvert, a structure). Critical red, complete grey, others blue; thin grey outline is the baseline; green line the data date; brown line the required finish. Stations are internal stations (a designed or imported alignment's own, before any station equation).");
                 match &chart {
                     Some(c) => {
                         let labels: Vec<(afrobim_draw::Pt2, String, f32, Color32)> = c
@@ -851,7 +851,7 @@ fn tl_ranges_table(
         return;
     };
     let alignment = alignment_id.and_then(|id| crate::alignment_glue::alignment_of(doc, id));
-    ui.label(RichText::new("Enter where along the alignment each activity works, in the stations shown on the drawings (the region picker appears where the alignment has station equations; AfroBIM converts to internal stations). Direction and dwell are your entries: nothing is assumed. A range derived from linked elements is shown for adopting; it is drawn as a bar because the elements' stations do not say in which order they are built.").small().weak());
+    crate::ui_kit::note(ui, "Enter where along the alignment each activity works, in the stations shown on the drawings (the region picker appears where the alignment has station equations; AfroBIM converts to internal stations). Direction and dwell are your entries: nothing is assumed. A range derived from linked elements is shown for adopting; it is drawn as a bar because the elements' stations do not say in which order they are built.");
     ui.label(RichText::new(crate::station_input::note(doc, alignment_id)).small().weak());
     egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         egui::Grid::new("tl-ranges").num_columns(8).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {

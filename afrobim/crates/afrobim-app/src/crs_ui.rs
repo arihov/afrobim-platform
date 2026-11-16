@@ -423,7 +423,7 @@ fn known_systems(ui: &mut egui::Ui, edit: &mut CrsEdit) {
         }
     });
     ui.add_space(2.0);
-    ui.label(RichText::new("Arc 1960 / UTM").small().weak());
+    crate::ui_kit::note(ui, "Arc 1960 / UTM");
     let arc: Vec<ProjectCrs> = ProjectCrs::search("arc 1960", 20);
     ui.horizontal_wrapped(|ui| {
         for c in &arc {
@@ -448,7 +448,7 @@ fn known_systems(ui: &mut egui::Ui, edit: &mut CrsEdit) {
         ui.add_space(4.0);
         ui.label(RichText::new(format!("Selected: {}", c.label())).strong());
         if let Some(a) = area_text(&c) {
-            ui.label(RichText::new(format!("Area of use: {a}")).small().weak());
+            crate::ui_kit::note(ui, format!("Area of use: {a}"));
         }
     }
 }

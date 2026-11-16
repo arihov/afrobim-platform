@@ -541,7 +541,7 @@ impl AfroBimApp {
         }
         let mut open = true;
         let mut clear = false;
-        let dlg = crate::ui_kit::Dialog::titled("Measure results").width(560.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Measure results").subtitle("Distances, angles and areas measured in the drawing").width(560.0).show_body(ctx, |ui| {
             if self.anno.results.is_empty() {
                 ui.label(RichText::new("Nothing measured yet. Use DIST, AREA, ID, MEASUREANGLE or MEASURERADIUS.").weak());
             }
@@ -564,7 +564,7 @@ impl AfroBimApp {
                     clear = true;
                 }
             });
-            ui.label(RichText::new("Results use the document's units (UNITS). Stored values stay in millimetres.").small().weak());
+            crate::ui_kit::note(ui, "Results use the document's units (UNITS). Stored values stay in millimetres.");
         });
         if dlg.closed {
             open = false;
@@ -580,9 +580,9 @@ impl AfroBimApp {
             return;
         }
         let mut open = true;
-        let dlg = crate::ui_kit::Dialog::titled("Object snap settings").width(560.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Object snap settings").subtitle("Which points the cursor snaps to").width(560.0).show_body(ctx, |ui| {
             ui.checkbox(&mut self.anno.osnap.on, "Object snap on (F3)");
-            ui.label(RichText::new("Used by the text, dimension, leader and measure commands, when dragging an annotation grip, by the base point and second point of MOVE and COPY, when dragging a grip of an element, and when placing a sign hung from the cursor (its centre lands on the point). Pick a mode to see which elements provide it.").small().weak());
+            crate::ui_kit::note(ui, "Used by the text, dimension, leader and measure commands, when dragging an annotation grip, by the base point and second point of MOVE and COPY, when dragging a grip of an element, and when placing a sign hung from the cursor (its centre lands on the point). Pick a mode to see which elements provide it.");
             ui.add_space(4.0);
             crate::ui_kit::grid(ui, "osnap-modes", |ui| {
                 for m in SnapMode::ALL {
@@ -853,7 +853,7 @@ impl AfroBimApp {
         let mut st = ann::settings::load(&self.doc);
         let before = st.clone();
         let mut apply = false;
-        let dlg = crate::ui_kit::Dialog::titled("Text styles").width(520.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Text styles").subtitle("Fonts and heights for text and dimensions").width(520.0).show_body(ctx, |ui| {
             self.anno.text_sel = self.anno.text_sel.min(st.text_styles.len().saturating_sub(1));
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("text-style-pick").selected_text(st.text_styles[self.anno.text_sel].name.clone()).show_ui(ui, |ui| {
@@ -886,7 +886,7 @@ impl AfroBimApp {
                 ui.label("Height (paper mm)");
                 ui.horizontal(|ui| {
                     ui.add(egui::DragValue::new(&mut s.height_paper_mm).speed(0.1).range(0.1..=50.0));
-                    ui.label(RichText::new("a default, not a standard").small().weak());
+                    crate::ui_kit::note(ui, "a default, not a standard");
                 });
                 ui.end_row();
                 ui.label("Width factor");
@@ -915,7 +915,7 @@ impl AfroBimApp {
             if ui.button("Apply to existing text").on_hover_text("Text keeps the style it was made with until you apply a changed style").clicked() {
                 apply = true;
             }
-            ui.label(RichText::new(format!("Annotation scale 1:{}: a paper height of {:.1} mm is {:.0} mm in the model. Sizes are paper millimetres, multiplied by the annotation scale. Every size here is an editable default and no drafting standard is claimed. Layout uses Helvetica widths whatever font is named.", st.annotation_scale, st.text_styles[self.anno.text_sel].height_paper_mm, st.text_styles[self.anno.text_sel].height_paper_mm * st.annotation_scale)).small().weak());
+            crate::ui_kit::note(ui, format!("Annotation scale 1:{}: a paper height of {:.1} mm is {:.0} mm in the model. Sizes are paper millimetres, multiplied by the annotation scale. Every size here is an editable default and no drafting standard is claimed. Layout uses Helvetica widths whatever font is named.", st.annotation_scale, st.text_styles[self.anno.text_sel].height_paper_mm, st.text_styles[self.anno.text_sel].height_paper_mm * st.annotation_scale));
             if !self.anno.style_note.is_empty() {
                 ui.label(RichText::new(&self.anno.style_note).small().color(WARN()));
             }
@@ -944,7 +944,7 @@ impl AfroBimApp {
         let mut st = ann::settings::load(&self.doc);
         let before = st.clone();
         let mut apply = false;
-        let dlg = crate::ui_kit::Dialog::titled("Dimension styles").width(560.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Dimension styles").subtitle("How dimensions are drawn and read").width(560.0).show_body(ctx, |ui| {
             self.anno.dim_sel = self.anno.dim_sel.min(st.dim_styles.len().saturating_sub(1));
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("dim-style-pick").selected_text(st.dim_styles[self.anno.dim_sel].name.clone()).show_ui(ui, |ui| {
@@ -1020,7 +1020,7 @@ impl AfroBimApp {
                     ui.end_row();
                 });
                 ui.add_space(6.0);
-                ui.label(RichText::new("Value text").strong());
+                crate::ui_kit::heading(ui, "Value text");
                 crate::ui_kit::grid(ui, "dim-style-text", |ui| {
                     ui.label("Length unit");
                     ui.horizontal(|ui| {
@@ -1079,8 +1079,8 @@ impl AfroBimApp {
             if ui.button("Apply to existing dimensions and leaders").on_hover_text("Dimensions keep the style they were made with until you apply a changed style").clicked() {
                 apply = true;
             }
-            ui.label(RichText::new(format!("A preview at 1:{scale}: a dimension line with text {:.0} mm high and arrows {:.0} mm long in the model.", st.dim_styles[self.anno.dim_sel].text_height_mm * scale, st.dim_styles[self.anno.dim_sel].arrow_size_mm * scale)).small().weak());
-            ui.label(RichText::new("Every size is an editable default; none is taken from a drafting standard. Text override of one dimension is in its Properties and keeps the measured value shown.").small().weak());
+            crate::ui_kit::note(ui, format!("A preview at 1:{scale}: a dimension line with text {:.0} mm high and arrows {:.0} mm long in the model.", st.dim_styles[self.anno.dim_sel].text_height_mm * scale, st.dim_styles[self.anno.dim_sel].arrow_size_mm * scale));
+            crate::ui_kit::note(ui, "Every size is an editable default; none is taken from a drafting standard. Text override of one dimension is in its Properties and keeps the measured value shown.");
             if !self.anno.style_note.is_empty() {
                 ui.label(RichText::new(&self.anno.style_note).small().color(WARN()));
             }
@@ -1294,7 +1294,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
                     _ => {}
                 }
             });
-            ui.label(RichText::new("The measured value is recomputed from the points; an override shows beside it here.").small().weak());
+            crate::ui_kit::note(ui, "The measured value is recomputed from the points; an override shows beside it here.");
         }
         Ann::Leader(l) => {
             match &mut l.text {
