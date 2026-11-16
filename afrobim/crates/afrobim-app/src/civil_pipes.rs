@@ -206,6 +206,10 @@ pub fn build_pipenet(e: &Element, _ctx: &Ctx) -> Result<Built, String> {
     s.derived.push(("Structures".into(), net.structure_count().to_string()));
     s.derived.push(("Pipes".into(), net.pipe_count().to_string()));
     s.derived.push(("Total pipe length (m)".into(), format!("{total:.2}")));
+    let range = |v: Vec<f64>| -> String { match (v.iter().cloned().reduce(f64::min), v.iter().cloned().reduce(f64::max)) { (Some(a), Some(b)) => format!("{a:.2} to {b:.2}"), _ => "none".into() } };
+    s.derived.push(("Invert levels (m)".into(), range(net.pipes().flat_map(|p| [p.start_invert_m, p.end_invert_m]).collect())));
+    s.derived.push(("Rim levels (m)".into(), range(net.structures().map(|x| x.rim_level_m).collect())));
+    s.derived.push(("Largest pipe (mm)".into(), net.pipes().map(|p| match &p.shape { afrobim_pipes::PipeShape::Circular { diameter_m } => diameter_m * 1000.0, afrobim_pipes::PipeShape::Box { width_m, height_m } => width_m.max(*height_m) * 1000.0, _ => 0.0 }).fold(0.0, f64::max).to_string()));
     s.derived.push(("Type".into(), format!("{:?}", net.network_type).to_lowercase()));
     s.derived.push(("Status".into(), format!("{:?}", net.status).to_lowercase()));
     s.derived.push(("Tree".into(), if topo.is_tree() { "yes".into() } else { "no (loops or branches)".to_string() }));

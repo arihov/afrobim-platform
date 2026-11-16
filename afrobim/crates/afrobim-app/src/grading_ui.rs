@@ -1496,8 +1496,10 @@ impl AfroBimApp {
                             made += 1;
                         }
                     }
+                    // The triangles between the lines are kept as a surface of their own.
+                    let kept = tin_of_triangles(&sweep.triangles).and_then(|tin| crate::alignment_glue::add_surface_at_source(&mut self.doc, &format!("{name} surface"), &tin, Some("Ditch or berm helper")).ok());
                     self.schedule_commit_now();
-                    Ok(format!("Swept the template along the line: {made} feature line(s) made, one per template point, {} surface triangle(s) between them (the triangles are not kept: use the lines as breaklines or footprints).", sweep.triangles.len()))
+                    Ok(format!("Swept the template along the line: {made} feature line(s) made, one per template point, and {} surface triangle(s) between them kept as {}.", sweep.triangles.len(), if kept.is_some() { format!("the surface '{name} surface'") } else { "nothing (the triangles could not form a surface)".to_string() }))
                 }
             },
             2 => {
@@ -1757,4 +1759,43 @@ mod tests {
         p.floor = "1155".into();
         assert!(app.helpers_act(&mut p, 1).is_err());
     }
+
+    #[test]
+    fn a_ditch_from_the_helper_keeps_its_triangles_as_a_surface() {
+        let doc = demo_doc();
+        let mut app = app_with(doc);
+        let ground = civil::surface_choices(&app.doc).first().map(|s| s.0);
+        let src = FeatureLine::from_points("Ditch axis", &[[450_100.0, 9_960_100.0, 1151.0], [450_140.0, 9_960_100.0, 1151.0], [450_180.0, 9_960_110.0, 1151.5]]).unwrap();
+        let id = cg::add_line(&mut app.doc, "Ditch axis", src, "Ditch site", "test", false);
+        let mut f = HelpForm::new(true, ground);
+        f.tab = 2;
+        f.name = "Ditch".into();
+        f.line = Some(id);
+        f.steps = vec![("1.5".into(), "-0.6".into()), ("1.5".into(), "0.6".into())];
+        let msg = app.helpers_act(&mut f, 1).unwrap();
+        assert!(msg.contains("kept as the surface"), "{msg}");
+        let e = app.doc.elements().iter().find(|e| e.name == "Ditch surface").expect("the ditch has a surface");
+        let tin = serde_json::from_value::<afrobim_corridor::SurfaceDefinition>(e.data.clone()).unwrap().tin;
+        assert!(tin.triangles().len() >= 4, "{} triangles", tin.triangles().len());
+    }
+}
+
+/// A TIN from loose triangles (corners as easting, northing, level): equal corners become one point and a
+/// triangle with no area in plan is left out. None when nothing is left.
+fn tin_of_triangles(triangles: &[[[f64; 3]; 3]]) -> Option<afrobim_corridor::Tin> {
+    let mut index: std::collections::HashMap<[u64; 3], u32> = std::collections::HashMap::new();
+    let mut points: Vec<[f64; 3]> = Vec::new();
+    let mut tris: Vec<[u32; 3]> = Vec::new();
+    for t in triangles {
+        let area2 = (t[1][0] - t[0][0]) * (t[2][1] - t[0][1]) - (t[2][0] - t[0][0]) * (t[1][1] - t[0][1]);
+        if !(area2.abs() > 1e-9) {
+            continue;
+        }
+        let ids = t.map(|p| *index.entry([p[0].to_bits(), p[1].to_bits(), p[2].to_bits()]).or_insert_with(|| {
+            points.push(p);
+            points.len() as u32 - 1
+        }));
+        tris.push(ids);
+    }
+    afrobim_corridor::Tin::new(points, tris).ok()
 }
