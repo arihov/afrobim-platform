@@ -420,6 +420,9 @@ impl AfroBimApp {
         self.doc.select(&[id], SelectMode::Replace);
         self.sync_generated();
         let Some(e) = self.doc.find(id).cloned() else { return };
+        // ZOOM Previous returns to where the view was before.
+        self.ctl.remember_view(&self.view);
+        self.camera_history.push(self.camera.clone());
         if self.view_3d {
             let site_mode = self.site_mode();
             let Some(frame) = self.frame_of(&e, site_mode) else {

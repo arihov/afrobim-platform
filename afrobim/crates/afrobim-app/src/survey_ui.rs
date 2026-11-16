@@ -58,7 +58,10 @@ pub fn request_in(name: &str, format: SurveyFormat, crs: &str, max_side: &str, e
 
 /// Imports the file and returns the surface and the account of the import.
 pub fn import(doc: &mut Document, path: &Path, request: &SurveyImportRequest) -> Result<(ElementId, Vec<String>), String> {
-    afrobim_corridor::import_survey_surface(doc, path, request)
+    let (id, report) = afrobim_corridor::import_survey_surface(doc, path, request)?;
+    // At the coordinates of the file, as for LandXML: the element sits at its drawing's origin.
+    crate::alignment_glue::place_at_source(doc, id);
+    Ok((id, report))
 }
 
 /// The open dialog.
@@ -74,6 +77,10 @@ pub struct SurveyForm {
     utm_south: bool,
     crs: String,
     max_side: String,
+    /// The project's coordinate system when the dialog opened: the default for `crs`.
+    project: Option<afrobim_kernel::ProjectCrs>,
+    /// With no project system: also make the one entered here the project's.
+    set_project: bool,
     /// Descriptions ticked to be left out, in capitals.
     excluded: BTreeSet<String>,
     /// The file as read in `order`, or why it cannot be.
@@ -82,8 +89,10 @@ pub struct SurveyForm {
 }
 
 impl SurveyForm {
-    fn new(path: PathBuf) -> SurveyForm {
+    fn new(path: PathBuf, project: Option<afrobim_kernel::ProjectCrs>) -> SurveyForm {
         let order = ColumnOrder::Pnezd;
+        // The file is taken to be in the project's system unless it is told otherwise.
+        let crs = project.as_ref().map(|p| p.code().unwrap_or_else(|| p.name.clone())).unwrap_or_default();
         SurveyForm {
             name: path.file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
             read: read_survey_points(&path, &SurveyFormat::metres(order)).map_err(|e| e.to_string()),
@@ -93,8 +102,10 @@ impl SurveyForm {
             patterns: String::new(),
             utm_zone: 1,
             utm_south: false,
-            crs: String::new(),
+            crs,
             max_side: String::new(),
+            project,
+            set_project: true,
             excluded: BTreeSet::new(),
             problem: None,
         }
@@ -130,7 +141,7 @@ pub struct SurveyUi {
 impl AfroBimApp {
     /// Opens the SURVEY dialog on a file.
     pub(crate) fn survey_open(&mut self, path: PathBuf) {
-        self.survey.form = Some(SurveyForm::new(path));
+        self.survey.form = Some(SurveyForm::new(path, afrobim_kernel::project_crs(&self.doc)));
     }
 
     /// Imports a point file with a ready request: the surface is added, selected and reported in
@@ -178,7 +189,16 @@ impl AfroBimApp {
         }
         if out.inner.is_some_and(|(_, f)| f.primary) {
             match form.request().and_then(|request| self.survey_import(Some(ctx), &form.path, &request)) {
-                Ok(_) => return,
+                Ok(_) => {
+                    // With no project system, the one stated for this file becomes the project's, when ticked.
+                    if form.project.is_none() && form.set_project {
+                        if let Some(mut c) = CoordinateSystem::parse(&form.crs) {
+                            c.source = afrobim_kernel::CrsSource::Survey;
+                            self.apply_project_crs(c);
+                        }
+                    }
+                    return;
+                }
                 Err(why) => form.problem = Some(why),
             }
         }
@@ -254,7 +274,7 @@ fn survey_body(ui: &mut egui::Ui, form: &mut SurveyForm) {
                     }
                     if ui.button("Use").clicked() {
                         if let Some(c) = CoordinateSystem::utm_wgs84(form.utm_zone, form.utm_south) {
-                            form.crs = c.code();
+                            form.crs = c.code().unwrap_or_default();
                         }
                     }
                 });
@@ -281,6 +301,22 @@ fn survey_body(ui: &mut egui::Ui, form: &mut SurveyForm) {
             }
         }
     });
+    if let (Ok(survey), Some(crs)) = (&form.read, CoordinateSystem::parse(&form.crs)) {
+        match &form.project {
+            Some(p) => {
+                // Same or different from the project: said plainly. The file comes in at its own coordinates either way.
+                let extent = survey.plan_extent().map(|(min, max)| afrobim_kernel::PlanExtent { min_easting: min.0, min_northing: min.1, max_easting: max.0, max_northing: max.1 });
+                let findings: Vec<_> = crate::crs_ui::dataset_check(Some(p), &form.name, Some(&crs), extent)
+                    .into_iter()
+                    .filter(|f| matches!(f.kind, afrobim_kernel::FindingKind::SameSystem | afrobim_kernel::FindingKind::DifferentSystem))
+                    .collect();
+                crate::crs_ui::show_findings(ui, &findings);
+            }
+            None => {
+                ui_kit::toggle(ui, &mut form.set_project, &format!("Also use {} for the project", crs.label()));
+            }
+        }
+    }
     ui_kit::section(ui, "Triangulation", |ui| {
         ui_kit::form(ui, "survey-tri", |f| {
             f.row_note("Longest triangle side", "triangles with a longer side are removed, so the surface does not span ground that was not surveyed; blank keeps every triangle", |ui| {
@@ -342,14 +378,14 @@ mod tests {
         let r = request(" EG ", ColumnOrder::Pnezd, "wgs 84 / utm zone 36s", "40", "CULV-INV, clvt-*,,").unwrap();
         assert_eq!(r.name, "EG");
         assert_eq!(r.format, SurveyFormat::metres(ColumnOrder::Pnezd));
-        assert_eq!(r.crs.as_ref().map(|c| c.epsg), Some(32736));
+        assert_eq!(r.crs.as_ref().and_then(|c| c.epsg), Some(32736));
         assert_eq!(r.options, SurfaceOptions { exclude: vec!["CULV-INV".into(), "clvt-*".into()], max_side_m: Some(40.0) });
         // Blank is none, for both.
         let r = request("", ColumnOrder::Enzd, "  ", "", "").unwrap();
         assert!(r.crs.is_none() && r.options.max_side_m.is_none() && r.options.exclude.is_empty());
         // What cannot be understood is said, never guessed.
         assert!(request("", ColumnOrder::Pnezd, "UTM 36", "", "").unwrap_err().contains("with N or S"));
-        assert!(request("", ColumnOrder::Pnezd, "Arc 1960 / UTM zone 36S", "", "").unwrap_err().contains("not a coordinate system AfroBIM knows"));
+        assert!(request("", ColumnOrder::Pnezd, "Arc 1960 / UTM zone 38S", "", "").unwrap_err().contains("not a coordinate system AfroBIM knows"));
         for bad in ["0", "-5", "ten", "inf"] {
             assert!(request("", ColumnOrder::Pnezd, "", bad, "").unwrap_err().contains("greater than 0"), "{bad}");
         }

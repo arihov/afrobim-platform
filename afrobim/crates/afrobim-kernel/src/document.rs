@@ -258,7 +258,9 @@ impl Document {
 
     /// The union of every element's bounds, or None when the document is empty.
     pub fn extents(&self) -> Option<BBox> {
-        let mut it = self.elements.iter().map(|e| e.bounds());
+        // The project settings element is a record at the model origin, not geometry: it must not
+        // drag a view of data at UTM coordinates back to (0, 0).
+        let mut it = self.elements.iter().filter(|e| e.category != crate::PROJECT_SETTINGS_CATEGORY).map(|e| e.bounds());
         let first = it.next()?;
         Some(it.fold(first, |a, b| a.union(&b)))
     }
@@ -321,21 +323,35 @@ impl Document {
     /// new row below once the row is `ARRANGE_ROW_WIDTH` wide. Rows grow downwards so the first
     /// element stays at the origin.
     pub fn next_free_origin(&self, width: f64, _height: f64) -> Pt {
-        let Some(last) = self.elements.last().map(|e| e.bounds()) else {
+        // Only what is on a visible layer counts: imported alignments and surfaces sit at their
+        // source coordinates on layers that are hidden on the sheet, and must not push the next
+        // sign kilometres away.
+        let on_sheet = |e: &&Element| self.layer_visible(&e.layer) && e.category != crate::PROJECT_SETTINGS_CATEGORY;
+        let Some(last) = self.elements.iter().rev().find(on_sheet).map(|e| e.bounds()) else {
             return Pt::new(0.0, 0.0);
         };
         let x = last.max.x + Self::ARRANGE_GAP;
         if x + width <= Self::ARRANGE_ROW_WIDTH {
             return Pt::new(x, last.min.y);
         }
-        let bottom = self.elements.iter().map(|e| e.origin.y).fold(f64::INFINITY, f64::min);
+        let bottom = self.elements.iter().filter(on_sheet).map(|e| e.origin.y).fold(f64::INFINITY, f64::min);
         Pt::new(0.0, bottom - Self::ARRANGE_GAP - _height)
     }
 
     /// Lays every element out again in rows, in document order.
     pub fn arrange(&mut self) {
+        self.arrange_where(|_| true);
+    }
+
+    /// Lays out again only the elements `movable` accepts. The others keep their origin: an
+    /// element that carries the coordinates of its source (an imported alignment or surface)
+    /// must never be moved by a tidy-up of the sheet.
+    pub fn arrange_where(&mut self, movable: impl Fn(&Element) -> bool) {
         let mut plan = Document::default();
         for i in 0..self.elements.len() {
+            if !movable(&self.elements[i]) {
+                continue;
+            }
             let (w, h) = (self.elements[i].width, self.elements[i].height);
             let at = plan.next_free_origin(w, h);
             plan.add("", "", at, w, h, "0", serde_json::Value::Null);

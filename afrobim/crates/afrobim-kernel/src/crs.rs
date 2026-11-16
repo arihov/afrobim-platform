@@ -260,7 +260,13 @@ impl AreaOfUse {
 }
 
 /// The project coordinate system, stored in the document (see [`crate::project_crs`]).
+///
+/// Reading is tolerant: the older corridor type stored a surface's system as `{ "epsg": 32736,
+/// "name": "WGS 84 / UTM zone 36S" }` with no `kind`. Such a value is read as the system the kernel
+/// knows by that code (and keeps the stored name), or as a named-only system when it does not know
+/// the code, so documents written before there was one coordinate system type still open.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(from = "ProjectCrsRaw")]
 pub struct ProjectCrs {
     #[serde(default)]
     pub epsg: Option<u32>,
@@ -279,6 +285,46 @@ pub struct ProjectCrs {
     pub wkt: Option<String>,
     #[serde(default)]
     pub source: CrsSource,
+}
+
+#[derive(Deserialize)]
+struct ProjectCrsRaw {
+    #[serde(default)]
+    epsg: Option<u32>,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    kind: Option<CrsKind>,
+    #[serde(default)]
+    horizontal_datum: String,
+    #[serde(default)]
+    vertical_datum: String,
+    #[serde(default)]
+    linear_unit: LinearUnit,
+    #[serde(default)]
+    wkt: Option<String>,
+    #[serde(default)]
+    source: CrsSource,
+}
+
+impl From<ProjectCrsRaw> for ProjectCrs {
+    fn from(r: ProjectCrsRaw) -> ProjectCrs {
+        let kind = r.kind.unwrap_or_else(|| if r.epsg.and_then(definition).is_some() { CrsKind::Projected } else { CrsKind::NamedOnly });
+        let mut crs = ProjectCrs {
+            epsg: r.epsg,
+            name: r.name,
+            kind,
+            horizontal_datum: r.horizontal_datum,
+            vertical_datum: r.vertical_datum,
+            linear_unit: r.linear_unit,
+            wkt: r.wkt,
+            source: r.source,
+        };
+        if crs.kind == CrsKind::Projected && crs.horizontal_datum.is_empty() {
+            crs.horizontal_datum = crs.epsg.and_then(definition).map(|d| d.datum.to_string()).unwrap_or_default();
+        }
+        crs
+    }
 }
 
 /// One projected system the kernel can compute with.
@@ -348,6 +394,86 @@ impl ProjectCrs {
             wkt: None,
             source: CrsSource::Typed,
         })
+    }
+
+    /// WGS 84 / UTM zone `zone` (1 to 60), north or south of the equator.
+    pub fn utm_wgs84(zone: u8, south: bool) -> Option<ProjectCrs> {
+        if !(1..=60).contains(&zone) {
+            return None;
+        }
+        ProjectCrs::from_epsg(if south { 32700 } else { 32600 } + u32::from(zone))
+    }
+
+    /// The systems whose code or name contains `query` (case, spaces and punctuation ignored),
+    /// at most `limit`, in code order. An empty query matches nothing. A bare number matches the
+    /// codes that start with it.
+    pub fn search(query: &str, limit: usize) -> Vec<ProjectCrs> {
+        let q = compact(query);
+        if q.is_empty() {
+            return Vec::new();
+        }
+        let digits = q.strip_prefix("EPSG").unwrap_or(&q);
+        let numeric = !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit());
+        let key = |name: &str| compact(name).replace("ZONE", "");
+        let q_key = q.replace("ZONE", "");
+        supported_epsg_codes()
+            .into_iter()
+            .filter(|&code| {
+                if numeric {
+                    code.to_string().starts_with(digits)
+                } else {
+                    definition(code).is_some_and(|d| key(&d.name).contains(&q_key))
+                }
+            })
+            .take(limit)
+            .filter_map(ProjectCrs::from_epsg)
+            .collect()
+    }
+
+    /// What is odd about plan coordinates said to be in this system, as sentences; empty when
+    /// nothing is (and for a system the kernel cannot compute with). `min` and `max` are the
+    /// south-west and north-east corners `(easting, northing)` in metres.
+    ///
+    /// The tests, for a UTM system: eastings between 100 000 m and 900 000 m (a zone is at most
+    /// about 668 km wide, centred on 500 000 m), northings between 0 and 10 000 000 m, and the
+    /// extent within three degrees of the zone's central meridian and on the system's side of the
+    /// equator. See [`CrsCheck`] for the fuller check an import runs.
+    pub fn doubts(&self, min: (f64, f64), max: (f64, f64)) -> Vec<String> {
+        let mut out = Vec::new();
+        let (Some((zone, south)), Some(projection)) = (self.utm_zone(), self.projection()) else { return out };
+        if min.0 < 100_000.0 || max.0 > 900_000.0 {
+            out.push(format!(
+                "Eastings run from {:.3} to {:.3} m. A UTM easting lies between about 166 000 and 834 000 m, so these are not eastings of {}: check the column order.",
+                min.0, max.0, self.name
+            ));
+        }
+        if min.1 < 0.0 || max.1 > 10_000_000.0 {
+            out.push(format!(
+                "Northings run from {:.3} to {:.3} m. A UTM northing lies between 0 and 10 000 000 m, so these are not northings of {}: check the column order.",
+                min.1, max.1, self.name
+            ));
+        }
+        if !out.is_empty() {
+            return out;
+        }
+        let central = projection.lon0.to_degrees();
+        for (e, n) in [min, max] {
+            if let Some((lat, lon)) = self.to_geographic(e, n) {
+                if (lon - central).abs() > 3.0 + 1e-9 {
+                    out.push(format!(
+                        "The extent reaches longitude {lon:.4}, which is outside zone {zone} ({:.0} to {:.0} degrees east). It may belong to a neighbouring zone.",
+                        central - 3.0,
+                        central + 3.0
+                    ));
+                    break;
+                }
+                if south != (lat < 0.0) && lat.abs() > 0.5 {
+                    out.push(format!("The extent reaches latitude {lat:.4}, which is not in the {} hemisphere.", if south { "southern" } else { "northern" }));
+                    break;
+                }
+            }
+        }
+        out
     }
 
     /// A system known by a code or a name only. Nothing can be computed from it.
@@ -1052,5 +1178,49 @@ mod tests {
         assert_eq!(back, c);
         let minimal: ProjectCrs = serde_json::from_str(r#"{"name":"X","kind":"NamedOnly"}"#).unwrap();
         assert_eq!((minimal.epsg, minimal.source, minimal.linear_unit), (None, CrsSource::Typed, LinearUnit::Metre));
+    }
+
+    #[test]
+    fn the_older_corridor_value_still_reads() {
+        // How a surface's system was stored before there was one type: epsg and name, nothing else.
+        let old: ProjectCrs = serde_json::from_str(r#"{"epsg":32736,"name":"WGS 84 / UTM zone 36S"}"#).unwrap();
+        assert_eq!(old.kind, CrsKind::Projected);
+        assert_eq!(old.epsg, Some(32736));
+        assert_eq!(old.horizontal_datum, "WGS 84");
+        assert!(old.to_geographic(500_000.0, 10_000_000.0).is_some());
+        let other: ProjectCrs = serde_json::from_str(r#"{"epsg":2039,"name":"Israeli Grid"}"#).unwrap();
+        assert_eq!(other.kind, CrsKind::NamedOnly);
+        assert_eq!(other.name, "Israeli Grid");
+        // A value written now round-trips unchanged.
+        let now = ProjectCrs::from_epsg(21036).unwrap();
+        assert_eq!(serde_json::from_str::<ProjectCrs>(&serde_json::to_string(&now).unwrap()).unwrap(), now);
+    }
+
+    #[test]
+    fn search_finds_systems_by_code_and_by_name() {
+        let by_code: Vec<_> = ProjectCrs::search("2103", 10).iter().map(|c| c.epsg.unwrap()).collect();
+        assert_eq!(by_code, vec![21035, 21036, 21037]);
+        assert_eq!(ProjectCrs::search("EPSG:32736", 5)[0].name, "WGS 84 / UTM zone 36S");
+        let arc = ProjectCrs::search("arc 1960", 20);
+        assert_eq!(arc.len(), 6);
+        assert!(arc.iter().all(|c| c.horizontal_datum == "Arc 1960"));
+        assert_eq!(ProjectCrs::search("utm zone 36s", 10).len(), 2); // WGS 84 and Arc 1960
+        assert!(ProjectCrs::search("", 10).is_empty());
+        assert!(ProjectCrs::search("atlantis", 10).is_empty());
+        assert_eq!(ProjectCrs::utm_wgs84(36, true).unwrap().epsg, Some(32736));
+        assert!(ProjectCrs::utm_wgs84(61, true).is_none());
+    }
+
+    #[test]
+    fn doubts_catch_swapped_columns_and_a_wrong_zone() {
+        let c = ProjectCrs::utm_wgs84(36, true).unwrap();
+        assert!(c.doubts((213_629.0, 9_885_072.0), (237_955.0, 9_892_378.0)).is_empty());
+        let swapped = c.doubts((9_885_072.0, 213_629.0), (9_892_378.0, 237_955.0));
+        assert_eq!(swapped.len(), 1);
+        assert!(swapped[0].contains("check the column order"), "{swapped:?}");
+        let far = c.doubts((880_000.0, 9_885_072.0), (890_000.0, 9_892_378.0));
+        assert!(far.len() == 1 && far[0].contains("neighbouring zone"), "{far:?}");
+        // A system the kernel cannot compute with has nothing to doubt.
+        assert!(ProjectCrs::named_only(Some(2039), "Israeli Grid").doubts((1.0, 1.0), (2.0, 2.0)).is_empty());
     }
 }

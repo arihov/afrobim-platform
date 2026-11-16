@@ -85,12 +85,18 @@ fn choice_of(rule: &SpeedBandRule) -> Choice {
 #[derive(Default)]
 pub struct ProjSetUi {
     pub open: bool,
-    /// 0 General, 1 Display units, 2 Speed limits.
+    /// 0 General, 1 Coordinate system, 2 Display units, 3 Speed limits.
     pub tab: usize,
     table_text: Vec<(String, String)>,
+    crs: crate::crs_ui::CrsUi,
 }
 
-const TABS: [&str; 3] = ["General", "Display units", "Speed limits"];
+/// The index of the coordinate system tab.
+pub const CRS_TAB: usize = 1;
+/// The index of the display units tab.
+pub const UNITS_TAB: usize = 2;
+
+const TABS: [&str; 4] = ["General", "Coordinate system", "Display units", "Speed limits"];
 
 impl AfroBimApp {
     /// PROJECTSETTINGS and UNITS: one dialog with the project's design standard, its display
@@ -109,6 +115,10 @@ impl AfroBimApp {
         let mut tab = self.projset.tab;
         let mut std_pick: Option<usize> = None;
         let table_text = &mut self.projset.table_text;
+        let crs_state = &mut self.projset.crs;
+        let current_crs = afrobim_kernel::project_crs(&self.doc);
+        let objects = crate::crs_ui::object_count(&self.doc);
+        let mut crs_out = crate::crs_ui::CrsTabOut::default();
         let out = Dialog::new("Project settings", crate::glyphs::by_name("PROJECTSETTINGS"))
             .subtitle(format!("{file}  ·  {elements} element(s)"))
             .width(600.0)
@@ -119,7 +129,8 @@ impl AfroBimApp {
                     ui_kit::tabs(ui, &mut tab, &TABS);
                     match tab {
                         0 => general_tab(ui, &standard, &mut std_pick),
-                        1 => units_tab(ui, &mut st, &mut set_dims),
+                        CRS_TAB => crs_out = crate::crs_ui::tab(ui, crs_state, &current_crs, objects),
+                        UNITS_TAB => units_tab(ui, &mut st, &mut set_dims),
                         _ => speed_tab(ui, &mut rule, table_text),
                     }
                 },
@@ -127,6 +138,11 @@ impl AfroBimApp {
             );
         self.projset.tab = tab;
         self.anno.units_set_dims = set_dims;
+        if let Some(crs) = crs_out.set {
+            self.apply_project_crs(crs);
+        } else if crs_out.clear {
+            self.remove_project_crs();
+        }
         if let Some(i) = std_pick {
             self.run(ctx, crate::commands::Action::Standard(i as u8));
         }

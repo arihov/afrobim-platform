@@ -522,13 +522,14 @@ impl UnderlayState {
             let colour = ink.gamma_multiply(def.opacity.clamp(0.05, 1.0) * 0.8);
             let stroke = Stroke::new(1.0_f32, colour);
             let mut shapes: Vec<Shape> = Vec::new();
-            let at = |x: f32, y: f32| {
-                let s = view.to_screen(Pt::new(b.origin[0] + x as f64, b.origin[1] + y as f64));
-                pos2(s.x as f32, s.y as f32)
-            };
+            // Placed from the difference between the underlay origin and the view anchor, in f64,
+            // then clipped to the screen in f64 before the f32 conversion (see `render::CLIP_PX`).
+            let at = |x: f32, y: f32| view.to_screen_local(Pt::new(b.origin[0], b.origin[1]), x as f64, y as f64);
+            let (lo, hi) = (Pt::new(rect.left() as f64 - 50.0, rect.top() as f64 - 50.0), Pt::new(rect.right() as f64 + 50.0, rect.bottom() as f64 + 50.0));
             let mut drawn = 0usize;
             for s in &b.segs {
-                let (p, q) = (at(s[0], s[1]), at(s[2], s[3]));
+                let Some((p, q)) = crate::render::clip_segment_box(at(s[0], s[1]), at(s[2], s[3]), lo, hi) else { continue };
+                let (p, q) = (pos2(p.x as f32, p.y as f32), pos2(q.x as f32, q.y as f32));
                 if (p.x < rect.left() && q.x < rect.left()) || (p.x > rect.right() && q.x > rect.right()) || (p.y < rect.top() && q.y < rect.top()) || (p.y > rect.bottom() && q.y > rect.bottom()) {
                     continue;
                 }
@@ -857,5 +858,36 @@ mod tests {
             Some(FileStatus::Failed(m)) => assert!(m.contains("Convert it to DXF first"), "{m}"),
             other => panic!("{other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod true_coordinate_tests {
+    use super::*;
+
+    /// A DXF written in metres at UTM size (easting 450 123.456, northing 9 960 012.345) is placed
+    /// at those numbers times 1000, with no offset added and nothing re-based.
+    #[test]
+    fn a_dxf_underlay_in_metres_lands_at_source_coordinates() {
+        let mut dxf = afrobim_dxf::DxfDocument::new();
+        dxf.add_line("ROAD", 7, Pt::new(450_123.456, 9_960_012.345), Pt::new(450_223.456, 9_960_112.345));
+        let dir = std::env::temp_dir().join(format!("afrobim-u2-underlay-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("true.dxf");
+        std::fs::write(&path, dxf.finish()).unwrap();
+        let mut doc = Document::default();
+        let mut st = UnderlayState::default();
+        let id = st.attach(&mut doc, &path).unwrap();
+        st.wait(&mut doc, 0.1);
+        let mut def = def_of(doc.find(id).unwrap()).unwrap();
+        assert_eq!(def.offset_mm, [0.0, 0.0], "attaching adds no offset");
+        // The file is in metres: say so (1000 mm per unit), as the dialog's unit choice does.
+        def.unit_scale_mm = 1000.0;
+        let built = build(st.underlay(id).unwrap(), &def, 0);
+        let (lo, hi) = built.bounds.expect("the line is drawn");
+        for (got, want) in [(lo.x, 450_123_456.0), (lo.y, 9_960_012_345.0), (hi.x, 450_223_456.0), (hi.y, 9_960_112_345.0)] {
+            assert!((got - want).abs() < 0.001, "{got} != {want}");
+        }
+        assert_eq!(built.origin, [lo.x, lo.y]);
     }
 }

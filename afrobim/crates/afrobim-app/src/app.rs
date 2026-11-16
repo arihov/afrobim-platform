@@ -146,6 +146,10 @@ pub struct AfroBimApp {
     fitted: bool,
     pub(crate) view_3d: bool,
     pub(crate) camera: crate::view3d::Camera,
+    /// World point under the pointer where a 3D drag began: the pivot of the orbit.
+    pub(crate) orbit_pivot: Option<[f64; 3]>,
+    /// Cameras ZOOM Previous returns to in the 3D view (the plan view keeps its own in the controller).
+    pub(crate) camera_history: Vec<crate::view3d::Camera>,
     pub(crate) fitted_3d: bool,
     canvas_drag: bool,
     quit: bool,
@@ -258,6 +262,8 @@ impl AfroBimApp {
             fitted: false,
             view_3d: false,
             camera: crate::view3d::Camera::default(),
+            orbit_pivot: None,
+            camera_history: Vec::new(),
             fitted_3d: false,
             canvas_drag: false,
             quit: false,
@@ -1084,8 +1090,16 @@ impl AfroBimApp {
             Action::Copy => self.ctl.start_copy(&mut self.doc),
             Action::Erase => self.ctl.start_erase(&mut self.doc),
             Action::SelectAll => self.doc.select_all(),
-            Action::ZoomExtents if self.view_3d => self.fit_3d(),
-            Action::ZoomExtents => self.zoom_extents_visible(),
+            Action::ZoomExtents if self.view_3d => {
+                self.camera_history.push(self.camera.clone());
+                self.fit_3d()
+            }
+            Action::ZoomExtents => {
+                self.ctl.remember_view(&self.view);
+                self.zoom_extents_visible()
+            }
+            Action::ZoomSelection => self.zoom_selection(),
+            Action::ZoomPrevious => self.zoom_previous_view(),
             Action::ZoomWindow => self.ctl.start_zoom_window(),
             Action::ZoomIn if self.view_3d => self.camera.zoom(1.5),
             Action::ZoomOut if self.view_3d => self.camera.zoom(1.0 / 1.5),
@@ -1112,7 +1126,11 @@ impl AfroBimApp {
                 }
             }
             Action::Arrange => {
-                self.doc.arrange();
+                // Imported alignments and surfaces, corridors and underlays sit at the
+                // coordinates of their source and are never moved by a tidy-up of the sheet.
+                self.doc.arrange_where(|e| {
+                    ![crate::alignment_glue::CATEGORY, afrobim_corridor::SURFACE_CATEGORY, afrobim_corridor::CORRIDOR_CATEGORY, crate::underlay::CATEGORY, afrobim_kernel::PROJECT_SETTINGS_CATEGORY].contains(&e.category.as_str())
+                });
                 self.zoom_extents_visible();
                 self.schedule_commit(ctx);
             }
@@ -1430,8 +1448,9 @@ impl AfroBimApp {
             Action::Layers => self.anno.layers_open = true,
             Action::Units => {
                 self.projset.open = true;
-                self.projset.tab = 1;
+                self.projset.tab = crate::projset::UNITS_TAB;
             }
+            Action::CoordSystem => self.open_crs_tab(),
             Action::ProjectSettings => {
                 self.projset.open = true;
                 self.projset.tab = 0;
@@ -1455,7 +1474,7 @@ impl AfroBimApp {
             .doc
             .elements()
             .iter()
-            .filter(|e| self.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY)
+            .filter(|e| self.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY)
             .map(|e| e.bounds())
             .reduce(|a, b| a.union(&b))
             .unwrap_or(afrobim_kernel::BBox::new(0.0, 0.0, 5000.0, 3000.0));
@@ -1698,7 +1717,15 @@ impl AfroBimApp {
                 ui.spacing_mut().item_spacing.x = 6.0;
                 let w = self.ctl.cursor_world();
                 let units = crate::anno_ui::units_of(&self.doc);
-                ui.add_sized([210.0, 16.0], egui::Label::new(RichText::new(format!("{} , {}", units.length(w.x), units.length_u(w.y))).monospace().size(12.0)));
+                let crs = afrobim_kernel::project_crs(&self.doc);
+                // Easting and northing in metres of the project system, at true magnitude; the
+                // model's own numbers when the document has no coordinate system.
+                let position = match &crs {
+                    Some(_) => crate::crs_ui::en_text(w, crs.as_ref()),
+                    None => format!("{} , {}", units.length(w.x), units.length_u(w.y)),
+                };
+                ui.add_sized([if crs.is_some() { 290.0 } else { 210.0 }, 16.0], egui::Label::new(RichText::new(position).monospace().size(12.0)))
+                    .on_hover_text(if crs.is_some() { "Easting and northing of the cursor in metres, in the project coordinate system" } else { "Model coordinates of the cursor. No coordinate system is set" });
                 ui.separator();
                 if ui.selectable_label(self.grid_on, RichText::new("GRID").size(11.5).strong()).on_hover_text("Grid display (F7)").clicked() {
                     self.grid_on = !self.grid_on;
@@ -1735,7 +1762,9 @@ impl AfroBimApp {
                     (1, Some(e)) => format!("{}  {} × {}", e.name, units.length(e.width), units.length_u(e.height)),
                     (n, _) => format!("{n} elements selected"),
                 };
-                let zoom_text = format!("1 px = {:.1} mm", 1.0 / self.view.scale);
+                let zoom_text = crate::zoom_cmds::pixel_size_text(self.view.scale);
+                let crs_text = crs.as_ref().map(|c| c.label()).unwrap_or_else(|| "No coordinate system".to_string());
+                let latlon_text = crs.as_ref().and_then(|c| crate::crs_ui::lat_lon_text(w, c));
                 let standard_text = self.module_status.clone();
                 let body = egui::TextStyle::Body.resolve(ui.style());
                 let mono = egui::TextStyle::Monospace.resolve(ui.style());
@@ -1745,7 +1774,11 @@ impl AfroBimApp {
                     (Segment::Selection, text_w(ui, &sel_text, &body) + gap),
                     (Segment::Standard, text_w(ui, &standard_text, &body) + gap),
                     (Segment::Zoom, text_w(ui, &zoom_text, &mono) + gap),
-                ];
+                    (Segment::Crs, text_w(ui, &crs_text, &body) + gap),
+                ]
+                .into_iter()
+                .chain(latlon_text.as_ref().map(|t| (Segment::LatLon, text_w(ui, t, &mono) + gap)))
+                .collect::<Vec<_>>();
                 let plan = layout(ui.available_width(), &widths);
                 let msg_w = plan.message_w;
                 let full = self.status.clone();
@@ -1766,6 +1799,29 @@ impl AfroBimApp {
                     if plan.shown.contains(&Segment::Zoom) {
                         ui.label(RichText::new(&zoom_text).monospace().weak());
                         ui.separator();
+                    }
+                    if plan.shown.contains(&Segment::Crs) {
+                        // Plainly said when there is none; either way a click opens the setting.
+                        let text = RichText::new(&crs_text).weak();
+                        let text = if crs.is_none() { text.color(crate::theme::warn()) } else { text };
+                        let tip = match &crs {
+                            None => "No coordinate system is set. Click to set one (CRS). A new document asks nothing, and nothing is moved when you do".to_string(),
+                            Some(c) => format!("{}\nClick to change it (CRS)", crate::crs_ui::kind_text(c.kind)),
+                        };
+                        if ui.add(egui::Label::new(text).sense(egui::Sense::click())).on_hover_text(tip).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                            self.open_crs_tab();
+                        }
+                        ui.separator();
+                    }
+                    if plan.shown.contains(&Segment::LatLon) {
+                        if let (Some(t), Some(c)) = (&latlon_text, &crs) {
+                            let r = ui.label(RichText::new(t).monospace().weak());
+                            // Grid convergence and point scale factor, on hover.
+                            if let Some(extra) = crate::crs_ui::convergence_text(w, c) {
+                                r.on_hover_text(format!("{extra}\nOn the datum of the system: no datum shift to WGS 84 is applied."));
+                            }
+                            ui.separator();
+                        }
                     }
                     if plan.shown.contains(&Segment::Selection) {
                         ui.label(&sel_text);
@@ -1810,7 +1866,7 @@ impl AfroBimApp {
                 }
                 ui.add_space(6.0);
                 ui.label(RichText::new("Zoom").small().weak());
-                for (label, tip, a) in [("Extents", "Zoom extents (Z)", Action::ZoomExtents), ("Window", "Zoom window (ZW)", Action::ZoomWindow)] {
+                for (label, tip, a) in [("Extents", "Zoom extents (Z)", Action::ZoomExtents), ("Window", "Zoom window (ZW)", Action::ZoomWindow), ("Selection", "Zoom to selection (ZS)", Action::ZoomSelection), ("Previous", "Previous view (ZP)", Action::ZoomPrevious)] {
                     if icons::palette_glyph(ui, crate::glyphs::glyph(a).unwrap_or(""), label, tip).clicked() {
                         pick = Some(a);
                     }
@@ -1823,18 +1879,33 @@ impl AfroBimApp {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 let categories: Vec<(String, String)> = self.modules.categories().map(|(c, n)| (c.to_string(), n.to_string())).collect();
                 let mut select = None;
+                let mut zoom_to = None;
                 for (category, title) in categories {
                     let count = self.doc.elements().iter().filter(|e| e.category == category).count();
                     egui::CollapsingHeader::new(format!("{title} ({count})")).default_open(true).show(ui, |ui| {
                         for e in self.doc.elements().iter().filter(|e| e.category == category) {
-                            if ui.selectable_label(self.doc.is_selected(e.id), &e.name).clicked() {
+                            let row = ui.selectable_label(self.doc.is_selected(e.id), &e.name);
+                            if row.clicked() {
                                 select = Some(e.id);
                             }
+                            if row.double_clicked() {
+                                zoom_to = Some(e.id);
+                            }
+                            row.context_menu(|ui| {
+                                if ui.button("Zoom to object").clicked() {
+                                    select = Some(e.id);
+                                    zoom_to = Some(e.id);
+                                    ui.close_menu();
+                                }
+                            });
                         }
                     });
                 }
                 if let Some(id) = select {
                     self.doc.select(&[id], SelectMode::Replace);
+                }
+                if let Some(id) = zoom_to {
+                    self.zoom_to_element(id);
                 }
             });
             if let Some(a) = pick {
@@ -2077,9 +2148,7 @@ impl AfroBimApp {
                     let v: Vec<f64> = spec.split(',').filter_map(|t| t.trim().parse().ok()).collect();
                     if let [x, y, w] = v[..] {
                         let scale = rect.width() as f64 / w.max(1.0);
-                        self.view.scale = scale;
-                        self.view.origin_x = rect.center().x as f64 - x * scale;
-                        self.view.origin_y = rect.center().y as f64 + y * scale;
+                        self.view = ViewTransform::centred_on(Pt::new(x, y), Pt::new(rect.center().x as f64, rect.center().y as f64), scale);
                     }
                 }
             }

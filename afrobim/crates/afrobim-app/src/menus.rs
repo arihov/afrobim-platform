@@ -163,6 +163,7 @@ impl AfroBimApp {
                     sep(ui);
                     a(ui, &mut pick, Action::ProjectInfo, "Project information…");
                     a(ui, &mut pick, Action::ProjectSettings, "Project settings…");
+                    a(ui, &mut pick, Action::CoordSystem, "Coordinate system…");
                     sep(ui);
                     a(ui, &mut pick, Action::Quit, "Quit");
                 });
@@ -181,6 +182,8 @@ impl AfroBimApp {
                     ui.set_min_width(280.0);
                     a(ui, &mut pick, Action::ZoomExtents, "Zoom extents");
                     a(ui, &mut pick, Action::ZoomWindow, "Zoom window");
+                    a(ui, &mut pick, Action::ZoomSelection, "Zoom to selection");
+                    a(ui, &mut pick, Action::ZoomPrevious, "Zoom previous");
                     a(ui, &mut pick, Action::ZoomIn, "Zoom in");
                     a(ui, &mut pick, Action::ZoomOut, "Zoom out");
                     sep(ui);
@@ -447,7 +450,7 @@ impl AfroBimApp {
             }
         }
         sep(ui);
-        for (a, l) in [(Action::ZoomExtents, "Zoom extents"), (Action::ZoomWindow, "Zoom window"), (Action::Toggle3d, "2D / 3D")] {
+        for (a, l) in [(Action::ZoomExtents, "Zoom extents"), (Action::ZoomWindow, "Zoom window"), (Action::ZoomSelection, "Zoom to selection"), (Action::ZoomPrevious, "Zoom previous"), (Action::Toggle3d, "2D / 3D")] {
             if item(ui, a, l) {
                 pick = Some(a);
             }
@@ -513,7 +516,7 @@ impl AfroBimApp {
             }
         }
         sep(ui);
-        for (a, l) in [(Action::Layers, "Layer manager…"), (Action::Units, "Units…"), (Action::ProjectSettings, "Project settings…")] {
+        for (a, l) in [(Action::Layers, "Layer manager…"), (Action::Units, "Units…"), (Action::ProjectSettings, "Project settings…"), (Action::CoordSystem, "Coordinate system…")] {
             if item(ui, a, l) {
                 pick = Some(a);
             }

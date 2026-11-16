@@ -736,7 +736,7 @@ fn paint_preview(ui: &mut Ui, p: &Preview, zoom: f32, pan: Vec2) -> egui::Respon
     // A grey desk, a white sheet, a shadow.
     painter.rect_filled(rect, 0.0, Color32::from_gray(70));
     let origin = rect.center() + pan - Vec2::new(p.width_mm as f32, -(p.height_mm as f32)) * zoom / 2.0;
-    let view = ViewTransform { scale: zoom as f64, origin_x: origin.x as f64, origin_y: origin.y as f64 };
+    let view = ViewTransform::from_origin(zoom as f64, origin.x as f64, origin.y as f64);
     let to_screen = |x: f64, y: f64| egui::pos2(origin.x + x as f32 * zoom, origin.y - y as f32 * zoom);
     let paper = egui::Rect::from_two_pos(to_screen(0.0, 0.0), to_screen(p.width_mm, p.height_mm));
     painter.rect_filled(paper.translate(Vec2::new(3.0, 3.0)), 0.0, Color32::from_black_alpha(90));

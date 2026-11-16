@@ -93,6 +93,16 @@ pub fn set_project_crs(doc: &mut Document, crs: &ProjectCrs) -> ElementId {
     set_project_setting(doc, PROJECT_CRS_KEY, serde_json::to_value(crs).expect("a coordinate system serialises"))
 }
 
+/// Removes the coordinate system of the project: the document is undeclared again. Model data is
+/// not touched. Does nothing when the document has none.
+pub fn clear_project_crs(doc: &mut Document) {
+    if let Some(e) = project_settings_id(doc).and_then(|id| doc.find_mut(id)) {
+        if let Some(map) = e.data.as_object_mut() {
+            map.remove(PROJECT_CRS_KEY);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

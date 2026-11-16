@@ -195,6 +195,14 @@ pub fn level_at(doc: &Document, site_mm: Pt) -> Option<(f64, String)> {
 pub fn id_report(doc: &Document, p: Pt, alignment: Option<&str>) -> String {
     let u = units(doc);
     let mut text = format!("Point X = {}, Y = {}", u.length_u(p.x), u.length_u(p.y));
+    // The same point in the project coordinate system: eastings and northings in metres at true
+    // magnitude, latitude and longitude on the datum of the system, convergence and scale.
+    if let Some(crs) = afrobim_kernel::project_crs(doc) {
+        for line in crate::crs_ui::where_lines(p, Some(&crs)).into_iter().skip(1) {
+            text.push_str("; ");
+            text.push_str(&line);
+        }
+    }
     let list = alignment_list(doc);
     let mut best: Option<(f64, String)> = None;
     for (name, a) in &list {

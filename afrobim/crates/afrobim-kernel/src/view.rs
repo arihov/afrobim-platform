@@ -1,24 +1,40 @@
 use crate::{BBox, Pt};
 
-/// Model space (mm, Y up) to screen (px, Y down). `scale` is pixels per millimetre and
-/// (`origin_x`, `origin_y`) is the screen position of the model origin.
+/// Model space (mm, Y up) to screen (px, Y down).
+///
+/// The view holds one model point, the *anchor* (`anchor_x`, `anchor_y`, millimetres, f64), and
+/// the screen position of that point (`screen_x`, `screen_y`, pixels). A screen position is
+/// computed from the *difference* between a model position and the anchor, never from the model
+/// position itself:
+///
+/// ```text
+/// screen = screen_anchor + (world - anchor) * scale
+/// ```
+///
+/// so precision does not depend on how far the model is from (0, 0). A zoom about the cursor
+/// makes the model point under the cursor the new anchor; a pan moves the screen position of the
+/// anchor and, once that has wandered 1e5 px, moves the anchor instead. The only rounding is the
+/// f64 spacing at the model coordinate: about 2e-6 mm at 1e10 mm, 6e-8 mm at 5e8 mm, which is the
+/// limit of f64 at that position and no property of this type.
 ///
 /// There is no fixed zoom limit. The only guards keep the numbers usable: the scale stays finite,
-/// positive and non-zero, and the origin stays finite, so a zoom or pan that would break either
-/// is ignored. The origin is the screen position of the model origin, so at a model position of
-/// 1e10 mm and a scale of 1e6 px/mm it is about 1e16 px, where f64 resolves several pixels:
-/// `to_screen` of a point is exact only to the spacing of f64 at `world * scale`. At the extremes
-/// the tests exercise (see them) that is far below a pixel until the scale passes about 1e5 px/mm.
+/// positive and inside 1e-24 to 1e24 px per mm, and every stored number stays finite, so a zoom
+/// or pan that would break either is ignored.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ViewTransform {
+    /// Pixels per millimetre.
     pub scale: f64,
-    pub origin_x: f64,
-    pub origin_y: f64,
+    /// Model position (mm) of the anchor.
+    pub anchor_x: f64,
+    pub anchor_y: f64,
+    /// Screen position (px) of the anchor.
+    pub screen_x: f64,
+    pub screen_y: f64,
 }
 
 impl Default for ViewTransform {
     fn default() -> Self {
-        Self { scale: 0.1, origin_x: 0.0, origin_y: 0.0 }
+        Self { scale: 0.1, anchor_x: 0.0, anchor_y: 0.0, screen_x: 0.0, screen_y: 0.0 }
     }
 }
 
@@ -28,17 +44,54 @@ impl ViewTransform {
     pub const GUARD_MIN_SCALE: f64 = 1e-24;
     /// Largest scale the guards accept, px per mm. Not a zoom limit, see above.
     pub const GUARD_MAX_SCALE: f64 = 1e24;
+    /// How far (px) the screen position of the anchor may wander before a pan moves the anchor.
+    pub const RENORMALISE_PX: f64 = 1.0e5;
 
     fn scale_ok(s: f64) -> bool {
         s.is_finite() && (Self::GUARD_MIN_SCALE..=Self::GUARD_MAX_SCALE).contains(&s)
     }
 
+    /// A view with the model origin at screen (`origin_x`, `origin_y`) and `scale` px per mm.
+    pub fn from_origin(scale: f64, origin_x: f64, origin_y: f64) -> Self {
+        Self { scale, anchor_x: 0.0, anchor_y: 0.0, screen_x: origin_x, screen_y: origin_y }
+    }
+
+    /// A view that shows model point `centre` at screen position `at`, at `scale` px per mm.
+    pub fn centred_on(centre: Pt, at: Pt, scale: f64) -> Self {
+        Self { scale, anchor_x: centre.x, anchor_y: centre.y, screen_x: at.x, screen_y: at.y }
+    }
+
+    /// Screen position (px) of the model origin. Only a convenience: far from the origin this is
+    /// a large number with f64's spacing at that size, so use [`to_screen`](Self::to_screen) for
+    /// anything that must stay exact.
+    pub fn origin_x(&self) -> f64 {
+        self.screen_x - self.anchor_x * self.scale
+    }
+    pub fn origin_y(&self) -> f64 {
+        self.screen_y + self.anchor_y * self.scale
+    }
+
+    /// The model point (mm) the view is anchored on.
+    pub fn anchor(&self) -> Pt {
+        Pt::new(self.anchor_x, self.anchor_y)
+    }
+
     pub fn to_screen(&self, world: Pt) -> Pt {
-        Pt::new(self.origin_x + world.x * self.scale, self.origin_y - world.y * self.scale)
+        Pt::new(self.screen_x + (world.x - self.anchor_x) * self.scale, self.screen_y - (world.y - self.anchor_y) * self.scale)
+    }
+
+    /// Screen position of the point `local` (mm) from `origin` (model mm). The difference between
+    /// `origin` and the anchor is taken first and `local` added to it after, so a mesh held in
+    /// element-local numbers is placed without ever adding a small number to a large one.
+    pub fn to_screen_local(&self, origin: Pt, local_x: f64, local_y: f64) -> Pt {
+        Pt::new(
+            self.screen_x + ((origin.x - self.anchor_x) + local_x) * self.scale,
+            self.screen_y - ((origin.y - self.anchor_y) + local_y) * self.scale,
+        )
     }
 
     pub fn to_world(&self, screen: Pt) -> Pt {
-        Pt::new((screen.x - self.origin_x) / self.scale, (self.origin_y - screen.y) / self.scale)
+        Pt::new(self.anchor_x + (screen.x - self.screen_x) / self.scale, self.anchor_y - (screen.y - self.screen_y) / self.scale)
     }
 
     /// Screen to model space (millimetres). Same as [`to_world`](Self::to_world).
@@ -50,29 +103,46 @@ impl ViewTransform {
         BBox::from_corners(self.to_world(a), self.to_world(b))
     }
 
-    /// Pans by a pixel delta. A non-finite delta, or one that would make the origin non-finite,
-    /// is ignored.
+    /// Pans by a pixel delta. A non-finite delta, or one that would make a stored number
+    /// non-finite, is ignored.
     pub fn pan(&mut self, dx_px: f64, dy_px: f64) {
-        let (x, y) = (self.origin_x + dx_px, self.origin_y + dy_px);
-        if x.is_finite() && y.is_finite() {
-            self.origin_x = x;
-            self.origin_y = y;
+        let (x, y) = (self.screen_x + dx_px, self.screen_y + dy_px);
+        if !(x.is_finite() && y.is_finite()) {
+            return;
         }
+        if x.abs() > Self::RENORMALISE_PX || y.abs() > Self::RENORMALISE_PX {
+            // Move the anchor to the model point at screen (0, 0) so the pixel numbers stay small.
+            let ax = self.anchor_x - x / self.scale;
+            let ay = self.anchor_y + y / self.scale;
+            if ax.is_finite() && ay.is_finite() {
+                self.anchor_x = ax;
+                self.anchor_y = ay;
+                self.screen_x = 0.0;
+                self.screen_y = 0.0;
+            }
+            return;
+        }
+        self.screen_x = x;
+        self.screen_y = y;
     }
 
     /// Zooms by `factor`, keeping the model point under `screen` fixed. A factor that is not
-    /// finite and positive, or that would take the scale or origin out of the guards, is ignored.
+    /// finite and positive, or that would take the scale out of the guards, is ignored.
     pub fn zoom_about(&mut self, screen: Pt, factor: f64) {
         if !(factor.is_finite() && factor > 0.0) || !screen.x.is_finite() || !screen.y.is_finite() {
             return;
         }
-        let anchor = self.to_world(screen);
         let scale = self.scale * factor;
-        let (ox, oy) = (screen.x - anchor.x * scale, screen.y + anchor.y * scale);
-        if Self::scale_ok(scale) && ox.is_finite() && oy.is_finite() {
+        if !Self::scale_ok(scale) {
+            return;
+        }
+        let anchor = self.to_world(screen);
+        if anchor.x.is_finite() && anchor.y.is_finite() {
             self.scale = scale;
-            self.origin_x = ox;
-            self.origin_y = oy;
+            self.anchor_x = anchor.x;
+            self.anchor_y = anchor.y;
+            self.screen_x = screen.x;
+            self.screen_y = screen.y;
         }
     }
 
@@ -103,12 +173,18 @@ impl ViewTransform {
             sx.min(sy)
         };
         let c = world.centre();
-        let (ox, oy) = (left + width_px / 2.0 - c.x * scale, top + height_px / 2.0 + c.y * scale);
-        if Self::scale_ok(scale) && ox.is_finite() && oy.is_finite() {
+        if Self::scale_ok(scale) && c.x.is_finite() && c.y.is_finite() {
             self.scale = scale;
-            self.origin_x = ox;
-            self.origin_y = oy;
+            self.anchor_x = c.x;
+            self.anchor_y = c.y;
+            self.screen_x = left + width_px / 2.0;
+            self.screen_y = top + height_px / 2.0;
         }
+    }
+
+    /// Zooms to the model rectangle `world` as a zoom window: fits it with no margin.
+    pub fn zoom_window(&mut self, world: &BBox, left: f64, top: f64, width_px: f64, height_px: f64) {
+        self.zoom_to_bounds(world, left, top, width_px, height_px, 0.0);
     }
 }
 
@@ -183,7 +259,7 @@ mod tests {
         for _ in 0..5000 {
             v.zoom_about(Pt::new(10.0, 10.0), 10.0);
         }
-        assert!(v.scale.is_finite() && v.scale <= ViewTransform::GUARD_MAX_SCALE && v.origin_x.is_finite() && v.origin_y.is_finite());
+        assert!(v.scale.is_finite() && v.scale <= ViewTransform::GUARD_MAX_SCALE && v.screen_x.is_finite() && v.screen_y.is_finite() && v.anchor_x.is_finite() && v.anchor_y.is_finite());
         for _ in 0..5000 {
             v.zoom_about(Pt::new(10.0, 10.0), 0.1);
         }
@@ -229,7 +305,7 @@ mod tests {
         for _ in 0..40 {
             v.zoom_about(centre, 1.5);
         }
-        assert!(v.scale.is_finite() && v.origin_x.is_finite() && v.origin_y.is_finite());
+        assert!(v.scale.is_finite() && v.screen_x.is_finite() && v.screen_y.is_finite() && v.anchor_x.is_finite() && v.anchor_y.is_finite());
         let m = v.to_model(centre);
         assert!((m.x - FAR.x).abs() < 1e-3 && (m.y - FAR.y).abs() < 1e-3, "{m:?}");
     }
@@ -256,7 +332,7 @@ mod tests {
 
     #[test]
     fn zoom_to_a_point_centres_it_at_the_current_scale() {
-        let mut v = ViewTransform { scale: 2.0, origin_x: 10.0, origin_y: 10.0 };
+        let mut v = ViewTransform::from_origin(2.0, 10.0, 10.0);
         v.zoom_to_bounds(&BBox::new(300.0, 400.0, 300.0, 400.0), 0.0, 0.0, 800.0, 600.0, 60.0);
         assert_eq!(v.scale, 2.0);
         let c = v.to_screen(Pt::new(300.0, 400.0));
@@ -265,5 +341,50 @@ mod tests {
         // A line (zero height) fits by its width.
         v.zoom_to_bounds(&BBox::new(0.0, 5.0, 1000.0, 5.0), 0.0, 0.0, 800.0, 600.0, 50.0);
         close(v.scale, 0.7);
+    }
+
+    #[test]
+    fn pan_far_from_the_origin_is_exact_and_renormalises() {
+        let mut v = ViewTransform::default();
+        v.zoom_to_bounds(&BBox::new(FAR.x - 1.0, FAR.y - 1.0, FAR.x + 1.0, FAR.y + 1.0), 0.0, 0.0, 1000.0, 800.0, 0.0);
+        let p = Pt::new(FAR.x + 0.25, FAR.y - 0.125);
+        let before = v.to_screen(p);
+        // Pan by whole pixels forth and back, across the renormalisation threshold.
+        for _ in 0..30 {
+            v.pan(5000.0, -3000.0);
+        }
+        for _ in 0..30 {
+            v.pan(-5000.0, 3000.0);
+        }
+        let after = v.to_screen(p);
+        // One pixel is 1/scale mm (about 1e-3 mm here); the round trip stays within 1e-3 px.
+        assert!((after.x - before.x).abs() < 1e-3 && (after.y - before.y).abs() < 1e-3, "{before:?} {after:?}");
+        assert!(v.screen_x.abs() <= ViewTransform::RENORMALISE_PX * 2.0);
+    }
+
+    #[test]
+    fn local_placement_keeps_sub_millimetre_detail_at_huge_scale() {
+        // 1 mm fills a 1000 px screen: scale 1000 px/mm, far from the origin.
+        let mut v = ViewTransform::default();
+        v.zoom_to_bounds(&BBox::new(FAR.x, FAR.y, FAR.x + 1.0, FAR.y + 1.0), 0.0, 0.0, 1000.0, 1000.0, 0.0);
+        let origin = Pt::new(FAR.x - 0.5, FAR.y - 0.5);
+        // A local vertex 1 mm from the element origin, against the direct route.
+        let s = v.to_screen_local(origin, 1.0, 1.0);
+        let d = v.to_screen(Pt::new(FAR.x + 0.5, FAR.y + 0.5));
+        assert!((s.x - d.x).abs() < 1e-6 && (s.y - d.y).abs() < 1e-6, "{s:?} {d:?}");
+        assert!((s.x - 500.0).abs() < 1e-6, "the box centre is at the screen centre");
+    }
+
+    #[test]
+    fn the_f64_limit_at_1e10_mm_is_about_two_micrometres_in_a_millionth() {
+        let spacing = f64::EPSILON * 1.0e10;
+        assert!(spacing < 4.0e-6 && spacing > 1.0e-6, "{spacing}");
+        // The view resolves a 1e-5 mm step at y = 1e10 mm to within the f64 spacing.
+        let mut v = ViewTransform::default();
+        v.zoom_to_bounds(&BBox::new(FAR.x - 1e-3, FAR.y - 1e-3, FAR.x + 1e-3, FAR.y + 1e-3), 0.0, 0.0, 1000.0, 1000.0, 0.0);
+        let a = v.to_screen(FAR);
+        let b = v.to_screen(Pt::new(FAR.x, FAR.y + 1.0e-5));
+        let px = (a.y - b.y) / v.scale;
+        assert!((px - 1.0e-5).abs() <= spacing, "{px}");
     }
 }

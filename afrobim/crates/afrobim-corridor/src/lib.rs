@@ -9,7 +9,7 @@
 //! - [`parse_landxml_surfaces`] / [`read_landxml_surfaces`]: LandXML 1.2 TIN surfaces.
 //! - [`read_survey_points`] and [`build_survey_surface`]: a surface from a file of survey points
 //!   (point, northing, easting, level, description), triangulated by Delaunay's rule.
-//! - [`CoordinateSystem`]: the projected system a surface's coordinates are in (WGS 84 / UTM).
+//! - [`CoordinateSystem`]: the projected system a surface's coordinates are in (the kernel's `ProjectCrs`).
 //! - [`Template`], [`Link`], [`Slope`], [`Daylight`], [`TemplateRegion`], [`CorridorDefinition`]:
 //!   what the engineer enters.
 //! - [`Corridor::build`] and [`section_at`]: the [`Section`]s, each with its finished surface,

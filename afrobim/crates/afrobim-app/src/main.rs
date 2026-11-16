@@ -12,6 +12,9 @@ mod check_all;
 mod check_inputs;
 mod check_ui;
 mod commands;
+mod crs_ui;
+#[cfg(test)]
+mod crs_tests;
 mod construction_glue;
 mod construction_ui;
 mod coordination_glue;
@@ -77,6 +80,7 @@ mod palette;
 mod ui_kit;
 mod underlay;
 mod workspace;
+mod zoom_cmds;
 mod view3d;
 mod visibility_ui;
 mod win;

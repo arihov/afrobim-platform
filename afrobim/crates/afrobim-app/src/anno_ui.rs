@@ -7,7 +7,7 @@
 use afrobim_annotate as ann;
 use afrobim_annotate::geometry::{dist, pt};
 use afrobim_annotate::{Ann, AnnGeometry, AnnotationSettings, DimData, DimKind, DimStyle, DisplayUnits, Justify, LayerProps, LeaderText, Seg, TextStyle};
-use afrobim_kernel::{display_spacing, ortho, snap, Document, Element, ElementId, Pt, ViewTransform};
+use afrobim_kernel::{display_spacing_fine, ortho, snap, Document, Element, ElementId, Pt, ViewTransform};
 use egui::{pos2, Align2, Color32, FontId, Painter, Pos2, RichText, Shape, Stroke, Ui};
 
 use crate::alignment_glue;
@@ -117,13 +117,21 @@ fn sp(view: &ViewTransform, p: Pt) -> Pos2 {
     pos2(s.x as f32, s.y as f32)
 }
 
+/// A line segment in model space, clipped in f64 so that a coordinate millions of pixels off the
+/// screen (a deep zoom) neither loses its direction nor overflows f32.
+fn line(painter: &Painter, view: &ViewTransform, a: Pt, b: Pt, stroke: Stroke) {
+    if let Some((a, b)) = crate::render::clip_segment(view.to_screen(a), view.to_screen(b), crate::render::CLIP_PX) {
+        painter.line_segment([pos2(a.x as f32, a.y as f32), pos2(b.x as f32, b.y as f32)], stroke);
+    }
+}
+
 /// Paints an annotation's geometry in one colour (the ghost of a command in progress).
 pub fn paint_geometry(painter: &Painter, view: &ViewTransform, g: &AnnGeometry, colour: Color32) {
     let stroke = Stroke::new(1.5_f32, colour);
     for seg in &g.segs {
         match seg {
             Seg::Line { a, b } => {
-                painter.line_segment([sp(view, *a), sp(view, *b)], stroke);
+                line(painter, view, *a, *b, stroke);
             }
             Seg::Arc { centre, radius, start_deg, end_deg } => {
                 let sweep = if end_deg >= start_deg { end_deg - start_deg } else { end_deg - start_deg + 360.0 };
@@ -137,8 +145,10 @@ pub fn paint_geometry(painter: &Painter, view: &ViewTransform, g: &AnnGeometry, 
                 painter.add(Shape::line(pts, stroke));
             }
             Seg::Poly { pts, closed } => {
-                let pts: Vec<Pos2> = pts.iter().map(|p| sp(view, *p)).collect();
-                painter.add(if *closed { Shape::closed_line(pts, stroke) } else { Shape::line(pts, stroke) });
+                let n = pts.len();
+                for i in 0..if *closed { n } else { n.saturating_sub(1) } {
+                    line(painter, view, pts[i], pts[(i + 1) % n], stroke);
+                }
             }
         }
     }
@@ -252,7 +262,7 @@ impl AfroBimApp {
     pub(crate) fn osnap_candidates(&self, raw: Pt) -> Vec<Cand> {
         let radius = SNAP_REACH_PX / self.view.scale;
         let extra = self.under.snaps_near(&self.doc, raw, radius);
-        let grid = self.grid_on.then(|| display_spacing(self.grid_spacing, self.view.scale, 14.0));
+        let grid = self.grid_on.then(|| display_spacing_fine(self.grid_spacing, self.view.scale, 14.0));
         let drawn = |id: afrobim_kernel::ElementId| self.cache.get(&id).and_then(|c| c.generated.as_ref().ok()).map(|g| &g.drawing);
         anno_glue::candidates_with(&self.doc, raw, radius, &self.anno.osnap, grid, &extra, &drawn)
     }

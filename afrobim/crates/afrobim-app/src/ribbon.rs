@@ -80,7 +80,7 @@ const MODIFY: Panel = Panel {
 };
 const NAVIGATE: Panel = Panel {
     title: "Navigate",
-    items: &[Big(Icon::ZoomExtents, "Zoom extents", "ZOOM"), Big(Icon::ZoomWindow, "Zoom window", "ZOOMWINDOW"), Big(Icon::View3d, "2D / 3D", "3D")],
+    items: &[Big(Icon::ZoomExtents, "Zoom extents", "ZOOM"), Big(Icon::ZoomWindow, "Zoom window", "ZOOMWINDOW"), Big(Icon::ZoomSelection, "Zoom selection", "ZS"), Big(Icon::View3d, "2D / 3D", "3D")],
 };
 const SUPPORTS: Panel = Panel {
     title: "Supports",
@@ -240,12 +240,13 @@ fn panels(tab: Tab) -> &'static [Panel] {
                 Big(Icon::Layers, "Layer manager", "LAYER"),
                 Big(Icon::Units, "Units", "UNITS"),
                 Big(Icon::ProjectSettings, "Project settings", "PROJECTSETTINGS"),
+                Big(Icon::Crs, "Coordinate system", "CRS"),
             ],
         },
         Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS"), Big(Icon::Theme, "Look and scale", "APPEARANCE")] },
     ];
     const VIEW: &[Panel] = &[
-        Panel { title: "Zoom", items: &[Big(Icon::ZoomExtents, "Extents", "ZOOM"), Big(Icon::ZoomWindow, "Window", "ZOOMWINDOW"), Big(Icon::ZoomIn, "In", "ZOOMIN"), Big(Icon::ZoomOut, "Out", "ZOOMOUT")] },
+        Panel { title: "Zoom", items: &[Big(Icon::ZoomExtents, "Extents", "ZOOM"), Big(Icon::ZoomWindow, "Window", "ZOOMWINDOW"), Big(Icon::ZoomSelection, "Selection", "ZS"), Big(Icon::ZoomPrevious, "Previous", "ZP"), Big(Icon::ZoomIn, "In", "ZOOMIN"), Big(Icon::ZoomOut, "Out", "ZOOMOUT")] },
         Panel { title: "Views", items: &[Big(Icon::View3d, "2D / 3D", "3D")] },
         Panel { title: "Display", items: &[Big(Icon::Real, "Real", "REAL"), Big(Icon::Outlined, "Outlined", "OUTLINED"), Big(Icon::Marks, "Element marks", "MARKS")] },
         DRAFTING,

@@ -28,8 +28,25 @@ pub fn display_spacing(base: f64, pixels_per_mm: f64, min_pixels: f64) -> f64 {
     let steps = [2.0, 2.5, 2.0]; // 1 → 2 → 5 → 10
     let mut s = base;
     let mut i = 0;
-    while s * pixels_per_mm < min_pixels && s < 1e9 {
+    while s * pixels_per_mm < min_pixels && s < 1e15 {
         s *= steps[i % 3];
+        i += 1;
+    }
+    s
+}
+
+/// As [`display_spacing`], and when the view is zoomed in so far that the spacing is more than
+/// 20 times `min_pixels` apart, the spacing is divided down the same 1-2-5 series (to a floor of
+/// 1e-6 mm), so a grid is still there to see and snap to when 1 mm fills the screen.
+pub fn display_spacing_fine(base: f64, pixels_per_mm: f64, min_pixels: f64) -> f64 {
+    let mut s = display_spacing(base, pixels_per_mm, min_pixels);
+    if base <= 0.0 || pixels_per_mm <= 0.0 {
+        return s;
+    }
+    let down = [2.0, 2.5, 2.0]; // 10 -> 5 -> 2 -> 1
+    let mut i = 0;
+    while s * pixels_per_mm > 20.0 * min_pixels && s > 1e-6 {
+        s /= down[i % 3];
         i += 1;
     }
     s
@@ -79,6 +96,10 @@ mod tests {
         assert_eq!(display_spacing(100.0, 1.0, 12.0), 100.0);
         assert_eq!(display_spacing(100.0, 0.05, 12.0), 500.0);
         assert_eq!(display_spacing(100.0, 0.011, 12.0), 2000.0);
+        // Zoomed in: 1000 px per mm shows a spacing of 0.1 mm (100 px) rather than 100 mm.
+        let s = display_spacing_fine(100.0, 1000.0, 14.0);
+        assert!(s * 1000.0 >= 14.0 && s * 1000.0 <= 20.0 * 14.0, "{s}");
+        assert_eq!(display_spacing_fine(100.0, 1.0, 12.0), 100.0);
     }
 
     #[test]
