@@ -132,33 +132,43 @@ impl AfroBimApp {
         let name = design.horizontal.name.clone();
         let last = self.design.last.clone();
         let mut ui_state = std::mem::take(&mut self.design.profile);
+        let mut ui_state_fit_toggle = false;
         let units = crate::anno_ui::units_of(&self.doc);
         let u = &units;
         let revision = self.design.revision;
         let _ = revision;
-        let dlg = crate::ui_kit::Dialog::titled("Profile editor").subtitle("The vertical alignment: points of intersection and curves").width(1020.0).show_body(ctx, |ui| {
-            ui.horizontal(|ui| {
-                crate::ui_kit::heading(ui, &format!("{name}: stations {} to {}", crate::disp::station(u, alignment.start_station_m), crate::disp::station(u, alignment.end_station_m())));
-                ui.separator();
-                ui.label("Ground");
-                let current = ui_state.surface.and_then(|s| surfaces.iter().find(|x| x.0 == s)).map(|s| s.1.clone()).unwrap_or_else(|| "no surface".into());
-                egui::ComboBox::from_id_salt("pf-surface").selected_text(current).show_ui(ui, |ui| {
-                    if ui.selectable_label(ui_state.surface.is_none(), "no surface").clicked() {
-                        set_surface = Some(None);
-                    }
-                    for (id, n) in &surfaces {
-                        if ui.selectable_label(ui_state.surface == Some(*id), n).clicked() {
-                            set_surface = Some(Some(*id));
-                        }
-                    }
+        let dlg = crate::ui_kit::Dialog::titled("Profile editor").subtitle("The vertical alignment: points of intersection and curves").width(1020.0).help("Click-drag a PVI to move it, or edit the PVI table; a refused move shows the engine's reason. Choose a design speed and road type to see the K and gradient defaults of the defaults basis with their citation: a default is a starting value you can change. Fit to ground proposes a profile from the ground surface; nothing is inserted until you accept it.").show_close(ctx, |ui| {
+            crate::ui_kit::section(ui, &format!("{name}: stations {} to {}", crate::disp::station(u, alignment.start_station_m), crate::disp::station(u, alignment.end_station_m())), |ui| {
+                crate::ui_kit::form(ui, "pf-head", |fm| {
+                    fm.row("Ground surface", |ui| {
+                        let current = ui_state.surface.and_then(|s| surfaces.iter().find(|x| x.0 == s)).map(|s| s.1.clone()).unwrap_or_else(|| "no surface".into());
+                        egui::ComboBox::from_id_salt("pf-surface").selected_text(current).width(240.0).show_ui(ui, |ui| {
+                            if ui.selectable_label(ui_state.surface.is_none(), "no surface").clicked() {
+                                set_surface = Some(None);
+                            }
+                            for (id, n) in &surfaces {
+                                if ui.selectable_label(ui_state.surface == Some(*id), n).clicked() {
+                                    set_surface = Some(Some(*id));
+                                }
+                            }
+                        });
+                    });
+                    fm.row("Vertical exaggeration", |ui| {
+                        ui.horizontal(|ui| {
+                            crate::ui_kit::num_field(ui, &mut ui_state.exag_text, ": 1 (blank fits)", &crate::ui_kit::NumRule::default().above(0.0));
+                            crate::ui_kit::toggle(ui, &mut ui_state.add_mode, "Add PVIs by clicking");
+                        });
+                    });
+                    fm.row("Design speed, road type", |ui| {
+                        let speeds = crate::defaults_glue::speeds_of("link.vertical.crest_k_desirable_min");
+                        ui.horizontal(|ui| {
+                            let mut labels: Vec<String> = vec!["Speed: not chosen".into()];
+                            labels.extend(speeds.iter().map(|v| format!("{} km/h", afrobim_defaults::fmt_num(*v))));
+                            crate::ui_kit::combo_owned(ui, "fit-speed", &mut ui_state.fit.speed_idx, &labels);
+                            crate::ui_kit::combo(ui, "fit-road", &mut ui_state.fit.road_idx, &["Road type: not chosen", "Motorway", "All-purpose dual", "All-purpose single"]);
+                        });
+                    });
                 });
-                ui.separator();
-                ui.label("Vertical exaggeration");
-                ui.add_sized([60.0, 20.0], egui::TextEdit::singleline(&mut ui_state.exag_text).hint_text("fit"));
-                ui.toggle_value(&mut ui_state.add_mode, "Add PVIs by clicking").on_hover_text("When on, a click on the plot adds a PVI at that station and level. Dragging a PVI always moves it.");
-                if ui.button("Fit to ground...").clicked() {
-                    ui_state.fit_open = !ui_state.fit_open;
-                }
             });
             if surfaces.is_empty() {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "There is no survey surface in this document, so there is no ground line. Import one with SURFACE (LandXML) or make one with SURVEY (a point file).");
@@ -226,9 +236,15 @@ impl AfroBimApp {
             if let Some(r) = &last {
                 ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD() } else { WARN() }));
             }
-        });
+        }, &["Fit to ground..."]);
+        if dlg.inner.as_ref().is_some_and(|(_, sec)| *sec == Some(0)) {
+            ui_state_fit_toggle = true;
+        }
         if dlg.closed {
             open = false;
+        }
+        if ui_state_fit_toggle {
+            ui_state.fit_open = !ui_state.fit_open;
         }
         self.design.profile = ui_state;
         if let Some(s) = set_surface {
@@ -312,75 +328,56 @@ impl AfroBimApp {
 }
 
 fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &mut bool, replaces: bool, u: &DisplayUnits) {
-    crate::ui_kit::heading(ui, "Fit to ground");
-    ui.label("Proposes a profile from the ground by a least squares fit of straight segments. You enter every input: nothing is assumed, and the fit knows nothing of drainage, cover, sight distance, earthwork balance or any standard.");
-    egui::Grid::new("fit-form").num_columns(4).spacing([10.0, 6.0]).show(ui, |ui| {
-        let f = &mut st.fit;
-        for (label, field, hint) in [
-            (crate::disp::head(u, "Sample spacing"), &mut f.spacing, ""),
-            (crate::disp::head(u, "Tolerance on the ground"), &mut f.tolerance, ""),
-            (crate::disp::head(u, "Minimum segment length"), &mut f.min_segment, ""),
-        ] {
-            ui.label(label);
-            ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(field).hint_text(hint));
-        }
-        ui.end_row();
-        ui.label(crate::disp::head(u, "Minimum curve length"));
-        ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(&mut f.min_curve));
-        ui.end_row();
-        // K and the gradient come from the defaults basis once the design speed (and for the
-        // gradient the road type) is chosen; with none chosen they stay as typed.
-        let speeds = crate::defaults_glue::speeds_of("link.vertical.crest_k_desirable_min");
-        let speed = (f.speed_idx > 0).then(|| speeds.get(f.speed_idx - 1).copied()).flatten();
-        let cond = speed.map(|v| afrobim_defaults::Conditions::none().design_speed(v));
-        let k_factor = if u.length == afrobim_annotate::LengthUnit::Millimetre { 1000.0 } else { 1.0 };
-        let roads = ["motorway", "all_purpose_dual", "all_purpose_single"];
-        let road_key = (f.road_idx > 0).then(|| afrobim_defaults::Conditions::none().label("road_type", roads[(f.road_idx - 1).min(2)]));
-        ui.label("Design speed and road type (for the defaults)");
-        ui.horizontal(|ui| {
-            let mut labels: Vec<String> = vec!["none".into()];
-            labels.extend(speeds.iter().map(|v| format!("{} km/h", afrobim_defaults::fmt_num(*v))));
-            crate::ui_kit::combo_owned(ui, "fit-speed", &mut f.speed_idx, &labels);
-            crate::ui_kit::combo(ui, "fit-road", &mut f.road_idx, &["road type: none", "Motorway", "All-purpose dual", "All-purpose single"]);
+    crate::ui_kit::section(ui, "Fit to ground", |ui| {
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Proposes a profile from the ground by a least squares fit of straight segments. You enter every input: nothing is assumed, and the fit knows nothing of drainage, cover, sight distance, earthwork balance or any standard.");
+    });
+    let suffix = crate::disp::suffix(u);
+    let speeds = crate::defaults_glue::speeds_of("link.vertical.crest_k_desirable_min");
+    let speed = (st.fit.speed_idx > 0).then(|| speeds.get(st.fit.speed_idx - 1).copied()).flatten();
+    let cond = speed.map(|v| afrobim_defaults::Conditions::none().design_speed(v));
+    let k_factor = if u.length == afrobim_annotate::LengthUnit::Millimetre { 1000.0 } else { 1.0 };
+    let roads = ["motorway", "all_purpose_dual", "all_purpose_single"];
+    let road_key = (st.fit.road_idx > 0).then(|| afrobim_defaults::Conditions::none().label("road_type", roads[(st.fit.road_idx - 1).min(2)]));
+    let rule = crate::ui_kit::NumRule::default();
+    let req = crate::ui_kit::NumRule::required().above(0.0);
+    let f = &mut st.fit;
+    crate::ui_kit::form(ui, "fit-form", |fm| {
+        fm.row("Sample spacing", |ui| {
+            crate::ui_kit::num_field(ui, &mut f.spacing, suffix, &req);
         });
-        ui.end_row();
-        let rule = crate::ui_kit::NumRule::default();
-        ui.label(format!("K for crests, {} per % (optional)", crate::disp::suffix(u)));
-        match &cond {
+        fm.row("Tolerance on the ground", |ui| {
+            crate::ui_kit::num_field(ui, &mut f.tolerance, suffix, &req);
+        });
+        fm.row("Minimum segment length", |ui| {
+            crate::ui_kit::num_field(ui, &mut f.min_segment, suffix, &req);
+        });
+        fm.row("Minimum curve length", |ui| {
+            crate::ui_kit::num_field(ui, &mut f.min_curve, suffix, &req);
+        });
+        fm.row_note("K for crests", "Optional; the design speed above gives the default", |ui| match &cond {
             Some(c) => {
-                ui.vertical(|ui| {
-                    crate::defaults_glue::field(ui, "fit-kc", &mut f.k_crest, crate::disp::suffix(u), "link.vertical.crest_k_desirable_min", c, k_factor, &rule);
-                });
+                crate::defaults_glue::field(ui, "fit-kc", &mut f.k_crest, &format!("{suffix} per %"), "link.vertical.crest_k_desirable_min", c, k_factor, &rule);
             }
             None => {
-                ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(&mut f.k_crest).hint_text("none"));
+                crate::ui_kit::num_field(ui, &mut f.k_crest, &format!("{suffix} per %"), &rule);
             }
-        }
-        ui.end_row();
-        ui.label(format!("K for sags, {} per % (optional)", crate::disp::suffix(u)));
-        match &cond {
+        });
+        fm.row_note("K for sags", "Optional; the design speed above gives the default", |ui| match &cond {
             Some(c) => {
-                ui.vertical(|ui| {
-                    crate::defaults_glue::field(ui, "fit-ks", &mut f.k_sag, crate::disp::suffix(u), "link.vertical.sag_k_desirable_min", c, k_factor, &rule);
-                });
+                crate::defaults_glue::field(ui, "fit-ks", &mut f.k_sag, &format!("{suffix} per %"), "link.vertical.sag_k_desirable_min", c, k_factor, &rule);
             }
             None => {
-                ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(&mut f.k_sag).hint_text("none"));
+                crate::ui_kit::num_field(ui, &mut f.k_sag, &format!("{suffix} per %"), &rule);
             }
-        }
-        ui.end_row();
-        ui.label("Maximum grade (%)");
-        match &road_key {
+        });
+        fm.row_note("Maximum grade", "The road type above gives the default", |ui| match &road_key {
             Some(r) => {
-                ui.vertical(|ui| {
-                    crate::defaults_glue::field(ui, "fit-grade", &mut f.max_grade_percent, "%", "link.gradient.desirable_max", r, 1.0, &rule);
-                });
+                crate::defaults_glue::field(ui, "fit-grade", &mut f.max_grade_percent, "%", "link.gradient.desirable_max", r, 1.0, &req);
             }
             None => {
-                ui.add_sized([80.0, 20.0], egui::TextEdit::singleline(&mut f.max_grade_percent));
+                crate::ui_kit::num_field(ui, &mut f.max_grade_percent, "%", &req);
             }
-        }
-        ui.end_row();
+        });
     });
     if ui.button("Run the fit").clicked() {
         *run = true;
@@ -629,6 +626,9 @@ fn profile_plot(
 /// The PVI table: station, level, grades, curve by length or K, and the high or low point.
 fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::VerticalSolution, st: &mut ProfileUi, u: &DisplayUnits, edit: &mut Option<VEdit>) {
     crate::ui_kit::heading(ui, "PVI table");
+    let k_speeds = crate::defaults_glue::speeds_of("link.vertical.crest_k_desirable_min");
+    let k_cond = (st.fit.speed_idx > 0).then(|| k_speeds.get(st.fit.speed_idx - 1).copied()).flatten().map(|v| afrobim_defaults::Conditions::none().design_speed(v));
+    let k_unit = if u.length == afrobim_annotate::LengthUnit::Millimetre { 1000.0 } else { 1.0 };
     ui.label(RichText::new(format!("Stations are shown as 1+250.000 and may be typed that way or as a number of metres. Lengths and levels are in the document's display unit ({}; a trailing m or mm overrides it when typing). Grades are in percent. Give a vertical curve by its length or by K ({} of curve per 1 % change of grade); the other is worked out. No K and no length are assumed.", crate::disp::suffix(u), crate::disp::suffix(u))).small().weak());
     egui::ScrollArea::both().id_salt("pvi-table").max_height(190.0).auto_shrink([false, true]).show(ui, |ui| {
         egui::Grid::new("pvi-grid").num_columns(11).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
@@ -687,6 +687,20 @@ fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::Vertic
                         };
                         let text = st.bufs.entry((i, 2 + new_mode)).or_insert(value);
                         let r = ui.add_sized([70.0, 20.0], egui::TextEdit::singleline(text).hint_text(if new_mode == 1 { crate::disp::suffix(u).to_string() } else { format!("{} per %", crate::disp::suffix(u)) }));
+                        if new_mode == 2 {
+                            if let (Some(c), Some(g_in), Some(g_out)) = (&k_cond, gin, gout) {
+                                let key = if g_out < g_in { "link.vertical.crest_k_desirable_min" } else { "link.vertical.sag_k_desirable_min" };
+                                if let Some(n) = crate::defaults_glue::get(key, c).and_then(|v| v.number()) {
+                                    let t = afrobim_defaults::fmt_num(n * k_unit);
+                                    if ui.small_button("Default").on_hover_text(format!("{} K of the basis for a {}: {t} {} per %", "Desirable minimum", if g_out < g_in { "crest" } else { "sag" }, crate::disp::suffix(u))).clicked() {
+                                        text.clone_from(&t);
+                                        if let Some(x) = parse_cell(u, Cell::CurveK, &t).ok().flatten() {
+                                            *edit = Some(VEdit::CurveK(i, x));
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         if r.lost_focus() {
                             let t = st.bufs.get(&(i, 2 + new_mode)).cloned().unwrap_or_default();
                             match parse_cell(u, if new_mode == 1 { Cell::CurveLength } else { Cell::CurveK }, &t).ok().flatten() {
