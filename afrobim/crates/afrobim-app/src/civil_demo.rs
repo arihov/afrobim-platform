@@ -5,7 +5,7 @@
 
 use afrobim_alignment::{Alignment, AlignmentElement, Profile, Pvi, Turn};
 use afrobim_cogo::{CogoPoint, DescriptionKey, PointGroup, Rule, Xy};
-use afrobim_corridor::{library, Assembly, AssemblyRegion, Baseline, CorridorModel, Frequency, Layer, SampleLineGroup, SampleStations, Slope, VolumeOptions};
+use afrobim_corridor::{Assembly, AssemblyRegion, Baseline, CorridorModel, Frequency, SampleLineGroup, SampleStations, VolumeOptions};
 use afrobim_kernel::{Document, ElementId};
 use afrobim_terrain::{Operation, Surface, SurfacePoint, SurfaceRole};
 
@@ -38,15 +38,23 @@ pub fn alignment() -> Alignment {
     a
 }
 
+/// The assembly of the demonstration, as the assembly editor holds it (example values).
+pub fn editor_assembly() -> crate::civil_assembly::EdAssembly {
+    use crate::civil_assembly::{EdAssembly, EdPart};
+    let part = |kind: usize, name: &str| {
+        let mut p = EdPart::new(kind);
+        p.name = name.to_string();
+        p.example();
+        p
+    };
+    let mut lane = part(0, "Lane (example 3.5 m)");
+    lane.layers.push(crate::civil_assembly::EdLayer { code: "Sub".into(), depth: "0.2".into(), material: "example material C".into() });
+    let right = vec![lane, part(1, "Shoulder (example 1.5 m)"), part(11, "Daylight (example 2:1)")];
+    EdAssembly { name: "Demo assembly (example values)".into(), left: right.clone(), right }
+}
+
 pub fn assembly() -> Assembly {
-    let layers = || vec![Layer::new("Surfacing", 0.05).as_course("example material A"), Layer::new("Base", 0.15).as_course("example material B"), Layer::new("Sub-base", 0.2).as_course("example material C")];
-    let half = |_: ()| vec![library::lane("Lane (example 3.5 m)", 3.5, Slope::Percent(-2.0), layers()), library::shoulder("Shoulder (example 1.5 m)", 1.5, Slope::Percent(-4.0), vec![Layer::new("Surfacing", 0.05)]), library::daylight(2.0, 2.0)];
-    let mut a = Assembly::new("Demo assembly (example values)");
-    for p in half(()) {
-        a.add(afrobim_corridor::Side::Right, p);
-    }
-    a.mirror_right_to_left();
-    a
+    editor_assembly().build().0
 }
 
 /// Builds the data. Returns notes for the status line.
@@ -110,7 +118,10 @@ pub fn build(doc: &mut Document) -> Vec<String> {
 
     // Assembly, corridor.
     let asm = assembly();
-    civil::add(doc, ASSEMBLY, "Demo assembly (example values)", serde_json::to_value(&asm).unwrap_or_default(), None, SOURCE);
+    let asm_id = civil::add(doc, ASSEMBLY, "Demo assembly (example values)", serde_json::to_value(&asm).unwrap_or_default(), None, SOURCE);
+    if let Some(e) = doc.find_mut(asm_id) {
+        e.properties.insert(crate::civil_assembly::PROP_EDITOR.into(), serde_json::to_string(&editor_assembly()).unwrap_or_default());
+    }
     let model = CorridorModel {
         name: "Demo corridor (example values)".into(),
         baselines: vec![Baseline { name: "Demo baseline".into(), alignment: al_name.clone(), regions: vec![AssemblyRegion { name: "Whole length".into(), start_station_m: 0.0, end_station_m: len, assembly: asm, frequency: Frequency::uniform(20.0) }], crossfall_table: vec![] }],

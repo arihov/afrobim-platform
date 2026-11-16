@@ -1940,6 +1940,7 @@ impl AfroBimApp {
                 let derived = self.civil_derived(id).or_else(|| self.cache.get(&id).and_then(|c| c.generated.as_ref().ok()).map(|g| (g.derived.clone(), g.notes.clone())));
                 let error = self.cache.get(&id).and_then(|c| c.generated.as_ref().err().cloned());
                 let Some(e) = self.doc.find_mut(id) else { return };
+                let cat_now = e.category.clone();
 
                 egui::Grid::new("identity").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
                     ui.label("Mark");
@@ -2022,7 +2023,7 @@ impl AfroBimApp {
                 let mut remove = None;
                 egui::Grid::new("pset").num_columns(3).spacing([8.0, 4.0]).show(ui, |ui| {
                     // The entries the check dialogs and the construction windows keep are theirs.
-                    for (k, v) in e.properties.iter_mut().filter(|(k, _)| !crate::check_inputs::is_check_key(k) && !k.starts_with("construction.") && !k.starts_with("civil.")) {
+                    for (k, v) in e.properties.iter_mut().filter(|(k, _)| !crate::check_inputs::is_check_key(k) && !k.starts_with("construction.") && !k.starts_with("civil.") && !(crate::civil::is_civil(&cat_now) && (k.as_str() == crate::civil::PROP_STATUS || k.as_str() == crate::civil::PROP_SOURCE))) {
                         ui.label(k);
                         changed |= ui.text_edit_singleline(v).changed();
                         if ui.small_button("x").on_hover_text("Remove this property").clicked() {
