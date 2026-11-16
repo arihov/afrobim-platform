@@ -165,44 +165,62 @@ impl AfroBimApp {
                 if f.rows.is_empty() && db.networks.get(f.net).is_none_or(|n| n.setups.is_empty()) {
                     return;
                 }
-                ui_kit::form(ui, "sdbo-h", |fm| {
-                    fm.row("Station", |ui| {
-                        ui_kit::text_field(ui, &mut f.station, "");
+                ui.horizontal_top(|ui| {
+                    ui.vertical(|ui| {
+                        ui_kit::form(ui, "sdbo-h", |fm| {
+                            fm.row("Station", |ui| {
+                                ui_kit::text_field(ui, &mut f.station, "");
+                            });
+                            fm.row("Instrument height", |ui| {
+                                crate::civil_dlg::num(ui, &mut f.ih, "m");
+                            });
+                            fm.row("Equipment", |ui| {
+                                let mut items: Vec<String> = vec!["(none)".into()];
+                                items.extend(db.equipment.iter().map(|e| e.name.clone()));
+                                f.equip = f.equip.min(items.len() - 1);
+                                ui_kit::combo_owned(ui, "sdbo-eq", &mut f.equip, &items);
+                            });
+                        });
                     });
-                    fm.row("Instrument height", |ui| {
-                        crate::civil_dlg::num(ui, &mut f.ih, "m");
-                    });
-                    fm.row("Backsight point", |ui| {
-                        ui_kit::text_field(ui, &mut f.bs_point, "name of a point with coordinates");
-                    });
-                    fm.row_note("Backsight azimuth", "when there is no backsight point", |ui| {
-                        crate::civil_dlg::num_opt(ui, &mut f.bs_az, "deg").ok();
-                    });
-                    fm.row("Reading at the backsight", |ui| {
-                        crate::civil_dlg::num(ui, &mut f.bs_read, "deg");
-                    });
-                    fm.row("Equipment", |ui| {
-                        let mut items: Vec<String> = vec!["(none)".into()];
-                        items.extend(db.equipment.iter().map(|e| e.name.clone()));
-                        f.equip = f.equip.min(items.len() - 1);
-                        ui_kit::combo_owned(ui, "sdbo-eq", &mut f.equip, &items);
+                    ui.add_space(24.0);
+                    ui.vertical(|ui| {
+                        ui_kit::form(ui, "sdbo-h2", |fm| {
+                            fm.row("Backsight point", |ui| {
+                                ui_kit::text_field(ui, &mut f.bs_point, "point with coordinates");
+                            });
+                            fm.row_note("Backsight azimuth", "Used when there is no backsight point", |ui| {
+                                crate::civil_dlg::num_opt(ui, &mut f.bs_az, "deg").ok();
+                            });
+                            fm.row("Reading at the backsight", |ui| {
+                                crate::civil_dlg::num(ui, &mut f.bs_read, "deg");
+                            });
+                        });
                     });
                 });
+                // Every cell has the width of its column, and the header is drawn at the same widths, so that each heading stands over its column.
+                const W: [f32; 12] = [64.0, 84.0, 96.0, 84.0, 88.0, 92.0, 92.0, 86.0, 86.0, 110.0, 34.0, 28.0];
                 ui_kit::scroll_x(ui, "sdbo-t", |ui| {
-                    egui::Grid::new("sdbo-grid").num_columns(12).spacing([4.0, 3.0]).striped(true).show(ui, |ui| {
-                        for h in ["Target", "Face", "Reading", "Hz (deg)", "Zenith", "Slope dist", "Horiz dist", "Vert dist", "Target ht", "Description", "Off", ""] {
-                            ui_kit::th(ui, h);
+                    egui::Grid::new("sdbo-grid").num_columns(12).spacing([6.0, 4.0]).striped(true).show(ui, |ui| {
+                        for (i, h) in ["Target", "Face", "Reading", "Hz (deg)", "Zenith (deg)", "Slope dist (m)", "Horiz dist (m)", "Vert dist (m)", "Target ht (m)", "Description", "Off", ""].iter().enumerate() {
+                            let t = crate::theme::tokens_ui(ui);
+                            ui.add_sized([W[i], 18.0], egui::Label::new(RichText::new(*h).size(crate::theme::FONT_SMALL).strong().color(t.text_muted)).truncate());
                         }
                         ui.end_row();
                         let mut remove = None;
                         for (i, r) in f.rows.iter_mut().enumerate() {
-                            ui.add(egui::TextEdit::singleline(&mut r.target).desired_width(60.0));
-                            ui_kit::combo(ui, &format!("sdbo-face{i}"), &mut r.face, &["single", "face 1", "face 2"]);
-                            ui_kit::combo(ui, &format!("sdbo-kind{i}"), &mut r.kind, &["direction", "angle"]);
-                            for (cell, w) in [(&mut r.hz, 84.0), (&mut r.zen, 70.0), (&mut r.sd, 76.0), (&mut r.hd, 76.0), (&mut r.vd, 70.0), (&mut r.th, 50.0)] {
-                                ui.add(egui::TextEdit::singleline(cell).desired_width(w).font(egui::TextStyle::Monospace));
+                            ui.add_sized([W[0], 22.0], egui::TextEdit::singleline(&mut r.target));
+                            for (k, (sel, items)) in [(&mut r.face, ["single", "face 1", "face 2"]), (&mut r.kind, ["direction", "angle", ""])].into_iter().enumerate() {
+                                let n = if k == 0 { 3 } else { 2 };
+                                egui::ComboBox::from_id_salt(("sdbo-c", i, k)).width(W[1 + k] - 22.0).selected_text(items[(*sel).min(n - 1)]).show_ui(ui, |ui| {
+                                    for (j, it) in items.iter().take(n).enumerate() {
+                                        ui.selectable_value(sel, j, *it);
+                                    }
+                                });
                             }
-                            ui.add(egui::TextEdit::singleline(&mut r.desc).desired_width(90.0));
+                            for (k, cell) in [&mut r.hz, &mut r.zen, &mut r.sd, &mut r.hd, &mut r.vd, &mut r.th].into_iter().enumerate() {
+                                ui.add_sized([W[3 + k], 22.0], egui::TextEdit::singleline(cell).font(egui::TextStyle::Monospace));
+                            }
+                            ui.add_sized([W[9], 22.0], egui::TextEdit::singleline(&mut r.desc));
                             ui.checkbox(&mut r.disabled, "");
                             if ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this reading").clicked() {
                                 remove = Some(i);

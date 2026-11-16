@@ -759,6 +759,72 @@ pub fn tabs_u8(ui: &mut Ui, selected: &mut u8, labels: &[&str]) {
     *selected = i as u8;
 }
 
+/// A read-only table whose first column stays put while the others scroll sideways, with a
+/// "Columns" chooser when there are more than eight columns (the first column is always shown).
+/// `colors` gives a text colour per row, or none. Both halves use one row height, so the rows line up.
+pub fn frozen_table(ui: &mut Ui, id: &str, headers: &[&str], cols: &[Col], rows: &[Vec<String>], colors: &[Option<egui::Color32>], max_height: f32) {
+    const ROW_H: f32 = 22.0;
+    let t = tokens_ui(ui);
+    let n = headers.len();
+    let key = Id::new(("kit-frozen-cols", id));
+    let mut shown: Vec<bool> = ui.data(|d| d.get_temp(key)).filter(|v: &Vec<bool>| v.len() == n).unwrap_or_else(|| vec![true; n]);
+    if n > 8 {
+        ui.horizontal(|ui| {
+            ui.menu_button("Columns", |ui| {
+                for i in 1..n {
+                    ui.checkbox(&mut shown[i], headers[i]);
+                }
+            });
+            ui.label(RichText::new(format!("{} of {} columns shown", shown.iter().filter(|s| **s).count(), n)).size(theme::FONT_SMALL).color(t.text_muted));
+        });
+    }
+    ui.data_mut(|d| d.insert_temp(key, shown.clone()));
+    let cell = |ui: &mut Ui, i: usize, text: &str, color: Option<egui::Color32>| {
+        let mut rt = RichText::new(text).color(color.unwrap_or(t.text));
+        if cols.get(i).copied() == Some(Col::Num) {
+            rt = rt.monospace();
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| ui.label(rt));
+        } else {
+            ui.label(rt);
+        }
+    };
+    egui::ScrollArea::vertical().id_salt(("kit-frozen-v", id)).max_height(max_height).auto_shrink([false, true]).show(ui, |ui| {
+        ui.horizontal_top(|ui| {
+            egui::Grid::new(Id::new(("kit-frozen-a", id))).min_row_height(ROW_H).spacing([theme::SP_LG, 3.0]).striped(true).show(ui, |ui| {
+                th(ui, headers[0]);
+                ui.end_row();
+                for (r, row) in rows.iter().enumerate() {
+                    cell(ui, 0, row.first().map(String::as_str).unwrap_or(""), colors.get(r).copied().flatten());
+                    ui.end_row();
+                }
+            });
+            ui.separator();
+            egui::ScrollArea::horizontal().id_salt(("kit-frozen-h", id)).auto_shrink([false, true]).show(ui, |ui| {
+                egui::Grid::new(Id::new(("kit-frozen-b", id))).min_row_height(ROW_H).spacing([theme::SP_LG, 3.0]).striped(true).show(ui, |ui| {
+                    for i in 1..n {
+                        if shown[i] {
+                            if cols.get(i).copied() == Some(Col::Num) {
+                                th_num(ui, headers[i]);
+                            } else {
+                                th(ui, headers[i]);
+                            }
+                        }
+                    }
+                    ui.end_row();
+                    for (r, row) in rows.iter().enumerate() {
+                        for i in 1..n {
+                            if shown[i] {
+                                cell(ui, i, row.get(i).map(String::as_str).unwrap_or(""), colors.get(r).copied().flatten());
+                            }
+                        }
+                        ui.end_row();
+                    }
+                });
+            });
+        });
+    });
+}
+
 /// A table in a block that scrolls sideways when it is wider than the dialog.
 pub fn scroll_x<R>(ui: &mut Ui, id: &str, body: impl FnOnce(&mut Ui) -> R) -> R {
     egui::ScrollArea::horizontal().id_salt(("kit-scroll-x", id)).auto_shrink([false, true]).show(ui, body).inner
