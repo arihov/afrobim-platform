@@ -41,7 +41,6 @@ impl AfroBimApp {
             Cv::GroundProfile | Cv::ProfileView => self.civil_profile_cmd(cv),
             Cv::SurfaceNew | Cv::SurfaceDef | Cv::SurfaceStyle | Cv::SpotElev | Cv::FlowPath | Cv::Volumes => self.civil_surface_cmd(cv),
             Cv::Points | Cv::PointCreate | Cv::PointTable | Cv::PointGroups | Cv::DescKeys | Cv::PointExport | Cv::Cogo | Cv::Traverse => self.civil_points_cmd(cv),
-            other => self.status = format!("{other:?} is not available yet."),
         }
     }
 

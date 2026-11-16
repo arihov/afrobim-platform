@@ -87,10 +87,6 @@ fn text_anchor(a: u8) -> Align2 {
 }
 
 impl Scene {
-    pub fn is_empty(&self) -> bool {
-        self.lines.is_empty() && self.fills.is_empty() && self.texts.is_empty() && self.points.is_empty()
-    }
-
     /// Paints what is in `rect`. `ink` is the canvas ink, used for the point markers.
     pub fn paint(&self, painter: &Painter, view: &ViewTransform, rect: Rect, ink: Color32, selected: bool) {
         let lo = view.to_world(Pt::new(rect.left() as f64, rect.bottom() as f64));
@@ -151,8 +147,8 @@ impl Scene {
             }
             let s = view.to_screen(Pt::new(p.at[0], p.at[1]));
             let c = pos2(s.x as f32, s.y as f32);
-            painter.line_segment([c - egui::vec2(3.0, 0.0), c + egui::vec2(3.0, 0.0)], Stroke::new(1.0, colour));
-            painter.line_segment([c - egui::vec2(0.0, 3.0), c + egui::vec2(0.0, 3.0)], Stroke::new(1.0, colour));
+            painter.line_segment([c - egui::vec2(3.0, 0.0), c + egui::vec2(3.0, 0.0)], Stroke::new(1.0_f32, colour));
+            painter.line_segment([c - egui::vec2(0.0, 3.0), c + egui::vec2(0.0, 3.0)], Stroke::new(1.0_f32, colour));
         }
         // Labels only when there is room. The typical spacing of the points on screen decides how
         // much is written: nothing when they are closer than a label is high, the number first,

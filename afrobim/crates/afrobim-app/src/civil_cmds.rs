@@ -45,7 +45,9 @@ pub enum Cv {
 }
 
 
+
 /// Every civil command (a test checks each one is in the command table).
+#[cfg(test)]
 pub const ALL: [Cv; 30] = [
     Cv::Toolspace,
     Cv::Points,

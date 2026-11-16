@@ -38,7 +38,6 @@ pub struct TreeState {
     /// 0 Prospector, 1 Settings.
     pub tab: usize,
     pub renaming: Option<(ElementId, String)>,
-    pub filter: String,
 }
 
 fn icon_of(category: &str) -> &'static str {

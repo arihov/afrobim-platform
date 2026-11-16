@@ -6,7 +6,7 @@
 //! millimetres, and the system says that 450 000 000 mm east is 450 000 m of UTM easting. Nothing
 //! here reprojects anything (the kernel has no datum shift, and none is invented).
 
-use afrobim_kernel::{clear_project_crs, crs_from_model_point, project_crs, set_project_crs, CrsCheck, CrsFinding, CrsKind, CrsSource, Document, FindingKind, IncomingDataset, PlanExtent, ProjectCrs, Pt};
+use afrobim_kernel::{clear_project_crs, crs_from_model_point, set_project_crs, CrsCheck, CrsFinding, CrsKind, CrsSource, Document, FindingKind, IncomingDataset, PlanExtent, ProjectCrs, Pt};
 use egui::RichText;
 
 use crate::app::AfroBimApp;
@@ -490,14 +490,6 @@ impl AfroBimApp {
         self.schedule_commit_now();
     }
 
-    /// WHERE (and ID): reports the full coordinates of a picked point on the command line.
-    pub(crate) fn report_where(&mut self, p: Pt) {
-        let crs = project_crs(&self.doc);
-        for line in where_lines(p, crs.as_ref()) {
-            self.log(format!("WHERE: {line}"));
-        }
-        self.status = format!("WHERE: {}", en_text(p, crs.as_ref()));
-    }
 }
 
 /// The objects of a document that carry coordinates (everything but the settings element).

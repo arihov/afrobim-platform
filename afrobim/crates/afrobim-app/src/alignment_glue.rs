@@ -88,6 +88,7 @@ pub fn add_surface_at_source(doc: &mut Document, name: &str, tin: &afrobim_corri
 /// The model position (mm) of the alignment's point at `station_m`, as the element carries it:
 /// the element origin plus the plan drawing of the stored alignment is not used here, this is the
 /// alignment's own geometry times 1000. None when the station is outside the alignment.
+#[cfg(test)]
 pub fn model_point_at(doc: &Document, id: ElementId, station_m: f64) -> Option<Pt> {
     let a = alignment_of(doc, id)?;
     let p = a.point_at(station_m)?;

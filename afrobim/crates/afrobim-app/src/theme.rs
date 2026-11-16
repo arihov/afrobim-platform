@@ -295,7 +295,7 @@ fn build_visuals(t: &Tokens) -> egui::Visuals {
     // Menus, tooltips and pop-ups use this fill and sit over text, so it is opaque; the floating
     // windows use `window_frame`, which is the translucent one.
     v.window_fill = over(t.window, t.surface);
-    v.window_stroke = Stroke::new(1.0, t.border);
+    v.window_stroke = Stroke::new(1.0_f32, t.border);
     v.window_corner_radius = CornerRadius::same(RADIUS_WINDOW);
     v.menu_corner_radius = CornerRadius::same(RADIUS_MENU);
     v.window_shadow = Shadow { offset: [0, 10], blur: 30, spread: 0, color: t.shadow };
@@ -308,31 +308,31 @@ fn build_visuals(t: &Tokens) -> egui::Visuals {
     v.error_fg_color = t.danger;
     v.override_text_color = None;
     v.selection.bg_fill = t.flat(t.selection);
-    v.selection.stroke = Stroke::new(1.0, t.text);
+    v.selection.stroke = Stroke::new(1.0_f32, t.text);
     v.striped = false;
     v.window_highlight_topmost = false;
 
     let w = &mut v.widgets;
     w.noninteractive.bg_fill = t.panel;
     w.noninteractive.weak_bg_fill = t.panel;
-    w.noninteractive.bg_stroke = Stroke::new(1.0, t.border);
-    w.noninteractive.fg_stroke = Stroke::new(1.0, t.text);
+    w.noninteractive.bg_stroke = Stroke::new(1.0_f32, t.border);
+    w.noninteractive.fg_stroke = Stroke::new(1.0_f32, t.text);
     w.noninteractive.corner_radius = cr;
     for (wv, fill, stroke) in [
-        (&mut w.inactive, t.flat(t.raised), Stroke::new(1.0, t.border)),
-        (&mut w.hovered, t.flat(t.raised_hover), Stroke::new(1.0, t.accent_text)),
-        (&mut w.active, t.flat(t.raised_active), Stroke::new(1.0, t.accent_text)),
-        (&mut w.open, t.flat(t.raised_hover), Stroke::new(1.0, t.border)),
+        (&mut w.inactive, t.flat(t.raised), Stroke::new(1.0_f32, t.border)),
+        (&mut w.hovered, t.flat(t.raised_hover), Stroke::new(1.0_f32, t.accent_text)),
+        (&mut w.active, t.flat(t.raised_active), Stroke::new(1.0_f32, t.accent_text)),
+        (&mut w.open, t.flat(t.raised_hover), Stroke::new(1.0_f32, t.border)),
     ] {
         wv.bg_fill = fill;
         wv.weak_bg_fill = fill;
         wv.bg_stroke = stroke;
-        wv.fg_stroke = Stroke::new(1.0, t.text);
+        wv.fg_stroke = Stroke::new(1.0_f32, t.text);
         wv.corner_radius = cr;
         wv.expansion = 0.0;
     }
-    w.hovered.fg_stroke = Stroke::new(1.5, t.text);
-    w.active.fg_stroke = Stroke::new(1.5, t.text);
+    w.hovered.fg_stroke = Stroke::new(1.5_f32, t.text);
+    w.active.fg_stroke = Stroke::new(1.5_f32, t.text);
     // `RichText::weak` mixes the text colour half way towards this fill, so choose the fill that
     // lands on the muted text colour.
     let mix = |m: u8, x: u8| (2 * m as i32 - x as i32).clamp(0, 255) as u8;
@@ -400,7 +400,7 @@ pub fn window_frame(ctx: &Context) -> egui::Frame {
     let t = tokens(ctx);
     egui::Frame::new()
         .fill(t.window)
-        .stroke(Stroke::new(1.0, t.border))
+        .stroke(Stroke::new(1.0_f32, t.border))
         .corner_radius(CornerRadius::same(RADIUS_WINDOW))
         .shadow(Shadow { offset: [0, 10], blur: 30, spread: 0, color: t.shadow })
         .inner_margin(Margin::same(SP_MD as i8))
@@ -412,7 +412,7 @@ pub fn paint_top_highlight(painter: &egui::Painter, rect: egui::Rect, tokens: &T
         return;
     }
     let y = rect.top() + 0.5;
-    painter.hline((rect.left() + radius)..=(rect.right() - radius), y, Stroke::new(1.0, tokens.highlight));
+    painter.hline((rect.left() + radius)..=(rect.right() - radius), y, Stroke::new(1.0_f32, tokens.highlight));
 }
 
 /// `fg` over `bg`, as the colour a viewer sees.

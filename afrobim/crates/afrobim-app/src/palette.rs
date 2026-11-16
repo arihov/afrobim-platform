@@ -97,7 +97,7 @@ impl AfroBimApp {
                     }
                 });
                 let line = ui.available_rect_before_wrap();
-                ui.painter().hline(line.x_range(), ui.cursor().top() + 2.0, egui::Stroke::new(1.0, t.border));
+                ui.painter().hline(line.x_range(), ui.cursor().top() + 2.0, egui::Stroke::new(1.0_f32, t.border));
                 ui.add_space(6.0);
                 if n == 0 {
                     ui.label(RichText::new("No command matches.").color(t.text_muted));

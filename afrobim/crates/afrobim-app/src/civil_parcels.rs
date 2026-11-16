@@ -61,7 +61,7 @@ impl AfroBimApp {
         let parcels = self.parcels_all();
         let sel = self.doc.primary().filter(|id| parcels.iter().any(|p| p.0 == *id)).or_else(|| parcels.first().map(|p| p.0));
         match cv {
-            ParcelPick => self.civil_ui.parcels.pick = Some(PickForm { name: String::new(), rows: vec![(String::new(), String::new()); 3], set: 0, numbers: String::new(), tol: String::new(), message: String::new() }),
+            ParcelPick => self.civil_ui.parcels.pick = Some(PickForm { name: String::new(), rows: vec![(String::new(), String::new()); 3], set: 0, numbers: String::new(), message: String::new() }),
             ParcelDeed => self.civil_ui.parcels.deed = Some(DeedForm { name: String::new(), e: String::new(), n: String::new(), calls: vec![DeedRow::default(); 3], tol: String::new(), message: String::new() }),
             _ if parcels.is_empty() => self.status = "There are no parcels yet. Create one (PARCELPICK or PARCELDEED) or import them from LandXML.".into(),
             ParcelProps => {
@@ -69,7 +69,7 @@ impl AfroBimApp {
                     self.civil_ui.parcels.props = Some(PropsForm { id, name: p.name.clone(), number: p.number.to_string(), owner: p.owner.clone(), land_ref: p.land_reference.clone(), land_use: p.land_use.clone(), status: status_index(&p.status), other: if let ParcelStatus::Other(s) = &p.status { s.clone() } else { String::new() }, attrs: p.attributes.iter().map(|(k, v)| (k.clone(), v.clone())).collect() });
                 }
             }
-            ParcelTopology => self.civil_ui.parcels.topo = Some(TopoForm { snap: String::new(), arc: String::new(), min_area: String::new(), report: None, message: String::new() }),
+            ParcelTopology => self.civil_ui.parcels.topo = Some(TopoForm { snap: String::new(), arc: String::new(), min_area: String::new(), report: None }),
             ParcelSplit => self.civil_ui.parcels.split = Some(SplitForm { alignment: crate::alignment_glue::alignments(&self.doc).first().map(|a| a.0), left: String::new(), right: String::new(), snap: String::new(), arc: String::new(), message: String::new() }),
             _ => self.civil_ui.parcels.sched = Some(SchedForm { m2: "2".into(), ha: "4".into(), acres: false, only_affected: false, message: String::new() }),
         }
@@ -92,7 +92,6 @@ pub struct PickForm {
     rows: Vec<(String, String)>,
     set: usize,
     numbers: String,
-    tol: String,
     message: String,
 }
 
@@ -443,7 +442,6 @@ pub struct TopoForm {
     arc: String,
     min_area: String,
     report: Option<Result<afrobim_cogo::TopologyReport, String>>,
-    message: String,
 }
 
 impl AfroBimApp {

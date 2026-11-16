@@ -20,7 +20,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use afrobim_cogo::{DescriptionKeySet, PointGroupSet, PointStore};
 use afrobim_corridor::{Assembly, CorridorModel, SampleLineGroup};
-use afrobim_kernel::{Document, Element, ElementId, Generated, Module, ModuleRegistry, Pt, SitePlacement};
+use afrobim_kernel::{Document, Element, ElementId, Generated, Module, ModuleRegistry, SitePlacement};
 use serde::{Deserialize, Serialize};
 
 pub const LAYER: &str = "Civil";
@@ -340,11 +340,6 @@ pub fn register(modules: &mut ModuleRegistry) {
     }
 }
 
-/// A point of the document in metres from model millimetres.
-pub fn metres(p: Pt) -> (f64, f64) {
-    (p.x / 1000.0, p.y / 1000.0)
-}
-
 /// Group counts by category, for the toolspace.
 pub fn counts(doc: &Document) -> BTreeMap<&'static str, usize> {
     let mut m = BTreeMap::new();
@@ -352,11 +347,6 @@ pub fn counts(doc: &Document) -> BTreeMap<&'static str, usize> {
         m.insert(c, doc.elements().iter().filter(|e| e.category == c).count());
     }
     m
-}
-
-/// The bounds in metres of a civil element, from its origin and size.
-pub fn element_bounds_m(e: &Element) -> Bounds {
-    Bounds { min_e: e.origin.x / 1000.0, min_n: e.origin.y / 1000.0, max_e: (e.origin.x + e.width) / 1000.0, max_n: (e.origin.y + e.height) / 1000.0 }
 }
 
 /// Whether the category has a place in the plan (an assembly and a ground profile do not: they sit

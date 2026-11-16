@@ -174,7 +174,6 @@ fn target_combo(ui: &mut Ui, id: &str, sets: &[(ElementId, String)], target: &mu
 // ─── import ────────────────────────────────────────────────────────────────
 
 pub struct ImportForm {
-    path: PathBuf,
     file: String,
     text: String,
     report: DetectionReport,
@@ -196,7 +195,7 @@ impl ImportForm {
         let delim = DELIMS.iter().position(|d| d.1 == report.delimiter).unwrap_or(0);
         let file = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         let name = path.file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "Points".into());
-        let mut f = ImportForm { path, file, text, report, order, delim, unit: 0, policy: 0, target, name, parsed: Err(String::new()), key: (usize::MAX, 0, 0), findings: vec![] };
+        let mut f = ImportForm { file, text, report, order, delim, unit: 0, policy: 0, target, name, parsed: Err(String::new()), key: (usize::MAX, 0, 0), findings: vec![] };
         f.reparse(None);
         f
     }
@@ -1021,7 +1020,6 @@ impl AfroBimApp {
 pub struct PtIn {
     e: String,
     n: String,
-    z: String,
 }
 
 fn pt_in(ui: &mut Ui, label: &str, p: &mut PtIn) -> Option<Xy> {

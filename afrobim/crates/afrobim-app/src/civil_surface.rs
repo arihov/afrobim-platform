@@ -231,7 +231,6 @@ pub struct DefState {
     surface: Surface,
     selected: Option<usize>,
     add_tab: usize,
-    group_name: String,
     set: usize,
     group: usize,
     line_name: String,
@@ -252,7 +251,7 @@ pub struct DefState {
 
 impl DefState {
     fn new(id: ElementId, data: SurfaceData, name: String) -> DefState {
-        DefState { id, name, surface: data.surface, selected: None, add_tab: 0, group_name: String::new(), set: 0, group: 0, line_name: String::new(), line_text: String::new(), line_kind: 0, align: 0, align_step: String::new(), bnd_name: String::new(), bnd_kind: 0, bnd_text: String::new(), parcel: 0, edit_kind: 0, a: String::new(), b: String::new(), c: String::new(), message: String::new() }
+        DefState { id, name, surface: data.surface, selected: None, add_tab: 0, set: 0, group: 0, line_name: String::new(), line_text: String::new(), line_kind: 0, align: 0, align_step: String::new(), bnd_name: String::new(), bnd_kind: 0, bnd_text: String::new(), parcel: 0, edit_kind: 0, a: String::new(), b: String::new(), c: String::new(), message: String::new() }
     }
 }
 

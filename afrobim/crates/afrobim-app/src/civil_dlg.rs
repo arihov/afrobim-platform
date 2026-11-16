@@ -1,7 +1,7 @@
 //! Small helpers the civil dialogs share: numeric fields that return their value, a chooser over
 //! the objects of a category, and a find-by-name over the document.
 
-use afrobim_kernel::{Document, ElementId};
+use afrobim_kernel::{ElementId};
 use egui::Ui;
 
 use crate::ui_kit::{self, Check, NumRule};
@@ -30,13 +30,6 @@ pub fn text(ui: &mut Ui, s: &mut String, hint: &str) {
     ui_kit::text_field(ui, s, hint);
 }
 
-/// A drop-down of the objects of some categories: `sel` is the chosen element. Returns true when
-/// the choice changed.
-pub fn pick_element(ui: &mut Ui, id: &str, doc: &Document, categories: &[&str], sel: &mut Option<ElementId>) -> bool {
-    let items: Vec<(ElementId, String)> = doc.elements().iter().filter(|e| categories.contains(&e.category.as_str())).map(|e| (e.id, e.name.clone())).collect();
-    pick_from(ui, id, &items, sel)
-}
-
 pub fn pick_from(ui: &mut Ui, id: &str, items: &[(ElementId, String)], sel: &mut Option<ElementId>) -> bool {
     let mut changed = false;
     let shown = sel.and_then(|s| items.iter().find(|i| i.0 == s)).map(|i| i.1.clone()).unwrap_or_else(|| "(none)".into());
@@ -49,11 +42,6 @@ pub fn pick_from(ui: &mut Ui, id: &str, items: &[(ElementId, String)], sel: &mut
         }
     });
     changed
-}
-
-/// The first element of a category, when the dialog needs a default.
-pub fn first_of(doc: &Document, category: &str) -> Option<ElementId> {
-    doc.elements().iter().find(|e| e.category == category).map(|e| e.id)
 }
 
 pub fn fmt(v: f64, decimals: usize) -> String {

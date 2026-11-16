@@ -466,16 +466,16 @@ fn preview(ui: &mut Ui, a: &Assembly, height: Option<f64>) {
             let (y0, y1) = all.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), p| (a.min(p.1), b.max(p.1)));
             let k = ((rect.width() as f64 - 24.0) / (x1 - x0).max(1e-6)).min((rect.height() as f64 - 24.0) / (y1 - y0).max(1e-6));
             let map = |p: &(f64, f64)| pos2(rect.left() + 12.0 + ((p.0 - x0) * k) as f32, rect.bottom() - 12.0 - ((p.1 - y0) * k) as f32);
-            painter.add(egui::Shape::line(ground.iter().map(map).collect(), Stroke::new(1.5, Color32::from_rgb(0x4F, 0xA0, 0x62))));
+            painter.add(egui::Shape::line(ground.iter().map(map).collect(), Stroke::new(1.5_f32, Color32::from_rgb(0x4F, 0xA0, 0x62))));
             for s in &shapes {
                 let mut pts: Vec<_> = s.iter().map(map).collect();
                 if let Some(f) = pts.first().copied() {
                     pts.push(f);
                 }
-                painter.add(egui::Shape::line(pts, Stroke::new(1.0, Color32::from_rgb(0x7A, 0xB0, 0x9A))));
+                painter.add(egui::Shape::line(pts, Stroke::new(1.0_f32, Color32::from_rgb(0x7A, 0xB0, 0x9A))));
             }
             for l in &links {
-                painter.add(egui::Shape::line(l.iter().map(map).collect(), Stroke::new(1.8, Color32::from_rgb(0xD9, 0x55, 0x4A))));
+                painter.add(egui::Shape::line(l.iter().map(map).collect(), Stroke::new(1.8_f32, Color32::from_rgb(0xD9, 0x55, 0x4A))));
             }
             painter.text(rect.left_top() + egui::vec2(8.0, 6.0), egui::Align2::LEFT_TOP, format!("Width {:.2} m, to the daylight points", x1 - x0), egui::FontId::proportional(11.0), Color32::from_gray(170));
         }

@@ -237,7 +237,7 @@ pub fn switcher(ui: &mut egui::Ui, current: &mut usize) -> bool {
         let v = ui.visuals_mut();
         for w in [&mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
             w.weak_bg_fill = t.flat(t.accent.gamma_multiply(if t.dark { 0.55 } else { 0.16 }));
-            w.bg_stroke = egui::Stroke::new(1.0, t.accent_text.gamma_multiply(0.7));
+            w.bg_stroke = egui::Stroke::new(1.0_f32, t.accent_text.gamma_multiply(0.7));
         }
         let label = theme::icon_text(ws.glyph, ws.name, theme::FONT_BODY, t.text);
         let resp = ui.menu_button(label, |ui| {

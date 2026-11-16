@@ -145,7 +145,7 @@ fn header(ui: &mut Ui, t: &Tokens, icon: &str, title: &str, subtitle: Option<&st
     theme::paint_top_highlight(ui.painter(), egui::Rect::from_min_max(egui::pos2(r.left() - 12.0, top.y - 12.0), egui::pos2(r.right() + 12.0, top.y + 10.0)), t, theme::RADIUS_WINDOW as f32);
     ui.add_space(2.0);
     let line = ui.available_rect_before_wrap();
-    ui.painter().hline(line.x_range(), ui.cursor().top(), Stroke::new(1.0, t.border));
+    ui.painter().hline(line.x_range(), ui.cursor().top(), Stroke::new(1.0_f32, t.border));
     ui.add_space(theme::SP_SM);
     close
 }
@@ -175,7 +175,7 @@ pub fn section<R>(ui: &mut Ui, heading: &str, body: impl FnOnce(&mut Ui) -> R) -
     ui.horizontal(|ui| {
         ui.label(RichText::new(heading.to_uppercase()).size(theme::FONT_SMALL).strong().color(t.text_muted));
         let r = ui.available_rect_before_wrap();
-        ui.painter().hline(r.x_range(), r.center().y, Stroke::new(1.0, t.border));
+        ui.painter().hline(r.x_range(), r.center().y, Stroke::new(1.0_f32, t.border));
     });
     ui.add_space(theme::SP_XS);
     body(ui)
@@ -246,7 +246,7 @@ pub fn tabs(ui: &mut Ui, selected: &mut usize, labels: &[&str]) {
             let colour = if on { t.accent_text } else { t.text_muted };
             let r = ui.add(egui::Label::new(RichText::new(*label).size(theme::FONT_BODY).strong().color(colour)).sense(Sense::click()));
             if on {
-                ui.painter().hline(r.rect.x_range(), r.rect.bottom() + 3.0, Stroke::new(2.0, t.accent_text));
+                ui.painter().hline(r.rect.x_range(), r.rect.bottom() + 3.0, Stroke::new(2.0_f32, t.accent_text));
             }
             if r.clicked() {
                 *selected = i;
@@ -255,7 +255,7 @@ pub fn tabs(ui: &mut Ui, selected: &mut usize, labels: &[&str]) {
         }
     });
     let r = ui.available_rect_before_wrap();
-    ui.painter().hline(r.x_range(), ui.cursor().top() + 3.0, Stroke::new(1.0, t.border));
+    ui.painter().hline(r.x_range(), ui.cursor().top() + 3.0, Stroke::new(1.0_f32, t.border));
     ui.add_space(theme::SP_MD);
 }
 
@@ -362,9 +362,9 @@ pub fn num_field(ui: &mut Ui, text: &mut String, unit: &str, rule: &NumRule) -> 
                 .scope(|ui| {
                     if check.is_bad() {
                         let w = &mut ui.visuals_mut().widgets;
-                        w.inactive.bg_stroke = Stroke::new(1.5, t.danger);
-                        w.hovered.bg_stroke = Stroke::new(1.5, t.danger);
-                        ui.visuals_mut().selection.stroke = Stroke::new(1.5, t.danger);
+                        w.inactive.bg_stroke = Stroke::new(1.5_f32, t.danger);
+                        w.hovered.bg_stroke = Stroke::new(1.5_f32, t.danger);
+                        ui.visuals_mut().selection.stroke = Stroke::new(1.5_f32, t.danger);
                     }
                     ui.add(egui::TextEdit::singleline(text).desired_width(96.0).horizontal_align(Align::RIGHT))
                 })
@@ -481,7 +481,7 @@ pub fn segmented(ui: &mut Ui, selected: &mut usize, items: &[&str]) -> bool {
             let r = theme::RADIUS_CONTROL;
             let radius = egui::CornerRadius { nw: if i == 0 { r } else { 0 }, sw: if i == 0 { r } else { 0 }, ne: if i + 1 == n { r } else { 0 }, se: if i + 1 == n { r } else { 0 } };
             let (fill, text) = if on { (t.accent, t.text_on_accent) } else { (t.flat(t.raised), t.text) };
-            let resp = ui.add(egui::Button::new(RichText::new(*item).color(text)).fill(fill).corner_radius(radius).stroke(Stroke::new(1.0, if on { t.accent } else { t.border })).min_size(vec2(64.0, 26.0)));
+            let resp = ui.add(egui::Button::new(RichText::new(*item).color(text)).fill(fill).corner_radius(radius).stroke(Stroke::new(1.0_f32, if on { t.accent } else { t.border })).min_size(vec2(64.0, 26.0)));
             if resp.clicked() && !on {
                 *selected = i;
                 changed = true;
@@ -508,11 +508,11 @@ pub fn toggle(ui: &mut Ui, value: &mut bool, label: &str) -> Response {
         }
         let how_on = ui.ctx().animate_bool_responsive(resp.id, *value);
         let track = if *value { t.accent } else { t.flat(t.raised_active) };
-        ui.painter().rect(rect, 9.0, track, Stroke::new(1.0, if *value { t.accent } else { t.border }), egui::StrokeKind::Inside);
+        ui.painter().rect(rect, 9.0, track, Stroke::new(1.0_f32, if *value { t.accent } else { t.border }), egui::StrokeKind::Inside);
         let cx = egui::lerp((rect.left() + 9.0)..=(rect.right() - 9.0), how_on);
         ui.painter().circle_filled(egui::pos2(cx, rect.center().y), 6.5, if *value { t.text_on_accent } else { t.text });
         if resp.hovered() {
-            ui.painter().rect_stroke(rect.expand(1.0), 10.0, Stroke::new(1.0, t.accent_text), egui::StrokeKind::Outside);
+            ui.painter().rect_stroke(rect.expand(1.0), 10.0, Stroke::new(1.0_f32, t.accent_text), egui::StrokeKind::Outside);
         }
         let l = ui.add(egui::Label::new(RichText::new(label).color(t.text)).sense(Sense::click()));
         if l.clicked() {
@@ -575,7 +575,7 @@ pub fn callout(ui: &mut Ui, level: Level, text: impl Into<String>) -> Response {
     let text: String = text.into();
     egui::Frame::new()
         .fill(t.flat(colour.gamma_multiply(if t.dark { 0.16 } else { 0.10 })))
-        .stroke(Stroke::new(1.0, colour.gamma_multiply(0.45)))
+        .stroke(Stroke::new(1.0_f32, colour.gamma_multiply(0.45)))
         .corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL))
         .inner_margin(egui::Margin::symmetric(10, 7))
         .show(ui, |ui| {
@@ -599,7 +599,7 @@ pub enum Col {
 /// A results table: a muted header row, striped rows, numbers in monospace.
 pub fn results_table(ui: &mut Ui, id: &str, headers: &[&str], cols: &[Col], rows: &[Vec<String>]) {
     let t = tokens_ui(ui);
-    egui::Frame::new().fill(t.flat(t.field)).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::symmetric(8, 6)).stroke(Stroke::new(1.0, t.border)).show(ui, |ui| {
+    egui::Frame::new().fill(t.flat(t.field)).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::symmetric(8, 6)).stroke(Stroke::new(1.0_f32, t.border)).show(ui, |ui| {
         egui::Grid::new(Id::new(("kit-table", id))).num_columns(headers.len()).spacing([theme::SP_LG, 4.0]).striped(true).show(ui, |ui| {
             for h in headers {
                 ui.label(RichText::new(*h).size(theme::FONT_SMALL).strong().color(t.text_muted));
@@ -672,7 +672,7 @@ impl<'a> Footer<'a> {
         let t = tokens_ui(ui);
         let mut out = FooterOut::default();
         let line = ui.available_rect_before_wrap();
-        ui.painter().hline(line.x_range(), ui.cursor().top(), Stroke::new(1.0, t.border));
+        ui.painter().hline(line.x_range(), ui.cursor().top(), Stroke::new(1.0_f32, t.border));
         ui.add_space(theme::SP_SM);
         let ctx = ui.ctx().clone();
         let top = ctx.memory(|m| m.areas().top_layer_id(Order::Middle));
@@ -686,7 +686,7 @@ impl<'a> Footer<'a> {
                     Some(g) => WidgetText::from(theme::icon_text(g, self.primary, theme::FONT_BODY, t.text_on_accent)),
                     None => WidgetText::from(RichText::new(self.primary).color(t.text_on_accent)),
                 };
-                let primary = ui.add_enabled(self.enabled, egui::Button::new(label).fill(t.accent).stroke(Stroke::new(1.0, t.accent_text.gamma_multiply(0.6))).min_size(vec2(96.0, 28.0)));
+                let primary = ui.add_enabled(self.enabled, egui::Button::new(label).fill(t.accent).stroke(Stroke::new(1.0_f32, t.accent_text.gamma_multiply(0.6))).min_size(vec2(96.0, 28.0)));
                 if primary.clicked() {
                     out.primary = true;
                 }

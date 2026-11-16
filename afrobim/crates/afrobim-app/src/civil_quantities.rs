@@ -261,8 +261,8 @@ fn mass_diagram(ui: &mut egui::Ui, t: &QuantityTable) {
     }
     let m = 28.0;
     let map = |x: f64, y: f64| pos2(rect.left() + m + ((x - x0) / (x1 - x0).max(1e-9)) as f32 * (rect.width() - m - 8.0), rect.bottom() - 18.0 - ((y - y0) / (y1 - y0)) as f32 * (rect.height() - 30.0));
-    p.line_segment([map(x0, 0.0), map(x1, 0.0)], Stroke::new(1.0, Color32::from_gray(110)));
-    p.add(egui::Shape::line(s.iter().zip(&o).map(|(a, b)| map(*a, *b)).collect(), Stroke::new(1.8, Color32::from_rgb(0x4D, 0xA3, 0xFF))));
+    p.line_segment([map(x0, 0.0), map(x1, 0.0)], Stroke::new(1.0_f32, Color32::from_gray(110)));
+    p.add(egui::Shape::line(s.iter().zip(&o).map(|(a, b)| map(*a, *b)).collect(), Stroke::new(1.8_f32, Color32::from_rgb(0x4D, 0xA3, 0xFF))));
     let f = egui::FontId::proportional(10.0);
     p.text(rect.left_top() + egui::vec2(6.0, 4.0), egui::Align2::LEFT_TOP, format!("Mass haul diagram: ordinate from {y0:.0} to {y1:.0} m3"), f.clone(), Color32::from_gray(180));
     p.text(pos2(rect.left() + m, rect.bottom() - 4.0), egui::Align2::LEFT_BOTTOM, format!("{x0:.0} m"), f.clone(), Color32::from_gray(150));

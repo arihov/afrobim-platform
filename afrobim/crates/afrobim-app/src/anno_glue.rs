@@ -163,7 +163,7 @@ pub fn parse_point_crs(text: &str, last: Option<Pt>, u: &DisplayUnits, crs: Opti
     let t = text.trim();
     if crs.is_some() && !t.starts_with('@') && !t.contains('<') {
         let mut parts = t.split(',');
-        let mut num = |p: Option<&str>| p.and_then(|v| v.trim().trim_end_matches(['m', 'M']).trim().parse::<f64>().ok()).filter(|v| v.is_finite());
+        let num = |p: Option<&str>| p.and_then(|v| v.trim().trim_end_matches(['m', 'M']).trim().parse::<f64>().ok()).filter(|v| v.is_finite());
         if let (Some(e), Some(n), None) = (num(parts.next()), num(parts.next()), parts.next()) {
             return Some(afrobim_kernel::model_point_from_crs(e, n));
         }
