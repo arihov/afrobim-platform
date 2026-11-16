@@ -15,9 +15,21 @@ use egui::{pos2, Align2, Color32, FontId, RichText, Sense, Shape, Stroke, Ui};
 use crate::app::AfroBimApp;
 use crate::schedule_glue as glue;
 
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
+#[allow(non_snake_case)]
+
+fn BAD() -> egui::Color32 {
+
+    crate::theme::danger()
+
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+fn GOOD() -> egui::Color32 {
+    crate::theme::success()
+}
 
 /// How the 3D view draws an element on the 4D date.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -559,7 +571,7 @@ impl AfroBimApp {
                 });
                 ui.label(RichText::new("Holidays are added in the calendar editor (CALENDAR). None are built in.").small().weak());
                 if !s.problem.is_empty() {
-                    ui.label(RichText::new(&s.problem).color(BAD));
+                    ui.label(RichText::new(&s.problem).color(BAD()));
                 }
                 if ui.button("Create the programme").clicked() {
                     let days: Vec<Weekday> = Weekday::ALL.iter().enumerate().filter(|(i, _)| s.new_prog.days[*i]).map(|(_, w)| *w).collect();
@@ -598,7 +610,7 @@ impl AfroBimApp {
                 }
             });
             if date_of(&s.start_text).is_none() {
-                ui.label(RichText::new("The start date must be YYYY-MM-DD.").small().color(BAD));
+                ui.label(RichText::new("The start date must be YYYY-MM-DD.").small().color(BAD()));
             }
             ui.separator();
             ui.label(RichText::new("Activities").strong());
@@ -677,7 +689,7 @@ impl AfroBimApp {
                                     });
                                     ui.add_sized([86.0, 20.0], egui::TextEdit::singleline(text).hint_text("YYYY-MM-DD"));
                                     if *kind != 0 && date_of(text).is_none() {
-                                        ui.label(RichText::new("date needed").small().color(WARN));
+                                        ui.label(RichText::new("date needed").small().color(WARN()));
                                     }
                                     if ui.small_button("x").on_hover_text("Remove this constraint").clicked() {
                                         remove = Some(k);
@@ -828,17 +840,17 @@ impl AfroBimApp {
                 }
             });
             if !s.problem.is_empty() {
-                ui.label(RichText::new(&s.problem).color(BAD));
+                ui.label(RichText::new(&s.problem).color(BAD()));
             }
             ui.add_space(4.0);
             match &s.result {
                 Some(Err(m)) => {
                     for l in m {
-                        ui.label(RichText::new(l).small().color(BAD));
+                        ui.label(RichText::new(l).small().color(BAD()));
                     }
                 }
                 Some(Ok(sch)) => {
-                    ui.label(RichText::new(format!("Scheduled: {} to {}.", sch.project_start, sch.project_finish)).small().color(GOOD));
+                    ui.label(RichText::new(format!("Scheduled: {} to {}.", sch.project_start, sch.project_finish)).small().color(GOOD()));
                 }
                 None => {}
             }
@@ -894,7 +906,7 @@ impl AfroBimApp {
                     }
                 });
                 if cal.working_days.is_empty() {
-                    ui.label(RichText::new("A calendar needs at least one working weekday.").small().color(BAD));
+                    ui.label(RichText::new("A calendar needs at least one working weekday.").small().color(BAD()));
                 }
                 ui.add_space(4.0);
                 ui.label(RichText::new("Holidays and other days off (entered by you; none are built in)").strong());
@@ -949,7 +961,7 @@ impl AfroBimApp {
                 }
             });
             if !s.problem.is_empty() {
-                ui.label(RichText::new(&s.problem).color(BAD));
+                ui.label(RichText::new(&s.problem).color(BAD()));
             }
         });
         self.sched.calendar_open = open;
@@ -969,9 +981,9 @@ impl AfroBimApp {
                     ui.label("There is no programme yet (PROGRAMME).");
                 }
                 Some(Err(m)) => {
-                    ui.label(RichText::new("The programme cannot be scheduled until these are fixed:").color(BAD).strong());
+                    ui.label(RichText::new("The programme cannot be scheduled until these are fixed:").color(BAD()).strong());
                     for l in m {
-                        ui.label(RichText::new(format!("  {l}")).color(BAD));
+                        ui.label(RichText::new(format!("  {l}")).color(BAD()));
                     }
                 }
                 Some(Ok(sch)) => {
@@ -996,14 +1008,14 @@ impl AfroBimApp {
                             }
                             ui.end_row();
                             for r in &sch.rows {
-                                let colour = if r.critical { BAD } else { ui.visuals().text_color() };
+                                let colour = if r.critical { BAD() } else { ui.visuals().text_color() };
                                 ui.label(RichText::new(&r.id).color(colour));
                                 ui.label(RichText::new(&r.name).color(colour));
                                 ui.label(if r.is_milestone { "milestone".to_string() } else { r.duration.to_string() });
                                 for d in [r.early_start, r.early_finish, r.late_start, r.late_finish] {
                                     ui.label(RichText::new(d.to_string()).color(colour));
                                 }
-                                ui.label(RichText::new(r.total_float.to_string()).color(if r.total_float < 0 { BAD } else { colour }));
+                                ui.label(RichText::new(r.total_float.to_string()).color(if r.total_float < 0 { BAD() } else { colour }));
                                 ui.label(r.free_float.to_string());
                                 ui.label(if r.critical { "critical" } else { "" });
                                 ui.label(format!("{:?}", r.status));
@@ -1020,8 +1032,8 @@ impl AfroBimApp {
                         }
                         for i in &sch.issues {
                             let colour = match i.severity {
-                                afrobim_kernel::Severity::Error => BAD,
-                                afrobim_kernel::Severity::Warning => WARN,
+                                afrobim_kernel::Severity::Error => BAD(),
+                                afrobim_kernel::Severity::Warning => WARN(),
                                 afrobim_kernel::Severity::Info => ui.visuals().weak_text_color(),
                             };
                             ui.label(RichText::new(&i.message).color(colour));
@@ -1071,14 +1083,14 @@ impl AfroBimApp {
                                 }
                             });
                             if let Some(e) = &s.ext.rollup_error {
-                                ui.label(RichText::new(format!("The roll-up could not be made on this basis ({e}); activities are drawn without summary rows.")).small().color(WARN));
+                                ui.label(RichText::new(format!("The roll-up could not be made on this basis ({e}); activities are drawn without summary rows.")).small().color(WARN()));
                             }
                         }
                     }
                     egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| paint_gantt(ui, g, s.gantt_scale));
                 }
                 (Some(Err(m)), _) => {
-                    ui.label(RichText::new(format!("The programme cannot be scheduled: {}", m.join("; "))).color(BAD));
+                    ui.label(RichText::new(format!("The programme cannot be scheduled: {}", m.join("; "))).color(BAD()));
                 }
                 _ => {
                     ui.label("There is no programme yet (PROGRAMME).");
@@ -1250,11 +1262,11 @@ impl AfroBimApp {
             match &s.result {
                 Some(Err(m)) => {
                     for l in m {
-                        ui.label(RichText::new(l).small().color(BAD));
+                        ui.label(RichText::new(l).small().color(BAD()));
                     }
                 }
                 Some(Ok(sch)) => {
-                    ui.label(RichText::new(format!("Forecast finish {}.", sch.project_finish)).small().color(GOOD));
+                    ui.label(RichText::new(format!("Forecast finish {}.", sch.project_finish)).small().color(GOOD()));
                 }
                 None => {}
             }
@@ -1367,7 +1379,7 @@ impl AfroBimApp {
                         ui.label(&l.activity);
                         ui.label(selector_text(doc, &l.selector));
                         ui.label(action_label(l.action));
-                        ui.label(RichText::new(format!("{n} element(s)")).color(if n == 0 { WARN } else { ui.visuals().text_color() }));
+                        ui.label(RichText::new(format!("{n} element(s)")).color(if n == 0 { WARN() } else { ui.visuals().text_color() }));
                         if ui.small_button("Delete").clicked() {
                             delete = Some(i);
                         }
@@ -1421,13 +1433,13 @@ impl AfroBimApp {
                 });
                 egui::CollapsingHeader::new(format!("Links to elements that no longer exist ({})", r.missing_elements.len())).default_open(true).show(ui, |ui| {
                     for (a, id) in &r.missing_elements {
-                        ui.label(RichText::new(format!("{a}: element {} is not in the document", id.0)).color(WARN));
+                        ui.label(RichText::new(format!("{a}: element {} is not in the document", id.0)).color(WARN()));
                     }
                 });
                 egui::CollapsingHeader::new(format!("Rules that match nothing ({})", r.empty_rules.len())).default_open(true).show(ui, |ui| {
                     for k in &r.empty_rules {
                         if let Some(l) = p.links.get(*k) {
-                            ui.label(RichText::new(format!("{}: {}", l.activity, selector_text(doc, &l.selector))).color(WARN));
+                            ui.label(RichText::new(format!("{}: {}", l.activity, selector_text(doc, &l.selector))).color(WARN()));
                         }
                     }
                 });

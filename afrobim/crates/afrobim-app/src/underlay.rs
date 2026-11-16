@@ -610,9 +610,9 @@ impl crate::app::AfroBimApp {
                         ui.label(egui::RichText::new(&def.path).small().weak());
                         if let Some(s) = &status {
                             let colour = match s {
-                                FileStatus::Ok => egui::Color32::from_rgb(0x4D, 0xC0, 0x7A),
+                                FileStatus::Ok => crate::theme::success(),
                                 FileStatus::Reading => egui::Color32::GRAY,
-                                _ => egui::Color32::from_rgb(0xEF, 0x6C, 0x63),
+                                _ => crate::theme::danger(),
                             };
                             ui.label(egui::RichText::new(s.line()).color(colour));
                             if let FileStatus::Changed { was, now } = s {
@@ -682,7 +682,7 @@ impl crate::app::AfroBimApp {
                                 if !u.report.unread.is_empty() {
                                     ui.label(egui::RichText::new("Not read, by type").strong());
                                     for (k, v) in &u.report.unread {
-                                        ui.label(egui::RichText::new(format!("{k}: {v}")).color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                                        ui.label(egui::RichText::new(format!("{k}: {v}")).color(crate::theme::warn()));
                                     }
                                 }
                                 if u.report.paper_space_skipped > 0 {
@@ -697,7 +697,7 @@ impl crate::app::AfroBimApp {
                         if let Some(b) = self.under.built(id) {
                             ui.label(egui::RichText::new(format!("Drawn at this zoom: {} segments from {} items, {} texts. {}", b.segs.len(), b.items, b.labels.len(), if b.truncated { "The file hit the item limit: part of it is not drawn." } else { "" })).small().weak());
                             for w in b.warnings.iter().take(5) {
-                                ui.label(egui::RichText::new(w).small().color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                                ui.label(egui::RichText::new(w).small().color(crate::theme::warn()));
                             }
                         }
                         ui.horizontal(|ui| {
@@ -715,7 +715,7 @@ impl crate::app::AfroBimApp {
                 }
             });
             if self.under.left_out.get() > 0 {
-                ui.label(egui::RichText::new(format!("{} segments are left out of the last picture (the cap is {DRAW_CAP}): zoom in.", self.under.left_out.get())).small().color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                ui.label(egui::RichText::new(format!("{} segments are left out of the last picture (the cap is {DRAW_CAP}): zoom in.", self.under.left_out.get())).small().color(crate::theme::warn()));
             }
         });
         for (id, def) in changes {

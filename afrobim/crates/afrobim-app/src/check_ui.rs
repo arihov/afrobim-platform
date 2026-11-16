@@ -17,19 +17,37 @@ use crate::app::AfroBimApp;
 use crate::check_all::{self, Report, Row, Sources, Status};
 use crate::check_inputs::{self as inputs, CatchmentRow, CulvertInputs, DrainInputs, RationalInputs};
 
-const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const NEED: Color32 = Color32::from_rgb(0x5B, 0x9B, 0xE6);
-const NOTE: Color32 = Color32::from_rgb(0x8A, 0x91, 0x99);
+#[allow(non_snake_case)]
+
+fn GOOD() -> egui::Color32 {
+
+    crate::theme::success()
+
+}
+#[allow(non_snake_case)]
+fn BAD() -> egui::Color32 {
+    crate::theme::danger()
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+fn NEED() -> egui::Color32 {
+    crate::theme::accent_text()
+}
+#[allow(non_snake_case)]
+fn NOTE() -> egui::Color32 {
+    crate::theme::muted()
+}
 
 fn colour(status: Status) -> Color32 {
     match status {
-        Status::Passes => GOOD,
-        Status::Fails => BAD,
-        Status::Differs => WARN,
-        Status::InputNeeded => NEED,
-        Status::NotChecked => NOTE,
+        Status::Passes => GOOD(),
+        Status::Fails => BAD(),
+        Status::Differs => WARN(),
+        Status::InputNeeded => NEED(),
+        Status::NotChecked => NOTE(),
     }
 }
 
@@ -263,7 +281,7 @@ fn sanral_culvert_rows(ui: &mut Ui, s: &mut inputs::SanralCulvertEntries) {
             ui.selectable_value(&mut s.slope_unit, Some(0), "metre per metre");
             ui.selectable_value(&mut s.slope_unit, Some(1), "per cent");
             if s.slope_unit.is_none() {
-                ui.label(RichText::new("not answered").color(WARN));
+                ui.label(RichText::new("not answered").color(WARN()));
             }
         });
         ui.label(RichText::new(inputs::SLOPE_UNIT_NOTE).small().weak());
@@ -515,7 +533,7 @@ impl AfroBimApp {
                             for l in &r.lines {
                                 let flagged = l.contains("FAILS") || l.starts_with("WARNING") || l.starts_with("Check:") || l.contains("DIFFERS");
                                 let text = RichText::new(l).small().monospace();
-                                ui.label(if flagged { text.color(WARN) } else { text });
+                                ui.label(if flagged { text.color(WARN()) } else { text });
                             }
                             if !r.notes.is_empty() {
                                 ui.label(RichText::new("Messages from the model").small().strong());
@@ -703,7 +721,7 @@ impl AfroBimApp {
                     sanral_culvert_rows(ui, &mut d.form.sanral);
                 } else {
                     ui.label("");
-                    ui.label(RichText::new("The UK DMRB basis has no culvert hydraulic check in the engine: only its layout limits are checked. Choose MoWT or SANRAL for the hydraulics.").small().color(WARN));
+                    ui.label(RichText::new("The UK DMRB basis has no culvert hydraulic check in the engine: only its layout limits are checked. Choose MoWT or SANRAL for the hydraulics.").small().color(WARN()));
                     ui.end_row();
                 }
             });
@@ -825,12 +843,12 @@ impl AfroBimApp {
                         for l in lines.iter().cloned() {
                             let flagged = l.starts_with("Check:");
                             let text = RichText::new(l).small().monospace();
-                            ui.label(if flagged { text.color(WARN) } else { text });
+                            ui.label(if flagged { text.color(WARN()) } else { text });
                         }
                     }
                     Some(Err(e)) => {
                         ui.separator();
-                        ui.label(RichText::new(format!("Not calculated: {e}")).color(BAD));
+                        ui.label(RichText::new(format!("Not calculated: {e}")).color(BAD()));
                     }
                     None => {}
                 }

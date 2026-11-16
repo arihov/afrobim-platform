@@ -31,8 +31,14 @@ use crate::view3d::Camera;
 pub const CATEGORY: &str = "reference";
 pub const LAYER: &str = "Reference";
 const NAME: &str = "Reference models";
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+fn BAD() -> egui::Color32 {
+    crate::theme::danger()
+}
 
 /// Above this many triangles in view, products are drawn as their boxes (the view is a software
 /// projection and would stop being responsive).
@@ -670,14 +676,14 @@ impl AfroBimApp {
                             (Some(l), _) => {
                                 ui.label(RichText::new(format!("{} products, {} with geometry, {} triangles{}.", l.model.report.products, l.model.clashable().len(), l.triangles, if l.triangles > DRAW_TRIANGLE_CAP { " (drawn as boxes)" } else { "" })).small());
                                 if let Some(w) = &l.warning {
-                                    ui.label(RichText::new(w).small().color(WARN));
+                                    ui.label(RichText::new(w).small().color(WARN()));
                                     if ui.small_button("Accept the file as it is now").clicked() {
                                         accept = Some(label.clone());
                                     }
                                 }
                             }
                             (None, Some(why)) => {
-                                ui.label(RichText::new(format!("File not read: {why}. The stored path and hash are kept; restore the file and reopen the document, or remove the model.")).small().color(BAD));
+                                ui.label(RichText::new(format!("File not read: {why}. The stored path and hash are kept; restore the file and reopen the document, or remove the model.")).small().color(BAD()));
                             }
                             (None, None) => {
                                 ui.label(RichText::new("Reading...").small().weak());
@@ -789,7 +795,7 @@ impl AfroBimApp {
         let warning = self.refs.loaded.get(&label).and_then(|l| l.warning.clone());
         crate::win::new(ctx, format!("Import report: {label}")).open(&mut open).default_width(640.0).default_height(420.0).show(ctx, |ui| {
             if let Some(w) = warning {
-                ui.label(RichText::new(w).color(WARN));
+                ui.label(RichText::new(w).color(WARN()));
             }
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 for l in &lines {

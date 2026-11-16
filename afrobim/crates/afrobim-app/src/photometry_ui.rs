@@ -26,8 +26,17 @@ use egui::{pos2, Align2, Color32, FontId, RichText, Shape, Stroke, Ui};
 
 use crate::app::AfroBimApp;
 
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+#[allow(non_snake_case)]
+
+fn BAD() -> egui::Color32 {
+
+    crate::theme::danger()
+
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
 
 /// What the photometry is and is not. Shown in the window, quoted in the manual.
 pub const LIMITS: &str = "This calculates illuminance (and luminance only when you supply an r-table file) on the grids you define, from the luminaire file, using the formulas documented in afrobim-lighting. It is not an EN 13201-3 calculation (its grid and observer rules are not held). It has not been validated against DIALux, Relux or AGi32. Luminance needs an r-table file that you supply: none ships. Threshold increment, longitudinal uniformity and wet overall uniformity are not computed and stay as you enter them.";
@@ -636,7 +645,7 @@ impl AfroBimApp {
         });
         let check_lines = self.photo.loaded.as_ref().map(file_check_lines);
         crate::win::new(ctx, "Photometry").open(&mut open).default_width(900.0).default_height(700.0).show(ctx, |ui| {
-            ui.label(RichText::new(LIMITS).small().color(WARN));
+            ui.label(RichText::new(LIMITS).small().color(WARN()));
             ui.horizontal(|ui| {
                 ui.label("Installation");
                 let shown = self.photo.form.element.and_then(|id| elements.iter().find(|e| e.0 == id)).map(|e| e.1.clone()).unwrap_or_else(|| "none: add one with LIGHTING".into());
@@ -660,16 +669,16 @@ impl AfroBimApp {
                 }
             });
             if !self.photo.file_error.is_empty() {
-                ui.label(RichText::new(&self.photo.file_error).color(BAD));
+                ui.label(RichText::new(&self.photo.file_error).color(BAD()));
             }
             if !self.photo.message.is_empty() {
-                ui.label(RichText::new(&self.photo.message).small().color(WARN));
+                ui.label(RichText::new(&self.photo.message).small().color(WARN()));
             }
             if self.photo.loaded.is_none() {
                 ui.add_space(6.0);
                 ui.label(RichText::new(NO_FILE).strong());
                 if self.options.demo {
-                    ui.label(RichText::new("Demo: the demo model has a lighting installation but no luminaire file, because none ships. Nothing here is calculated until you supply one.").color(WARN));
+                    ui.label(RichText::new("Demo: the demo model has a lighting installation but no luminaire file, because none ships. Nothing here is calculated until you supply one.").color(WARN()));
                 }
                 return;
             }
@@ -697,7 +706,7 @@ impl AfroBimApp {
                     ui.add(egui::TextEdit::singleline(&mut f.orient_c).desired_width(60.0));
                     ui.checkbox(&mut f.orient_ccw, "C increases counter-clockwise seen from above");
                 });
-                ui.label(RichText::new("to confirm").strong().color(WARN));
+                ui.label(RichText::new("to confirm").strong().color(WARN()));
                 ui.label(RichText::new("The file does not say which C-plane faces the road. The value above is the crate's assumption for this format (IES: C0; EULUMDAT: C270; counter-clockwise). Judge it from the polar diagram and the shares of flux in the checks above: a road luminaire throws most of its light to the street side.").small().weak());
                 ui.checkbox(&mut f.orient_confirmed, "I have checked this orientation against the polar diagram");
                 ui.add_space(4.0);
@@ -812,7 +821,7 @@ impl AfroBimApp {
                     }
                 });
                 if !f.error.is_empty() {
-                    ui.label(RichText::new(&f.error).color(BAD));
+                    ui.label(RichText::new(&f.error).color(BAD()));
                 }
                 if ui.button("Calculate").clicked() {
                     run = true;
@@ -874,14 +883,14 @@ impl AfroBimApp {
             _ => None,
         };
         crate::win::new(ctx, format!("Photometry results: {mark}")).open(&mut open).default_width(920.0).default_height(680.0).show(ctx, |ui| {
-            ui.label(RichText::new(LIMITS).small().color(WARN));
+            ui.label(RichText::new(LIMITS).small().color(WARN()));
             let Some(run) = &self.photo.run else {
                 ui.label(RichText::new("No run yet.").weak());
                 return;
             };
             ui.label(RichText::new(format!("{}; {} luminaire(s); maintenance factor {}; contribution distance {} m; plane level {:.2} m. Values are maintained (initial times the maintenance factor).", run.file_name, run.result.luminaire_count, run.result.maintenance_factor, run.result.contribution_distance_m, run.result.plane_level_m)).small());
             for w in &run.warnings {
-                ui.label(RichText::new(format!("Warning: {w}")).small().color(WARN));
+                ui.label(RichText::new(format!("Warning: {w}")).small().color(WARN()));
             }
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 egui::Grid::new("photo-areas").num_columns(8).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {

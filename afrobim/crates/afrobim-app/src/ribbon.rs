@@ -301,7 +301,10 @@ pub fn shortcut(action: Action) -> &'static str {
 
 const BIG: Vec2 = Vec2::new(62.0, 62.0);
 const SMALL_H: f32 = 20.0;
-const PLANNED: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+#[allow(non_snake_case)]
+fn PLANNED() -> egui::Color32 {
+    crate::theme::warn()
+}
 
 /// The preview card shown when the pointer rests on a button.
 fn preview(ui: &mut Ui, icon: Icon, label: &str, info: Option<&CommandInfo>, planned: Option<&str>) {
@@ -333,7 +336,7 @@ fn preview(ui: &mut Ui, icon: Icon, label: &str, info: Option<&CommandInfo>, pla
         }
         ui.label(RichText::new("Click, or type the command and press Enter. Esc cancels.").small().weak());
     } else {
-        ui.label(RichText::new("Planned: not built yet.").small().color(PLANNED));
+        ui.label(RichText::new("Planned: not built yet.").small().color(PLANNED()));
     }
 }
 

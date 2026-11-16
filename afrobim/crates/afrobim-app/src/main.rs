@@ -38,7 +38,9 @@ mod reference_models;
 mod report_pack;
 mod render;
 mod ribbon;
+mod prefs;
 mod statusbar;
+mod theme;
 mod road_dialogs;
 mod road_glue;
 mod schedule_ext;
@@ -183,6 +185,12 @@ pub struct Options {
     /// 3D view camera after the first fit, `distance_mm,yaw_deg,pitch_deg[,station_m]` (the target
     /// moves to the first alignment's centre line at that station), for close-up screenshots.
     pub camera: Option<String>,
+    /// Interface look: `dark-glass`, `light-glass`, `solid-dark` or `solid-light`.
+    pub theme: Option<String>,
+    /// Interface scale, 1.0 being normal.
+    pub scale: Option<f32>,
+    /// Workspace to start in, e.g. `"Road Design"`.
+    pub workspace: Option<String>,
 }
 
 fn parse_args() -> Options {
@@ -244,6 +252,9 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--zoom-to" => o.zoom_to = args.next(),
             "--size" => o.size = args.next(),
             "--camera" => o.camera = args.next(),
+            "--theme" => o.theme = args.next(),
+            "--scale" => o.scale = args.next().and_then(|v| v.parse().ok()),
+            "--workspace" => o.workspace = args.next(),
             "--export-pack" => o.export_pack = args.next().map(PathBuf::from),
             "--sheet" => o.sheet = args.next().and_then(|v| v.parse().ok()),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),

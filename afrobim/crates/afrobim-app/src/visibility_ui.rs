@@ -52,18 +52,30 @@ pub fn band_line(doc: &Document, id: ElementId) -> Option<String> {
     let r: BandRecord = check_inputs::load(doc, id, KEY_BAND)?;
     (!r.note.is_empty()).then(|| format!("Speed band: {}", r.note))
 }
-const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const NEED: Color32 = Color32::from_rgb(0x5B, 0x9B, 0xE6);
+#[allow(non_snake_case)]
+fn GOOD() -> egui::Color32 {
+    crate::theme::success()
+}
+#[allow(non_snake_case)]
+fn BAD() -> egui::Color32 {
+    crate::theme::danger()
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+fn NEED() -> egui::Color32 {
+    crate::theme::accent_text()
+}
 
 pub fn status_colour(s: Status) -> Color32 {
     match s {
-        Status::Ok => GOOD,
-        Status::Fails => BAD,
-        Status::Differs => WARN,
-        Status::InputNeeded => NEED,
-        Status::Information => Color32::from_rgb(0x8A, 0x91, 0x99),
+        Status::Ok => GOOD(),
+        Status::Fails => BAD(),
+        Status::Differs => WARN(),
+        Status::InputNeeded => NEED(),
+        Status::Information => crate::theme::muted(),
     }
 }
 
@@ -570,14 +582,14 @@ impl VisUi {
                 painter.line_segment([p, q], stroke);
             }
         };
-        let green = Stroke::new(2.5_f32, GOOD);
-        let red = Stroke::new(2.5_f32, BAD);
+        let green = Stroke::new(2.5_f32, GOOD());
+        let red = Stroke::new(2.5_f32, BAD());
         let limit = &sweep.full;
         match (&limit.at_limit, &limit.beyond) {
             (Some(last), beyond) => {
                 seg(mm(last.eye), centre, green);
                 if let Some((p, _)) = cam.project(mm(last.eye), rect) {
-                    painter.text(p + egui::vec2(6.0, -6.0), Align2::LEFT_BOTTOM, format!("limit: {:.0} m before the sign", limit.distance_m), FontId::proportional(12.0), GOOD);
+                    painter.text(p + egui::vec2(6.0, -6.0), Align2::LEFT_BOTTOM, format!("limit: {:.0} m before the sign", limit.distance_m), FontId::proportional(12.0), GOOD());
                 }
                 if let Some(b) = beyond {
                     seg(mm(b.eye), centre, Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(0xEF, 0x6C, 0x63, 120)));
@@ -585,7 +597,7 @@ impl VisUi {
                         seg(mm(b.eye), mm(hit.point), red);
                         if let Some((p, _)) = cam.project(mm(hit.point), rect) {
                             painter.circle_stroke(p, 8.0, red);
-                            painter.text(p + egui::vec2(10.0, 4.0), Align2::LEFT_TOP, format!("obstruction: {}", hit.label), FontId::proportional(12.0), BAD);
+                            painter.text(p + egui::vec2(10.0, 4.0), Align2::LEFT_TOP, format!("obstruction: {}", hit.label), FontId::proportional(12.0), BAD());
                         }
                     }
                 }
@@ -596,7 +608,7 @@ impl VisUi {
             if let Some(far) = sweep.samples.last() {
                 seg(mm(far.eye), centre, green);
                 if let Some((p, _)) = cam.project(mm(far.eye), rect) {
-                    painter.text(p, Align2::LEFT_BOTTOM, format!("clear to the start of the sweep ({:.0} m)", far.distance_m), FontId::proportional(12.0), GOOD);
+                    painter.text(p, Align2::LEFT_BOTTOM, format!("clear to the start of the sweep ({:.0} m)", far.distance_m), FontId::proportional(12.0), GOOD());
                 }
             }
         }
@@ -728,7 +740,7 @@ impl AfroBimApp {
                     ui.vertical(|ui| {
                         ui.horizontal(|ui| {
                             ui.add(egui::TextEdit::singleline(&mut f.eye_height).desired_width(70.0));
-                            ui.label(RichText::new("to confirm").strong().color(WARN));
+                            ui.label(RichText::new("to confirm").strong().color(WARN()));
                             ui.checkbox(&mut f.eye_height_accepted, "accept this value");
                         });
                         ui.label(RichText::new(format!("Engine default, stated in held sources for other criteria, not for sign visibility: {UK_EYE_HEIGHT}; {UG_EYE_HEIGHT}.")).small().weak());
@@ -763,7 +775,7 @@ impl AfroBimApp {
                                 ui.label(RichText::new(format!("From the approach speed: {}", by_rule.label())).strong());
                                 ui.label(RichText::new(&r.band_note).small().weak());
                                 if let Some(ask) = r.ask {
-                                    ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).color(WARN));
+                                    ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).color(WARN()));
                                     ui.horizontal(|ui| {
                                         ui.selectable_value(&mut f.band_answer, Some(true), "Yes, take the band");
                                         ui.selectable_value(&mut f.band_answer, Some(false), "No, keep the exact value");
@@ -886,7 +898,7 @@ impl AfroBimApp {
                 });
             });
             if !f.error.is_empty() {
-                ui.label(RichText::new(&f.error).color(BAD));
+                ui.label(RichText::new(&f.error).color(BAD()));
             }
             ui.horizontal(|ui| {
                 if ui.button("Store").clicked() {
@@ -978,16 +990,16 @@ impl AfroBimApp {
             };
             egui::ScrollArea::vertical().id_salt("vis-lines").auto_shrink([false, false]).show(ui, |ui| {
                 if let Some(why) = &a.skipped {
-                    ui.label(RichText::new(format!("{} was not analysed: {why}", a.mark)).color(WARN));
+                    ui.label(RichText::new(format!("{} was not analysed: {why}", a.mark)).color(WARN()));
                 }
                 if let Some(d) = self.doc.find(a.element).and_then(|e| e.properties.get(crate::demo_glue::KEY_DEMO_VISIBILITY)) {
-                    ui.label(RichText::new(format!("DEMO inputs: {d}")).strong().color(WARN));
+                    ui.label(RichText::new(format!("DEMO inputs: {d}")).strong().color(WARN()));
                 }
                 if let Some(l) = band_line(&self.doc, a.element) {
                     ui.label(RichText::new(l).small().strong());
                 }
                 if afrobim_visibility::load(&self.doc, a.element).is_some() && !eye_height_accepted(&self.doc, a.element) {
-                    ui.label(RichText::new("The stored inputs use the engine's default eye height, which has not been confirmed for this sign. Open the inputs and accept it.").color(WARN));
+                    ui.label(RichText::new("The stored inputs use the engine's default eye height, which has not been confirmed for this sign. Open the inputs and accept it.").color(WARN()));
                 }
                 for l in &a.lines {
                     ui.horizontal_wrapped(|ui| {
@@ -1043,7 +1055,7 @@ impl AfroBimApp {
                 ui.label("Profile vertical exaggeration");
                 ui.add(egui::TextEdit::singleline(&mut self.vis.exaggeration).desired_width(50.0));
                 if exaggeration.is_none() {
-                    ui.label(RichText::new("enter a number above zero").small().color(BAD));
+                    ui.label(RichText::new("enter a number above zero").small().color(BAD()));
                 }
             });
             let Some((plan, profile)) = &drawings else {

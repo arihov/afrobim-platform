@@ -173,7 +173,13 @@ impl RoadDialogs {
 
 // ─── small widgets ──────────────────────────────────────────────────────────────────────
 
-const NOTE: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+#[allow(non_snake_case)]
+
+fn NOTE() -> egui::Color32 {
+
+    crate::theme::warn()
+
+}
 
 fn number(ui: &mut Ui, value: &mut f64, speed: f64, suffix: &str) {
     ui.add(egui::DragValue::new(value).speed(speed).suffix(suffix));
@@ -371,7 +377,7 @@ fn mowt_fill_row(ui: &mut Ui, salt: &str) -> Option<MowtFill> {
 
 fn not_a_design(ui: &mut Ui, what: &str) {
     ui.add_space(4.0);
-    ui.label(RichText::new(what).small().color(NOTE));
+    ui.label(RichText::new(what).small().color(NOTE()));
 }
 
 // ─── street lighting ────────────────────────────────────────────────────────────────────
@@ -598,7 +604,7 @@ fn speed_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Elem
             let r = crate::projset::resolve_answered(doc, speed.value, speed.mph, &crate::projset::restraint_thresholds(), speed.answer);
             ui.label(egui::RichText::new(format!("Speed band: {}", r.band_note)).small());
             if let Some(ask) = r.ask {
-                ui.label(egui::RichText::new(format!("The project rule asks each time. Treat {:.2} mph as the {} mph band?", ask.exact_mph, ask.band_mph)).color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                ui.label(egui::RichText::new(format!("The project rule asks each time. Treat {:.2} mph as the {} mph band?", ask.exact_mph, ask.band_mph)).color(crate::theme::warn()));
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut speed.answer, Some(true), format!("Yes, treat it as {} mph", ask.band_mph));
                     ui.selectable_value(&mut speed.answer, Some(false), "No, keep the exact value");
@@ -764,7 +770,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
         } else if d.form.method == road_glue::SA_METHOD {
             ui.separator();
             ui.add_enabled(false, egui::Button::new("Make a pavement from these layers")).on_disabled_hover_text(road_glue::SA_NO_LAYERS);
-            ui.label(RichText::new(road_glue::SA_NO_LAYERS).small().color(NOTE));
+            ui.label(RichText::new(road_glue::SA_NO_LAYERS).small().color(NOTE()));
         }
         ui.add_space(6.0);
         ui.horizontal(|ui| {
@@ -940,7 +946,7 @@ fn dmrb_form(ui: &mut Ui, f: &mut DmrbForm) {
 }
 
 fn trh4_form(ui: &mut Ui, f: &mut road_glue::Trh4Form) {
-    ui.label(RichText::new(road_glue::SA_E80_NOTE).strong().color(NOTE));
+    ui.label(RichText::new(road_glue::SA_E80_NOTE).strong().color(NOTE()));
     ui.add_space(4.0);
     egui::Grid::new("trh4").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
         ui.label("Road category");
@@ -1217,7 +1223,7 @@ fn sections_window(ctx: &egui::Context, slot: &mut Option<SectionsView>) {
             }
         }
         for n in &section.notes {
-            ui.label(RichText::new(n).small().color(NOTE));
+            ui.label(RichText::new(n).small().color(NOTE()));
         }
     });
     if open {

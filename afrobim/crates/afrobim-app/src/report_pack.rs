@@ -921,7 +921,7 @@ impl AfroBimApp {
             for (i, s) in pack.sections.iter().enumerate() {
                 match &s.body {
                     Some(_) => ui.label(format!("{}. {}", i + 1, s.title)),
-                    None => ui.label(RichText::new(format!("{}. {}: not included: no data", i + 1, s.title)).color(Color32::from_rgb(0x8A, 0x91, 0x99))),
+                    None => ui.label(RichText::new(format!("{}. {}: not included: no data", i + 1, s.title)).color(crate::theme::muted())),
                 };
             }
         });

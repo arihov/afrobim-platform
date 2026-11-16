@@ -54,9 +54,9 @@ pub struct OptionsUi {
 
 fn status_colour(s: CheckStatus) -> Color32 {
     match s {
-        CheckStatus::Pass => GOOD,
-        CheckStatus::Fail => BAD,
-        CheckStatus::NotChecked => WARN,
+        CheckStatus::Pass => GOOD(),
+        CheckStatus::Fail => BAD(),
+        CheckStatus::NotChecked => WARN(),
     }
 }
 
@@ -179,7 +179,7 @@ fn mowt_panels(ui: &mut egui::Ui) {
         }
     });
     egui::CollapsingHeader::new("Known slips in the manual").id_salt("chk-slips").default_open(open).show(ui, |ui| {
-        ui.add(egui::Label::new(RichText::new(format!("{} Where a table cell contradicts another table of the same manual it is withheld and the check is reported Not checked, or derived and labelled so; the engineer decides which figure governs.", glue::THIRD_PARTY_NOTE)).small().color(WARN)).wrap());
+        ui.add(egui::Label::new(RichText::new(format!("{} Where a table cell contradicts another table of the same manual it is withheld and the check is reported Not checked, or derived and labelled so; the engineer decides which figure governs.", glue::THIRD_PARTY_NOTE)).small().color(WARN())).wrap());
         for s in afrobim_design::mowt::known_slips() {
             ui.add(egui::Label::new(RichText::new(format!("{} ({}): {} Treatment: {}", s.id, s.place, s.what, s.treatment)).small()).wrap());
         }
@@ -294,7 +294,7 @@ impl AfroBimApp {
                         run = true;
                     }
                     if let Err(why) = c.builtin.selection() {
-                        ui.label(RichText::new(format!("Still to choose: {why}.")).small().color(WARN));
+                        ui.label(RichText::new(format!("Still to choose: {why}.")).small().color(WARN()));
                     }
                 });
             }
@@ -308,7 +308,7 @@ impl AfroBimApp {
                     });
                 }
                 Some(Err(e)) => {
-                    ui.label(RichText::new(e).color(BAD));
+                    ui.label(RichText::new(e).color(BAD()));
                 }
                 Some(Ok(b)) => {
                     ui.label(format!("Loaded: {} with {} row(s).", b.name, b.rows.len()));
@@ -340,11 +340,11 @@ impl AfroBimApp {
                     ui.label(RichText::new("No results yet.").weak());
                 }
                 Some(Err(e)) => {
-                    ui.label(RichText::new(e).color(BAD));
+                    ui.label(RichText::new(e).color(BAD()));
                 }
                 Some(Ok(r)) => {
                     if c.report_rev != revision {
-                        ui.label(RichText::new("The design changed since these results: run the checks again.").color(WARN));
+                        ui.label(RichText::new("The design changed since these results: run the checks again.").color(WARN()));
                     }
                     ui.label(format!("{} pass, {} fail, {} not checked. Limits: {}; row {}.", r.count(CheckStatus::Pass), r.count(CheckStatus::Fail), r.count(CheckStatus::NotChecked), r.basis_name, r.row_label));
                     ui.label(RichText::new(format!("Source string of the limits table: {}", r.source)).small());
@@ -514,7 +514,7 @@ impl AfroBimApp {
                     }
                 });
                 if !o.message.is_empty() {
-                    ui.label(RichText::new(&o.message).color(WARN));
+                    ui.label(RichText::new(&o.message).color(WARN()));
                 }
                 let (Some(set_id), Some(loaded)) = (set_id, loaded) else {
                     ui.label("There is no option set yet. Name one above and press New set, then add the current design to it as an option.");
@@ -523,7 +523,7 @@ impl AfroBimApp {
                 let set = match loaded {
                     Ok(s) => s,
                     Err(e) => {
-                        ui.label(RichText::new(e).color(BAD));
+                        ui.label(RichText::new(e).color(BAD()));
                         return;
                     }
                 };
@@ -676,7 +676,7 @@ impl AfroBimApp {
                                 let why = cmp.options.iter().filter_map(|r| r.figure(key)).filter_map(|f| f.not_computed.clone()).next();
                                 match (how, why) {
                                     (Some(h), _) => ui.label(RichText::new(format!("{label}: {h}.")).small()),
-                                    (None, Some(w)) => ui.label(RichText::new(format!("{label}: not computed here, because {w}.")).small().color(WARN)),
+                                    (None, Some(w)) => ui.label(RichText::new(format!("{label}: not computed here, because {w}.")).small().color(WARN())),
                                     _ => ui.label(""),
                                 };
                             }
@@ -687,7 +687,7 @@ impl AfroBimApp {
                             }
                             egui::CollapsingHeader::new(format!("Notes: {}", r.name)).default_open(false).show(ui, |ui| {
                                 if let Some(e) = &r.error {
-                                    ui.label(RichText::new(format!("Cannot be built: {e}")).color(BAD));
+                                    ui.label(RichText::new(format!("Cannot be built: {e}")).color(BAD()));
                                 }
                                 for n in &r.notes {
                                     ui.label(RichText::new(n).small());
@@ -783,7 +783,7 @@ impl AfroBimApp {
                                     }
                                     match (r.score, &r.reason) {
                                         (Some(s), _) => ui.label(RichText::new(format!("{s:.3}")).strong()),
-                                        (None, Some(why)) => ui.label(RichText::new(why).small().color(WARN)),
+                                        (None, Some(why)) => ui.label(RichText::new(why).small().color(WARN())),
                                         _ => ui.label(""),
                                     };
                                     ui.end_row();
@@ -807,7 +807,7 @@ impl AfroBimApp {
                         ui.label("The set has no options yet. Add the current design above.");
                     }
                     Some(Err(e)) => {
-                        ui.label(RichText::new(e).color(BAD));
+                        ui.label(RichText::new(e).color(BAD()));
                     }
                     None => {}
                 }

@@ -16,9 +16,21 @@ use egui::{pos2, Align2, Color32, FontId, RichText, Sense, Shape, Stroke, Ui};
 use crate::app::AfroBimApp;
 use crate::construction_glue::{self as glue, EacKind, EvmOutput, Measure, RecordEntry, Settings};
 
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
+#[allow(non_snake_case)]
+
+fn BAD() -> egui::Color32 {
+
+    crate::theme::danger()
+
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+fn GOOD() -> egui::Color32 {
+    crate::theme::success()
+}
 
 /// The colour a model element is drawn in when the 3D view shows recorded progress: grey with no
 /// record, a cool grey at 0 %, then amber at the first percent through to green at 100 %.
@@ -205,10 +217,10 @@ fn date_of(text: &str) -> Option<Date> {
 fn message(ui: &mut Ui, m: &Option<Result<String, String>>) {
     match m {
         Some(Ok(t)) => {
-            ui.label(RichText::new(t).color(GOOD));
+            ui.label(RichText::new(t).color(GOOD()));
         }
         Some(Err(t)) => {
-            ui.label(RichText::new(t).color(BAD));
+            ui.label(RichText::new(t).color(BAD()));
         }
         None => {}
     }
@@ -603,7 +615,7 @@ impl AfroBimApp {
             });
             let (from, to) = (date_of(&c.filter.from), date_of(&c.filter.to));
             if (!c.filter.from.trim().is_empty() && from.is_none()) || (!c.filter.to.trim().is_empty() && to.is_none()) {
-                ui.label(RichText::new("A date is typed as YYYY-MM-DD; a date that is not read is not used.").small().color(WARN));
+                ui.label(RichText::new("A date is typed as YYYY-MM-DD; a date that is not read is not used.").small().color(WARN()));
             }
             let rows = glue::filtered_records(&c.book.log, c.filter.element, from, to);
             ui.label(RichText::new(format!("{} of {} record(s)", rows.len(), c.book.log.records().len())).small().weak());
@@ -680,7 +692,7 @@ impl AfroBimApp {
             });
             match &c.preview {
                 Some(Err(e)) => {
-                    ui.label(RichText::new(e).color(BAD));
+                    ui.label(RichText::new(e).color(BAD()));
                 }
                 Some(Ok(r)) => {
                     egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
@@ -702,7 +714,7 @@ impl AfroBimApp {
                         });
                         if !r.unlinked_activities.is_empty() {
                             ui.add_space(4.0);
-                            ui.label(RichText::new(format!("No element is linked to: {}. Their progress is left as it is.", r.unlinked_activities.join(", "))).small().color(WARN));
+                            ui.label(RichText::new(format!("No element is linked to: {}. Their progress is left as it is.", r.unlinked_activities.join(", "))).small().color(WARN()));
                         }
                     });
                     ui.add_space(4.0);
@@ -720,14 +732,14 @@ impl AfroBimApp {
                     ui.label(RichText::new(format!("{activity}: {what} {date} (inferred from the records)")).small());
                 }
                 if !report.unknown_activities.is_empty() {
-                    ui.label(RichText::new(format!("Not in the programme: {}", report.unknown_activities.join(", "))).small().color(WARN));
+                    ui.label(RichText::new(format!("Not in the programme: {}", report.unknown_activities.join(", "))).small().color(WARN()));
                 }
                 match outcome {
                     Ok(t) => {
                         ui.label(RichText::new(t).small());
                     }
                     Err(e) => {
-                        ui.label(RichText::new(format!("The programme could not be rescheduled: {e}")).color(BAD));
+                        ui.label(RichText::new(format!("The programme could not be rescheduled: {e}")).color(BAD()));
                     }
                 }
             }
@@ -901,12 +913,12 @@ impl AfroBimApp {
                     }
                 });
                 if !c.cost.error.is_empty() {
-                    ui.label(RichText::new(&c.cost.error).color(BAD));
+                    ui.label(RichText::new(&c.cost.error).color(BAD()));
                 }
                 ui.separator();
                 match c.evm.clone() {
                     Some(Err(e)) => {
-                        ui.label(RichText::new(format!("Not calculated: {e}")).color(BAD));
+                        ui.label(RichText::new(format!("Not calculated: {e}")).color(BAD()));
                     }
                     Some(Ok(out)) => {
                         evm_output(ui, &out, decimals);
@@ -981,7 +993,7 @@ impl AfroBimApp {
             });
             match &result {
                 Err(e) => {
-                    ui.label(RichText::new(e).color(WARN));
+                    ui.label(RichText::new(e).color(WARN()));
                 }
                 Ok((look, delays)) => {
                     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
@@ -1063,12 +1075,12 @@ fn evm_output(ui: &mut Ui, out: &EvmOutput, decimals: u32) {
         ui.end_row();
     });
     if out.eac_unchosen {
-        ui.label(RichText::new("No EAC formula is chosen, so the EAC and the figures that depend on it are not shown.").small().color(WARN));
+        ui.label(RichText::new("No EAC formula is chosen, so the EAC and the figures that depend on it are not shown.").small().color(WARN()));
     } else {
         ui.label(RichText::new(format!("EAC by {}: {}", e.eac.formula, e.eac.definition)).small());
     }
     for n in &e.notes {
-        ui.label(RichText::new(n).small().color(WARN));
+        ui.label(RichText::new(n).small().color(WARN()));
     }
     ui.add_space(6.0);
     ui.label(RichText::new("By activity").strong());

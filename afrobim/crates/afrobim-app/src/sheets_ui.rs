@@ -20,7 +20,13 @@ use crate::app::AfroBimApp;
 use crate::render::{ElementMesh, Representation};
 use crate::sheets_glue::{self as glue, Composed, DETAIL_KINDS, FEED_QUANTITIES, TABLE_KINDS};
 
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+#[allow(non_snake_case)]
+
+fn WARN() -> egui::Color32 {
+
+    crate::theme::warn()
+
+}
 
 // ─── state ──────────────────────────────────────────────────────────────────────────────
 
@@ -1044,7 +1050,7 @@ impl AfroBimApp {
                     apply = true;
                 }
                 if changed {
-                    ui.label(RichText::new("Not applied yet.").small().color(WARN));
+                    ui.label(RichText::new("Not applied yet.").small().color(WARN()));
                 } else if !s.info_message.is_empty() {
                     ui.label(RichText::new(&s.info_message).small().weak());
                 }
@@ -1119,7 +1125,7 @@ impl AfroBimApp {
                 ui.add_space(8.0);
                 ui.label("There is no sheet set yet. Enter a name and press New set; then add sheets from the templates.");
                 if !s.message.is_empty() {
-                    ui.label(RichText::new(&s.message).small().color(WARN));
+                    ui.label(RichText::new(&s.message).small().color(WARN()));
                 }
                 return;
             }
@@ -1259,7 +1265,7 @@ impl AfroBimApp {
                 None => ui.label(RichText::new("Not composed yet. Every compose reads the live model.").small().weak()),
             };
             if !s.message.is_empty() {
-                ui.label(RichText::new(&s.message).small().color(WARN));
+                ui.label(RichText::new(&s.message).small().color(WARN()));
             }
         });
 
@@ -1277,7 +1283,7 @@ impl AfroBimApp {
                 });
                 ui.add_space(6.0);
                 if !f.error.is_empty() {
-                    ui.label(RichText::new(&f.error).color(WARN));
+                    ui.label(RichText::new(&f.error).color(WARN()));
                 }
                 ui.horizontal(|ui| {
                     let label = if f.editing.is_some() { "Save changes" } else { "Add to the set" };
@@ -1387,7 +1393,7 @@ impl AfroBimApp {
                 }
             });
             if !s.tb_message.is_empty() {
-                ui.label(RichText::new(&s.tb_message).small().color(WARN));
+                ui.label(RichText::new(&s.tb_message).small().color(WARN()));
             }
             ui.separator();
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
@@ -1489,12 +1495,12 @@ impl AfroBimApp {
             let mine: Vec<&String> = c.composed.sheets.get(s.page).map(|sh| sh.warnings.iter().collect()).unwrap_or_default();
             let others: Vec<&String> = c.composed.warnings.iter().filter(|w| !w.starts_with("Sheet ")).collect();
             let total = c.composed.warnings.len() + c.feed_notes.len();
-            egui::CollapsingHeader::new(RichText::new(format!("Warnings: {} on this sheet, {total} in the set", mine.len())).color(if total > 0 { WARN } else { ui.visuals().text_color() })).id_salt("preview-warnings").default_open(!mine.is_empty()).show(ui, |ui| {
+            egui::CollapsingHeader::new(RichText::new(format!("Warnings: {} on this sheet, {total} in the set", mine.len())).color(if total > 0 { WARN() } else { ui.visuals().text_color() })).id_salt("preview-warnings").default_open(!mine.is_empty()).show(ui, |ui| {
                 if total == 0 {
                     ui.label(RichText::new("The composer had nothing to report.").small().weak());
                 }
                 for w in &mine {
-                    ui.label(RichText::new(format!("{sheet_number}: {w}")).small().color(WARN));
+                    ui.label(RichText::new(format!("{sheet_number}: {w}")).small().color(WARN()));
                 }
                 for w in &others {
                     ui.label(RichText::new(*w).small());

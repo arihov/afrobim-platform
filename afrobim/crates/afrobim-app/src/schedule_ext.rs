@@ -19,9 +19,21 @@ use egui::{pos2, Align2, Color32, FontId, RichText, Sense, Shape, Stroke, Ui};
 use crate::app::AfroBimApp;
 use crate::schedule_glue as glue;
 
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
+#[allow(non_snake_case)]
+
+fn BAD() -> egui::Color32 {
+
+    crate::theme::danger()
+
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+fn GOOD() -> egui::Color32 {
+    crate::theme::success()
+}
 
 /// The entries for one activity's location range, kept while they are typed.
 #[derive(Clone)]
@@ -273,7 +285,7 @@ impl AfroBimApp {
         let Some((title, lines)) = self.sched.ext.xer_report.clone() else { return };
         let mut open = true;
         crate::win::new(ctx, title).open(&mut open).default_width(640.0).show(ctx, |ui| {
-            ui.label(RichText::new(glue::XER_UNTESTED).strong().color(WARN));
+            ui.label(RichText::new(glue::XER_UNTESTED).strong().color(WARN()));
             ui.separator();
             egui::ScrollArea::vertical().max_height(340.0).show(ui, |ui| {
                 for l in lines.iter().skip(1) {
@@ -442,7 +454,7 @@ impl AfroBimApp {
                 }
             });
             if !ext.problem.is_empty() {
-                ui.label(RichText::new(&ext.problem).color(BAD));
+                ui.label(RichText::new(&ext.problem).color(BAD()));
             }
             ui.separator();
             ui.label(RichText::new("Roll-up").strong());
@@ -488,11 +500,11 @@ impl AfroBimApp {
                     }
                     Err(e) => {
                         ext.rollup_error = Some(error_text(e));
-                        ui.label(RichText::new(format!("The roll-up cannot be made on this basis: {}", ext.rollup_error.clone().unwrap_or_default())).color(BAD));
+                        ui.label(RichText::new(format!("The roll-up cannot be made on this basis: {}", ext.rollup_error.clone().unwrap_or_default())).color(BAD()));
                     }
                 },
                 Some(Err(m)) => {
-                    ui.label(RichText::new(format!("The programme cannot be scheduled: {}", m.join("; "))).color(BAD));
+                    ui.label(RichText::new(format!("The programme cannot be scheduled: {}", m.join("; "))).color(BAD()));
                 }
                 None => {}
             }
@@ -582,7 +594,7 @@ impl AfroBimApp {
                 }
             });
             if !schedule_ok {
-                ui.label(RichText::new("The programme is not scheduled. Fix it in PROGRAMME first.").color(BAD));
+                ui.label(RichText::new("The programme is not scheduled. Fix it in PROGRAMME first.").color(BAD()));
                 return;
             }
             if ext.tl_tab == 0 {
@@ -607,11 +619,11 @@ impl AfroBimApp {
                         egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| paint_sheet(ui, &c.drawing, &labels, 1.0));
                     }
                     None => {
-                        ui.label(RichText::new("No activity has a location range on this alignment. Enter one on the Location ranges tab, or link activities to elements placed on the alignment (LINK4D, STATION).").color(WARN));
+                        ui.label(RichText::new("No activity has a location range on this alignment. Enter one on the Location ranges tab, or link activities to elements placed on the alignment (LINK4D, STATION).").color(WARN()));
                     }
                 }
                 for n in &resolved.notes {
-                    ui.label(RichText::new(n).small().color(WARN));
+                    ui.label(RichText::new(n).small().color(WARN()));
                 }
             } else {
                 tl_ranges_table(ui, &p, &resolved, doc, alignment_id, chosen.as_deref(), ext, &mut set_range);
@@ -853,8 +865,8 @@ fn tl_ranges_table(
                 });
                 ui.add_sized([60.0, 20.0], egui::TextEdit::singleline(&mut form.dwell).hint_text("none"));
                 ui.label(match (entered, current) {
-                    (Some(_), _) => RichText::new("entered").color(GOOD),
-                    (None, Some(l)) if l.derived => RichText::new("derived from elements").color(WARN),
+                    (Some(_), _) => RichText::new("entered").color(GOOD()),
+                    (None, Some(l)) if l.derived => RichText::new("derived from elements").color(WARN()),
                     _ => RichText::new("none").weak(),
                 });
                 let mut cleared = false;
@@ -883,7 +895,7 @@ fn tl_ranges_table(
         });
     });
     if !ext.problem.is_empty() {
-        ui.label(RichText::new(&ext.problem).color(BAD));
+        ui.label(RichText::new(&ext.problem).color(BAD()));
     }
 }
 

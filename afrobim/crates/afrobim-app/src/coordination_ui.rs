@@ -12,7 +12,10 @@ use crate::coordination_glue as glue;
 use crate::view3d::WorldCtx;
 
 const STATUSES: [Status; 5] = [Status::New, Status::Active, Status::Reviewed, Status::Approved, Status::Resolved];
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
+#[allow(non_snake_case)]
+fn BAD() -> egui::Color32 {
+    crate::theme::danger()
+}
 
 /// A clash test being added or edited. The tolerance is text because nothing is prefilled.
 #[derive(Default, Clone)]
@@ -455,7 +458,7 @@ impl AfroBimApp {
                     ui.end_row();
                 });
                 if !form.error.is_empty() {
-                    ui.label(RichText::new(&form.error).color(BAD));
+                    ui.label(RichText::new(&form.error).color(BAD()));
                 }
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {

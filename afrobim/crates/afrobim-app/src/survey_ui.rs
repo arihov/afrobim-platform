@@ -164,7 +164,7 @@ impl AfroBimApp {
             ui.add_space(6.0);
             match &form.read {
                 Err(why) => {
-                    ui.colored_label(egui::Color32::from_rgb(0xB0, 0x60, 0x00), format!("The file cannot be read in this column order: {why}"));
+                    ui.colored_label(crate::theme::warn(), format!("The file cannot be read in this column order: {why}"));
                 }
                 Ok(survey) => {
                     ui.label(RichText::new(format!("{} points. The first as they are read:", survey.points.len())).strong());
@@ -188,7 +188,7 @@ impl AfroBimApp {
                     if !form.crs.trim().is_empty() {
                         match CoordinateSystem::parse(&form.crs) {
                             None => {
-                                ui.colored_label(egui::Color32::from_rgb(0xB0, 0x60, 0x00), "That coordinate system is not known. The WGS 84 / UTM zones are, with N or S.");
+                                ui.colored_label(crate::theme::warn(), "That coordinate system is not known. The WGS 84 / UTM zones are, with N or S.");
                             }
                             Some(crs) => {
                                 let extent = survey.plan_extent();
@@ -199,7 +199,7 @@ impl AfroBimApp {
                                     ui.label(RichText::new(format!("{}.{place}", crs.label())).small());
                                 } else {
                                     for doubt in doubts {
-                                        ui.colored_label(egui::Color32::from_rgb(0xB0, 0x60, 0x00), doubt);
+                                        ui.colored_label(crate::theme::warn(), doubt);
                                     }
                                 }
                             }
@@ -243,7 +243,7 @@ impl AfroBimApp {
 
             if let Some(problem) = &form.problem {
                 ui.add_space(4.0);
-                ui.colored_label(egui::Color32::from_rgb(0xB0, 0x30, 0x30), problem);
+                ui.colored_label(crate::theme::danger(), problem);
             }
             ui.add_space(6.0);
             ui.horizontal(|ui| {

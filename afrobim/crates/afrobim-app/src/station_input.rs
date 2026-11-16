@@ -116,7 +116,7 @@ fn station_field_with(ui: &mut Ui, doc: &Document, alignment: Option<ElementId>,
                 });
                 match &problem {
                     Some(e) => {
-                        ui.label(RichText::new(e).small().color(Color32::from_rgb(0xEF, 0x6C, 0x63)));
+                        ui.label(RichText::new(e).small().color(crate::theme::danger()));
                     }
                     None => {
                         ui.label(RichText::new(format!("{}, internal station {:.3} m", crate::anno_ui::units_of(doc).station(st.displayed), *internal)).small().weak());

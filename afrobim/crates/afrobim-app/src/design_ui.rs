@@ -20,9 +20,21 @@ use crate::app::AfroBimApp;
 use crate::design_glue::{self as glue, HEdit};
 use crate::disp::{cell_changed, cell_text, parse_cell, Cell};
 
-pub const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-pub const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-pub const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
+#[allow(non_snake_case)]
+
+pub fn BAD() -> egui::Color32 {
+
+    crate::theme::danger()
+
+}
+#[allow(non_snake_case)]
+pub fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+pub fn GOOD() -> egui::Color32 {
+    crate::theme::success()
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PlanTool {
@@ -588,7 +600,7 @@ impl AfroBimApp {
             // Curves with no radius yet.
             for (i, q) in p.pis.iter().enumerate() {
                 if q.radius == 0.0 && deflection_deg(&p.pis, i).is_some_and(|d| d.abs() > 0.05) {
-                    plan_text(&painter, to_screen((q.x, q.y)) + Vec2::new(10.0, 12.0), Align2::LEFT_TOP, "radius needed", 10.5, WARN, dark);
+                    plan_text(&painter, to_screen((q.x, q.y)) + Vec2::new(10.0, 12.0), Align2::LEFT_TOP, "radius needed", 10.5, WARN(), dark);
                 }
             }
             // Grips.
@@ -602,17 +614,17 @@ impl AfroBimApp {
                 painter.rect_stroke(r, 0.0, Stroke::new(1.0_f32, Color32::WHITE), egui::StrokeKind::Inside);
             }
         } else if let Some((_, Err(e), _)) = &self.design.active_plan {
-            plan_text(&painter, rect.left_top() + Vec2::new(14.0, 60.0), Align2::LEFT_TOP, &format!("This design cannot be drawn: {e}"), 12.0, BAD, dark);
+            plan_text(&painter, rect.left_top() + Vec2::new(14.0, 60.0), Align2::LEFT_TOP, &format!("This design cannot be drawn: {e}"), 12.0, BAD(), dark);
         }
 
         // A move the engine refuses: the cursor, in red, with the engine's reason.
         if let Some(d) = &self.design.drag {
             if let Some(reason) = &d.refused {
                 let s = to_screen(d.cursor);
-                painter.circle_stroke(s, 9.0, Stroke::new(2.0_f32, BAD));
-                painter.line_segment([s + Vec2::new(-6.0, -6.0), s + Vec2::new(6.0, 6.0)], Stroke::new(2.0_f32, BAD));
-                painter.line_segment([s + Vec2::new(-6.0, 6.0), s + Vec2::new(6.0, -6.0)], Stroke::new(2.0_f32, BAD));
-                plan_text(&painter, s + Vec2::new(14.0, 14.0), Align2::LEFT_TOP, &format!("Refused: {reason}"), 11.0, BAD, dark);
+                painter.circle_stroke(s, 9.0, Stroke::new(2.0_f32, BAD()));
+                painter.line_segment([s + Vec2::new(-6.0, -6.0), s + Vec2::new(6.0, 6.0)], Stroke::new(2.0_f32, BAD()));
+                painter.line_segment([s + Vec2::new(-6.0, 6.0), s + Vec2::new(6.0, -6.0)], Stroke::new(2.0_f32, BAD()));
+                plan_text(&painter, s + Vec2::new(14.0, 14.0), Align2::LEFT_TOP, &format!("Refused: {reason}"), 11.0, BAD(), dark);
             }
         }
 
@@ -643,7 +655,7 @@ impl AfroBimApp {
         // What was resynchronised by the last edit.
         if let Some(r) = &self.design.last {
             let text = r.note();
-            plan_text(&painter, rect.right_bottom() + Vec2::new(-12.0, -26.0), Align2::RIGHT_BOTTOM, &text, 10.5, if r.problems.is_empty() { GOOD } else { WARN }, dark);
+            plan_text(&painter, rect.right_bottom() + Vec2::new(-12.0, -26.0), Align2::RIGHT_BOTTOM, &text, 10.5, if r.problems.is_empty() { GOOD() } else { WARN() }, dark);
         }
 
         // The plan toolbar, on top of the canvas.
@@ -856,7 +868,7 @@ impl AfroBimApp {
             });
             ui.label(RichText::new("The start station is the station at the first PI. Enter it as 1+250.000 or as a number of metres (1250).").small().weak());
             if !nd.problem.is_empty() {
-                ui.label(RichText::new(&nd.problem).color(BAD));
+                ui.label(RichText::new(&nd.problem).color(BAD()));
             }
             ui.horizontal(|ui| {
                 if ui.button("Pick the PIs on the plan").clicked() {
@@ -921,7 +933,7 @@ impl AfroBimApp {
             ui.label(RichText::new(format!("{name}: start station {}", units.station(design.horizontal.start_station_m))).strong());
             ui.label(RichText::new("Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.").small().weak());
             if let Err(e) = &solution {
-                ui.label(RichText::new(format!("The design cannot be solved: {e}")).color(BAD));
+                ui.label(RichText::new(format!("The design cannot be solved: {e}")).color(BAD()));
             }
             egui::ScrollArea::both().auto_shrink([false, true]).max_height(260.0).show(ui, |ui| {
                 egui::Grid::new("pi-table").num_columns(12).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
@@ -937,7 +949,7 @@ impl AfroBimApp {
                             (Ok(s), None) => s.alignment.station_offset(pi.x, pi.y).map(|x| x.0),
                             _ => None,
                         };
-                        let label = if sel_now == Some(i) { RichText::new(format!("{i}")).strong().color(WARN) } else { RichText::new(format!("{i}")) };
+                        let label = if sel_now == Some(i) { RichText::new(format!("{i}")).strong().color(WARN()) } else { RichText::new(format!("{i}")) };
                         if ui.selectable_label(sel_now == Some(i), label).clicked() {
                             sel = Some(i);
                         }
@@ -970,7 +982,7 @@ impl AfroBimApp {
                             ui.horizontal(|ui| {
                                 let r = ui.add_sized([62.0, 20.0], egui::TextEdit::singleline(&mut radius_text).hint_text("needed"));
                                 if pi.radius == 0.0 {
-                                    ui.label(RichText::new("needed").small().color(WARN));
+                                    ui.label(RichText::new("needed").small().color(WARN()));
                                 }
                                 if r.lost_focus() {
                                     let t = radius_text.clone();
@@ -1036,12 +1048,12 @@ impl AfroBimApp {
             });
             if let Ok(s) = &solution {
                 for w in &s.warnings {
-                    ui.label(RichText::new(w).small().color(WARN));
+                    ui.label(RichText::new(w).small().color(WARN()));
                 }
                 ui.label(RichText::new(format!("Length {}, end station {}.", crate::disp::len_u(u, s.alignment.length()), crate::disp::station(u, s.alignment.end_station_m()))).small());
             }
             if let Some(r) = &last {
-                ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD } else { WARN }));
+                ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD() } else { WARN() }));
             }
         });
         self.design.bufs = bufs;

@@ -18,8 +18,14 @@ const GHOST: Color32 = Color32::from_rgb(0xFF, 0xB0, 0x30);
 const SNAP_COL: Color32 = Color32::from_rgb(0xFF, 0xE0, 0x40);
 const GRIP_FILL: Color32 = Color32::from_rgb(0x2F, 0x7F, 0xE0);
 const GRIP_HOT: Color32 = Color32::from_rgb(0xFF, 0x5A, 0x36);
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+#[allow(non_snake_case)]
+fn BAD() -> egui::Color32 {
+    crate::theme::danger()
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
 /// Pixels of a grip's reach.
 const GRIP_REACH_PX: f64 = 7.0;
 /// Pixels within which object snap takes a candidate.
@@ -878,7 +884,7 @@ impl AfroBimApp {
             }
             ui.label(RichText::new(format!("Annotation scale 1:{}: a paper height of {:.1} mm is {:.0} mm in the model. Sizes are paper millimetres, multiplied by the annotation scale. Every size here is an editable default and no drafting standard is claimed. Layout uses Helvetica widths whatever font is named.", st.annotation_scale, st.text_styles[self.anno.text_sel].height_paper_mm, st.text_styles[self.anno.text_sel].height_paper_mm * st.annotation_scale)).small().weak());
             if !self.anno.style_note.is_empty() {
-                ui.label(RichText::new(&self.anno.style_note).small().color(WARN));
+                ui.label(RichText::new(&self.anno.style_note).small().color(WARN()));
             }
         });
         if st != before {
@@ -1040,7 +1046,7 @@ impl AfroBimApp {
             ui.label(RichText::new(format!("A preview at 1:{scale}: a dimension line with text {:.0} mm high and arrows {:.0} mm long in the model.", st.dim_styles[self.anno.dim_sel].text_height_mm * scale, st.dim_styles[self.anno.dim_sel].arrow_size_mm * scale)).small().weak());
             ui.label(RichText::new("Every size is an editable default; none is taken from a drafting standard. Text override of one dimension is in its Properties and keeps the measured value shown.").small().weak());
             if !self.anno.style_note.is_empty() {
-                ui.label(RichText::new(&self.anno.style_note).small().color(WARN));
+                ui.label(RichText::new(&self.anno.style_note).small().color(WARN()));
             }
         });
         if st != before {
@@ -1116,7 +1122,7 @@ const JUSTIFY: [(Justify, &str); 9] = [
 /// The Definition section of the Properties panel for an annotation. True when something changed.
 pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments: &[String]) -> bool {
     let Ok(mut a) = ann::read(e) else {
-        ui.label(RichText::new("The annotation cannot be read.").color(BAD));
+        ui.label(RichText::new("The annotation cannot be read.").color(BAD()));
         return false;
     };
     let before = a.clone();
@@ -1225,7 +1231,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
                         ui.end_row();
                         if let Some(p) = &d.cache.problem {
                             ui.label("");
-                            ui.label(RichText::new(p).color(BAD).small());
+                            ui.label(RichText::new(p).color(BAD()).small());
                             ui.end_row();
                         }
                     }
@@ -1280,7 +1286,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
         match ann::write(e, a) {
             Ok(()) => return true,
             Err(err) => {
-                ui.label(RichText::new(format!("Not applied: {err}")).color(BAD));
+                ui.label(RichText::new(format!("Not applied: {err}")).color(BAD()));
                 let _ = ann::write(e, before);
             }
         }

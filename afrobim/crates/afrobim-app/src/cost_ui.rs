@@ -18,9 +18,21 @@ use egui::{pos2, Align2, Color32, FontId, RichText, Sense, Shape, Stroke, Ui};
 use crate::app::AfroBimApp;
 use crate::cost_glue as glue;
 
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
+#[allow(non_snake_case)]
+
+fn BAD() -> egui::Color32 {
+
+    crate::theme::danger()
+
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+fn GOOD() -> egui::Color32 {
+    crate::theme::success()
+}
 
 #[derive(Default, Clone)]
 struct RateEdit {
@@ -454,7 +466,7 @@ impl AfroBimApp {
                 }
             });
             if let Some(Err(e)) = &c.result {
-                ui.label(RichText::new(format!("Cannot measure yet: {e}")).color(BAD));
+                ui.label(RichText::new(format!("Cannot measure yet: {e}")).color(BAD()));
             }
             ui.separator();
             match c.bill_tab {
@@ -498,7 +510,7 @@ impl AfroBimApp {
                         }
                     });
                     if !c.problem.is_empty() {
-                        ui.label(RichText::new(&c.problem).color(BAD));
+                        ui.label(RichText::new(&c.problem).color(BAD()));
                     }
                     ui.label(RichText::new("The bill has no standard structure of its own: sections, items, units and descriptions are yours, loaded from a CSV (kind,code,section,description,unit) or typed here.").small().weak());
                     ui.add_space(4.0);
@@ -684,7 +696,7 @@ impl AfroBimApp {
                         }
                     }
                     if !c.rule_error.is_empty() {
-                        ui.label(RichText::new(&c.rule_error).color(BAD));
+                        ui.label(RichText::new(&c.rule_error).color(BAD()));
                     }
                     ui.add_space(4.0);
                     if let Some(lines) = &c.lines {
@@ -719,9 +731,9 @@ impl AfroBimApp {
                     if let Some(Ok(r)) = &c.result {
                         let warnings = glue::double_count_warnings(&r.measured);
                         if !warnings.is_empty() {
-                            egui::CollapsingHeader::new(RichText::new(format!("Possible double counting ({}): open to read", warnings.len())).color(WARN).strong()).default_open(false).show(ui, |ui| {
+                            egui::CollapsingHeader::new(RichText::new(format!("Possible double counting ({}): open to read", warnings.len())).color(WARN()).strong()).default_open(false).show(ui, |ui| {
                                 for w in &warnings {
-                                    ui.label(RichText::new(w).small().color(WARN));
+                                    ui.label(RichText::new(w).small().color(WARN()));
                                 }
                             });
                         }
@@ -786,7 +798,7 @@ impl AfroBimApp {
                     }
                     if let Some(lines) = &c.lines {
                         if !lines.skipped.is_empty() {
-                            egui::CollapsingHeader::new(RichText::new(format!("Elements the model could not measure ({})", lines.skipped.len())).color(WARN)).show(ui, |ui| {
+                            egui::CollapsingHeader::new(RichText::new(format!("Elements the model could not measure ({})", lines.skipped.len())).color(WARN())).show(ui, |ui| {
                                 for s in &lines.skipped {
                                     ui.label(RichText::new(format!("{} {}: {}", s.source, s.mark, s.reason)).small());
                                 }
@@ -798,7 +810,7 @@ impl AfroBimApp {
                     if let Some(Ok(r)) = &c.result {
                         let lines = c.lines.as_ref();
                         egui::ScrollArea::vertical().id_salt("unmapped-scroll").auto_shrink([false, false]).show(ui, |ui| {
-                            ui.label(RichText::new(format!("Unmapped lines ({}): not in any item and not priced", r.measured.unmapped.len())).strong().color(if r.measured.unmapped.is_empty() { GOOD } else { WARN }));
+                            ui.label(RichText::new(format!("Unmapped lines ({}): not in any item and not priced", r.measured.unmapped.len())).strong().color(if r.measured.unmapped.is_empty() { GOOD() } else { WARN() }));
                             if !r.measured.unmapped.is_empty() {
                                 ui.label(RichText::new("By category and unit").small().weak());
                                 egui::Grid::new("unmapped-totals").num_columns(4).striped(true).spacing([10.0, 2.0]).show(ui, |ui| {
@@ -836,7 +848,7 @@ impl AfroBimApp {
                                 });
                             }
                             ui.add_space(8.0);
-                            ui.label(RichText::new(format!("Ambiguous lines ({}): more than one rule fits; the first was used", r.measured.ambiguous.len())).strong().color(if r.measured.ambiguous.is_empty() { GOOD } else { WARN }));
+                            ui.label(RichText::new(format!("Ambiguous lines ({}): more than one rule fits; the first was used", r.measured.ambiguous.len())).strong().color(if r.measured.ambiguous.is_empty() { GOOD() } else { WARN() }));
                             egui::Grid::new("ambiguous-lines").num_columns(4).striped(true).spacing([10.0, 2.0]).show(ui, |ui| {
                                 for a in &r.measured.ambiguous {
                                     let l = lines.and_then(|ls| ls.lines.get(a.line));
@@ -916,7 +928,7 @@ impl AfroBimApp {
                 }
             });
             if !c.problem.is_empty() {
-                ui.label(RichText::new(&c.problem).color(BAD));
+                ui.label(RichText::new(&c.problem).color(BAD()));
             }
             ui.label(RichText::new("The library is empty until you enter or load rates. Every rate carries its currency, a source note and the date it was taken. An item with no rate is listed as unpriced; it is not priced at zero.").small().weak());
             if est.bill.items.is_empty() {
@@ -971,9 +983,9 @@ impl AfroBimApp {
                         }
                         if edit.error.is_empty() {
                             let priced = est.rates.rates.iter().any(|r| r.item_code == code);
-                            ui.label(if priced { RichText::new("priced").small().color(GOOD) } else { RichText::new("no rate").small().color(WARN) });
+                            ui.label(if priced { RichText::new("priced").small().color(GOOD()) } else { RichText::new("no rate").small().color(WARN()) });
                         } else {
-                            ui.label(RichText::new(&edit.error).small().color(BAD));
+                            ui.label(RichText::new(&edit.error).small().color(BAD()));
                         }
                         ui.end_row();
                     }
@@ -986,9 +998,9 @@ impl AfroBimApp {
             }
             if !unpriced.is_empty() {
                 ui.separator();
-                ui.label(RichText::new(format!("Unpriced items ({}): shown as unpriced, never as zero", unpriced.len())).color(WARN).strong());
+                ui.label(RichText::new(format!("Unpriced items ({}): shown as unpriced, never as zero", unpriced.len())).color(WARN()).strong());
                 for (code, reason) in &unpriced {
-                    ui.label(RichText::new(format!("{code}: {reason}")).small().color(WARN));
+                    ui.label(RichText::new(format!("{code}: {reason}")).small().color(WARN()));
                 }
             }
         });
@@ -1116,10 +1128,10 @@ impl AfroBimApp {
                 }
             });
             if !c.problem.is_empty() {
-                ui.label(RichText::new(&c.problem).color(WARN));
+                ui.label(RichText::new(&c.problem).color(WARN()));
             }
             if let Some(Err(e)) = &c.result {
-                ui.label(RichText::new(e).small().color(BAD));
+                ui.label(RichText::new(e).small().color(BAD()));
             }
             status = None;
         });
@@ -1177,23 +1189,23 @@ impl AfroBimApp {
                 ui.label("Name");
                 changed |= ui.add_sized([220.0, 20.0], egui::TextEdit::singleline(&mut est.name)).changed();
                 if est.name.contains("DEMO") {
-                    ui.label(RichText::new("demo values: not real rates").color(WARN).strong());
+                    ui.label(RichText::new("demo values: not real rates").color(WARN()).strong());
                 }
             });
             match &c.result {
                 Some(Err(e)) => {
-                    ui.label(RichText::new(format!("The estimate cannot be computed: {e}")).color(BAD));
+                    ui.label(RichText::new(format!("The estimate cannot be computed: {e}")).color(BAD()));
                 }
                 Some(Ok(r)) => {
                     if !r.unpriced.is_empty() {
-                        ui.label(RichText::new(format!("{} item(s) have no usable rate and are shown as unpriced, not as zero: {}. Enter their rates under RATES.", r.unpriced.len(), r.unpriced.iter().map(|u| u.code.as_str()).collect::<Vec<_>>().join(", "))).color(WARN));
+                        ui.label(RichText::new(format!("{} item(s) have no usable rate and are shown as unpriced, not as zero: {}. Enter their rates under RATES.", r.unpriced.len(), r.unpriced.iter().map(|u| u.code.as_str()).collect::<Vec<_>>().join(", "))).color(WARN()));
                     }
                     if !r.measured.unmapped.is_empty() {
-                        ui.label(RichText::new(format!("{} quantity line(s) are not mapped to any item and are not priced (see BILL, Unmapped).", r.measured.unmapped.len())).color(WARN));
+                        ui.label(RichText::new(format!("{} quantity line(s) are not mapped to any item and are not priced (see BILL, Unmapped).", r.measured.unmapped.len())).color(WARN()));
                     }
                     let warnings = glue::double_count_warnings(&r.measured);
                     if !warnings.is_empty() {
-                        ui.label(RichText::new(format!("{} element(s) are measured by lines of different kinds and may be priced twice: see BILL, Measured quantities.", warnings.len())).color(WARN));
+                        ui.label(RichText::new(format!("{} element(s) are measured by lines of different kinds and may be priced twice: see BILL, Measured quantities.", warnings.len())).color(WARN()));
                     }
                 }
                 None => {
@@ -1251,10 +1263,10 @@ impl AfroBimApp {
                                                 }
                                             }
                                             None => {
-                                                ui.label(RichText::new("no rate").color(WARN));
-                                                ui.label(RichText::new("unpriced").color(WARN));
+                                                ui.label(RichText::new("no rate").color(WARN()));
+                                                ui.label(RichText::new("unpriced").color(WARN()));
                                                 if secondary.is_some() {
-                                                    ui.label(RichText::new("unpriced").color(WARN));
+                                                    ui.label(RichText::new("unpriced").color(WARN()));
                                                 }
                                             }
                                         }
@@ -1421,7 +1433,7 @@ impl AfroBimApp {
                         }
                     }
                     if !f.error.is_empty() {
-                        ui.label(RichText::new(&f.error).color(BAD));
+                        ui.label(RichText::new(&f.error).color(BAD()));
                     }
                 }
                 2 => match &c.result {
@@ -1482,12 +1494,12 @@ impl AfroBimApp {
                     });
                     match &c.comparison {
                         Some(Err(e)) => {
-                            ui.label(RichText::new(e).color(BAD));
+                            ui.label(RichText::new(e).color(BAD()));
                         }
                         Some(Ok(cmp)) => {
                             ui.label(RichText::new(format!("{} against {} ({}): bill total {} to {}, grand total {} to {} ({}).", cmp.old_label, cmp.new_label, cmp.currency, money(cmp.subtotal_old, decimals), money(cmp.subtotal_new, decimals), money(cmp.grand_old, decimals), money(cmp.grand_new, decimals), money(cmp.grand_change, decimals))).strong());
                             for w in &cmp.warnings {
-                                ui.label(RichText::new(w).small().color(WARN));
+                                ui.label(RichText::new(w).small().color(WARN()));
                             }
                             egui::ScrollArea::both().id_salt("cmp-scroll").auto_shrink([false, false]).show(ui, |ui| {
                                 egui::Grid::new("cmp-grid").num_columns(9).striped(true).spacing([10.0, 3.0]).show(ui, |ui| {
@@ -1681,7 +1693,7 @@ impl AfroBimApp {
                 }
             });
             if !c.problem.is_empty() {
-                ui.label(RichText::new(&c.problem).color(BAD));
+                ui.label(RichText::new(&c.problem).color(BAD()));
             }
             ui.separator();
             ui.horizontal(|ui| {
@@ -1704,7 +1716,7 @@ impl AfroBimApp {
                         }
                     }
                     for n in notes {
-                        ui.label(RichText::new(n).small().color(WARN));
+                        ui.label(RichText::new(n).small().color(WARN()));
                     }
                 });
                 if ui.button("Use these windows (they replace the windows of the same items)").clicked() {
@@ -1716,10 +1728,10 @@ impl AfroBimApp {
                 Some(Ok(cf)) if !cf.months.is_empty() => {
                     ui.label(format!("{} {}: phased {}, unphased {}, of a grand total of {}.", cf.currency, "cash flow", money(cf.phased_total, decimals), money(cf.unphased_total, decimals), money(cf.grand_total, decimals)));
                     for w in &cf.warnings {
-                        ui.label(RichText::new(w).small().color(WARN));
+                        ui.label(RichText::new(w).small().color(WARN()));
                     }
                     if !cf.unphased_total.is_zero() {
-                        ui.label(RichText::new("Part of the estimate has no window and is not in the months below.").small().color(WARN));
+                        ui.label(RichText::new("Part of the estimate has no window and is not in the months below.").small().color(WARN()));
                     }
                     ui.horizontal_top(|ui| {
                         egui::ScrollArea::vertical().id_salt("months-scroll").max_height(280.0).show(ui, |ui| {
@@ -1744,7 +1756,7 @@ impl AfroBimApp {
                     ui.label(RichText::new("No windows entered yet: there is nothing to phase.").weak());
                 }
                 Some(Err(e)) => {
-                    ui.label(RichText::new(format!("Cash flow not computed: {e}")).color(BAD));
+                    ui.label(RichText::new(format!("Cash flow not computed: {e}")).color(BAD()));
                 }
                 None => {
                     ui.label(RichText::new("The estimate has no result yet.").weak());
@@ -1802,7 +1814,7 @@ impl AfroBimApp {
         let decimals = c.decimals();
         crate::win::new(ctx, "Interim payment certificate").open(&mut open).default_width(960.0).default_height(700.0).show(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(620.0).auto_shrink([false, true]).show(ui, |ui| {
-            ui.label(RichText::new("This module encodes no FIDIC clause and no other contract's terms. Every percentage, cap, threshold and amount below is your own contract data, entered by you: AfroBIM only does the arithmetic on it and does not decide what a contract entitles anyone to.").color(WARN));
+            ui.label(RichText::new("This module encodes no FIDIC clause and no other contract's terms. Every percentage, cap, threshold and amount below is your own contract data, entered by you: AfroBIM only does the arithmetic on it and does not decide what a contract entitles anyone to.").color(WARN()));
             let (Some(est), Some(Ok(result))) = (c.est.as_ref(), c.result.as_ref()) else {
                 ui.label("The estimate has no result yet. Start the bill, enter rates and open ESTIMATE.");
                 return;
@@ -1881,7 +1893,7 @@ impl AfroBimApp {
                 }
             });
             if !f.error.is_empty() {
-                ui.label(RichText::new(&f.error).color(BAD));
+                ui.label(RichText::new(&f.error).color(BAD()));
             }
             ui.separator();
             ui.horizontal(|ui| {
@@ -1918,7 +1930,7 @@ impl AfroBimApp {
             });
             let unpriced = result.items.iter().filter(|i| i.rate_reporting.is_none()).count();
             if unpriced > 0 {
-                ui.label(RichText::new(format!("{unpriced} unpriced item(s) cannot be certified and are not listed.")).small().color(WARN));
+                ui.label(RichText::new(format!("{unpriced} unpriced item(s) cannot be certified and are not listed.")).small().color(WARN()));
             }
             ui.horizontal(|ui| {
                 if ui.button("Fill the quantities from percent complete").clicked() {
@@ -1942,14 +1954,14 @@ impl AfroBimApp {
                 }
             });
             if !c.site_missing.is_empty() {
-                ui.label(RichText::new(format!("Recorded elements that no bill item measures, so they are not paid: {}.", c.site_missing.join(", "))).small().color(WARN));
+                ui.label(RichText::new(format!("Recorded elements that no bill item measures, so they are not paid: {}.", c.site_missing.join(", "))).small().color(WARN()));
             }
             if !c.cert_note.is_empty() {
-                ui.label(RichText::new(&c.cert_note).small().color(WARN));
+                ui.label(RichText::new(&c.cert_note).small().color(WARN()));
             }
             match &c.cert_result {
                 Some(Err(e)) => {
-                    ui.label(RichText::new(e).color(BAD));
+                    ui.label(RichText::new(e).color(BAD()));
                 }
                 Some(Ok(cert)) => {
                     ui.separator();
@@ -1978,7 +1990,7 @@ impl AfroBimApp {
                         ui.end_row();
                     });
                     for w in &cert.warnings {
-                        ui.label(RichText::new(w).small().color(WARN));
+                        ui.label(RichText::new(w).small().color(WARN()));
                     }
                     egui::CollapsingHeader::new("Lines").show(ui, |ui| {
                         egui::Grid::new("cert-lines").num_columns(6).striped(true).spacing([10.0, 2.0]).show(ui, |ui| {

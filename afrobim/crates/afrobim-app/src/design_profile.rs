@@ -158,11 +158,11 @@ impl AfroBimApp {
                 }
             });
             if surfaces.is_empty() {
-                ui.label(RichText::new("There is no survey surface in this document, so there is no ground line. Import one with SURFACE (LandXML) or make one with SURVEY (a point file).").small().color(WARN));
+                ui.label(RichText::new("There is no survey surface in this document, so there is no ground line. Import one with SURFACE (LandXML) or make one with SURVEY (a point file).").small().color(WARN()));
             }
             let exag = parse(&ui_state.exag_text).filter(|v| *v > 0.0);
             if !ui_state.exag_text.trim().is_empty() && exag.is_none() {
-                ui.label(RichText::new("The exaggeration must be a number greater than zero; blank fits the window.").small().color(BAD));
+                ui.label(RichText::new("The exaggeration must be a number greater than zero; blank fits the window.").small().color(BAD()));
             }
             let shown_exag = profile_plot(ui, &alignment, &design, &ui_state.ground, &mut ui_state.drag, &mut ui_state.pending, ui_state.fit_result.as_ref().and_then(|r| r.as_ref().ok()), exag, ui_state.add_mode, u, &mut edit);
             ui.label(RichText::new(match shown_exag {
@@ -205,7 +205,7 @@ impl AfroBimApp {
                 });
             }
             if !ui_state.problem.is_empty() {
-                ui.label(RichText::new(&ui_state.problem).color(BAD));
+                ui.label(RichText::new(&ui_state.problem).color(BAD()));
             }
             if ui_state.fit_open {
                 ui.separator();
@@ -216,12 +216,12 @@ impl AfroBimApp {
                 match v.solve() {
                     Ok(sol) => pvi_table(ui, v, &sol, &mut ui_state, u, &mut edit),
                     Err(e) => {
-                        ui.label(RichText::new(format!("The profile cannot be solved: {e}")).color(BAD));
+                        ui.label(RichText::new(format!("The profile cannot be solved: {e}")).color(BAD()));
                     }
                 }
             }
             if let Some(r) = &last {
-                ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD } else { WARN }));
+                ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD() } else { WARN() }));
             }
         });
         self.design.profile = ui_state;
@@ -331,7 +331,7 @@ fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &m
     }
     match &st.fit_result {
         Some(Err(e)) => {
-            ui.label(RichText::new(e).color(BAD));
+            ui.label(RichText::new(e).color(BAD()));
         }
         Some(Ok(fit)) => {
             egui::Frame::new().fill(Color32::from_rgb(0x5A, 0x3A, 0x10)).inner_margin(8.0).corner_radius(4.0).show(ui, |ui| {
@@ -345,7 +345,7 @@ fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &m
                 crate::disp::len_u(u, fit.rms_difference_m)
             ));
             if !fit.gaps.is_empty() {
-                ui.label(RichText::new(format!("{} stretch(es) where the centreline is off the surface were left out.", fit.gaps.len())).small().color(WARN));
+                ui.label(RichText::new(format!("{} stretch(es) where the centreline is off the surface were left out.", fit.gaps.len())).small().color(WARN()));
             }
             for n in &fit.notes {
                 ui.label(RichText::new(n).small());
@@ -549,7 +549,7 @@ fn profile_plot(
         }
     }
     if let Some(d) = drag.as_ref().and_then(|d| d.refused.as_ref()) {
-        plan_text(&painter, plot.center_top() + Vec2::new(0.0, 8.0), Align2::CENTER_TOP, &format!("Refused: {d}"), 11.0, BAD, dark);
+        plan_text(&painter, plot.center_top() + Vec2::new(0.0, 8.0), Align2::CENTER_TOP, &format!("Refused: {d}"), 11.0, BAD(), dark);
     }
     if add_mode && response.clicked_by(PointerButton::Primary) {
         if let Some(pos) = response.interact_pointer_pos().filter(|p| plot.contains(*p)) {
@@ -680,6 +680,6 @@ fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::Vertic
         }
     });
     for w in &sol.warnings {
-        ui.label(RichText::new(w).small().color(WARN));
+        ui.label(RichText::new(w).small().color(WARN()));
     }
 }

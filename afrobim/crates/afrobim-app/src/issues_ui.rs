@@ -18,8 +18,17 @@ use egui::{Color32, RichText};
 use crate::app::AfroBimApp;
 use crate::coordination_glue as glue;
 
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+#[allow(non_snake_case)]
+
+fn BAD() -> egui::Color32 {
+
+    crate::theme::danger()
+
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
 
 /// What the BCF dialogs say about the files, as the engine's README states it.
 pub const BCF_LIMITS: &str = "AfroBIM writes and reads BCF 2.1 only; BCF 3.0 is not supported and a 3.0 file is refused. The files have been checked against the BCF 2.1 schemas and read back by AfroBIM, but they have not been opened in any other BCF tool, so how another tool shows the viewpoints and the selected objects is not known.";
@@ -390,7 +399,7 @@ impl AfroBimApp {
                 }
             });
             if !self.issues.message.is_empty() {
-                ui.label(RichText::new(&self.issues.message).small().color(WARN));
+                ui.label(RichText::new(&self.issues.message).small().color(WARN()));
             }
             ui.separator();
             let n = self.coord.co.issues.len();
@@ -537,7 +546,7 @@ impl AfroBimApp {
                         changed = true;
                     }
                     ui.separator();
-                    if ui.button(RichText::new("Delete this issue").color(BAD)).clicked() {
+                    if ui.button(RichText::new("Delete this issue").color(BAD())).clicked() {
                         delete = Some(guid.clone());
                     }
                 });
@@ -616,7 +625,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut export = false;
         crate::win::new(ctx, "Export issues as BCF").open(&mut open).default_width(560.0).show(ctx, |ui| {
-            ui.label(RichText::new(BCF_LIMITS).small().color(WARN));
+            ui.label(RichText::new(BCF_LIMITS).small().color(WARN()));
             ui.add_space(4.0);
             ui.label(format!("{} issue(s) in the document.", self.coord.co.issues.len()));
             ui.label(match &self.last_ifc_name {
@@ -651,7 +660,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut import = false;
         crate::win::new(ctx, "Import issues from BCF").open(&mut open).default_width(560.0).show(ctx, |ui| {
-            ui.label(RichText::new(BCF_LIMITS).small().color(WARN));
+            ui.label(RichText::new(BCF_LIMITS).small().color(WARN()));
             ui.label(RichText::new("An issue with the same GUID replaces the one in the document; the others are added. What the model cannot hold is listed as not imported.").small().weak());
             if ui.button("Choose a file and import").clicked() {
                 import = true;

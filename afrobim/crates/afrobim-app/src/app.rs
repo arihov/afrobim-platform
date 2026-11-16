@@ -127,7 +127,8 @@ pub struct AfroBimApp {
     pub(crate) grid_on: bool,
     pub(crate) grid_spacing: f64,
     pub(crate) dark_canvas: bool,
-    dark_theme: bool,
+    pub(crate) theme: crate::theme::Theme,
+    pub(crate) prefs: crate::prefs::Prefs,
     pub(crate) rep: Representation,
     pub(crate) show_labels: bool,
 
@@ -149,7 +150,17 @@ const CMD_ID: &str = "afrobim-command-line";
 
 impl AfroBimApp {
     pub fn new(cc: &eframe::CreationContext<'_>, options: Options) -> Self {
-        cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        let mut prefs = if options.screenshot.is_some() { crate::prefs::Prefs::default() } else { crate::prefs::load() };
+        let mut theme = prefs.theme();
+        if let Some(t) = options.theme.as_deref() {
+            theme = crate::theme::parse_theme(t).unwrap_or(theme);
+        }
+        if let Some(s) = options.scale {
+            theme.scale = s.clamp(0.7, 2.0);
+        }
+        prefs.set_theme(&theme);
+        crate::theme::install_fonts(&cc.egui_ctx);
+        crate::theme::apply(&cc.egui_ctx, &theme);
         let mut modules = crate::background::worker_registry();
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
@@ -218,8 +229,9 @@ impl AfroBimApp {
             new_prop_key: String::new(),
             grid_on: true,
             grid_spacing: 100.0,
-            dark_canvas: true,
-            dark_theme: true,
+            dark_canvas: theme.is_dark(),
+            theme,
+            prefs,
             rep: Representation::Real,
             show_labels: true,
             path: None,
@@ -623,6 +635,24 @@ impl AfroBimApp {
 
     // ─── undo ────────────────────────────────────────────────────────────────
 
+    /// Applies a new look or scale and keeps it in the preferences.
+    pub(crate) fn set_theme(&mut self, ctx: &egui::Context, theme: crate::theme::Theme) {
+        if theme.is_dark() != self.theme.is_dark() {
+            self.dark_canvas = theme.is_dark();
+        }
+        self.theme = theme;
+        crate::theme::apply(ctx, &theme);
+        self.prefs.set_theme(&theme);
+        self.save_prefs();
+    }
+
+    /// Writes the preferences (never while taking a screenshot).
+    pub(crate) fn save_prefs(&self) {
+        if self.options.screenshot.is_none() {
+            crate::prefs::save(&self.prefs);
+        }
+    }
+
     pub(crate) fn request_quit(&mut self) {
         self.quit = true;
     }
@@ -1020,8 +1050,7 @@ impl AfroBimApp {
             Action::ToggleCanvas => self.dark_canvas = !self.dark_canvas,
             Action::ToggleMarks => self.show_labels = !self.show_labels,
             Action::ToggleTheme => {
-                self.dark_theme = !self.dark_theme;
-                ctx.set_visuals(if self.dark_theme { egui::Visuals::dark() } else { egui::Visuals::light() });
+                self.set_theme(ctx, self.theme.toggled());
             }
             Action::Toggle3d => {
                 self.view_3d = !self.view_3d;
@@ -2051,8 +2080,8 @@ impl AfroBimApp {
                         ui.label(RichText::new("Checks").strong());
                         for n in &notes {
                             let colour = match n.severity {
-                                Severity::Error => Color32::from_rgb(0xEF, 0x6C, 0x63),
-                                Severity::Warning => Color32::from_rgb(0xD9, 0x8A, 0x2B),
+                                Severity::Error => crate::theme::danger(),
+                                Severity::Warning => crate::theme::warn(),
                                 Severity::Info => ui.visuals().weak_text_color(),
                             };
                             ui.label(RichText::new(format!("{}  {}", n.code, n.message)).color(colour).small());
@@ -2061,7 +2090,7 @@ impl AfroBimApp {
                 }
                 if let Some(err) = error {
                     ui.add_space(8.0);
-                    ui.label(RichText::new(err).color(Color32::from_rgb(0xEF, 0x6C, 0x63)));
+                    ui.label(RichText::new(err).color(crate::theme::danger()));
                 }
 
                 ui.add_space(8.0);
@@ -2132,7 +2161,7 @@ impl AfroBimApp {
                     (None, None, true) => "Command:",
                     (None, None, false) => self.ctl.prompt(),
                 };
-                ui.label(RichText::new(prompt).monospace().strong().color(Color32::from_rgb(0x4D, 0xC0, 0x7A)));
+                ui.label(RichText::new(prompt).monospace().strong().color(crate::theme::success()));
                 let id = egui::Id::new(CMD_ID);
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut self.cmd_input)
@@ -2572,7 +2601,7 @@ impl AfroBimApp {
                             ui.selectable_value(&mut req.basis_uganda, true, afrobim_markings::Basis::Uganda.label());
                         });
                         if req.basis_uganda {
-                            ui.label(RichText::new(format!("{}: not defined in the Uganda manual (the longitudinal catalogue here is the UK diagrams; the Uganda lines are under Uganda lines).", spec.name)).small().color(Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                            ui.label(RichText::new(format!("{}: not defined in the Uganda manual (the longitudinal catalogue here is the UK diagrams; the Uganda lines are under Uganda lines).", spec.name)).small().color(crate::theme::warn()));
                             let mut on = req.uk_fallback.is_some();
                             if ui.checkbox(&mut on, "use the UK value").changed() {
                                 req.uk_fallback = on.then(String::new);
@@ -2612,7 +2641,7 @@ impl AfroBimApp {
                             let r = crate::projset::resolve_answered(&self.doc, *v, false, &crate::projset::marking_thresholds(), *answer);
                             ui.label(RichText::new(&r.band_note).small());
                             if let Some(ask) = r.ask {
-                                ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).small().color(Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                                ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).small().color(crate::theme::warn()));
                                 ui.horizontal(|ui| {
                                     ui.selectable_value(answer, Some(true), "Yes, take the band");
                                     ui.selectable_value(answer, Some(false), "No, keep the exact value");
@@ -2858,7 +2887,7 @@ impl AfroBimApp {
                     for line in &lines {
                         let text = RichText::new(line).small();
                         let flagged = line.contains("FAILS") || line.contains("NOT ENOUGH") || ["Check:", "Note:", "WARNING"].iter().any(|p| line.starts_with(p));
-                        ui.label(if flagged { text.color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)) } else { text });
+                        ui.label(if flagged { text.color(crate::theme::warn()) } else { text });
                     }
                 });
                 if ui.button("Copy").clicked() {
@@ -2995,7 +3024,14 @@ impl AfroBimApp {
 }
 
 impl eframe::App for AfroBimApp {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        // Opaque, whatever the translucency of the panels.
+        let c = crate::theme::Tokens::of(&self.theme).surface;
+        egui::Rgba::from(c).to_array()
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        crate::theme::paint_backdrop(ctx);
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.title()));
         self.shortcuts(ctx);
         // `--run COMMAND`: runs a command once at start-up (on the element named by `--focus`, when
