@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-built test file following the LandXML 1.2 schema (every element and attribute below is
+     defined by LandXML-1.2.xsd). It was NOT exported by Civil 3D. Coordinates are of true UTM size
+     (easting about 450 000 m, northing about 35 000 m north of the equator), written northing
+     first, with four decimals, so a test can check that they survive exactly. The element
+     <Roadways> and the <Feature> elements are there to be skipped and counted. -->
+<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.landxml.org/schema/LandXML-1.2 http://www.landxml.org/schema/LandXML-1.2/LandXML-1.2.xsd" date="2026-11-16" time="09:00:00" version="1.2" language="English" readOnly="false">
+  <Units>
+    <Metric areaUnit="hectare" linearUnit="meter" volumeUnit="cubicMeter" temperatureUnit="celsius" pressureUnit="milliBars" angularUnit="decimal degrees" directionUnit="decimal degrees" elevationUnit="meter"/>
+  </Units>
+  <CoordinateSystem name="WGS 84 / UTM zone 36N" desc="Kampala test" epsgCode="32636" horizontalDatum="WGS84" verticalDatum="EGM2008" ellipsoidName="WGS84" horizontalCoordinateSystemName="UTM36N" projectedCoordinateSystemName="WGS 84 / UTM zone 36N" datum="WGS84" rotationAngle="0.5"/>
+  <Project name="Test road" desc="UTM-sized coordinates"/>
+  <Application name="hand-built" desc="test data" manufacturer="AfroBIM" version="1" timeStamp="2026-11-16T09:00:00"/>
+  <CgPoints name="Control" desc="control points" state="existing">
+    <CgPoint name="CP1" code="CTL" desc="primary" state="existing" oID="1">35012.3456 450123.4567 1150.1234</CgPoint>
+    <CgPoint name="CP2" code="CTL" desc="primary">35112.3456 450223.4567 1152.5</CgPoint>
+    <CgPoints name="Benchmarks" code="BM">
+      <CgPoint name="BM1" desc="benchmark" pointGeometry="point">35050.0001 450150.0001</CgPoint>
+    </CgPoints>
+  </CgPoints>
+  <Alignments name="Roads">
+    <Alignment name="CL1" length="514.159265" staStart="1000.0" desc="centreline">
+      <CoordGeom>
+        <Line length="100.0">
+          <Start>35000.1234 450000.5678</Start>
+          <End>35000.1234 450100.5678</End>
+        </Line>
+        <Curve rot="ccw" radius="200.0" length="314.159265">
+          <Start>35000.1234 450100.5678</Start>
+          <Center>35200.1234 450100.5678</Center>
+          <End>35200.1234 450300.5678</End>
+        </Curve>
+        <Line length="100.0">
+          <Start>35200.1234 450300.5678</Start>
+          <End>35300.1234 450300.5678</End>
+        </Line>
+      </CoordGeom>
+      <Profile name="CL1 profiles">
+        <ProfSurf name="EG" desc="existing ground" state="existing">
+          <PntList2D>1000.0 1150.25 1100.0 1151.5 1200.0 1153.75</PntList2D>
+          <PntList2D>1300.0 1154.0 1514.159265 1156.5</PntList2D>
+        </ProfSurf>
+        <ProfAlign name="FG">
+          <PVI>1000.0 1150.0</PVI>
+          <PVI>1514.159265 1157.0</PVI>
+        </ProfAlign>
+      </Profile>
+      <CrossSects name="Sections">
+        <CrossSect sta="1000.0" name="XS1">
+          <CrossSectSurf name="EG" state="existing">
+            <PntList2D>-20.0 1150.5 0.0 1150.25 20.0 1150.75</PntList2D>
+          </CrossSectSurf>
+          <DesignCrossSectSurf name="Pavement" side="both" material="asphalt" closedArea="false">
+            <CrossSectPnt>-3.5 1150.1</CrossSectPnt>
+            <CrossSectPnt>0.0 1150.2</CrossSectPnt>
+            <CrossSectPnt>3.5 1150.1</CrossSectPnt>
+          </DesignCrossSectSurf>
+        </CrossSect>
+        <CrossSect sta="1100.0">
+          <CrossSectSurf name="EG">
+            <PntList2D>-20.0 1151.5 20.0 1151.9</PntList2D>
+          </CrossSectSurf>
+        </CrossSect>
+      </CrossSects>
+      <Feature code="alignment-feature"/>
+    </Alignment>
+  </Alignments>
+  <Parcels name="Cadastre">
+    <Parcel name="Lot 1" area="0.25" desc="road reserve" state="existing" owner="State" parcelType="road" class="Single Lot">
+      <Center>35050.5 450050.5</Center>
+      <CoordGeom>
+        <Line>
+          <Start>35040.1111 450040.2222</Start>
+          <End>35040.1111 450060.2222</End>
+        </Line>
+        <Curve rot="cw" radius="10.0">
+          <Start>35040.1111 450060.2222</Start>
+          <Center>35050.1111 450060.2222</Center>
+          <End>35050.1111 450050.2222</End>
+        </Curve>
+        <Line>
+          <Start>35050.1111 450050.2222</Start>
+          <End>35040.1111 450040.2222</End>
+        </Line>
+      </CoordGeom>
+      <Parcels>
+        <Parcel name="Lot 1A" area="0.1">
+          <CoordGeom>
+            <Line>
+              <Start>35042.0 450042.0</Start>
+              <End>35044.0 450044.0</End>
+            </Line>
+          </CoordGeom>
+        </Parcel>
+      </Parcels>
+    </Parcel>
+  </Parcels>
+  <PlanFeatures name="Features">
+    <PlanFeature name="Fence" desc="boundary fence" state="existing">
+      <CoordGeom>
+        <Line>
+          <Start>35001.0 450001.0 1150.0</Start>
+          <End>35001.0 450051.0 1151.0</End>
+        </Line>
+        <IrregularLine>
+          <Start>35001.0 450051.0</Start>
+          <End>35011.0 450071.0</End>
+          <PntList2D>35001.0 450051.0 35006.0 450061.0 35011.0 450071.0</PntList2D>
+        </IrregularLine>
+        <Chain>CP1 CP2</Chain>
+      </CoordGeom>
+    </PlanFeature>
+    <PlanFeature name="Pole">
+      <CoordGeom name="PoleGeom">
+        <Line>
+          <Start>35020.0 450020.0</Start>
+          <End>35021.0 450021.0</End>
+        </Line>
+      </CoordGeom>
+    </PlanFeature>
+  </PlanFeatures>
+  <Surfaces name="Ground">
+    <Surface name="EG" desc="existing ground" state="existing">
+      <SourceData>
+        <DataPoints name="spot heights" code="SPOT">
+          <PntList3D>35000.1111 450000.1111 1150.0 35010.2222 450010.2222 1151.0</PntList3D>
+        </DataPoints>
+        <Breaklines>
+          <Breakline name="ditch" brkType="standard" state="existing">
+            <PntList3D>35000.0 450000.0 1150.0 35000.0 450100.0 1150.5</PntList3D>
+          </Breakline>
+          <Breakline name="flat">
+            <PntList2D>35000.0 450000.0 35010.0 450010.0</PntList2D>
+          </Breakline>
+        </Breaklines>
+        <Contours>
+          <Contour elev="1150.0">
+            <PntList2D>35000.5 450000.5 35001.5 450020.5</PntList2D>
+          </Contour>
+        </Contours>
+        <Boundaries>
+          <Boundary name="limit" bndType="outer" edgeTrim="false" area="100.0">
+            <PntList2D>35000.0 450000.0 35000.0 450010.0 35010.0 450010.0 35010.0 450000.0 35000.0 450000.0</PntList2D>
+          </Boundary>
+        </Boundaries>
+      </SourceData>
+      <Definition surfType="TIN" elevMin="1150.0" elevMax="1152.0">
+        <Pnts>
+          <P id="1">35000.0001 450000.0001 1150.0</P>
+          <P id="2">35000.0001 450010.0001 1151.0</P>
+          <P id="3">35010.0001 450010.0001 1152.0</P>
+          <P id="4">35010.0001 450000.0001 1151.0</P>
+        </Pnts>
+        <Faces>
+          <F>1 2 3</F>
+          <F>1 3 4</F>
+          <F i="1">1 4 2</F>
+        </Faces>
+      </Definition>
+    </Surface>
+  </Surfaces>
+  <Roadways>
+    <Roadway name="R1" alignmentRefs="CL1"/>
+  </Roadways>
+</LandXML>
