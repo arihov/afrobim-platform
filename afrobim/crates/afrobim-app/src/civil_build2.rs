@@ -7,7 +7,7 @@ use afrobim_kernel::Element;
 
 use crate::civil::{CorridorData, SampleData};
 use crate::civil_build::{mm, nice_step, Built, Ctx, C_DESIGN, C_GRID, C_GROUND, C_TEXT};
-use crate::civil_scene::{SLine, SText, Scene};
+use crate::civil_scene::{L3, SLine, SText, Scene};
 
 /// A mesh of a TIN in the frame of an element whose origin is `origin_m` (easting, northing in
 /// metres): millimetres from that origin.
@@ -30,6 +30,71 @@ fn colour_of(code: &str) -> [u8; 3] {
         "ETW" => C_DESIGN,
         _ => [0x7A, 0xB0, 0x9A],
     }
+}
+
+/// The colour a shape (a pavement layer, a kerb, a lining) is drawn in, by its code: a display
+/// choice only, the same code always in the same colour.
+fn shape_colour(code: &str) -> [u8; 3] {
+    let h = code.bytes().fold(7u32, |a, b| a.wrapping_mul(31).wrapping_add(b as u32));
+    let palette: [[u8; 3]; 6] = [[0x6E, 0x6E, 0x78], [0xB0, 0x8F, 0x5A], [0x8A, 0x9A, 0x6B], [0x9A, 0x6B, 0x6B], [0x5E, 0x8A, 0x9A], [0xA0, 0xA0, 0xA0]];
+    palette[(h % palette.len() as u32) as usize]
+}
+
+/// The shapes of the assembly swept along the baseline: between two consecutive sections each
+/// shape that appears in both with the same corners becomes a prism (side faces and the two end
+/// faces), one mesh per shape code. Capped so that a long corridor stays light.
+fn shape_solids(b: &afrobim_corridor::BaselineResult, origin_m: (f64, f64)) -> Vec<afrobim_draw::Mesh3> {
+    const TRIANGLE_CAP: usize = 80_000;
+    let mut meshes: Vec<afrobim_draw::Mesh3> = Vec::new();
+    let mut total = 0usize;
+    let at = |m: &afrobim_corridor::ModelSection, (o, z): (f64, f64)| {
+        let (x, y) = m.section.plan_point(o);
+        [(x - origin_m.0) * 1000.0, (y - origin_m.1) * 1000.0, z * 1000.0]
+    };
+    for pair in b.sections.windows(2) {
+        let (m0, m1) = (&pair[0], &pair[1]);
+        if m1.section.station_m <= m0.section.station_m {
+            continue;
+        }
+        for sh in &m0.design.shapes {
+            let n = sh.polygon.len();
+            if n < 3 {
+                continue;
+            }
+            // The same shape at the next section: same code, side, source and number of corners.
+            let Some(next) = m1.design.shapes.iter().find(|x| x.code == sh.code && x.side == sh.side && x.subassembly == sh.subassembly && x.polygon.len() == n) else { continue };
+            if total + n * 2 + 2 * (n - 2) > TRIANGLE_CAP {
+                return meshes;
+            }
+            let idx = match meshes.iter().position(|m| m.name == sh.code) {
+                Some(i) => i,
+                None => {
+                    meshes.push(afrobim_draw::Mesh3 { name: sh.code.clone(), vertices: vec![], triangles: vec![], colour: shape_colour(&sh.code) });
+                    meshes.len() - 1
+                }
+            };
+            let mesh = &mut meshes[idx];
+            let base = mesh.vertices.len() as u32;
+            for p in &sh.polygon {
+                mesh.vertices.push(at(m0, *p));
+            }
+            for p in &next.polygon {
+                mesh.vertices.push(at(m1, *p));
+            }
+            let (a, c) = (base, base + n as u32);
+            for i in 0..n as u32 {
+                let j = (i + 1) % n as u32;
+                mesh.triangles.push([a + i, a + j, c + j]);
+                mesh.triangles.push([a + i, c + j, c + i]);
+            }
+            for i in 1..n as u32 - 1 {
+                mesh.triangles.push([a, a + i, a + i + 1]);
+                mesh.triangles.push([c, c + i + 1, c + i]);
+            }
+            total += n * 2 + 2 * (n - 2);
+        }
+    }
+    meshes
 }
 
 pub fn build_corridor(e: &Element, ctx: &Ctx) -> Result<Built, String> {
@@ -72,6 +137,16 @@ pub fn build_corridor(e: &Element, ctx: &Ctx) -> Result<Built, String> {
             pts.push(pts[0]);
             out.scene.lines.push(SLine::new(pts, colour_of("Daylight"), 1.2));
         }
+        // The same lines in 3D, at their levels, and the shapes of the assembly as solids.
+        for code in &codes {
+            for fl in feature_lines(b, code) {
+                let pts: Vec<[f64; 3]> = fl.points.iter().map(|p| [(p[0] - origin.0) * 1000.0, (p[1] - origin.1) * 1000.0, p[2] * 1000.0]).collect();
+                if pts.len() >= 2 {
+                    out.scene.lines3.push(L3 { pts, rgb: colour_of(code), width: if code == "Daylight" { 1.6 } else { 1.0 } });
+                }
+            }
+        }
+        out.scene.meshes.extend(shape_solids(b, origin));
         for (name, codes) in [("Top", vec!["Top"]), ("Datum", vec!["Datum"])] {
             match corridor_surface(b, &codes, SurfaceBoundary::None) {
                 Ok(tin) => {

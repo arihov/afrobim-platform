@@ -78,7 +78,7 @@ pub fn build(e: &Element, ctx: &Ctx) -> Built {
     let result = match e.category.as_str() {
         POINTS => build_points(e),
         SURFACE => build_surface(e),
-        PARCEL => build_parcel(e),
+        PARCEL => build_parcel(e, ctx),
         PROFILE => build_profile(e, ctx),
         PROFILE_VIEW => build_profile_view(e, ctx),
         ASSEMBLY => build_assembly(e),
@@ -145,6 +145,9 @@ fn build_surface(e: &Element) -> Result<Built, String> {
 /// The scene of a TIN in a style. Also used for imported TIN surfaces and corridor surfaces.
 pub fn surface_scene(tin: &Tin, style: &SurfaceStyle, origin_m: (f64, f64)) -> Scene {
     let mut s = Scene::default();
+    let mut colour_by: Option<ColourBy> = None;
+    let local = |p: &[f64; 3]| [(p[0] - origin_m.0) * 1000.0, (p[1] - origin_m.1) * 1000.0, p[2] * 1000.0];
+    let mut points3 = 0usize;
     let b = tin.bounds();
     let ext = afrobim_terrain::extremes(tin);
     let a = afrobim_terrain::areas(tin);
@@ -160,6 +163,9 @@ pub fn surface_scene(tin: &Tin, style: &SurfaceStyle, origin_m: (f64, f64)) -> S
         match afrobim_terrain::regular_breaks(ext.lowest[2], ext.highest[2], step).and_then(|br| afrobim_terrain::elevation_bands(tin, &br)) {
             Ok(bands) => {
                 let n = bands.len().max(1) as f64;
+                if let Ok(br) = afrobim_terrain::regular_breaks(ext.lowest[2], ext.highest[2], step) {
+                    colour_by = Some(ColourBy::Elevation(br));
+                }
                 for (i, band) in bands.iter().enumerate() {
                     let c = ramp(i as f64 / (n - 1.0).max(1.0));
                     for poly in &band.polygons {
@@ -175,6 +181,11 @@ pub fn surface_scene(tin: &Tin, style: &SurfaceStyle, origin_m: (f64, f64)) -> S
         match afrobim_terrain::regular_breaks(0.0, top, step).and_then(|br| afrobim_terrain::slope_bands(tin, &br, afrobim_terrain::SlopeUnit::Percent)) {
             Ok(bands) => {
                 let n = bands.len().max(1) as f64;
+                if colour_by.is_none() {
+                    if let Ok(br) = afrobim_terrain::regular_breaks(0.0, top, step) {
+                        colour_by = Some(ColourBy::Slope(br));
+                    }
+                }
                 for (i, band) in bands.iter().enumerate() {
                     let c = ramp(1.0 - i as f64 / (n - 1.0).max(1.0));
                     for poly in &band.polygons {
@@ -203,6 +214,15 @@ pub fn surface_scene(tin: &Tin, style: &SurfaceStyle, origin_m: (f64, f64)) -> S
                     let pts: Vec<[f64; 2]> = c.line.points.iter().map(|p| mm(p[0], p[1])).collect();
                     if pts.len() < 2 {
                         continue;
+                    }
+                    // The same contour in 3D, at its own level.
+                    if points3 < LINES3_CAP {
+                        let mut l3: Vec<[f64; 3]> = c.line.points.iter().map(|p| local(&[p[0], p[1], c.level])).collect();
+                        if c.line.closed {
+                            l3.push(l3[0]);
+                        }
+                        points3 += l3.len();
+                        s.lines3.push(L3 { pts: l3, rgb: C_CONTOUR, width: if c.major { 1.6 } else { 0.8 } });
                     }
                     let mut pts = pts;
                     if c.line.closed {
@@ -243,6 +263,13 @@ pub fn surface_scene(tin: &Tin, style: &SurfaceStyle, origin_m: (f64, f64)) -> S
             if pl.closed && !pts.is_empty() {
                 pts.push(pts[0]);
             }
+            // Draped on the surface in 3D (a point of the outline is on the TIN's edge).
+            let mut l3: Vec<[f64; 3]> = pts.iter().filter_map(|p| tin.elevation_at(p[0] / 1000.0, p[1] / 1000.0).map(|z| local(&[p[0] / 1000.0, p[1] / 1000.0, z]))).collect();
+            if l3.len() >= 2 && points3 < LINES3_CAP {
+                points3 += l3.len();
+                l3.shrink_to_fit();
+                s.lines3.push(L3 { pts: l3, rgb: C_BORDER, width: 1.4 });
+            }
             s.lines.push(SLine::new(pts, C_BORDER, 1.4));
         }
     }
@@ -251,11 +278,66 @@ pub fn surface_scene(tin: &Tin, style: &SurfaceStyle, origin_m: (f64, f64)) -> S
     if thinned {
         s.notes.push("The 3D view shows a thinned copy of this surface (the 2D view and every calculation use the full surface).".into());
     }
-    s.meshes.push(mesh);
+    match colour_by {
+        Some(by) => s.meshes.extend(split_mesh_by(mesh, &by)),
+        None => s.meshes.push(mesh),
+    }
     s
 }
 
-fn build_parcel(e: &Element) -> Result<Built, String> {
+/// How many points of 3D linework one surface carries (the 2D view has them all).
+const LINES3_CAP: usize = 150_000;
+
+/// What the 3D mesh of a surface is coloured by, taken from its style.
+enum ColourBy {
+    /// Elevation bands with these breaks (metres).
+    Elevation(Vec<f64>),
+    /// Slope bands with these breaks (percent).
+    Slope(Vec<f64>),
+}
+
+/// The mesh cut into one mesh per band, each in the colour the 2D view gives that band.
+fn split_mesh_by(mesh: afrobim_draw::Mesh3, by: &ColourBy) -> Vec<afrobim_draw::Mesh3> {
+    let (breaks, slope) = match by {
+        ColourBy::Elevation(b) => (b, false),
+        ColourBy::Slope(b) => (b, true),
+    };
+    let n = breaks.len() + 1;
+    let mut parts: Vec<(Vec<[f64; 3]>, Vec<[u32; 3]>, std::collections::HashMap<u32, u32>)> = (0..n).map(|_| (vec![], vec![], Default::default())).collect();
+    for t in &mesh.triangles {
+        let v = t.map(|i| mesh.vertices[i as usize]);
+        // Vertices are in millimetres.
+        let value = if slope {
+            let (ux, uy, uz) = (v[1][0] - v[0][0], v[1][1] - v[0][1], v[1][2] - v[0][2]);
+            let (wx, wy, wz) = (v[2][0] - v[0][0], v[2][1] - v[0][1], v[2][2] - v[0][2]);
+            let (nx, ny, nz) = (uy * wz - uz * wy, uz * wx - ux * wz, ux * wy - uy * wx);
+            if nz.abs() < 1e-12 { f64::MAX } else { 100.0 * nx.hypot(ny) / nz.abs() }
+        } else {
+            (v[0][2] + v[1][2] + v[2][2]) / 3000.0
+        };
+        let band = breaks.partition_point(|b| *b <= value);
+        let (verts, tris, map) = &mut parts[band];
+        let mut tri = [0u32; 3];
+        for (k, corner) in t.iter().enumerate() {
+            tri[k] = *map.entry(*corner).or_insert_with(|| {
+                verts.push(mesh.vertices[*corner as usize]);
+                verts.len() as u32 - 1
+            });
+        }
+        tris.push(tri);
+    }
+    parts
+        .into_iter()
+        .enumerate()
+        .filter(|(_, p)| !p.1.is_empty())
+        .map(|(i, (vertices, triangles, _))| {
+            let f = i as f64 / (n as f64 - 1.0).max(1.0);
+            afrobim_draw::Mesh3 { name: mesh.name.clone(), vertices, triangles, colour: ramp(if slope { 1.0 - f } else { f }) }
+        })
+        .collect()
+}
+
+fn build_parcel(e: &Element, ctx: &Ctx) -> Result<Built, String> {
     let p: afrobim_cogo::Parcel = serde_json::from_value(e.data.clone()).map_err(|x| format!("The parcel data cannot be read: {x}"))?;
     let mut s = Scene::default();
     let ring = p.outline(DISPLAY_FLATNESS_M).map_err(|x| format!("The parcel outline cannot be drawn: {x}"))?;
@@ -268,6 +350,29 @@ fn build_parcel(e: &Element) -> Result<Built, String> {
         afrobim_cogo::ParcelStatus::Acquired => [0x8E, 0x7C, 0xC3],
         _ => C_PARCEL,
     };
+    // The outline in 3D: draped on the first civil surface, or at level zero where there is none
+    // (or outside it). Long sides are cut into pieces so that the line follows the ground.
+    let ground = ctx.elements.iter().filter(|x| x.category == SURFACE).find_map(|x| ctx.tins.get(&x.id.0));
+    let origin_m = (e.origin.x / 1000.0, e.origin.y / 1000.0);
+    let mut l3: Vec<[f64; 3]> = Vec::new();
+    for w in pts.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        let len_m = (b[0] - a[0]).hypot(b[1] - a[1]) / 1000.0;
+        let k = ((len_m / 5.0).ceil() as usize).clamp(1, 400);
+        for i in 0..k {
+            let t = i as f64 / k as f64;
+            let (x, y) = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t);
+            let z = ground.and_then(|g| g.elevation_at(x / 1000.0, y / 1000.0)).unwrap_or(0.0);
+            l3.push([x - origin_m.0 * 1000.0, y - origin_m.1 * 1000.0, z * 1000.0]);
+        }
+    }
+    if let Some(last) = pts.last() {
+        let z = ground.and_then(|g| g.elevation_at(last[0] / 1000.0, last[1] / 1000.0)).unwrap_or(0.0);
+        l3.push([last[0] - origin_m.0 * 1000.0, last[1] - origin_m.1 * 1000.0, z * 1000.0]);
+    }
+    if l3.len() >= 2 {
+        s.lines3.push(L3 { pts: l3, rgb: colour, width: 2.0 });
+    }
     s.lines.push(SLine::new(pts, colour, 1.6));
     if let Ok(l) = p.label(0, DISPLAY_FLATNESS_M) {
         for (i, t) in l.lines.iter().enumerate() {

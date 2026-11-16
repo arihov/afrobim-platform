@@ -36,7 +36,7 @@ impl CivilState {
 
 /// Whether a category's scene reads other elements (alignments, surfaces, profiles).
 fn depends(category: &str) -> bool {
-    matches!(category, PROFILE | PROFILE_VIEW | CORRIDOR | SAMPLES)
+    matches!(category, PROFILE | PROFILE_VIEW | CORRIDOR | SAMPLES | PARCEL)
 }
 
 /// A hash of what the dependent scenes read: every alignment and every civil element's revision.
@@ -46,11 +46,44 @@ pub fn dependency_hash(doc: &Document) -> u64 {
         if e.category == afrobim_alignment::CATEGORY {
             e.data.to_string().hash(&mut h);
         } else if e.category == afrobim_corridor::SURFACE_CATEGORY {
+            // An imported surface has no revision: a sampled digest of its data tells that it was
+            // replaced or edited (cheap enough for every frame, whatever the size of the TIN).
             e.id.0.hash(&mut h);
             e.name.hash(&mut h);
+            digest(&e.data).hash(&mut h);
         } else if is_civil(&e.category) && e.category != POINTS && e.category != PARCEL {
             e.id.0.hash(&mut h);
             rev_of(e).hash(&mut h);
+        }
+    }
+    h.finish()
+}
+
+/// A digest of a JSON value that looks at the shape and at most 64 evenly spaced entries of every
+/// array, so that its cost does not grow with a large TIN.
+fn digest(v: &serde_json::Value) -> u64 {
+    use serde_json::Value;
+    let mut h = DefaultHasher::new();
+    match v {
+        Value::Null => 0u8.hash(&mut h),
+        Value::Bool(b) => b.hash(&mut h),
+        Value::Number(n) => n.as_f64().map(f64::to_bits).hash(&mut h),
+        Value::String(s) => s.hash(&mut h),
+        Value::Array(a) => {
+            a.len().hash(&mut h);
+            let step = (a.len() / 64).max(1);
+            for x in a.iter().step_by(step) {
+                digest(x).hash(&mut h);
+            }
+            if let Some(last) = a.last() {
+                digest(last).hash(&mut h);
+            }
+        }
+        Value::Object(m) => {
+            for (k, x) in m {
+                k.hash(&mut h);
+                digest(x).hash(&mut h);
+            }
         }
     }
     h.finish()

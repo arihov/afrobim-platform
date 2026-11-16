@@ -7,6 +7,8 @@ mod civil_build2;
 mod civil_cache;
 #[cfg(test)]
 mod u3_tests;
+#[cfg(test)]
+mod u4_tests;
 mod civil_assembly;
 mod civil_cmds;
 mod civil_corridor;

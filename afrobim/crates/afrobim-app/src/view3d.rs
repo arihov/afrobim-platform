@@ -340,7 +340,12 @@ pub(crate) struct WorldCtx<'a> {
 
 /// Site mode: at least one sign or site solid has been placed on site.
 pub(crate) fn site_mode_of(doc: &afrobim_kernel::Document) -> bool {
-    doc.elements().iter().any(|e| (e.category == crate::signs_glue::CATEGORY || is_site_solid(&e.category)) && e.site.is_some())
+    if doc.elements().iter().any(|e| (e.category == crate::signs_glue::CATEGORY || is_site_solid(&e.category)) && e.site.is_some()) {
+        return true;
+    }
+    // A document of alignments and no signs has no design sheet to stand upright: it is a site.
+    let has_signs = doc.elements().iter().any(|e| e.category == crate::signs_glue::CATEGORY);
+    !has_signs && doc.elements().iter().any(|e| e.category == crate::alignment_glue::CATEGORY)
 }
 
 /// The post a support hangs from (itself for a post) and the sign above it.
@@ -435,10 +440,47 @@ impl AfroBimApp {
         self.meshes_by_id(e.id)
     }
 
+    /// The 3D linework of a civil element (contours, outlines, feature lines).
+    fn lines3_of(&self, e: &afrobim_kernel::Element) -> Option<&[crate::civil_scene::L3]> {
+        if !crate::civil::is_civil(&e.category) {
+            return None;
+        }
+        self.civil.built.get(&e.id).map(|(_, b)| b.scene.lines3.as_slice())
+    }
+
+    /// The linework of a civil element, each polyline as one item in the depth-sorted list.
+    fn civil_lines_3d(&self, e: &afrobim_kernel::Element, frame: Frame, rect: Rect, items: &mut Vec<(f64, Vec<Shape>)>) {
+        let Some(lines) = self.lines3_of(e) else { return };
+        let cam = &self.camera;
+        let selected = self.doc.is_selected(e.id);
+        for l in lines {
+            let proj: Vec<Option<(Pos2, f64)>> = l.pts.iter().map(|p| cam.project(frame.at(p[0], p[1], p[2]), rect)).collect();
+            let mut shapes = Vec::new();
+            let mut depth = 0.0;
+            let mut n = 0.0;
+            let colour = if selected { Color32::from_rgb(0x4D, 0xA3, 0xFF) } else { Color32::from_rgb(l.rgb[0], l.rgb[1], l.rgb[2]) };
+            for w in proj.windows(2) {
+                if let (Some((a, da)), Some((b, db))) = (w[0], w[1]) {
+                    if rect.expand(200.0).intersects(Rect::from_two_pos(a, b)) {
+                        shapes.push(Shape::line_segment([a, b], Stroke::new(l.width, colour)));
+                    }
+                    depth += da + db;
+                    n += 2.0;
+                }
+            }
+            if !shapes.is_empty() {
+                // Linework is in front of the ground it lies on, and behind nothing near it.
+                items.push((depth / n, shapes));
+            }
+        }
+    }
+
     /// Lowest and highest world corner of an element's meshes in its frame, for framing.
     pub(crate) fn mesh_bounds(&self, e: &afrobim_kernel::Element, frame: Frame) -> Option<(V3, V3)> {
         let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
-        for v in self.meshes_of(e)?.iter().flat_map(|m| m.vertices.iter()) {
+        let lines = self.lines3_of(e).unwrap_or(&[]).iter().flat_map(|l| l.pts.iter());
+        let meshes = self.meshes_of(e).unwrap_or(&[]).iter().flat_map(|m| m.vertices.iter());
+        for v in meshes.chain(lines) {
             let p = frame.at(v[0], v[1], v[2]);
             for i in 0..3 {
                 lo[i] = lo[i].min(p[i]);
@@ -521,7 +563,9 @@ impl AfroBimApp {
                 // Frame the alignments that carry signs; one far away with nothing on it would
                 // shrink the signs to a dot.
                 let used = self.doc.elements().iter().any(|x| x.site.as_ref().and_then(|p| p.alignment.as_deref()) == Some(e.name.as_str()));
-                if site_mode && used {
+                // With no sign on site there is nothing for a far alignment to shrink: frame them all.
+                let signs_on_site = self.doc.elements().iter().any(|x| x.category == crate::signs_glue::CATEGORY && x.site.is_some());
+                if site_mode && (used || !signs_on_site) {
                     if let Some(a) = crate::alignment_glue::alignment_of(&self.doc, e.id) {
                         points.extend(centreline_points(&a, 50.0));
                     }
@@ -804,8 +848,12 @@ impl AfroBimApp {
                 continue;
             }
             let Some(frame) = self.frame_of(e, site_mode) else { continue };
+            if crate::civil::is_civil(&e.category) && crate::civil::hidden(e) {
+                continue;
+            }
             if crate::supports_glue::is_support(&e.category) || is_site_solid(&e.category) {
                 self.support_triangles(e, frame, rect, &mut items);
+                self.civil_lines_3d(e, frame, rect, &mut items);
                 continue;
             }
             let style = if self.by_record() { crate::schedule_ui::FourD::Normal } else { self.sched.fourd_style(e.id) };

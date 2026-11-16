@@ -28,6 +28,15 @@ impl SLine {
     }
 }
 
+/// A polyline in 3D, in the same frame as the meshes: millimetres from the element's origin in
+/// plan, and millimetres of level.
+#[derive(Debug, Clone)]
+pub struct L3 {
+    pub pts: Vec<[f64; 3]>,
+    pub rgb: [u8; 3],
+    pub width: f32,
+}
+
 #[derive(Debug, Clone)]
 pub struct SFill {
     /// A convex polygon.
@@ -66,6 +75,8 @@ pub struct Scene {
     pub texts: Vec<SText>,
     pub points: Vec<PMark>,
     pub meshes: Vec<Mesh3>,
+    /// Linework for the 3D view (contours at their level, outlines draped on a surface).
+    pub lines3: Vec<L3>,
     /// Label options for `points`.
     pub label_number: bool,
     pub label_elevation: bool,
