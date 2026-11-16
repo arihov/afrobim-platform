@@ -78,7 +78,10 @@ impl Dialog {
     /// Shows the dialog. `body` scrolls when it is taller than the area; `footer` is pinned below it.
     pub fn show<R, F>(self, ctx: &Context, body: impl FnOnce(&mut Ui) -> R, footer: impl FnOnce(&mut Ui) -> F) -> DialogOut<(R, F)> {
         let work = crate::win::work_rect(ctx);
-        let body_cap = self.max_body.unwrap_or((work.height() - 150.0).max(160.0));
+        // Whatever a dialog asks for, the body is never taller than the work area leaves room for, so
+        // that the footer stays in view and the body scrolls inside.
+        let room = (work.height() - 160.0).max(160.0);
+        let body_cap = self.max_body.map_or(room, |m| m.min(room));
         let mut closed = false;
         let key = self.id_title.clone().unwrap_or_else(|| self.title.clone());
         let id = Id::new(&key).with("kit-help");
@@ -100,7 +103,7 @@ impl Dialog {
                     }
                 }
                 ui.add_space(theme::SP_XS);
-                let r = egui::ScrollArea::vertical().id_salt("kit-body").max_height(body_cap).auto_shrink([false, true]).show(ui, |ui| body(ui)).inner;
+                let r = egui::ScrollArea::vertical().id_salt("kit-body").max_height(body_cap).auto_shrink([false, true]).show(ui, |ui| egui::Frame::NONE.inner_margin(egui::Margin { left: 0, right: 12, top: 0, bottom: 0 }).show(ui, |ui| body(ui)).inner).inner;
                 ui.add_space(theme::SP_SM);
                 let f = footer(ui);
                 (r, f)
@@ -677,10 +680,36 @@ impl<'a> Footer<'a> {
         let ctx = ui.ctx().clone();
         let top = ctx.memory(|m| m.areas().top_layer_id(Order::Middle));
         let is_top = top == Some(ui.layer_id());
+        // The reason the primary is off, or a note, on a line of its own (it can be long).
+        if let Some(r) = self.reason {
+            ui.add(egui::Label::new(theme::icon_text(crate::glyphs::ui::WARNING, r, theme::FONT_SMALL + 0.5, t.warning)).wrap());
+            ui.add_space(2.0);
+        } else if let Some(n) = self.note {
+            ui.add(egui::Label::new(RichText::new(n).size(theme::FONT_SMALL + 0.5).color(t.text_muted)).wrap());
+            ui.add_space(2.0);
+        }
+        // The buttons are as wide as their labels (at least 80 points); when they do not all fit
+        // in a row the secondary ones go on a row of their own above the primary and cancel.
+        let width_of = |s: &str, _min: f32| ui.fonts(|f| f.layout_no_wrap(s.to_string(), FontId::proportional(theme::FONT_BODY), Color32::WHITE).size().x) + 20.0;
+        let mut need = 96.0_f32.max(width_of(self.primary, 96.0) + if self.primary_icon.is_some() { 22.0 } else { 0.0 }) + 8.0;
+        if let Some(c) = self.cancel {
+            need += width_of(c, 80.0).max(80.0) + 8.0;
+        }
+        for s in self.secondary {
+            need += width_of(s, 80.0).max(80.0) + 8.0;
+        }
+        let one_row = need <= ui.available_width();
+        let secondary_row = |ui: &mut Ui, out: &mut FooterOut| {
+            for (i, s) in self.secondary.iter().enumerate() {
+                if ui.add(egui::Button::new(*s).min_size(vec2(80.0, 28.0))).clicked() {
+                    out.secondary = Some(i);
+                }
+            }
+        };
+        if !one_row && !self.secondary.is_empty() {
+            ui.horizontal_wrapped(|ui| secondary_row(ui, &mut out));
+        }
         ui.horizontal(|ui| {
-            // Left: the reason the primary is off, or a note.
-            let left_w = (ui.available_width() - 20.0).max(0.0);
-            let _ = left_w;
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let label = match self.primary_icon {
                     Some(g) => WidgetText::from(theme::icon_text(g, self.primary, theme::FONT_BODY, t.text_on_accent)),
@@ -695,19 +724,13 @@ impl<'a> Footer<'a> {
                         out.cancel = true;
                     }
                 }
-                for (i, s) in self.secondary.iter().enumerate().rev() {
-                    if ui.add(egui::Button::new(*s).min_size(vec2(80.0, 28.0))).clicked() {
-                        out.secondary = Some(i);
+                if one_row {
+                    for (i, s) in self.secondary.iter().enumerate().rev() {
+                        if ui.add(egui::Button::new(*s).min_size(vec2(80.0, 28.0))).clicked() {
+                            out.secondary = Some(i);
+                        }
                     }
                 }
-                // What is left, to the left of the buttons.
-                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                    if let Some(r) = self.reason {
-                        ui.label(theme::icon_text(crate::glyphs::ui::WARNING, r, theme::FONT_SMALL + 0.5, t.warning));
-                    } else if let Some(n) = self.note {
-                        ui.label(RichText::new(n).size(theme::FONT_SMALL + 0.5).color(t.text_muted));
-                    }
-                });
             });
         });
         // Enter (in a field, or with nothing focused) presses the primary button; Escape cancels.

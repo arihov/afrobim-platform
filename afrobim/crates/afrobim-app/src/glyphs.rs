@@ -231,6 +231,9 @@ pub mod ui {
     pub const HELP: &str = ph::QUESTION;
     pub const FOLDER: &str = ph::FOLDER_OPEN;
     pub const WORKSPACE: &str = ph::SQUARES_FOUR;
+    pub const ARROW_UP: &str = ph::ARROW_UP;
+    pub const ARROW_DOWN: &str = ph::ARROW_DOWN;
+    pub const COPY: &str = ph::COPY;
 }
 
 #[cfg(test)]

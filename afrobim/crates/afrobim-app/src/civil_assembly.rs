@@ -10,7 +10,7 @@
 
 use std::collections::BTreeMap;
 
-use afrobim_corridor::{library, Assembly, Classification, Layer, Side, Slope, Subassembly};
+use afrobim_corridor::{library, Assembly, Classification, Ditch, DitchShape, Layer, Side, Slope, Subassembly};
 use afrobim_kernel::{ElementId, SelectMode};
 use egui::{pos2, Color32, RichText, Sense, Stroke, Ui};
 use serde::{Deserialize, Serialize};
@@ -31,7 +31,7 @@ pub struct PartKind {
     pub example: &'static [&'static str],
 }
 
-pub const KINDS: [PartKind; 12] = [
+pub const KINDS: [PartKind; 14] = [
     PartKind { name: "Lane", params: &[("Width", "m"), ("Cross-slope (negative falls away)", "%")], layers: true, example: &["3.5", "-2"] },
     PartKind { name: "Shoulder", params: &[("Width", "m"), ("Cross-slope", "%")], layers: true, example: &["1.5", "-4"] },
     PartKind { name: "Footway", params: &[("Width", "m"), ("Cross-slope", "%")], layers: true, example: &["1.5", "-2"] },
@@ -44,6 +44,8 @@ pub const KINDS: [PartKind; 12] = [
     PartKind { name: "Trapezoid ditch", params: &[("Depth", "m"), ("Bottom width", "m"), ("Inner run per rise", ""), ("Outer run per rise", "")], layers: false, example: &["0.6", "0.5", "4", "3"] },
     PartKind { name: "Retaining edge", params: &[("Thickness", "m"), ("Depth", "m")], layers: false, example: &["0.3", "1.0"] },
     PartKind { name: "Daylight", params: &[("Cut run per rise", ""), ("Fill run per rise", "")], layers: false, example: &["2", "2"] },
+    PartKind { name: "Lined V drain", params: &[("Depth", "m"), ("Inner run per rise", ""), ("Outer run per rise", ""), ("Lining thickness", "m")], layers: false, example: &["0.6", "4", "3", "0.1"] },
+    PartKind { name: "Lined trapezoid drain", params: &[("Depth", "m"), ("Bottom width", "m"), ("Inner run per rise", ""), ("Outer run per rise", ""), ("Lining thickness", "m")], layers: false, example: &["0.6", "0.5", "4", "3", "0.1"] },
 ];
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -67,6 +69,10 @@ pub struct EdPart {
     pub cost: String,
     /// "From=To; From=To": the codes renamed in this part.
     pub renames: String,
+    /// A lane or shoulder takes the cross-fall of the alignment's superelevation where one is
+    /// stored (the library's superelevated lane and shoulder).
+    #[serde(default)]
+    pub superelevated: bool,
     /// A part carried unchanged (not made in this editor).
     pub raw: Option<Subassembly>,
 }
@@ -117,7 +123,9 @@ impl EdPart {
         let slope = |p: f64| Slope::Percent(p);
         let name = self.name.as_str();
         let mut s = match self.kind {
+            0 if self.superelevated => library::lane_superelevated(name, v[0], slope(v[1]), layers),
             0 => library::lane(name, v[0], slope(v[1]), layers),
+            1 if self.superelevated => library::shoulder_superelevated(name, v[0], slope(v[1]), layers),
             1 => library::shoulder(name, v[0], slope(v[1]), layers),
             2 => library::footway(name, v[0], slope(v[1]), layers),
             3 => library::verge(name, v[0], slope(v[1])),
@@ -128,7 +136,9 @@ impl EdPart {
             8 => library::side_ditch_v(name, v[0], v[1], v[2]),
             9 => library::side_ditch_trapezoid(name, v[0], v[1], v[2], v[3]),
             10 => library::retaining_edge(name, v[0], v[1]),
-            _ => library::daylight(v[0], v[1]),
+            11 => library::daylight(v[0], v[1]),
+            12 => library::lined_drain(name, Ditch { shape: DitchShape::V, depth_m: v[0], inner_run_per_rise: v[1], outer_run_per_rise: v[2] }, v[3]),
+            _ => library::lined_drain(name, Ditch { shape: DitchShape::Trapezoid { bottom_width_m: v[1] }, depth_m: v[0], inner_run_per_rise: v[2], outer_run_per_rise: v[3] }, v[4]),
         };
         let mut c = Classification::default();
         match self.ifc {
@@ -237,79 +247,103 @@ impl AfroBimApp {
         let out = Dialog::new("Assembly editor", crate::glyphs::by_name("ASSEMBLY")).width(860.0).resizable(true).max_body_height(620.0).help("Parts are listed from the centreline outwards on each side. Every dimension is an input: a part is not drawn until its fields are filled. The Example values button fills demonstration numbers that are not from any standard. The preview puts the assembly on level ground below the centreline so the side slopes show; it is a drawing aid, not a design. IFC entity: only IfcPavement (the constant the corridor crate provides) is offered; anything else is free text and is marked unverified.").show(
             ctx,
             |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Name");
-                    ui_kit::text_field(ui, &mut f.ed.name, "e.g. Two lane road");
-                    ui_kit::segmented(ui, &mut f.side, &["Left side", "Right side"]);
-                    if ui.button("Mirror right to left").clicked() {
-                        f.ed.left = f.ed.right.clone();
-                    }
-                    if ui.button("Mirror left to right").clicked() {
-                        f.ed.right = f.ed.left.clone();
-                    }
+                ui_kit::form(ui, "asm-head", |fm| {
+                    fm.row("Name", |ui| {
+                        ui_kit::text_field(ui, &mut f.ed.name, "e.g. Two lane road");
+                    });
+                    fm.row("Side shown", |ui| {
+                        ui_kit::segmented(ui, &mut f.side, &["Left", "Right"]);
+                    });
                 });
-                ui.horizontal_top(|ui| {
+                // Side by side when there is room, one under the other in a narrow work area.
+                let wide = ui.available_width() > 800.0;
+                let layout = if wide { egui::Layout::left_to_right(egui::Align::Min) } else { egui::Layout::top_down(egui::Align::Min) };
+                ui.with_layout(layout, |ui| {
                     ui.vertical(|ui| {
-                        ui.set_width(420.0);
-                        ui.label(RichText::new(format!("Parts, {} side", if f.side == 0 { "left" } else { "right" })).strong());
-                        let n = f.ed.side(side).len();
-                        let mut action: Option<(usize, i32)> = None;
-                        for i in 0..n {
+                        if wide {
+                            ui.set_width(430.0);
+                        }
+                        ui_kit::section(ui, &format!("Parts, {} side, from the centreline outwards", if f.side == 0 { "left" } else { "right" }), |ui| {
+                            let n = f.ed.side(side).len();
+                            let mut action: Option<(usize, i32)> = None;
+                            for i in 0..n {
+                                ui.horizontal(|ui| {
+                                    let p = &f.ed.side(side)[i];
+                                    let ready = p.build().is_ok();
+                                    let label = format!("{}. {}{}", i + 1, p.name, if ready { "" } else { "  (incomplete)" });
+                                    if ui.selectable_label(f.sel == i, label).clicked() {
+                                        f.sel = i;
+                                    }
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        if ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this part").clicked() {
+                                            action = Some((i, 0));
+                                        }
+                                        ui.add_enabled_ui(i + 1 < n, |ui| {
+                                            if ui_kit::icon_button(ui, crate::glyphs::ui::ARROW_DOWN, "Move this part outwards").clicked() {
+                                                action = Some((i, 1));
+                                            }
+                                        });
+                                        ui.add_enabled_ui(i > 0, |ui| {
+                                            if ui_kit::icon_button(ui, crate::glyphs::ui::ARROW_UP, "Move this part towards the centreline").clicked() {
+                                                action = Some((i, -1));
+                                            }
+                                        });
+                                    });
+                                });
+                            }
+                            if n == 0 {
+                                ui.label(RichText::new("No parts on this side yet.").size(crate::theme::FONT_SMALL).weak());
+                            }
+                            if let Some((i, dir)) = action {
+                                let v = f.ed.side_mut(side);
+                                match dir {
+                                    0 => {
+                                        v.remove(i);
+                                    }
+                                    -1 => v.swap(i, i - 1),
+                                    _ => v.swap(i, i + 1),
+                                }
+                                f.sel = f.sel.min(f.ed.side(side).len().saturating_sub(1));
+                            }
                             ui.horizontal(|ui| {
-                                let p = &f.ed.side(side)[i];
-                                let ready = p.build().is_ok();
-                                let label = format!("{}. {}{}", i + 1, p.name, if ready { "" } else { "  (incomplete)" });
-                                if ui.selectable_label(f.sel == i, label).clicked() {
-                                    f.sel = i;
-                                }
-                                if ui.add_enabled(i > 0, egui::Button::new("Up").small()).clicked() {
-                                    action = Some((i, -1));
-                                }
-                                if ui.add_enabled(i + 1 < n, egui::Button::new("Down").small()).clicked() {
-                                    action = Some((i, 1));
-                                }
-                                if ui.small_button("x").clicked() {
-                                    action = Some((i, 0));
+                                let names: Vec<&str> = KINDS.iter().map(|k| k.name).collect();
+                                ui_kit::combo(ui, "asm-kind", &mut f.add_kind, &names);
+                                if ui.button("Add part").clicked() {
+                                    let v = f.ed.side_mut(side);
+                                    v.push(EdPart::new(f.add_kind));
+                                    f.sel = v.len() - 1;
                                 }
                             });
-                        }
-                        if let Some((i, dir)) = action {
-                            let v = f.ed.side_mut(side);
-                            match dir {
-                                0 => {
-                                    v.remove(i);
+                            ui.horizontal(|ui| {
+                                if ui.button("Copy right side to left").clicked() {
+                                    f.ed.left = f.ed.right.clone();
                                 }
-                                -1 => v.swap(i, i - 1),
-                                _ => v.swap(i, i + 1),
-                            }
-                        }
-                        ui.horizontal(|ui| {
-                            let names: Vec<&str> = KINDS.iter().map(|k| k.name).collect();
-                            ui_kit::combo(ui, "asm-kind", &mut f.add_kind, &names);
-                            if ui.button("Add part").clicked() {
-                                let v = f.ed.side_mut(side);
-                                v.push(EdPart::new(f.add_kind));
-                                f.sel = v.len() - 1;
+                                if ui.button("Copy left side to right").clicked() {
+                                    f.ed.right = f.ed.left.clone();
+                                }
+                            });
+                        });
+                        let sel = f.sel;
+                        ui_kit::section(ui, "Selected part", |ui| {
+                            if let Some(p) = f.ed.side_mut(side).get_mut(sel) {
+                                part_editor(ui, p);
+                            } else {
+                                ui.label(RichText::new("Add a part, then select it to enter its dimensions.").size(crate::theme::FONT_SMALL).weak());
                             }
                         });
-                        ui.separator();
-                        let sel = f.sel;
-                        if let Some(p) = f.ed.side_mut(side).get_mut(sel) {
-                            part_editor(ui, p);
-                        } else {
-                            ui.label(RichText::new("Add a part, then select it to enter its dimensions.").weak());
-                        }
                     });
                     ui.vertical(|ui| {
-                        ui.label(RichText::new("Preview").strong());
-                        ui.horizontal(|ui| {
-                            ui.label("Centreline above the level ground");
-                            d::num(ui, &mut f.preview_height, "m");
+                        ui_kit::section(ui, "Preview", |ui| {
+                            ui_kit::form(ui, "asm-preview", |fm| {
+                                fm.row("Centreline above the ground", |ui| {
+                                    d::num(ui, &mut f.preview_height, "m");
+                                });
+                            });
+                            preview(ui, &assembly, preview_h);
+                            for p in &problems {
+                                ui_kit::callout(ui, Level::Warning, p.clone());
+                            }
                         });
-                        preview(ui, &assembly, preview_h);
-                        for p in &problems {
-                            ui.label(RichText::new(p).small().color(crate::theme::warn()));
-                        }
                     });
                 });
                 if !f.message.is_empty() {
@@ -376,10 +410,114 @@ impl AfroBimApp {
     }
 }
 
+/// The parameters of any library part as label and value, for a part carried unchanged. Covers
+/// every kind the library has, whether or not the editor can make it.
+pub fn describe(s: &Subassembly) -> Vec<(String, String)> {
+    use afrobim_corridor::{Dim, LinkMode, OffsetTarget, ElevationTarget, SubKind};
+    let m = |v: f64| format!("{v} m");
+    let slope = |sl: &Slope| match sl {
+        Slope::Percent(p) => format!("{p} %"),
+        Slope::Ratio { run, rise } => format!("{rise} rise in {run} run"),
+    };
+    let dim = |d: &Dim| match d {
+        Dim::Fixed(w) => m(*w),
+        Dim::ToOffset(t) => format!("to {}", offset_target(t)),
+    };
+    fn offset_target(t: &OffsetTarget) -> String {
+        match t {
+            OffsetTarget::Fixed(o) => format!("offset {o} m"),
+            OffsetTarget::Table(t) => format!("an offset table of {} stations", t.len()),
+            OffsetTarget::Polyline(p) => format!("a plan polyline of {} points", p.len()),
+        }
+    }
+    let ditch = |d: &Ditch| {
+        let mut v = vec![("Shape".to_string(), match d.shape {
+            DitchShape::V => "V".to_string(),
+            DitchShape::Trapezoid { .. } => "Trapezoid".to_string(),
+        })];
+        v.push(("Depth".into(), m(d.depth_m)));
+        if let DitchShape::Trapezoid { bottom_width_m } = d.shape {
+            v.push(("Bottom width".into(), m(bottom_width_m)));
+        }
+        v.push(("Inner run per rise".into(), d.inner_run_per_rise.to_string()));
+        v.push(("Outer run per rise".into(), d.outer_run_per_rise.to_string()));
+        v
+    };
+    let strip = |st: &afrobim_corridor::Strip| {
+        let mut v = vec![("Width".to_string(), dim(&st.width)), ("Cross-slope".into(), slope(&st.slope))];
+        if st.follows_superelevation {
+            v.push(("Cross-fall".into(), "follows the superelevation where one is stored".into()));
+        }
+        for (i, l) in st.layers.iter().enumerate() {
+            v.push((format!("Layer {} ({})", i + 1, l.shape_code), m(l.depth_m)));
+        }
+        v.push(("Outer point code".into(), st.point_code.clone()));
+        v
+    };
+    let block = |b: &afrobim_corridor::Block| vec![("Height".to_string(), m(b.height_m)), ("Width".into(), m(b.width_m)), ("Bed depth".into(), m(b.bed_depth_m))];
+    let bench = |label: &str, b: &Option<afrobim_corridor::Bench>| match b {
+        Some(b) => vec![(label.to_string(), format!("every {} m of height, {} m wide, cross-slope {}", b.step_height_m, b.width_m, slope(&b.slope)))],
+        None => vec![],
+    };
+    match &s.kind {
+        SubKind::Lane(st) | SubKind::Shoulder(st) | SubKind::Footway(st) | SubKind::Verge(st) => strip(st),
+        SubKind::Kerb(b) | SubKind::MedianRaised(b) => block(b),
+        SubKind::KerbAndChannel { channel, kerb } => {
+            let mut v: Vec<(String, String)> = strip(channel).into_iter().map(|(a, b)| (format!("Channel {}", a.to_lowercase()), b)).collect();
+            v.extend(block(kerb).into_iter().map(|(a, b)| (format!("Kerb {}", a.to_lowercase()), b)));
+            v
+        }
+        SubKind::MedianDepressed(d) => vec![("Half bottom width".to_string(), m(d.half_bottom_width_m)), ("Depth".into(), m(d.depth_m)), ("Side run per rise".into(), d.side_run_per_rise.to_string())],
+        SubKind::SideDitch(d) => ditch(d),
+        SubKind::LinedDrain { ditch: d, lining_thickness_m } => {
+            let mut v = ditch(d);
+            v.push(("Lining thickness".into(), m(*lining_thickness_m)));
+            v
+        }
+        SubKind::RetainingEdge(w) => vec![("Thickness".to_string(), m(w.thickness_m)), ("Depth".into(), m(w.depth_m))],
+        SubKind::Link(l) => {
+            let mut v = vec![("Link codes".to_string(), l.codes.join(", ")), ("Point code".into(), l.point_code.clone())];
+            match &l.mode {
+                LinkMode::WidthSlope { width, slope: sl } => {
+                    v.push(("Width".into(), dim(width)));
+                    v.push(("Slope".into(), slope(sl)));
+                }
+                LinkMode::ToElevation { target, slope: sl } => {
+                    v.push(("Runs to".into(), match target {
+                        ElevationTarget::Fixed(z) => format!("level {z} m"),
+                        ElevationTarget::Table(t) => format!("a level table of {} stations", t.len()),
+                        ElevationTarget::Profile(_) => "the level of a profile".into(),
+                    }));
+                    v.push(("Slope".into(), slope(sl)));
+                }
+                LinkMode::ToOffset { target, slope: sl } => {
+                    v.push(("Runs to".into(), offset_target(target)));
+                    v.push(("Slope".into(), slope(sl)));
+                }
+            }
+            v
+        }
+        SubKind::Daylight(r) => {
+            let mut v = vec![("Cut run per rise".to_string(), r.cut_run_per_rise.to_string()), ("Fill run per rise".into(), r.fill_run_per_rise.to_string())];
+            v.extend(bench("Bench in cut", &r.bench_in_cut));
+            v.extend(bench("Bench in fill", &r.bench_in_fill));
+            v
+        }
+    }
+}
+
 fn part_editor(ui: &mut Ui, p: &mut EdPart) {
     let k = &KINDS[p.kind.min(KINDS.len() - 1)];
-    if p.raw.is_some() {
-        ui.label(RichText::new(format!("{}: a part carried unchanged from the assembly it came in. It is not editable here; remove it and add a library part to change it.", p.name)).small().weak());
+    if let Some(raw) = &p.raw {
+        ui_kit::callout(ui, Level::Info, format!("{}: a part carried unchanged from the assembly it came in. Its parameters are shown below; to change them, remove it and add a library part.", p.name));
+        let rows = describe(raw);
+        ui_kit::form(ui, "asm-raw", |fm| {
+            for (label, value) in &rows {
+                fm.row(label, |ui| {
+                    ui.label(value);
+                });
+            }
+        });
         return;
     }
     ui_kit::form(ui, "asm-part", |fm| {
@@ -392,31 +530,37 @@ fn part_editor(ui: &mut Ui, p: &mut EdPart) {
                 d::num(ui, &mut p.vals[i], unit);
             });
         }
+        if p.kind <= 1 {
+            fm.row_note("Cross-fall", "Takes the superelevation of the alignment where one is stored", |ui| {
+                ui_kit::toggle(ui, &mut p.superelevated, "Follows the superelevation");
+            });
+        }
     });
     if k.layers {
-        ui.label(RichText::new("Layers, top down").strong());
-        let mut remove = None;
-        egui::Grid::new("asm-layers").num_columns(4).show(ui, |ui| {
-            for h in ["Shape code", "Depth (m)", "Material (free text)", ""] {
-                ui.label(RichText::new(h).small().strong());
-            }
-            ui.end_row();
-            for (i, l) in p.layers.iter_mut().enumerate() {
-                ui.add(egui::TextEdit::singleline(&mut l.code).desired_width(70.0));
-                ui.add(egui::TextEdit::singleline(&mut l.depth).desired_width(60.0));
-                ui.add(egui::TextEdit::singleline(&mut l.material).desired_width(130.0));
-                if ui.small_button("x").clicked() {
-                    remove = Some(i);
+        ui_kit::section(ui, "Layers, top down", |ui| {
+            let mut remove = None;
+            egui::Grid::new("asm-layers").num_columns(4).spacing([8.0, 4.0]).show(ui, |ui| {
+                for h in ["Shape code", "Depth (m)", "Material (free text)", ""] {
+                    ui.label(RichText::new(h).size(crate::theme::FONT_SMALL).strong());
                 }
                 ui.end_row();
+                for (i, l) in p.layers.iter_mut().enumerate() {
+                    ui.add(egui::TextEdit::singleline(&mut l.code).desired_width(70.0));
+                    ui.add(egui::TextEdit::singleline(&mut l.depth).desired_width(60.0));
+                    ui.add(egui::TextEdit::singleline(&mut l.material).desired_width(130.0));
+                    if ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this layer").clicked() {
+                        remove = Some(i);
+                    }
+                    ui.end_row();
+                }
+            });
+            if let Some(i) = remove {
+                p.layers.remove(i);
+            }
+            if ui.button("Add layer").clicked() {
+                p.layers.push(EdLayer::default());
             }
         });
-        if let Some(i) = remove {
-            p.layers.remove(i);
-        }
-        if ui.small_button("Add layer").clicked() {
-            p.layers.push(EdLayer::default());
-        }
     }
     ui_kit::section(ui, "BIM classification", |ui| {
         ui_kit::form(ui, "asm-bim", |fm| {
@@ -436,14 +580,14 @@ fn part_editor(ui: &mut Ui, p: &mut EdPart) {
         if ui.button("Example values").on_hover_text("Demonstration numbers, not from any standard").clicked() {
             p.example();
         }
-        ui.label(RichText::new("Example values are for demonstration only.").small().weak());
+        ui.label(RichText::new("Example values are for demonstration only.").size(crate::theme::FONT_SMALL).weak());
     });
 }
 
 /// The preview: the assembly on level ground, drawn from the engine's own section at a station of
 /// a straight made-up alignment. Returns nothing; an assembly that cannot be drawn says why.
 fn preview(ui: &mut Ui, a: &Assembly, height: Option<f64>) {
-    let size = egui::vec2(430.0, 260.0);
+    let size = egui::vec2(ui.available_width().clamp(240.0, 430.0), 260.0);
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 4.0, Color32::from_rgb(0x1B, 0x1F, 0x25));

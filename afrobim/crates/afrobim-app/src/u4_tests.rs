@@ -107,3 +107,49 @@ fn a_missing_sample_line_group_is_reported_and_draws_nothing() {
     let e = crate::civil_sheets::feed_sample_sections(&mut view, &doc).unwrap_err();
     assert!(e.contains("No such group"), "{e}");
 }
+
+#[test]
+fn the_assembly_editor_describes_every_kind_the_library_has() {
+    use crate::civil_assembly::{describe, EdPart, KINDS};
+    use afrobim_corridor::{library, Bench, Ditch, DitchShape, ElevationTarget, OffsetTarget, Slope};
+    let s = Slope::Percent(-2.0);
+    let parts = vec![
+        library::lane("a", 3.5, s, vec![]),
+        library::lane_superelevated("b", 3.5, s, vec![]),
+        library::lane_to_offset("c", OffsetTarget::Fixed(5.0), s, vec![]),
+        library::shoulder("d", 1.0, s, vec![]),
+        library::shoulder_superelevated("e", 1.0, s, vec![]),
+        library::footway("f", 1.5, s, vec![]),
+        library::verge("g", 1.0, s),
+        library::kerb("h", 0.15, 0.15, 0.1),
+        library::kerb_and_channel("i", 0.3, s, 0.15, 0.15, 0.1),
+        library::median_raised("j", 0.15, 1.0, 0.1),
+        library::median_depressed("k", 1.0, 0.5, 4.0),
+        library::side_ditch_v("l", 0.6, 4.0, 3.0),
+        library::side_ditch_trapezoid("m", 0.6, 0.5, 4.0, 3.0),
+        library::lined_drain("n", Ditch { shape: DitchShape::V, depth_m: 0.6, inner_run_per_rise: 4.0, outer_run_per_rise: 3.0 }, 0.1),
+        library::retaining_edge("o", 0.3, 1.0),
+        library::link_width_slope("p", &["Top"], "P", 2.0, s),
+        library::link_to_elevation("q", &["Top"], "Q", ElevationTarget::Fixed(1.0), s),
+        library::link_to_offset("r", &["Top"], "R", OffsetTarget::Fixed(4.0), s),
+        library::daylight(2.0, 2.0),
+        library::daylight_benched(2.0, 2.0, Some(Bench { step_height_m: 5.0, width_m: 2.0, slope: s }), None),
+    ];
+    for p in &parts {
+        let rows = describe(p);
+        assert!(!rows.is_empty(), "{} has no parameters shown", p.name);
+        assert!(rows.iter().all(|(a, b)| !a.is_empty() && !b.is_empty()));
+    }
+    // Every part the editor can make builds from its example values and describes itself.
+    for (i, k) in KINDS.iter().enumerate() {
+        let mut p = EdPart::new(i);
+        p.example();
+        let built = p.build().unwrap_or_else(|e| panic!("{}: {e}", k.name));
+        assert!(!describe(&built).is_empty(), "{}", k.name);
+    }
+    let mut lane = EdPart::new(0);
+    lane.example();
+    lane.superelevated = true;
+    let built = lane.build().unwrap();
+    assert!(describe(&built).iter().any(|(a, _)| a == "Cross-fall"));
+}
