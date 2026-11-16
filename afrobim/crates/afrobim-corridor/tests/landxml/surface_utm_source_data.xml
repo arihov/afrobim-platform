@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-built test file following the LandXML 1.2 schema. It was NOT exported by Civil 3D.
+     Coordinates are of true UTM size south of the equator (easting about 450 000 m, northing
+     about 9 960 000 m), written northing first with four decimals, and the surface carries
+     SourceData of all four kinds. -->
+<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.landxml.org/schema/LandXML-1.2 http://www.landxml.org/schema/LandXML-1.2/LandXML-1.2.xsd" date="2026-11-16" time="09:00:00" version="1.2" language="English" readOnly="false">
+  <Units>
+    <Metric areaUnit="squareMeter" linearUnit="meter" volumeUnit="cubicMeter" temperatureUnit="celsius" pressureUnit="milliBars" angularUnit="decimal degrees" directionUnit="decimal degrees"/>
+  </Units>
+  <CoordinateSystem name="WGS 84 / UTM zone 36S" epsgCode="32736"/>
+  <Surfaces>
+    <Surface name="EG" desc="existing ground" state="existing">
+      <SourceData>
+        <DataPoints name="spots">
+          <PntList3D>9960000.5678 450000.1234 1150.25 9960010.5678 450010.1234 1152.5</PntList3D>
+        </DataPoints>
+        <Breaklines>
+          <Breakline name="ridge" brkType="standard">
+            <PntList3D>9960000.5678 450000.1234 1150.25 9960010.5678 450010.1234 1152.5</PntList3D>
+          </Breakline>
+        </Breaklines>
+        <Contours>
+          <Contour elev="1151.0">
+            <PntList2D>9960000.5678 450000.1234 9960005.5678 450005.1234</PntList2D>
+          </Contour>
+        </Contours>
+        <Boundaries>
+          <Boundary bndType="outer" edgeTrim="true">
+            <PntList2D>9960000.5678 450000.1234 9960000.5678 450010.1234 9960010.5678 450010.1234 9960010.5678 450000.1234</PntList2D>
+          </Boundary>
+        </Boundaries>
+      </SourceData>
+      <Definition surfType="TIN">
+        <Pnts>
+          <P id="1">9960000.5678 450000.1234 1150.25</P>
+          <P id="2">9960000.5678 450010.1234 1151.0</P>
+          <P id="3">9960010.5678 450010.1234 1152.5</P>
+          <P id="4">9960010.5678 450000.1234 1151.5</P>
+        </Pnts>
+        <Faces>
+          <F>1 2 3</F>
+          <F>1 3 4</F>
+        </Faces>
+      </Definition>
+    </Surface>
+  </Surfaces>
+</LandXML>

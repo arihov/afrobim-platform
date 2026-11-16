@@ -91,3 +91,95 @@ carries the chosen value and a note saying the user chose it.
 * Only the two units km/h and mph are known.
 * The table matches a km/h limit to within 0.000001 km/h.
 * The rule decides how a limit meets a threshold. Whether a requirement should apply at that threshold is the standard's question, not this module's.
+
+## Coordinate systems (`crs`)
+
+The project coordinate system is a document-level setting, as a Civil 3D drawing setting is. It is
+stored in the project settings element under the key `project_crs` (`project_crs(&doc)`,
+`set_project_crs(&mut doc, &crs)`). No format version change: a file without the key reads as
+"undeclared" (`None`).
+
+**No model data is ever reprojected.** Objects keep the coordinates of their source. The system
+records what those coordinates mean. Model space stays millimetres, so a UTM northing of
+9 885 072.123 m is 9 885 072 123 mm; use `m_to_mm`, `mm_to_m`, `model_point_from_crs`,
+`crs_from_model_point`, `elevation_m_to_mm`, `elevation_mm_to_m` instead of writing `* 1000.0`.
+f64 spacing at 1e10 mm is 1.9e-6 mm, tested to 0.001 mm.
+
+### What a `ProjectCrs` holds
+
+Optional EPSG code, name, kind (`Projected`: maths implemented here; `NamedOnly`: a code or name,
+nothing computable; `LocalGrid`: no geodetic meaning), horizontal and vertical datum names (free
+text, user input, never interpreted), linear unit (metre only), optional WKT carried verbatim, and
+where it came from (`Typed`, `LandXml`, `Ifc`, `Survey`). Parse helpers: `ProjectCrs::from_epsg`,
+`parse` ("EPSG:32636", "32636", "WGS 84 / UTM zone 36N", "UTM 36S" read as WGS 84, "Arc 1960 / UTM
+zone 36S"), and `from_wkt`, a tolerant reader that takes the name and the EPSG authority code of the
+root node (not of its base system), the datum name, and keeps the text.
+
+### Systems implemented, with their sources
+
+All parameters below were fetched from the EPSG registry mirror epsg.io, not typed from memory.
+
+| System | EPSG | Fetched from |
+|--------|------|--------------|
+| WGS 84 / UTM zones 1 to 60 N and S | 32601 to 32660, 32701 to 32760 | ellipsoid, scale 0.9996, false easting 500 000 m, false northing 0 or 10 000 000 m, from `https://epsg.io/32736.wkt`; area of use from `https://epsg.io/32636.json` and `32736.json`. Only zones 36N and 36S were fetched; the other zones apply the same 6 degree rule, so their area of use (6 degree band, equator to 84 N or 80 S to equator) is that rule, not a fetch |
+| Arc 1960 / UTM zones 35S, 36S, 37S, 35N, 36N, 37N | 21035, 21036, 21037, 21095, 21096, 21097 | `https://epsg.io/<code>.wkt` (parameters, ellipsoid Clarke 1880 (RGS) a = 6 378 249.145 m, 1/f = 293.465) and `https://epsg.io/<code>.json` (area of use, method EPSG:9807) |
+
+Projection series: Karney (2011), "Transverse Mercator with an accuracy of a few nanometers", J.
+Geodesy 85, 475-485, Krüger series in the third flattening, third order, both directions. The
+corridor crate's inverse was copied; the forward series is new. Tests: forward and inverse
+round trip to under a millimetre over twelve East African systems; the central meridian
+equals 0.9996 times the meridian arc by Simpson integration (independent of the series); one
+degree of longitude on the equator matches the closed form; point scale and grid convergence match
+finite differences of the forward projection.
+
+`ProjectCrs::to_geographic`, `from_geographic`, `scale_and_convergence_at`, `area_of_use`.
+Convergence is the angle from grid north to true north, counterclockwise positive.
+
+### Dataset check
+
+`CrsCheck::run(&project, &IncomingDataset { label, crs, extent })` returns plain-sentence findings:
+same system, different system (both named, no reprojection), undeclared, extent outside the EPSG
+area of use, likely swapped easting and northing, likely millimetres (values divided by 1000
+fit), likely feet (values times 0.3048 fit). The unit and swap heuristics only run when the
+projection is implemented; for a named-only system the result is `CannotCheck`.
+
+### Limits, stated plainly
+
+* **No datum shift.** Arc 1960 and WGS 84 are different datums. The epsg.io WKT lists a three
+  parameter `TOWGS84` for Arc 1960, but the EPSG transformation code, its accuracy and its area
+  were not fetched, so no shift is implemented. A dataset in Arc 1960 and a project in WGS 84 is
+  reported as different and left alone. Geographic coordinates from these functions are on the
+  datum of the system itself.
+* **Named only:** EPSG:4326, EPSG:4210 and every other code or WKT. Also Arc 1960 / UTM zones other
+  than the six above, and other East African systems not listed (national grids, other
+  datums). A system is added only after its definition is fetched.
+* **No combined (grid and elevation) scale factor.** The point scale factor is given. The
+  reduction of a distance to the ellipsoid by ellipsoidal height needs a cited formula and none
+  was fetched, so it is left out.
+* **Heights.** The vertical datum is a label. Heights are never converted.
+* **Accuracy.** Third-order Krüger series: sub-millimetre inside a UTM zone at the latitudes of
+  East Africa (tested), not the nanometre accuracy of Karney's higher orders. Points more than 80
+  degrees from the central meridian return `None`.
+* **Scale and convergence formulae** are derived from the series derivative and verified by
+  finite differences in the tests; the paper's equation numbers were not read.
+* **Area of use** is the EPSG area (a country box for Arc 1960), a coarse test. Outside it is a
+  prompt to look, not proof of an error.
+* The unit heuristics cannot tell a US survey foot from an international foot (2 parts per million).
+* Metric only: `LinearUnit` has one value.
+
+## View: no fixed zoom limit
+
+`ViewTransform::MIN_SCALE` and `MAX_SCALE` are gone. The remaining guards keep `scale` finite
+and inside 1e-24 to 1e24 px/mm (`GUARD_MIN_SCALE`, `GUARD_MAX_SCALE`, far beyond any view) and the
+origin finite; a zoom or pan that would break them is ignored. `zoom_to_bounds` (also on the
+controller, with a margin), `CanvasController::zoom_to_selection`, and ZOOM Previous
+(`remember_view`, `zoom_previous`, last 50 views; zoom window and zoom to selection record
+themselves, a front end calls `remember_view` before `zoom_extents`, which takes `&self`).
+
+Precision: the view stores the screen position of the model origin, so far from the model origin
+at a high zoom the f64 spacing of `origin + world * scale` matters. Tested at x = 5e8 mm, y = 1e10
+mm: the round trip stays within a tenth of a pixel up to 1.5e5 px/mm (one millimetre across 150 000
+px), well past one model millimetre covering the screen; a 10 000 km extent fits and round trips
+to a micrometre. Much deeper than that at that position the f64 spacing exceeds a pixel and
+drawing is no longer exact. That is a property of f64 and of storing the origin in pixels, not a
+limit this crate sets.

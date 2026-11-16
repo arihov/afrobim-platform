@@ -1,0 +1,18 @@
+[package]
+name = "afrobim-terrain"
+description = "Terrain surface engine: an ordered, rebuildable TIN surface definition, contours, analysis and volumes"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-corridor = { path = "../afrobim-corridor" }
+serde.workspace = true
+# float_roundtrip: a definition read back must give the same coordinates bit for bit.
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+thiserror.workspace = true
+# Constrained Delaunay triangulation with exact predicates. MIT OR Apache-2.0.
+spade = "2"
+# Exact orientation predicate (J. R. Shewchuk's adaptive predicates). MIT OR Apache-2.0.
+robust = "1"

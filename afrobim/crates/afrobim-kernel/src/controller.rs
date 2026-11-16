@@ -88,6 +88,8 @@ pub struct CanvasController {
     /// A model point from object snap, which stands for the pointer while a point is being picked.
     object_snap: Option<Pt>,
     events: Vec<CanvasEvent>,
+    /// Views ZOOM Previous returns to, oldest first.
+    view_history: Vec<ViewTransform>,
 }
 
 /// The displacement of a press-drag move of the selection: the pointer at `raw`, the grab point
@@ -140,6 +142,7 @@ impl Default for CanvasController {
             place_id: None,
             object_snap: None,
             events: Vec::new(),
+            view_history: Vec::new(),
         }
     }
 }
@@ -230,6 +233,50 @@ impl CanvasController {
         let ext = doc.extents().unwrap_or(BBox::new(0.0, 0.0, 5000.0, 3000.0));
         let (l, t, w, h) = self.viewport;
         view.fit(&ext, l, t, w, h, 60.0);
+    }
+
+    /// Zooms to the bounds of the selected elements, with a 60 px margin. Returns false (and
+    /// leaves the view alone) when nothing is selected. The previous view is remembered for
+    /// [`zoom_previous`](Self::zoom_previous).
+    pub fn zoom_to_selection(&mut self, doc: &Document, view: &mut ViewTransform) -> bool {
+        let bounds = doc.selection().iter().filter_map(|id| doc.find(*id)).map(|e| e.bounds()).reduce(|a, b| a.union(&b));
+        match bounds {
+            Some(b) => {
+                self.zoom_to_bounds(&b, view, 60.0);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Zooms to `bounds` with a pixel margin, remembering the previous view.
+    pub fn zoom_to_bounds(&mut self, bounds: &BBox, view: &mut ViewTransform, margin_px: f64) {
+        self.remember_view(view);
+        let (l, t, w, h) = self.viewport;
+        view.zoom_to_bounds(bounds, l, t, w, h, margin_px);
+    }
+
+    /// Records `view` as the one ZOOM Previous returns to. Zoom window and zoom to selection do
+    /// this themselves; a front end calls it before a zoom it makes through `zoom_extents`, which
+    /// takes `&self`. The history keeps the last 50 views and drops a repeat of the latest one.
+    pub fn remember_view(&mut self, view: &ViewTransform) {
+        if self.view_history.last() != Some(view) {
+            self.view_history.push(view.clone());
+            if self.view_history.len() > 50 {
+                self.view_history.remove(0);
+            }
+        }
+    }
+
+    /// ZOOM Previous: restores the last remembered view. False when there is none.
+    pub fn zoom_previous(&mut self, view: &mut ViewTransform) -> bool {
+        match self.view_history.pop() {
+            Some(v) => {
+                *view = v;
+                true
+            }
+            None => false,
+        }
     }
 
     pub fn zoom_by(&self, view: &mut ViewTransform, factor: f64) {
@@ -612,7 +659,9 @@ impl CanvasController {
         if let Some(start) = self.box_start {
             if start.distance_to(self.cursor_screen) > 1.0 {
                 let (l, t, w, h) = self.viewport;
-                view.fit(&view.box_to_world(start, self.cursor_screen), l, t, w, h, 0.0);
+                let area = view.box_to_world(start, self.cursor_screen);
+                self.remember_view(view);
+                view.fit(&area, l, t, w, h, 0.0);
             }
         }
         self.reset();
@@ -1001,6 +1050,43 @@ mod tests {
         c.submit_text(&mut d, &mut v, "1000,500");
         assert_eq!(c.tool(), CanvasTool::Idle);
         close(v.scale, 0.8); // 800 px / 1000 mm
+    }
+
+    #[test]
+    fn zoom_to_selection_and_previous() {
+        let (mut d, mut v, mut c) = rig();
+        c.zoom_extents(&d, &mut v);
+        let before = v.clone();
+        assert!(!c.zoom_to_selection(&d, &mut v), "nothing selected");
+        assert_eq!(v, before);
+        assert!(!c.zoom_previous(&mut v));
+        let id = d.elements()[0].id;
+        d.select(&[id], SelectMode::Replace);
+        assert!(c.zoom_to_selection(&d, &mut v));
+        let b = d.find(id).unwrap().bounds();
+        let (l, t, w, h) = c.viewport;
+        // The selection keeps the 60 px margin on every side.
+        let tl = v.to_screen(Pt::new(b.min.x, b.max.y));
+        let br = v.to_screen(Pt::new(b.max.x, b.min.y));
+        let m = 60.0 - 1e-6;
+        assert!(tl.x - l >= m && tl.y - t >= m && l + w - br.x >= m && t + h - br.y >= m);
+        assert!(v.scale != before.scale);
+        assert!(c.zoom_previous(&mut v));
+        assert_eq!(v, before);
+        assert!(!c.zoom_previous(&mut v));
+    }
+
+    #[test]
+    fn the_wheel_zooms_without_the_old_limits() {
+        let (mut d, mut v, mut c) = rig();
+        for _ in 0..300 {
+            c.wheel(&mut d, &mut v, Pt::new(300.0, 200.0), true);
+        }
+        assert!(v.scale > 50.0 && v.scale.is_finite(), "the old 50 px/mm clamp is gone: {}", v.scale);
+        for _ in 0..600 {
+            c.wheel(&mut d, &mut v, Pt::new(300.0, 200.0), false);
+        }
+        assert!(v.scale < 0.0005 && v.scale > 0.0, "the old 2 m per pixel clamp is gone: {}", v.scale);
     }
 
     #[test]

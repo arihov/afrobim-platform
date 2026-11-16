@@ -11,6 +11,7 @@
 //! and undo. Front ends forward input and draw state.
 
 mod controller;
+pub mod crs;
 mod document;
 mod drafting;
 mod geometry;
@@ -26,8 +27,9 @@ pub use document::{Document, DocumentError, Element, ElementId, Layer, SelectMod
 pub use drafting::{display_spacing, ortho, parse_point, snap};
 pub use geometry::BBox;
 pub use module::{Generated, Module, ModuleRegistry, Note, Severity};
+pub use crs::{AreaOfUse, CrsCheck, CrsFinding, CrsKind, CrsSource, FindingKind, IncomingDataset, LinearUnit, PlanExtent, ProjectCrs, TransverseMercator};
 pub use settings::{
-    project_setting, project_settings_id, set_project_setting, ProjectSettingsModule, PROJECT_SETTINGS_CATEGORY, PROJECT_SETTINGS_LAYER,
+    project_crs, set_project_crs, PROJECT_CRS_KEY, project_setting, project_settings_id, set_project_setting, ProjectSettingsModule, PROJECT_SETTINGS_CATEGORY, PROJECT_SETTINGS_LAYER,
 };
 pub use speed_band::{set_speed_band_rule, speed_band_rule, SpeedBandRule};
 pub use undo::UndoHistory;

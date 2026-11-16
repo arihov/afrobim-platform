@@ -14,6 +14,10 @@
 //!   what the engineer enters.
 //! - [`Corridor::build`] and [`section_at`]: the [`Section`]s, each with its finished surface,
 //!   earthworks line, ground, daylight points and cut and fill areas.
+//! - [`Assembly`], [`Subassembly`], [`library`]: named parametric parts with codes and BIM
+//!   classification; [`CorridorModel`], [`build_model`]: baselines, regions, frequencies;
+//!   [`corridor_surface`], [`feature_lines`]; [`SampleLineGroup`], [`section_views`];
+//!   [`earthwork_table`] (average end area or prismoidal), [`material_volumes`], [`mass_haul`].
 //! - [`earthworks`] and [`earthworks_csv`]: volumes by average end area and the mass ordinate.
 //! - [`section_drawing`], [`corridor_meshes`], [`plan_lines`]: drawings and 3D surfaces.
 //! - [`SurfaceModule`], [`CorridorModule`], [`add_surface`], [`add_corridor`] and friends: the
@@ -26,18 +30,35 @@
 //! Drawings and meshes handed to the kernel are in millimetres. The crate's README has the
 //! formulae and the limits.
 
+mod assembly;
 mod crs;
 mod landxml;
+mod model;
 mod module;
 mod output;
+mod quantities;
+mod samples;
 mod section;
 mod survey;
 mod template;
 mod tin;
 mod volumes;
 
+pub use assembly::{
+    ifc, library, polyline_from_alignment, Assembly, Bench, Block, Classification, DaylightRule, DepressedMedian, DesignGeometry, DesignLink, DesignPoint, DesignShape, Dim, Ditch,
+    DitchShape, ElevationTarget, EvalContext, GenericLink, Layer, LinkMode, OffsetTarget, Side, Strip, SubKind, Subassembly, Wall,
+};
 pub use crs::CoordinateSystem;
-pub use landxml::{parse_landxml_surfaces, read_landxml_surfaces, ImportedSurface, SurfaceImport, SurfaceXmlError};
+pub use landxml::{parse_landxml_surfaces, parse_landxml_surfaces_with, read_landxml_surfaces, ImportedSurface, SurfaceImport, SurfaceReadOptions, SurfaceXmlError};
+pub use model::{
+    baseline_earthworks, build_baseline, build_model, corridor_surface, daylight_boundary, design_section_at, feature_lines, AssemblyRegion, Baseline, BaselineResult, CorridorModel,
+    FeatureLine, Frequency, ModelCorridor, ModelSection, SurfaceBoundary,
+};
+pub use quantities::{
+    earthwork_table, mass_haul, material_volumes, quantity_csv, EndArea, MassHaul, MaterialRow, MaterialStation, MaterialTable, MaterialTotal, QuantityOptions, QuantityRow, QuantityTable,
+    VolumeMethod, QUANTITY_CSV_HEADER,
+};
+pub use samples::{section_views, surface_earthworks, views_material_volumes, CorridorSampling, DesignView, SampleLine, SampleLineGroup, SampleStations, SectionView, SurfaceLine};
 pub use module::{
     add_corridor, add_surface, add_surface_in, build_corridor, corridor_element, corridor_of, import_landxml_surfaces, import_survey_surface,
     refresh_corridor, set_corridor_definition, surface_crs, surface_display_mesh, surface_of, surfaces, CorridorElement, CorridorModule, CorridorSummary,
