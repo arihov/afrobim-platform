@@ -221,6 +221,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-grading"
+version = "0.1.0"
+dependencies = [
+ "afrobim-corridor",
+ "afrobim-terrain",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-ifc"
 version = "0.1.0"
 dependencies = [
