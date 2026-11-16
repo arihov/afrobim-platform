@@ -167,8 +167,9 @@ pub fn build_corridor(e: &Element, ctx: &Ctx) -> Result<Built, String> {
     Ok(out)
 }
 
-pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
-    let d: SampleData = serde_json::from_value(e.data.clone()).map_err(|x| format!("The sample line data cannot be read: {x}"))?;
+/// Cuts the section views of a sample line group: the surfaces it names and, when a corridor is
+/// chosen, that corridor's design. Used by the scene of the group and by the section sheets.
+pub fn sample_views(d: &SampleData, ctx: &Ctx) -> Result<Vec<afrobim_corridor::SectionView>, String> {
     let al = ctx.alignment_named(&d.group.alignment).ok_or_else(|| format!("The alignment '{}' of this sample line group is missing.", d.group.alignment))?;
     let tins: Vec<(String, Arc<Tin>)> = d.surfaces.iter().filter_map(|id| ctx.element(*id).and_then(|el| ctx.tin(*id).map(|t| (el.name.clone(), t)))).collect();
     let refs: Vec<(&str, &Tin)> = tins.iter().map(|(n, t)| (n.as_str(), t.as_ref())).collect();
@@ -180,7 +181,12 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         (Some(b), Some(g)) => Some(CorridorSampling { baseline: b, ground: g }),
         _ => None,
     };
-    let views = section_views(&d.group, &al, &refs, sampling).map_err(|x| format!("The sections cannot be cut: {x}"))?;
+    section_views(&d.group, &al, &refs, sampling).map_err(|x| format!("The sections cannot be cut: {x}"))
+}
+
+pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
+    let d: SampleData = serde_json::from_value(e.data.clone()).map_err(|x| format!("The sample line data cannot be read: {x}"))?;
+    let views = sample_views(&d, ctx)?;
     let mut sc = Scene::default();
     // In plan: each sample line across the alignment, with its name.
     for v in &views {

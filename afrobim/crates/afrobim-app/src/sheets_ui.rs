@@ -117,6 +117,11 @@ pub struct SourceForm {
     ann: ProfileAnnotations,
     // sections
     corridor: String,
+    /// The sections come from a sample line group (a civil object) and not from a corridor.
+    from_samples: bool,
+    sample_group: String,
+    /// The sample line groups of the document (refreshed every frame).
+    groups: Vec<String>,
     mode: u8,
     interval: String,
     list: String,
@@ -165,6 +170,9 @@ impl SourceForm {
             surface: String::new(),
             ann: ProfileAnnotations::default(),
             corridor: String::new(),
+            from_samples: false,
+            sample_group: String::new(),
+            groups: Vec::new(),
             mode: 0,
             interval: String::new(),
             list: String::new(),
@@ -268,6 +276,8 @@ impl SourceForm {
                 if let Some(ViewKind::Sections(v)) = s.template.views.get(s.sections_view).map(|v| &v.kind) {
                     f.kind = FormKind::Sections;
                     f.corridor = v.corridor.clone();
+                    f.from_samples = v.sample_group.is_some();
+                    f.sample_group = v.sample_group.clone().unwrap_or_default();
                     f.scale = n(v.scale.0);
                     f.exaggeration = n(v.vertical_exaggeration);
                     f.columns = v.columns.to_string();
@@ -481,6 +491,31 @@ impl SourceForm {
                 v.surface = Some(self.surface.clone()).filter(|s| !s.is_empty());
                 v.annotations = self.ann;
                 Ok(SheetSource::Single(spec(vec![ViewDef::full(ViewKind::Profile(v))])))
+            }
+            FormKind::Sections if self.from_samples => {
+                if self.sample_group.is_empty() {
+                    return Err("Choose the sample line group.".into());
+                }
+                if !doc.elements().iter().any(|e| e.category == crate::civil::SAMPLES && e.name == self.sample_group) {
+                    return Err(format!("There is no sample line group called '{}'.", self.sample_group));
+                }
+                let mut v = SectionsView::of_sample_group(&self.sample_group, Scale(parse_pos(&self.scale, "the scale 1:n (n)")?), parse_count(&self.columns, "the number of columns")?);
+                v.vertical_exaggeration = parse_pos(&self.exaggeration, "the vertical exaggeration (1 for none)")?;
+                let per_sheet = parse_count(&self.per_sheet, "the number of sections on a sheet")?;
+                if self.mode == 2 {
+                    let al = self.alignment_obj(doc);
+                    let list = self.list.split(|c: char| c == ',' || c == ';' || c.is_whitespace()).filter(|t| !t.is_empty()).map(|t| sta(t, "a station in the list").and_then(|x| internal_of(al.as_ref(), x, 0))).collect::<Result<Vec<f64>, String>>()?;
+                    if list.is_empty() {
+                        return Err("Give at least one station.".into());
+                    }
+                    v.stations_m = Some(list);
+                } else {
+                    let al = self.alignment_obj(doc);
+                    v.from_station_m = sta_opt(&self.from, "the first station")?.map(|x| internal_of(al.as_ref(), x, self.from_region)).transpose()?;
+                    v.to_station_m = sta_opt(&self.to, "the last station")?.map(|x| internal_of(al.as_ref(), x, self.to_region)).transpose()?;
+                }
+                let template = spec(vec![ViewDef::full(ViewKind::Sections(v))]);
+                Ok(SheetSource::SectionSeries(SectionSeries { template, sections_view: 0, per_sheet }))
             }
             FormKind::Sections => {
                 if self.corridor.is_empty() {
@@ -1275,6 +1310,7 @@ impl AfroBimApp {
         if let Some(mut f) = s.form.take() {
             let mut keep = true;
             f.regions = f.alignment_obj(&self.doc).map(|a| a.station_equations.region_count()).unwrap_or(1);
+            f.groups = self.doc.elements().iter().filter(|e| e.category == crate::civil::SAMPLES).map(|e| e.name.clone()).collect();
             let range_note = ranges.iter().find(|r| r.0 == f.alignment).map(|r| r.1.clone()).unwrap_or_default();
             let title = if f.editing.is_some() { format!("Edit sheet: {}", f.kind.short()) } else { format!("Add: {}", f.kind.short()) };
             crate::win::new(ctx, title).collapsible(false).default_width(560.0).show(ctx, |ui| {
@@ -1668,11 +1704,33 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
                 ui.end_row();
             }
             FormKind::Sections => {
-                combo_row(ui, "Corridor", "form-corridor", &mut f.corridor, corridors, false);
+                if !f.groups.is_empty() || f.from_samples {
+                    ui.label("Sections from");
+                    ui.horizontal(|ui| {
+                        ui.selectable_value(&mut f.from_samples, false, "a corridor");
+                        ui.selectable_value(&mut f.from_samples, true, "a sample line group");
+                    });
+                    ui.end_row();
+                }
+                if f.from_samples {
+                    let groups = f.groups.clone();
+                    if f.sample_group.is_empty() {
+                        f.sample_group = groups.first().cloned().unwrap_or_default();
+                    }
+                    combo_row(ui, "Sample line group", "form-samples", &mut f.sample_group, &groups, false);
+                    // The interval is a corridor option: a sample line group has its own stations.
+                    if f.mode == 1 {
+                        f.mode = 0;
+                    }
+                } else {
+                    combo_row(ui, "Corridor", "form-corridor", &mut f.corridor, corridors, false);
+                }
                 ui.label("Sections");
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut f.mode, 0, "all in a range");
-                    ui.selectable_value(&mut f.mode, 1, "at an interval");
+                    if !f.from_samples {
+                        ui.selectable_value(&mut f.mode, 1, "at an interval");
+                    }
                     ui.selectable_value(&mut f.mode, 2, "a list");
                 });
                 ui.end_row();

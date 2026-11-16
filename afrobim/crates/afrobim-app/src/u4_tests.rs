@@ -73,3 +73,37 @@ fn a_changed_imported_surface_is_seen_by_the_digest() {
     doc.find_mut(id).unwrap().data = serde_json::to_value(&def).unwrap();
     assert_ne!(a, dependency_hash(&doc));
 }
+
+#[test]
+fn the_section_sheets_draw_the_views_of_a_sample_line_group() {
+    use afrobim_sheets::sheetset::{SectionSeries, SheetSet, SheetSource, SheetSpec};
+    use afrobim_sheets::{Page, Scale, SectionsView, ViewDef, ViewKind};
+    let doc = demo_doc();
+    let group = doc.elements().iter().find(|e| e.category == SAMPLES).unwrap().name.clone();
+    let mut view = SectionsView::of_sample_group(&group, Scale(200.0), 2);
+    view.vertical_exaggeration = 2.0;
+    let n = crate::civil_sheets::feed_sample_sections(&mut view, &doc).expect("the group is cut");
+    assert!(n > 0, "no section views");
+    assert_eq!(view.fed.len(), view.fed_stations_m.len());
+    assert!(view.fed.iter().all(|d| !d.drawing.primitives.is_empty()));
+    // As a series on sheets: the views are shared out and drawn.
+    let spec = SheetSpec::new("SECTIONS", Page::default(), vec![ViewDef::full(ViewKind::Sections(view))]);
+    let mut set = SheetSet::new("test");
+    set.sources.push(SheetSource::SectionSeries(SectionSeries { template: spec, sections_view: 0, per_sheet: 4 }));
+    let registry = crate::background::worker_registry();
+    let model = afrobim_sheets::Model { doc: &doc, registry: &registry };
+    let info = afrobim_sheets::ProjectInfo::default();
+    let composed = crate::sheets_glue::compose_with_annotations(&model, &set, &info);
+    assert!(!composed.sheets.is_empty());
+    let texts: usize = composed.sheets.iter().map(|s| s.items.len()).sum();
+    assert!(texts > 10, "the sheets are empty");
+}
+
+#[test]
+fn a_missing_sample_line_group_is_reported_and_draws_nothing() {
+    use afrobim_sheets::{Scale, SectionsView};
+    let doc = demo_doc();
+    let mut view = SectionsView::of_sample_group("No such group", Scale(200.0), 2);
+    let e = crate::civil_sheets::feed_sample_sections(&mut view, &doc).unwrap_err();
+    assert!(e.contains("No such group"), "{e}");
+}

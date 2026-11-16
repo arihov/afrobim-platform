@@ -286,18 +286,23 @@ pub fn expand(model: &Model, set: &SheetSet) -> (Vec<ExpandedSheet>, Vec<String>
                 if t.per_sheet == 0 {
                     continue;
                 }
-                let Some(id) = model.id_of(afrobim_corridor::CORRIDOR_CATEGORY, &view.corridor) else {
-                    warnings.push(format!("There is no corridor called '{}' for a section series.", view.corridor));
-                    continue;
-                };
-                let corridor = match afrobim_corridor::corridor_of(model.doc, id) {
-                    Ok(c) => c,
-                    Err(e) => {
-                        warnings.push(format!("Corridor '{}' cannot be built for a section series: {e}", view.corridor));
+                let stations: Vec<f64> = if view.sample_group.is_some() {
+                    // The section views of a sample line group, handed over by the application.
+                    view.pick_fed().iter().map(|(s, _)| *s).collect()
+                } else {
+                    let Some(id) = model.id_of(afrobim_corridor::CORRIDOR_CATEGORY, &view.corridor) else {
+                        warnings.push(format!("There is no corridor called '{}' for a section series.", view.corridor));
                         continue;
-                    }
+                    };
+                    let corridor = match afrobim_corridor::corridor_of(model.doc, id) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            warnings.push(format!("Corridor '{}' cannot be built for a section series: {e}", view.corridor));
+                            continue;
+                        }
+                    };
+                    pick_sections(&corridor.sections, view).iter().map(|s| s.station_m).collect()
                 };
-                let stations: Vec<f64> = pick_sections(&corridor.sections, view).iter().map(|s| s.station_m).collect();
                 let chunks: Vec<&[f64]> = stations.chunks(t.per_sheet).collect();
                 let m = chunks.len().max(1);
                 for (j, chunk) in chunks.iter().enumerate() {
