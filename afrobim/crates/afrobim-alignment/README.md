@@ -245,9 +245,9 @@ four PVI kinds, a gap and an overlap in the station equations, superelevation on
 adverse curves) and `corridor_feet.xml` (feet; a profile, equation and superelevation with faults).
 Beyond the one Civil 3D file above (taken from the public MIT-licensed repository RustedGeom/rusted-geom,
 `showcase/public/landxml/C3DProfileExample2.xml`, unmodified), **no Civil 3D export was available to test
-against**, so how the importer copes with what Civil 3D writes elsewhere — which stations it puts in a
+against**, so how the importer copes with what Civil 3D writes elsewhere (which stations it puts in a
 profile when there are station equations, what it writes in `CircCurve@length`, whether it writes
-`Superelevation` in this form, how it writes surfaces, parcels, points and cross-sections — is not
+`Superelevation` in this form, how it writes surfaces, parcels, points and cross-sections) is not
 yet proven. The element and attribute names come from the schema file, which was fetched
 (`LandXML-1.2.xsd` dated 2008-07-29 in its header) and used to validate every test file here.
 
