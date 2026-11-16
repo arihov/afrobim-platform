@@ -11,6 +11,8 @@ pub struct CivilUi {
     pub prof: crate::civil_profile::ProfileUi,
     pub asm: crate::civil_assembly::AssemblyUi,
     pub cor: crate::civil_corridor::CorridorUi,
+    pub parcels: crate::civil_parcels::ParcelUi,
+    pub qty: crate::civil_quantities::QtyUi,
     /// The next click in the model is a point for this dialog.
     pub pick: Option<PickFor>,
     /// Temporary drawing in the model (a flow path): not saved.
@@ -22,6 +24,7 @@ pub enum PickFor {
     Create,
     Spot,
     Flow,
+    ParcelCorner,
 }
 
 impl AfroBimApp {
@@ -30,6 +33,8 @@ impl AfroBimApp {
         match cv {
             Cv::Toolspace => self.show_left = !self.show_left,
             Cv::CivilDemo => self.civil_demo(),
+            Cv::ParcelPick | Cv::ParcelDeed | Cv::ParcelProps | Cv::ParcelTopology | Cv::ParcelSplit | Cv::ParcelSchedule => self.civil_parcel_cmd(cv),
+            Cv::Earthworks => self.civil_quantities_cmd(),
             Cv::Assembly => self.civil_assembly_cmd(),
             Cv::CorridorModel | Cv::SampleLines | Cv::SectionViews => self.civil_corridor_cmd(cv),
             Cv::GroundProfile | Cv::ProfileView => self.civil_profile_cmd(cv),
@@ -45,5 +50,7 @@ impl AfroBimApp {
         self.civil_profile_windows(ctx);
         self.civil_assembly_windows(ctx);
         self.civil_corridor_windows(ctx);
+        self.civil_quantities_windows(ctx);
+        self.civil_parcel_windows(ctx);
     }
 }

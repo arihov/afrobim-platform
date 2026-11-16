@@ -144,6 +144,11 @@ impl AfroBimApp {
                     f.set(e, n);
                 }
             }
+            PickFor::ParcelCorner => {
+                self.parcel_pick_vertex(e, n);
+                // Corners are picked one after another until the dialog closes.
+                self.civil_ui.pick = Some(PickFor::ParcelCorner);
+            }
         }
         true
     }

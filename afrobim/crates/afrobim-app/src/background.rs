@@ -139,6 +139,8 @@ pub struct Background {
     pub civil: Option<Job<crate::civil_cache::CivilOut>>,
     /// A volume calculation of the Volumes dashboard.
     pub volumes: Option<Job<crate::civil_surface::VolOut>>,
+    /// The earthworks of a corridor.
+    pub quantities: Option<Job<crate::civil_quantities::QtyOut>>,
 }
 
 /// The kinds of job, in the order the progress window lists them.
@@ -154,11 +156,12 @@ pub enum Kind {
     Sheets,
     Civil,
     Volumes,
+    Quantities,
 }
 
 impl Background {
     pub fn busy(&self) -> bool {
-        self.clash.is_some() || self.pack.is_some() || self.vis.is_some() || self.photo.is_some() || self.corridors.is_some() || self.sections.is_some() || self.check_all.is_some() || self.sheets.is_some() || self.civil.is_some() || self.volumes.is_some()
+        self.clash.is_some() || self.pack.is_some() || self.vis.is_some() || self.photo.is_some() || self.corridors.is_some() || self.sections.is_some() || self.check_all.is_some() || self.sheets.is_some() || self.civil.is_some() || self.volumes.is_some() || self.quantities.is_some()
     }
 
     /// The running jobs: kind, label and seconds so far.
@@ -166,7 +169,7 @@ impl Background {
         fn row<T: Send + 'static>(kind: Kind, job: &Option<Job<T>>) -> Option<(Kind, String, f64)> {
             job.as_ref().map(|j| (kind, j.label.clone(), j.elapsed_s()))
         }
-        [row(Kind::Clash, &self.clash), row(Kind::Pack, &self.pack), row(Kind::Vis, &self.vis), row(Kind::Photo, &self.photo), row(Kind::Corridors, &self.corridors), row(Kind::Sections, &self.sections), row(Kind::CheckAll, &self.check_all), row(Kind::Sheets, &self.sheets), row(Kind::Civil, &self.civil), row(Kind::Volumes, &self.volumes)].into_iter().flatten().collect()
+        [row(Kind::Clash, &self.clash), row(Kind::Pack, &self.pack), row(Kind::Vis, &self.vis), row(Kind::Photo, &self.photo), row(Kind::Corridors, &self.corridors), row(Kind::Sections, &self.sections), row(Kind::CheckAll, &self.check_all), row(Kind::Sheets, &self.sheets), row(Kind::Civil, &self.civil), row(Kind::Volumes, &self.volumes), row(Kind::Quantities, &self.quantities)].into_iter().flatten().collect()
     }
 
     pub fn cancel(&self, kind: Kind) {
@@ -186,6 +189,7 @@ impl Background {
             Kind::Sheets => go(&self.sheets),
             Kind::Civil => go(&self.civil),
             Kind::Volumes => go(&self.volumes),
+            Kind::Quantities => go(&self.quantities),
         }
     }
 }
@@ -270,6 +274,12 @@ impl crate::app::AfroBimApp {
             }
         }
         self.civil_tick();
+        if let Some(polled) = take(&mut self.bg.quantities, &self.doc) {
+            match polled {
+                Poll::Done(out) => self.civil_ui.qty.out = Some(out),
+                other => self.status = discard_message("Earthworks calculation", &other),
+            }
+        }
         if let Some(polled) = take(&mut self.bg.volumes, &self.doc) {
             match polled {
                 Poll::Done(out) => self.civil_ui.surf.vol_out = Some(out),
