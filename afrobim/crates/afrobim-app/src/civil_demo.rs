@@ -135,7 +135,7 @@ pub fn build(doc: &mut Document) -> Vec<String> {
     if let Err(e) = grp.add_stations(&al, &SampleStations::Interval { interval_m: 30.0, start_station_m: None, end_station_m: None }, 18.0, 18.0, "SL") {
         notes.push(format!("Sample lines: {e}"));
     }
-    let sd = SampleData { group: grp, corridor: Some(cor_id.0), surfaces: vec![surf_id.0], insertion: [E0 + 330.0, N0 + 250.0], columns: 4, vertical_exaggeration: 2.0, slices: vec![] };
+    let sd = SampleData { group: grp, corridor: Some(cor_id.0), surfaces: vec![surf_id.0], insertion: [E0 + 330.0, N0 + 250.0], columns: 4, vertical_exaggeration: 2.0, slices: vec![], imported: vec![], compare: false };
     civil::add(doc, SAMPLES, "Demo sample lines (example values)", serde_json::to_value(&sd).unwrap_or_default(), Some(Bounds { min_e: E0 + 330.0, min_n: N0 + 100.0, max_e: E0 + 500.0, max_n: N0 + 250.0 }), SOURCE);
 
     // Two parcels the road crosses.

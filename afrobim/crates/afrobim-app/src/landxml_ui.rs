@@ -31,6 +31,9 @@ pub struct LandXmlForm {
     take_points: Vec<bool>,
     take_parcels: Vec<bool>,
     take_profiles: Vec<bool>,
+    /// The alignments of the file that have cross-sections (the names, in file order) and which to bring in.
+    section_alignments: Vec<(String, usize)>,
+    take_sections: Vec<bool>,
     /// The pipe networks of the file (`PipeNetworks`), read by the pipes crate, and which to bring in.
     pipes: Result<afrobim_pipes::LandXmlPipes, String>,
     take_pipes: Vec<bool>,
@@ -59,7 +62,21 @@ impl LandXmlForm {
         let file_crs = file.as_ref().ok().and_then(|f| f.coordinate_system.as_ref()).and_then(crate::crs_ui::from_landxml);
         let crs = crate::transform_ui::ImportCrs::new(file_crs.as_ref());
         let (np, nr, nf) = file.as_ref().map(|f| (crate::civil_landxml::point_groups(f).len(), crate::civil_landxml::all_parcels(f).len(), f.ground_profiles.len())).unwrap_or((0, 0, 0));
-        LandXmlForm { path, file, file_crs, use_file_crs: true, alignments, surfaces, take_alignment, take_surface, take_points: vec![true; np], take_parcels: vec![true; nr], take_profiles: vec![true; nf], pipes, take_pipes, as_definition: true, tab, crs }
+        let mut section_alignments: Vec<(String, usize)> = Vec::new();
+        if let Ok(f) = &file {
+            for s in &f.cross_sections {
+                match section_alignments.iter_mut().find(|(n, _)| *n == s.alignment) {
+                    Some((_, c)) => *c += 1,
+                    None => section_alignments.push((s.alignment.clone(), 1)),
+                }
+            }
+        }
+        let take_sections = vec![true; section_alignments.len()];
+        // A file written by Civil 3D carries its own TIN, which is what its sections and profiles were
+        // cut from: it comes in as that TIN, not as source data that AfroBIM would triangulate again
+        // (a different triangulation, and a stray source point would stretch it over kilometres).
+        let as_definition = !file.as_ref().is_ok_and(|f| f.is_civil_3d());
+        LandXmlForm { path, file, file_crs, use_file_crs: true, alignments, surfaces, take_alignment, take_surface, take_points: vec![true; np], take_parcels: vec![true; nr], take_profiles: vec![true; nf], section_alignments, take_sections, pipes, take_pipes, as_definition, tab, crs }
     }
 
     fn picked(&self) -> (usize, usize) {
@@ -67,7 +84,7 @@ impl LandXmlForm {
     }
 
     fn civil_picked(&self) -> usize {
-        [&self.take_points, &self.take_parcels, &self.take_profiles, &self.take_pipes].iter().map(|v| v.iter().filter(|b| **b).count()).sum()
+        [&self.take_points, &self.take_parcels, &self.take_profiles, &self.take_sections, &self.take_pipes].iter().map(|v| v.iter().filter(|b| **b).count()).sum()
     }
 }
 
@@ -86,12 +103,12 @@ impl AfroBimApp {
         let units = crate::anno_ui::units_of(&self.doc);
         let file = form.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         let (na, ns) = form.picked();
-        let nothing_in_file = form.alignments.as_ref().map(|a| a.alignments.is_empty()).unwrap_or(true) && form.surfaces.as_ref().map(|s| s.surfaces.is_empty()).unwrap_or(true) && form.take_points.is_empty() && form.take_parcels.is_empty() && form.take_profiles.is_empty() && form.take_pipes.is_empty();
+        let nothing_in_file = form.alignments.as_ref().map(|a| a.alignments.is_empty()).unwrap_or(true) && form.surfaces.as_ref().map(|s| s.surfaces.is_empty()).unwrap_or(true) && form.take_points.is_empty() && form.take_parcels.is_empty() && form.take_profiles.is_empty() && form.take_sections.is_empty() && form.take_pipes.is_empty();
         let reason = if nothing_in_file { "The file holds no alignment or surface" } else { "Tick something to import" };
         let alignment_count = form.alignments.as_ref().map(|a| a.alignments.len()).unwrap_or(0);
         let surface_count = form.surfaces.as_ref().map(|s| s.surfaces.len()).unwrap_or(0);
         let project = project_crs(&self.doc);
-        let labels = ["The file".to_string(), format!("Alignments ({alignment_count})"), format!("Surfaces ({surface_count})"), format!("Points ({})", form.take_points.len()), format!("Parcels ({})", form.take_parcels.len()), format!("Profiles ({})", form.take_profiles.len()), format!("Pipe networks ({})", form.take_pipes.len())];
+        let labels = ["The file".to_string(), format!("Alignments ({alignment_count})"), format!("Surfaces ({surface_count})"), format!("Points ({})", form.take_points.len()), format!("Parcels ({})", form.take_parcels.len()), format!("Profiles ({})", form.take_profiles.len()), format!("Sections ({})", form.take_sections.len()), format!("Pipe networks ({})", form.take_pipes.len())];
         let tab_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
         let nc = form.civil_picked();
         let button = format!("Import {}{}", if nc > 0 { format!("{nc} civil object(s) and ") } else { String::new() }, match (na, ns) {
@@ -116,6 +133,7 @@ impl AfroBimApp {
                         3 => civil_tab(ui, &mut form, 0),
                         4 => civil_tab(ui, &mut form, 1),
                         5 => civil_tab(ui, &mut form, 2),
+                        6 => sections_tab(ui, &mut form),
                         _ => pipes_tab(ui, &mut form),
                     }
                     crs_state.set((form.crs.ready(), form.crs.why_not()));
@@ -127,14 +145,27 @@ impl AfroBimApp {
         }
         if out.inner.is_some_and(|(_, f)| f.primary) {
             let before: Vec<afrobim_kernel::ElementId> = self.doc.elements().iter().map(|e| e.id).collect();
-            self.landxml_apply(ctx, &form);
+            self.landxml_apply(Some(ctx), &form);
             self.finish_import_transform(&form.crs, &before, &form.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default());
             return;
         }
         self.landxml.form = Some(form);
     }
 
-    fn landxml_apply(&mut self, ctx: &egui::Context, form: &LandXmlForm) {
+    /// Imports everything the file holds, as the dialog does with every box ticked, with no dialog
+    /// (the command line and the tests). Prints the time it took when AFROBIM_FRAME_STATS is set.
+    pub(crate) fn landxml_import_all(&mut self, path: &std::path::Path) -> String {
+        let t0 = std::time::Instant::now();
+        let form = LandXmlForm::new(path.to_path_buf(), false);
+        let read = t0.elapsed();
+        self.landxml_apply(None, &form);
+        if std::env::var_os("AFROBIM_FRAME_STATS").is_some() {
+            eprintln!("IMPORTSTATS read={:.0}ms total={:.0}ms elements={}", read.as_secs_f64() * 1000.0, t0.elapsed().as_secs_f64() * 1000.0, self.doc.elements().len());
+        }
+        self.status.clone()
+    }
+
+    fn landxml_apply(&mut self, ctx: Option<&egui::Context>, form: &LandXmlForm) {
         // The project takes the file's coordinate system first (when it had none and that is
         // wanted), so the status bar reads the imported objects in it at once. Nothing moves.
         if project_crs(&self.doc).is_none() && form.use_file_crs {
@@ -145,10 +176,18 @@ impl AfroBimApp {
         let mut added_a = 0;
         let mut added_s = 0;
         let mut notes: Vec<String> = Vec::new();
+        let mut names: Vec<(String, String)> = Vec::new();
         if let Ok(a) = &form.alignments {
             for (alignment, take) in a.alignments.iter().zip(&form.take_alignment) {
-                if *take && crate::alignment_glue::add(&mut self.doc, alignment).is_some() {
+                if !*take {
+                    continue;
+                }
+                if let Some(id) = crate::alignment_glue::add(&mut self.doc, alignment) {
                     added_a += 1;
+                    if let Some(name) = self.doc.find(id).map(|e| e.name.clone()) {
+                        names.push((alignment.name.clone(), name));
+                    }
+                    crate::civil_super::keep_table(&mut self.doc, id, form.file.as_ref().ok(), &alignment.name);
                 }
             }
             if form.take_alignment.iter().any(|t| *t) {
@@ -156,6 +195,11 @@ impl AfroBimApp {
             }
         }
         if added_a > 0 {
+            // A civil project looks at its alignments in plan: the layer the sign design hides them
+            // on is shown (the Layers panel still switches it).
+            if let Some(l) = self.doc.layers_mut().iter_mut().find(|l| l.name == crate::alignment_glue::LAYER) {
+                l.visible = true;
+            }
             self.design.invalidate();
             crate::markings_glue::sync(&mut self.doc);
             for problem in crate::modules_glue::sync_all(&mut self.doc) {
@@ -201,13 +245,16 @@ impl AfroBimApp {
             }
         }
         if added_s > 0 {
+            if let Some(l) = self.doc.layers_mut().iter_mut().find(|l| l.name == "Surfaces") {
+                l.visible = true;
+            }
             self.sync_generated();
             self.fitted_3d = false;
             if let Some(id) = last_surface {
                 self.doc.select(&[id], SelectMode::Replace);
             }
         }
-        let added_c = self.landxml_apply_civil(form, &mut notes);
+        let added_c = self.landxml_apply_civil(form, &names, &mut notes);
         self.status = format!("Imported {added_a} alignment(s), {added_s} surface(s) and {added_c} civil object(s) from {}.", form.path.display());
         for n in notes.iter().take(6) {
             self.log(n.clone());
@@ -215,7 +262,10 @@ impl AfroBimApp {
         if !notes.is_empty() {
             self.status.push_str(&format!(" {} note(s) in the command history.", notes.len()));
         }
-        self.schedule_commit(ctx);
+        self.zoom_extents_pending = true;
+        if let Some(ctx) = ctx {
+            self.schedule_commit(ctx);
+        }
     }
 }
 
@@ -399,6 +449,9 @@ fn surfaces_tab(ui: &mut egui::Ui, form: &mut LandXmlForm) {
                         ui.checkbox(&mut form.take_surface[i], format!("{}   {} points, {} triangles", row[0], row[1], row[2]));
                     }
                     ui.add_space(4.0);
+                    ui_kit::toggle(ui, &mut form.as_definition, "A surface with source data comes in as that data, to be triangulated again by AfroBIM");
+                    ui_kit::note(ui, "Off (the default for a Civil 3D file): the surface comes in with the triangles of the file, the ones its sections and ground profiles were cut from.");
+                    ui.add_space(4.0);
                     ui_kit::results_table(ui, "lx-surfaces", &["Surface", "Points", "Triangles", "Levels", "Plan area", "Hidden faces left out"], &[Col::Text, Col::Num, Col::Num, Col::Num, Col::Num, Col::Num], &rows);
                 });
             }
@@ -492,7 +545,7 @@ fn pipes_tab(ui: &mut egui::Ui, form: &mut LandXmlForm) {
 
 impl AfroBimApp {
     /// The points, parcels and ground profiles ticked in the dialog. Returns how many were added.
-    fn landxml_apply_civil(&mut self, form: &LandXmlForm, notes: &mut Vec<String>) -> usize {
+    fn landxml_apply_civil(&mut self, form: &LandXmlForm, names: &[(String, String)], notes: &mut Vec<String>) -> usize {
         let Ok(file) = &form.file else { return 0 };
         let source = form.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         let mut added = 0;
@@ -521,10 +574,27 @@ impl AfroBimApp {
                 }
             }
         }
+        let mut profile_ids = Vec::new();
         for (ps, take) in file.ground_profiles.iter().zip(&form.take_profiles) {
             if *take {
-                added += crate::civil_landxml::add_profile(&mut self.doc, ps, &source).len();
+                let ids = crate::civil_landxml::add_profile(&mut self.doc, ps, &source);
+                added += ids.len();
+                profile_ids.extend(ids);
             }
+        }
+        notes.extend(crate::civil_sections::assign_profile_surfaces(&mut self.doc, &profile_ids).into_iter().map(|n| format!("LandXML: {n}")));
+        // The cross-sections, as sample line groups on the alignments that came in, laid out in an
+        // array east of everything the file holds.
+        let wanted: Vec<(String, String)> = form.section_alignments.iter().zip(&form.take_sections).filter(|(_, t)| **t).filter_map(|((n, _), _)| names.iter().find(|(f, _)| f == n).cloned()).collect();
+        if !wanted.is_empty() {
+            let ext = file.summary.overall_extent();
+            let origin = ext.map(|e| (e.max_easting + 500.0, e.min_northing)).unwrap_or((0.0, 0.0));
+            let r = crate::civil_sections::import_sections(&mut self.doc, file, &wanted, &source, origin);
+            added += r.groups.len();
+            notes.push(format!("LandXML: {} section line(s) in {} group(s), each with the file's own section surfaces.", r.lines, r.groups.len()));
+            notes.extend(r.notes.into_iter().map(|n| format!("LandXML: {n}")));
+        } else if form.take_sections.iter().any(|t| *t) {
+            notes.push("LandXML: cross-sections were ticked but their alignments were not imported: no section lines made.".into());
         }
         if let Ok(p) = &form.pipes {
             for (net, take) in p.networks.iter().zip(&form.take_pipes) {
@@ -543,4 +613,26 @@ impl AfroBimApp {
         }
         added
     }
+}
+
+/// The Sections tab: the alignments of the file that have cross-sections.
+fn sections_tab(ui: &mut egui::Ui, form: &mut LandXmlForm) {
+    if form.section_alignments.is_empty() {
+        ui_kit::callout(ui, Level::Info, "The file has no cross-sections (CrossSects).");
+        return;
+    }
+    let Ok(file) = &form.file else { return };
+    ui_kit::section(ui, "Cross-sections in the file (each alignment gets a sample line group)", |ui| {
+        for (i, (name, n)) in form.section_alignments.iter().enumerate() {
+            let surfaces: Vec<&str> = {
+                let mut v: Vec<&str> = Vec::new();
+                for s in file.cross_sections.iter().filter(|s| &s.alignment == name).take(1) {
+                    v.extend(s.surfaces.iter().map(|x| x.name.as_str()));
+                }
+                v
+            };
+            ui.checkbox(&mut form.take_sections[i], format!("{name}  ({n} section(s), {} section surface(s) at the first)", surfaces.len()));
+        }
+    });
+    ui_kit::note(ui, "Each section line keeps the file's named section surfaces and draws them in the section view array and the section sheets. A surface of the document with the name of a section surface can be compared with them: tick Compare with AfroBIM's own cut in the group's Properties.");
 }

@@ -132,6 +132,11 @@ pub struct AfroBimApp {
     /// typed (0 = not stated, else the region number counted from 1).
     station_dialog: Option<(ElementId, Option<ElementId>, f64, f64, bool, usize)>,
     new_prop_key: String,
+    pub(crate) align_tab: usize,
+    /// Zoom to the extents once the viewport is known and the builds are done (after an import).
+    pub(crate) zoom_extents_pending: bool,
+    /// Update times in milliseconds, kept when AFROBIM_FRAME_STATS is set (performance checks).
+    frame_ms: Vec<f64>,
 
     pub(crate) grid_on: bool,
     pub(crate) grid_spacing: f64,
@@ -263,6 +268,9 @@ impl AfroBimApp {
             corridors_held: false,
             station_dialog: None,
             new_prop_key: String::new(),
+            align_tab: 0,
+            zoom_extents_pending: false,
+            frame_ms: Vec::new(),
             grid_on: true,
             grid_spacing: 100.0,
             dark_canvas: theme.is_dark(),
@@ -601,6 +609,9 @@ impl AfroBimApp {
         }
         if let Some(path) = app.options.landxml_dialog.clone() {
             app.landxml_open(path, false);
+        }
+        if let Some(path) = app.options.landxml_all.clone() {
+            app.landxml_import_all(&path);
         }
         if let Some(path) = app.options.survey_dialog.clone() {
             app.survey_open(path);
@@ -2026,6 +2037,8 @@ impl AfroBimApp {
                     let (c, open) = crate::civil_tree::civil_panel(ui, e);
                     changed |= c;
                     civil_open = civil_open.or(open);
+                } else if e.category == alignment_glue::CATEGORY {
+                    changed |= crate::civil_super::alignment_tabs(ui, e, &mut self.align_tab);
                 } else if e.category == signs_glue::CATEGORY {
                     changed |= signs_glue::edit_ui(ui, &mut e.data);
                 } else if afrobim_annotate::is_annotation(e) {
@@ -3006,7 +3019,7 @@ impl AfroBimApp {
             return;
         }
         self.frames += 1;
-        if self.frames == 8 + 4 * self.options.click.as_deref().map_or(0, |c| c.split(';').count() as u32) {
+        if self.frames == std::env::var("AFROBIM_FRAMES").ok().and_then(|v| v.parse::<u32>().ok()).unwrap_or(8) + 4 * self.options.click.as_deref().map_or(0, |c| c.split(';').count() as u32) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
         }
         let shot = ctx.input(|i| {
@@ -3056,6 +3069,22 @@ impl eframe::App for AfroBimApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let started = std::time::Instant::now();
+        self.update_inner(ctx);
+        if std::env::var_os("AFROBIM_FRAME_STATS").is_some() {
+            self.frame_ms.push(started.elapsed().as_secs_f64() * 1000.0);
+            if self.quit {
+                let mut v: Vec<f64> = self.frame_ms.iter().skip(self.frame_ms.len().saturating_sub(40)).copied().collect();
+                v.sort_by(f64::total_cmp);
+                let rss = std::fs::read_to_string("/proc/self/status").ok().map(|t| t.lines().filter(|l| l.starts_with("VmRSS") || l.starts_with("VmHWM")).map(|l| l.split_whitespace().collect::<Vec<_>>().join(" ")).collect::<Vec<_>>().join("; ")).unwrap_or_default();
+                eprintln!("FRAMESTATS frames={} last40 median={:.1}ms p95={:.1}ms max={:.1}ms slowest_ever={:.1}ms {rss}", self.frame_ms.len(), v.get(v.len() / 2).copied().unwrap_or(0.0), v.get(v.len() * 95 / 100).copied().unwrap_or(0.0), v.last().copied().unwrap_or(0.0), self.frame_ms.iter().cloned().fold(0.0, f64::max));
+            }
+        }
+    }
+}
+
+impl AfroBimApp {
+    fn update_inner(&mut self, ctx: &egui::Context) {
         crate::theme::paint_backdrop(ctx);
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.title()));
         self.shortcuts(ctx);
@@ -3079,14 +3108,21 @@ impl eframe::App for AfroBimApp {
             }
         }
 
+        if self.zoom_extents_pending && self.update_frames >= 3 && !self.bg.busy() {
+            self.zoom_extents_pending = false;
+            self.zoom_extents_visible();
+            self.fitted_3d = false;
+        }
         if let Some(a) = self.pending_action.take() {
             self.run(ctx, a);
         }
         if let Some(cv) = self.civil_run_pending.take() {
             self.run(ctx, Action::Civil(cv));
         }
+        let mut lap = Lap::new();
         crate::defaults_glue::sync(&self.doc, false);
         self.civil_sync();
+        lap.mark("sync");
         self.drop_tick(ctx);
         self.sched_tick(ctx);
         self.under.sync(&mut self.doc, self.view.scale);
@@ -3096,15 +3132,22 @@ impl eframe::App for AfroBimApp {
         if self.under.busy() {
             ctx.request_repaint_after(std::time::Duration::from_millis(60));
         }
+        lap.mark("ticks");
         self.menu_bar(ctx);
         self.toolbar(ctx);
         self.status_bar(ctx);
+        lap.mark("bars");
         self.left_panel(ctx);
+        lap.mark("left");
         self.right_panel(ctx);
+        lap.mark("right");
         self.command_line(ctx);
         self.canvas(ctx);
+        lap.mark("canvas");
         self.windows(ctx);
+        lap.mark("windows");
         crate::win::end_frame(ctx);
+        lap.print(self.update_frames);
         if !ctx.input(|i| i.pointer.any_down()) {
             if let Some(map) = crate::win::take_changed_positions() {
                 self.prefs.window_pos = map;
@@ -3122,6 +3165,32 @@ impl eframe::App for AfroBimApp {
         self.screenshot_mode(ctx);
         if self.quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+    }
+}
+
+/// Times the parts of a frame when AFROBIM_FRAME_STATS is set, to find what is slow.
+struct Lap {
+    on: bool,
+    at: std::time::Instant,
+    parts: Vec<(&'static str, f64)>,
+}
+
+impl Lap {
+    fn new() -> Lap {
+        Lap { on: std::env::var_os("AFROBIM_FRAME_STATS").is_some(), at: std::time::Instant::now(), parts: Vec::new() }
+    }
+
+    fn mark(&mut self, name: &'static str) {
+        if self.on {
+            self.parts.push((name, self.at.elapsed().as_secs_f64() * 1000.0));
+            self.at = std::time::Instant::now();
+        }
+    }
+
+    fn print(&self, frame: u32) {
+        if self.on && self.parts.iter().map(|p| p.1).sum::<f64>() > 20.0 {
+            eprintln!("FRAMEPARTS #{frame} {}", self.parts.iter().map(|(n, ms)| format!("{n}={ms:.0}")).collect::<Vec<_>>().join(" "));
         }
     }
 }

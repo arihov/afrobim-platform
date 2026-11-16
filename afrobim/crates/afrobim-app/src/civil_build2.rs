@@ -171,7 +171,11 @@ pub fn build_corridor(e: &Element, ctx: &Ctx) -> Result<Built, String> {
 /// chosen, that corridor's design. Used by the scene of the group and by the section sheets.
 pub fn sample_views(d: &SampleData, ctx: &Ctx) -> Result<Vec<afrobim_corridor::SectionView>, String> {
     let al = ctx.alignment_named(&d.group.alignment).ok_or_else(|| format!("The alignment '{}' of this sample line group is missing.", d.group.alignment))?;
-    let tins: Vec<(String, Arc<Tin>)> = d.surfaces.iter().filter_map(|id| ctx.element(*id).and_then(|el| ctx.tin(*id).map(|t| (el.name.clone(), t)))).collect();
+    // A group of imported sections shows the file's lines; AfroBIM's own cut of the surfaces is
+    // made only in comparison mode, and is named so that the two can be told apart.
+    let imported = !d.imported.is_empty();
+    let cut_own = !imported || d.compare;
+    let tins: Vec<(String, Arc<Tin>)> = if cut_own { d.surfaces.iter().filter_map(|id| ctx.element(*id).and_then(|el| ctx.tin(*id).map(|t| (if imported { format!("{}{}", el.name, crate::civil_sections::OWN_TAG) } else { el.name.clone() }, t)))).collect() } else { Vec::new() };
     let refs: Vec<(&str, &Tin)> = tins.iter().map(|(n, t)| (n.as_str(), t.as_ref())).collect();
     // The corridor's baseline for the design, when one is chosen.
     let corridor_data = d.corridor.and_then(|id| ctx.element(id)).and_then(|el| serde_json::from_value::<CorridorData>(el.data.clone()).ok());
@@ -181,7 +185,23 @@ pub fn sample_views(d: &SampleData, ctx: &Ctx) -> Result<Vec<afrobim_corridor::S
         (Some(b), Some(g)) => Some(CorridorSampling { baseline: b, ground: g }),
         _ => None,
     };
-    section_views(&d.group, &al, &refs, sampling).map_err(|x| format!("The sections cannot be cut: {x}"))
+    let mut views = section_views(&d.group, &al, &refs, sampling).map_err(|x| format!("The sections cannot be cut: {x}"))?;
+    if imported {
+        // The file's own lines, one ground line per named section surface, in file order.
+        let by_line: std::collections::HashMap<&str, &crate::civil::ImportedSection> = d.imported.iter().map(|s| (s.line.as_str(), s)).collect();
+        for v in &mut views {
+            if let Some(sec) = by_line.get(v.line.name.as_str()) {
+                let mut file_lines: Vec<afrobim_corridor::SurfaceLine> = sec
+                    .surfaces
+                    .iter()
+                    .map(|s| afrobim_corridor::SurfaceLine { surface: format!("{}{}", s.name, crate::civil_sections::FILE_TAG), runs: s.runs.iter().map(|r| r.iter().map(|p| (p[0], p[1])).collect()).collect() })
+                    .collect();
+                file_lines.append(&mut v.ground_lines);
+                v.ground_lines = file_lines;
+            }
+        }
+    }
+    Ok(views)
 }
 
 pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
@@ -245,6 +265,12 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         sc.notes.push("There are no section views to draw: add sample lines and a surface.".into());
         return Ok(Built { scene: sc, ..Default::default() });
     }
+    let diffs = if d.compare { crate::civil_sections::compare_views(&views) } else { Vec::new() };
+    if d.compare {
+        for line in crate::civil_sections::summary(&diffs) {
+            sc.derived.push(("Comparison".into(), line));
+        }
+    }
     let (cell_w, cell_h) = (swath_w + 8.0, (zhi - zlo) * ex + 6.0);
     let step = nice_step((zhi - zlo).max(1e-3) / 3.0);
     for (k, v) in views.iter().enumerate() {
@@ -263,11 +289,18 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
             z += step;
         }
         for gl in &v.ground_lines {
+            // The file's lines are drawn in the ground colour, AfroBIM's own cut over them in the
+            // comparison colour; the design lines of a file (Top, Datum) are warmer.
+            let rgb = if gl.surface.ends_with(crate::civil_sections::OWN_TAG) { [0xE0, 0x4F, 0xC0] } else if gl.surface.ends_with(crate::civil_sections::FILE_TAG) && !gl.surface.to_ascii_lowercase().contains("ogl") && !gl.surface.to_ascii_lowercase().contains("ground") { [0xC9, 0x8A, 0x2B] } else { C_GROUND };
+            let w = if gl.surface.ends_with(crate::civil_sections::OWN_TAG) { 1.0 } else { 1.6 };
             for run in &gl.runs {
                 if run.len() >= 2 {
-                    sc.lines.push(SLine::new(run.iter().map(|p| [px(p.0), py(p.1)]).collect(), C_GROUND, 1.6));
+                    sc.lines.push(SLine::new(run.iter().map(|p| [px(p.0), py(p.1)]).collect(), rgb, w));
                 }
             }
+        }
+        if let Some(d) = diffs.iter().find(|x| x.station_m == v.line.station_m) {
+            sc.texts.push(SText { at: [(x0 + cell_w - 1.5) * 1000.0, (y0 + cell_h - 1.2) * 1000.0], text: format!("max {:.1} mm", d.max_diff_m * 1000.0), rgb: [0xE0, 0x4F, 0xC0], height_mm: 0.0, px: 9.5, anchor: 2, prio: 4, halo: false });
         }
         // Point cloud slices: the points within half the thickness of the sample line.
         for set in &d.slices {

@@ -26,6 +26,9 @@ mod civil_profile;
 mod civil_quantities;
 mod civil_surface;
 mod civil_scene;
+mod civil_super;
+mod civil_check;
+mod civil_sections;
 mod civil_tree;
 mod civil_ui;
 mod civil_pipes;
@@ -47,6 +50,8 @@ mod defaults_glue;
 mod a1_tests;
 #[cfg(test)]
 mod a2_tests;
+#[cfg(test)]
+mod a3_tests;
 mod alignment_glue;
 mod anno_glue;
 mod anno_ui;
@@ -255,6 +260,8 @@ pub struct Options {
     pub click: Option<String>,
     /// Open the LandXML import dialog on this file at start-up (instead of importing at once).
     pub landxml_dialog: Option<PathBuf>,
+    /// Import everything a LandXML file holds, with its coordinate system and without the dialog.
+    pub landxml_all: Option<PathBuf>,
     /// Open the survey points dialog on this file at start-up.
     pub survey_dialog: Option<PathBuf>,
 }
@@ -329,6 +336,7 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--scale" => o.scale = args.next().and_then(|v| v.parse().ok()),
             "--workspace" => o.workspace = args.next(),
             "--click" => o.click = args.next(),
+            "--landxml-all" => o.landxml_all = args.next().map(PathBuf::from),
             "--landxml-dialog" => o.landxml_dialog = args.next().map(PathBuf::from),
             "--survey-dialog" => o.survey_dialog = args.next().map(PathBuf::from),
             "--export-pack" => o.export_pack = args.next().map(PathBuf::from),

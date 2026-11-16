@@ -304,6 +304,19 @@ impl Frame {
     }
 }
 
+/// A mesh with more triangles than this is drawn batched (see `AfroBimApp::big_mesh`).
+const BIG_MESH_TRIANGLES: usize = 3000;
+
+fn r_of(c: u8, rec: Option<[u8; 3]>) -> u8 {
+    rec.map_or(c, |r| r[0])
+}
+fn g_of(c: u8, rec: Option<[u8; 3]>) -> u8 {
+    rec.map_or(c, |r| r[1])
+}
+fn b_of(c: u8, rec: Option<[u8; 3]>) -> u8 {
+    rec.map_or(c, |r| r[2])
+}
+
 /// Categories whose solids are modelled directly in site coordinates (X east, Y north, Z up from
 /// their site placement) and are shown only in the 3D site view, never on the design sheet.
 ///
@@ -506,6 +519,29 @@ impl AfroBimApp {
         let selected = self.doc.is_selected(e.id);
         let both_sides = is_site_solid(&e.category);
         for mesh in solids {
+            // A large mesh (a ground surface of tens of thousands of triangles) is one batched
+            // mesh, sorted and culled, instead of one shape per triangle (see `big_mesh`).
+            if mesh.triangles.len() > BIG_MESH_TRIANGLES {
+                let base = [r_of(mesh.colour[0], record_rgb), g_of(mesh.colour[1], record_rgb), b_of(mesh.colour[2], record_rgb)];
+                let tint = |c: Color32| -> Color32 {
+                    let mut colour = c;
+                    if selected {
+                        colour = Color32::from_rgb(colour.r() / 2 + 0x26, colour.g() / 2 + 0x51, colour.b() / 2 + 0x7F);
+                    }
+                    match style {
+                        crate::schedule_ui::FourD::Active => colour = Color32::from_rgb(colour.r() / 3 + 0xA0, colour.g() / 3 + 0x70, colour.b() / 6 + 0x10),
+                        crate::schedule_ui::FourD::Ghost => colour = Color32::from_rgba_unmultiplied(colour.r(), colour.g(), colour.b(), 70),
+                        _ => {}
+                    }
+                    if highlighted {
+                        colour = Color32::from_rgb(0xE0, 0x3C, 0xC8);
+                    }
+                    colour
+                };
+                let backdrop = if crate::modules_glue::is_surface(&e.category) { 1.0e12 } else { 0.0 };
+                self.big_mesh(mesh, base, &tint, frame, rect, light, backdrop, items);
+                continue;
+            }
             for t in &mesh.triangles {
                 let p: Vec<V3> = t.iter().map(|i| mesh.vertices[*i as usize]).map(|v| frame.at(v[0], v[1], v[2])).collect();
                 let normal = norm(cross(sub(p[1], p[0]), sub(p[2], p[0])));
@@ -552,6 +588,94 @@ impl AfroBimApp {
                 items.push((depth, vec![Shape::mesh(tri)]));
                 }
             }
+        }
+    }
+
+    /// A mesh of many triangles as a few batched egui meshes. The vertices are put in view space
+    /// once; a triangle wholly outside the view, or smaller than a fraction of a pixel, is left
+    /// out (the level of detail follows the zoom without a second mesh); a triangle that reaches
+    /// behind the near plane is clipped as the per-triangle path does. The rest are sorted far to
+    /// near and flat-shaded, both sides lit as if facing the viewer.
+    #[allow(clippy::too_many_arguments)]
+    fn big_mesh(&self, mesh: &afrobim_draw::Mesh3, base: [u8; 3], tint: &dyn Fn(Color32) -> Color32, frame: Frame, rect: Rect, light: V3, backdrop: f64, items: &mut Vec<(f64, Vec<Shape>)>) {
+        let cam = &self.camera;
+        let near = cam.near();
+        let world: Vec<V3> = mesh.vertices.iter().map(|v| frame.at(v[0], v[1], v[2])).collect();
+        let view: Vec<V3> = world.iter().map(|w| cam.to_view(*w)).collect();
+        let screen: Vec<Option<Pos2>> = view.iter().map(|v| (v[2] > near).then(|| cam.view_to_screen(*v, rect))).collect();
+        let margin = rect.expand(40.0);
+        // (depth, triangle index) of what is drawn whole; the clipped ones go to `pieces`.
+        let mut order: Vec<(f32, u32)> = Vec::with_capacity(mesh.triangles.len());
+        let mut pieces: Vec<(f64, [Pos2; 3], u32)> = Vec::new();
+        for (ti, t) in mesh.triangles.iter().enumerate() {
+            let (i0, i1, i2) = (t[0] as usize, t[1] as usize, t[2] as usize);
+            match (screen[i0], screen[i1], screen[i2]) {
+                (Some(a), Some(b), Some(c)) => {
+                    let (lo_x, hi_x) = (a.x.min(b.x).min(c.x), a.x.max(b.x).max(c.x));
+                    let (lo_y, hi_y) = (a.y.min(b.y).min(c.y), a.y.max(b.y).max(c.y));
+                    if hi_x < margin.left() || lo_x > margin.right() || hi_y < margin.top() || lo_y > margin.bottom() {
+                        continue;
+                    }
+                    let area2 = ((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)).abs();
+                    if area2 < 0.25 {
+                        continue;
+                    }
+                    order.push((((view[i0][2] + view[i1][2] + view[i2][2]) / 3.0) as f32, ti as u32));
+                }
+                _ => {
+                    for piece in clip_triangle_near([view[i0], view[i1], view[i2]], near) {
+                        let pos: Vec<Pos2> = piece.iter().map(|v| cam.view_to_screen(*v, rect)).collect();
+                        let depth = (piece[0][2] + piece[1][2] + piece[2][2]) / 3.0;
+                        pieces.push((depth, [pos[0], pos[1], pos[2]], ti as u32));
+                    }
+                }
+            }
+        }
+        order.sort_by(|a, b| b.0.total_cmp(&a.0));
+        let eye = cam.eye();
+        let shade_of = |ti: u32| -> Color32 {
+            let t = mesh.triangles[ti as usize];
+            let (p0, p1, p2) = (world[t[0] as usize], world[t[1] as usize], world[t[2] as usize]);
+            let mut n = norm(cross(sub(p1, p0), sub(p2, p0)));
+            if dot(n, sub(eye, p0)) < 0.0 {
+                n = [-n[0], -n[1], -n[2]];
+            }
+            let shade = (0.45 + 0.55 * dot(n, light).max(0.0)) as f32;
+            tint(Color32::from_rgb((base[0] as f32 * shade) as u8, (base[1] as f32 * shade) as u8, (base[2] as f32 * shade) as u8))
+        };
+        // The clipped pieces, far to near, are drawn after the whole triangles.
+        pieces.sort_by(|a, b| b.0.total_cmp(&a.0));
+        let mut shapes: Vec<Shape> = Vec::new();
+        let mut batch = egui::Mesh::default();
+        let flush = |batch: &mut egui::Mesh, shapes: &mut Vec<Shape>| {
+            if !batch.vertices.is_empty() {
+                shapes.push(Shape::mesh(std::mem::take(batch)));
+            }
+        };
+        let push = |batch: &mut egui::Mesh, shapes: &mut Vec<Shape>, pts: [Pos2; 3], colour: Color32| {
+            let at = batch.vertices.len() as u32;
+            for q in pts {
+                batch.vertices.push(egui::epaint::Vertex { pos: q, uv: egui::epaint::WHITE_UV, color: colour });
+            }
+            batch.indices.extend_from_slice(&[at, at + 1, at + 2]);
+            if batch.vertices.len() > 60_000 {
+                flush(batch, shapes);
+            }
+        };
+        for (_, ti) in &order {
+            let t = mesh.triangles[*ti as usize];
+            let pts = [screen[t[0] as usize].unwrap_or_default(), screen[t[1] as usize].unwrap_or_default(), screen[t[2] as usize].unwrap_or_default()];
+            let c = shade_of(*ti);
+            push(&mut batch, &mut shapes, pts, c);
+        }
+        // The triangles that reach behind the near plane are the nearest: last.
+        for (_, pts, ti) in &pieces {
+            let c = shade_of(*ti);
+            push(&mut batch, &mut shapes, *pts, c);
+        }
+        flush(&mut batch, &mut shapes);
+        if !shapes.is_empty() {
+            items.push((backdrop + 1.0e6, shapes));
         }
     }
 

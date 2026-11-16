@@ -74,7 +74,7 @@ pub const STATUSES: [&str; 4] = ["Draft", "For review", "Approved", "Superseded"
 
 static REV: AtomicU64 = AtomicU64::new(1);
 
-fn next_rev() -> u64 {
+pub fn next_rev() -> u64 {
     REV.fetch_add(1, Ordering::Relaxed)
 }
 
@@ -225,6 +225,28 @@ pub struct SampleData {
     /// Point cloud slices drawn in the section views.
     #[serde(default)]
     pub slices: Vec<SliceSet>,
+    /// Sections read from a LandXML file: the file's own named section surfaces at each line.
+    #[serde(default)]
+    pub imported: Vec<ImportedSection>,
+    /// Comparison mode for imported sections: AfroBIM's own cut of `surfaces` is drawn over the
+    /// file's lines and the largest level difference per station is reported.
+    #[serde(default)]
+    pub compare: bool,
+}
+
+/// One cross-section of a LandXML file: the sample line it belongs to and its named surfaces, as
+/// runs of (offset, level) in metres, offsets negative to the left.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ImportedSection {
+    pub line: String,
+    pub station_m: f64,
+    pub surfaces: Vec<ImportedSectionSurface>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ImportedSectionSurface {
+    pub name: String,
+    pub runs: Vec<Vec<[f64; 2]>>,
 }
 
 // ─── element helpers ──────────────────────────────────────────────────────

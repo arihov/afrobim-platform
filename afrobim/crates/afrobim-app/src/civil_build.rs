@@ -446,6 +446,13 @@ fn build_profile(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         s.derived.push(("Lowest (m)".into(), format!("{lo:.3}")));
         s.derived.push(("Highest (m)".into(), format!("{hi:.3}")));
     }
+    if !d.imported.is_empty() && d.surface != 0 {
+        if let (Some(tin), Some(al)) = (ctx.tin(d.surface), ctx.alignment_named(&d.alignment)) {
+            let c = crate::civil_sections::compare_profile(&al, &d.imported, &tin);
+            let name = ctx.element(d.surface).map(|e| e.name.clone()).unwrap_or_default();
+            s.derived.push(("Against AfroBIM's own profile".into(), format!("largest difference {:.1} mm at station {:.3} ({} stations compared, {} off the surface {name})", c.max_diff_m * 1000.0, c.at_station_m, c.compared, c.off_surface)));
+        }
+    }
     let off = pts.iter().filter(|p| p.1.is_none()).count();
     if off > 0 {
         s.notes.push(format!("{off} sample station(s) are off the surface and have no level."));

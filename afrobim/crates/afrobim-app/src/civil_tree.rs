@@ -307,13 +307,13 @@ impl AfroBimApp {
             let samples = self.rows(SAMPLES);
             self.node(ui, "ts-align", ph::PATH, "Alignments", aligns.len(), None, &mut acts, |ui, acts| {
                 for r in &aligns {
-                    let name = crate::alignment_glue::alignment_of(&self.doc, r.id).map(|a| a.name).unwrap_or_default();
+                    // Read from the JSON as it is: a full decode of every object per frame is what made the tree slow on a real project.
+                    let (name, has_design) = self.doc.find(r.id).map(|e| (e.data.get("name").and_then(|n| n.as_str()).unwrap_or_default().to_string(), e.data.get("profile").is_some_and(|p| !p.is_null()))).unwrap_or_default();
                     egui::CollapsingHeader::new(crate::theme::icon_text(ph::PATH, &r.name, 13.0, ui.visuals().text_color())).id_salt(("align", r.id.0)).default_open(true).show(ui, |ui| {
                         let mine = |rows: &[Row], f: &dyn Fn(&afrobim_kernel::Element) -> bool| -> Vec<usize> { rows.iter().enumerate().filter(|(_, row)| self.doc.find(row.id).is_some_and(f)).map(|(i, _)| i).collect() };
-                        let ps = mine(&profiles, &|e| civil::get::<ProfileData>(&self.doc, e.id, PROFILE).is_some_and(|d| d.alignment == name));
-                        let vs = mine(&views, &|e| civil::get::<ProfileViewData>(&self.doc, e.id, PROFILE_VIEW).is_some_and(|d| d.alignment == name));
-                        let ss = mine(&samples, &|e| civil::get::<SampleData>(&self.doc, e.id, SAMPLES).is_some_and(|d| d.group.alignment == name));
-                        let has_design = crate::alignment_glue::alignment_of(&self.doc, r.id).is_some_and(|a| a.profile.is_some());
+                        let ps = mine(&profiles, &|e| e.data.get("alignment").and_then(|a| a.as_str()) == Some(name.as_str()));
+                        let vs = mine(&views, &|e| e.data.get("alignment").and_then(|a| a.as_str()) == Some(name.as_str()));
+                        let ss = mine(&samples, &|e| e.data.get("group").and_then(|g| g.get("alignment")).and_then(|a| a.as_str()) == Some(name.as_str()));
                         let mut sub = |title: &str, icon: &str, rows: &[Row], idx: Vec<usize>, extra: Option<&str>| {
                             egui::CollapsingHeader::new(crate::theme::icon_text(icon, &format!("{title} ({})", idx.len() + extra.is_some() as usize), 12.0, ui.visuals().text_color())).id_salt((title, r.id.0)).default_open(true).show(ui, |ui| {
                                 if let Some(x) = extra {
@@ -606,6 +606,20 @@ pub fn civil_panel(ui: &mut Ui, e: &mut afrobim_kernel::Element) -> (bool, Optio
         ui.label(RichText::new(crate::civil_ifc::mapping_note(&e.category)).small().weak());
         ui.end_row();
     });
+    if e.category == SAMPLES {
+        if let Ok(mut sd) = serde_json::from_value::<crate::civil::SampleData>(e.data.clone()) {
+            if !sd.imported.is_empty() {
+                let before = sd.compare;
+                crate::ui_kit::toggle(ui, &mut sd.compare, "Compare with AfroBIM's own cut of the same surfaces");
+                crate::ui_kit::note(ui, format!("{} imported section(s). The file's lines come from the file; the comparison cuts the document surfaces named like them at the same stations and reports the largest level difference per station under Derived.", sd.imported.len()));
+                if sd.compare != before {
+                    e.data = serde_json::to_value(&sd).unwrap_or_default();
+                    e.properties.insert(PROP_REV.into(), crate::civil::next_rev().to_string());
+                    changed = true;
+                }
+            }
+        }
+    }
     if let Some(cv) = edit_command(&e.category) {
         ui.horizontal(|ui| {
             if ui.button(format!("{}  Edit...", ph::PENCIL_SIMPLE)).clicked() {

@@ -211,18 +211,23 @@ fn display_mesh(tin: &Tin, triangle_cap: usize) -> (Mesh3, Shown) {
     let mm = |p: [f64; 3]| [(p[0] - b.min_x) * 1000.0, (p[1] - b.min_y) * 1000.0, p[2] * 1000.0];
     let mut mesh = Mesh3 { name: "Ground surface".to_string(), vertices: Vec::new(), triangles: Vec::new(), colour: GROUND_RGB };
     if tin.triangles().len() <= triangle_cap {
-        mesh.vertices = tin.points().iter().map(|p| mm(*p)).collect();
+        // Only the points a triangle uses: a stray point of the source (one that every face on it
+        // hides) is not a vertex of the mesh, so it cannot stretch the framing of the 3D view.
+        let mut renumber: Vec<u32> = vec![u32::MAX; tin.points().len()];
         mesh.triangles = tin
             .triangles()
             .iter()
             .map(|t| {
                 let [p, q, r] = t.map(|i| tin.points()[i as usize]);
                 let ccw = (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]) > 0.0;
-                if ccw {
-                    *t
-                } else {
-                    [t[0], t[2], t[1]]
-                }
+                let t = if ccw { *t } else { [t[0], t[2], t[1]] };
+                t.map(|i| {
+                    if renumber[i as usize] == u32::MAX {
+                        renumber[i as usize] = mesh.vertices.len() as u32;
+                        mesh.vertices.push(mm(tin.points()[i as usize]));
+                    }
+                    renumber[i as usize]
+                })
             })
             .collect();
         return (mesh, Shown::Whole);

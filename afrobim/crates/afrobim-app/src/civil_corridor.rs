@@ -487,7 +487,7 @@ impl AfroBimApp {
                 if !f.name.trim().is_empty() {
                     group.name = f.name.trim().to_string();
                 }
-                let data = SampleData { group, corridor: f.corridor.map(|c| c.0), surfaces: f.surfaces.iter().map(|s| s.0).collect(), insertion: [f.e.trim().parse().unwrap_or(0.0), f.n.trim().parse().unwrap_or(0.0)], columns: f.columns.trim().parse().unwrap_or(1), vertical_exaggeration: f.exaggeration.trim().parse().unwrap_or(1.0), slices: vec![] };
+                let data = SampleData { group, corridor: f.corridor.map(|c| c.0), surfaces: f.surfaces.iter().map(|s| s.0).collect(), insertion: [f.e.trim().parse().unwrap_or(0.0), f.n.trim().parse().unwrap_or(0.0)], columns: f.columns.trim().parse().unwrap_or(1), vertical_exaggeration: f.exaggeration.trim().parse().unwrap_or(1.0), slices: vec![], imported: vec![], compare: false };
                 let v = serde_json::to_value(&data).unwrap_or_default();
                 let b = al.as_ref().and_then(|a| Bounds::of(a.polyline(5.0).into_iter()));
                 let name = if f.name.trim().is_empty() { "Sample lines".to_string() } else { f.name.trim().to_string() };
