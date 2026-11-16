@@ -313,7 +313,15 @@ impl<'a> Imp<'a> {
             .and_then(|u| self.unit_factor_mm(&u, 0))
             .map(|(mm, _)| mm)
             .unwrap_or(self.unit_mm);
+        let crs = self.ent(&self.a(&e, "TargetCRS"));
+        let text = |n: &str| crs.as_ref().and_then(|c| self.a(c, n).as_str().map(str::to_string)).filter(|t| !t.trim().is_empty());
         Some(MapConversion {
+            crs_name: text("Name"),
+            crs_description: text("Description"),
+            geodetic_datum: text("GeodeticDatum"),
+            vertical_datum: text("VerticalDatum"),
+            map_projection: text("MapProjection"),
+            map_zone: text("MapZone"),
             eastings: num("Eastings", 0.0),
             northings: num("Northings", 0.0),
             orthogonal_height: num("OrthogonalHeight", 0.0),

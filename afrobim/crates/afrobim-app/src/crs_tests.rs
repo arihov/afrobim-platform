@@ -196,3 +196,55 @@ fn the_import_check_names_each_trouble() {
     assert!(kinds(Some(&p36s), ext(1_476_000.0, 1_477_300.0, 32_680_000.0, 32_681_300.0)).contains(&FindingKind::LikelyFeet));
     assert!(kinds(Some(&p36s), ext(450_000.0, 450_400.0, 35_000.0, 35_400.0)).contains(&FindingKind::OutsideValidArea));
 }
+
+#[test]
+fn an_ifc_export_with_a_crs_imports_back_at_source_coordinates_and_passes_the_check() {
+    use afrobim_kernel::SitePlacement;
+    let (e0, n0) = (450_123.456, 9_960_012.345);
+    let mut doc = Document::default();
+    let id = doc.add("sign", "S-1", Pt::new(0.0, 0.0), 600.0, 600.0, "Signs", serde_json::json!({}));
+    doc.find_mut(id).unwrap().site = Some(SitePlacement { x: e0 * 1000.0, y: n0 * 1000.0, z: 0.0, rotation_deg: 0.0, alignment: None, station_m: None, offset_m: None });
+    let crs = afrobim_kernel::ProjectCrs::from_epsg(32736).unwrap();
+    let inputs: Vec<_> = doc.elements().iter().map(|e| afrobim_ifc::IfcElementInput { element: e, generated: None }).collect();
+    let options = afrobim_ifc::IfcOptions { timestamp: Some(0), georeference: crs_ui::georeference_of(Some(&crs)), ..Default::default() };
+    let text = afrobim_ifc::export_ifc_model(&doc, &inputs, &options).text;
+    let dir = std::env::temp_dir().join(format!("afrobim-u2-ifc-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("geo.ifc");
+    std::fs::write(&path, text).unwrap();
+
+    // Applied (the default): the model is at its map coordinates, in millimetres.
+    let read = |apply: bool| match crate::reference_models::read_file(&path, apply) {
+        crate::reference_models::ReadOutcome::Read { model, .. } => *model,
+        crate::reference_models::ReadOutcome::Failed(why) => panic!("{why}"),
+    };
+    assert!(crate::reference_models::RefUi::new().apply_map_conversion, "applied by default");
+    let applied = read(true);
+    let (lo, hi) = applied.bounds().unwrap();
+    assert!((lo[0] - e0 * 1000.0).abs() < 1.0 && (lo[1] - n0 * 1000.0).abs() < 1.0, "{lo:?}");
+    assert!(hi[0] - lo[0] < 700.0, "the plate is 600 mm wide");
+    // Not applied: the file's own coordinates, near the local origin the exporter chose.
+    let local = read(false);
+    assert!(local.bounds().unwrap().0[0].abs() < 2.0e6);
+    // The declared system and the check against the project.
+    let declared = crate::reference_models::declared_crs(&applied).unwrap();
+    assert_eq!((declared.epsg, declared.horizontal_datum.as_str()), (Some(32736), "WGS 84"));
+    let lines = crate::reference_models::crs_lines(&applied, true, applied.bounds(), Some(&crs)).join("\n");
+    assert!(lines.contains("the same system as the project"), "{lines}");
+    let other = afrobim_kernel::ProjectCrs::from_epsg(32636).unwrap();
+    let lines = crate::reference_models::crs_lines(&applied, true, applied.bounds(), Some(&other)).join("\n");
+    assert!(lines.contains("CHECK:") && lines.contains("Nothing is reprojected"), "{lines}");
+}
+
+#[test]
+fn a_typed_easting_and_northing_is_read_in_metres_at_true_magnitude() {
+    let units = afrobim_annotate::DisplayUnits::default();
+    let crs = afrobim_kernel::ProjectCrs::from_epsg(32736).unwrap();
+    let p = crate::anno_glue::parse_point_crs("450123.456,9960012.345", None, &units, Some(&crs)).unwrap();
+    near(p, 450_123.456, 9_960_012.345, "typed E,N");
+    // Relative input stays in the display unit; with no system an absolute point is as before.
+    let q = crate::anno_glue::parse_point_crs("@1,2", Some(p), &units, Some(&crs)).unwrap();
+    assert!((q.x - p.x - units.parse_length("1").unwrap()).abs() < 1e-6);
+    let plain = crate::anno_glue::parse_point_crs("3,4", None, &units, None).unwrap();
+    assert_eq!(plain, crate::anno_glue::parse_point("3,4", None, &units).unwrap());
+}

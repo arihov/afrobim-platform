@@ -90,6 +90,41 @@ pub struct IfcOptions {
     /// the first behaviour: a 2D polyline as the geometry, absolute placements. See
     /// [`AlignmentExport`].
     pub alignment: AlignmentExport,
+    /// The project coordinate system, to write `IfcProjectedCRS` and `IfcMapConversion`. `None`
+    /// writes the file as before: no coordinate reference, placements at the site numbers.
+    pub georeference: Option<IfcGeoreference>,
+}
+
+/// The coordinate reference system of the project, as the IFC file states it.
+///
+/// Written as `IfcProjectedCRS` (IFC 4.3: Name, Description, GeodeticDatum, VerticalDatum,
+/// MapProjection, MapZone, MapUnit) and an `IfcMapConversion` from the file's geometric
+/// representation context to it (SourceCRS, TargetCRS, Eastings, Northings, OrthogonalHeight,
+/// XAxisAbscissa, XAxisOrdinate, Scale). Attribute order checked against the IFC4X3_ADD2 schema
+/// in IfcOpenShell and the buildingSMART sample files.
+///
+/// **Local origin.** A UTM coordinate such as 9 960 012 345 mm written into a file makes viewers
+/// that keep positions in 32-bit floats place the model with centimetre or worse accuracy. So the
+/// exporter writes geometry near a local origin and says in `IfcMapConversion` where that origin
+/// is. The rule: `origin` when given (easting and northing in metres, orthogonal height in
+/// metres); otherwise the least easting and least northing of everything with a position on the
+/// site (placements, alignment elements) rounded down to a whole kilometre, at height 0. Levels are
+/// not shifted. Every position in the file is then the model position minus that origin; nothing is
+/// rotated or scaled, and the map conversion adds the origin back.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct IfcGeoreference {
+    /// `IfcProjectedCRS.Name`: the EPSG code as `EPSG:32736` when there is one.
+    pub name: String,
+    /// `IfcProjectedCRS.Description`, e.g. `EPSG:32736 - WGS 84 / UTM zone 36S`.
+    pub description: Option<String>,
+    pub geodetic_datum: Option<String>,
+    pub vertical_datum: Option<String>,
+    /// `MapProjection`, e.g. `UTM`, where the system is one the application knows.
+    pub map_projection: Option<String>,
+    /// `MapZone`, e.g. `36S`.
+    pub map_zone: Option<String>,
+    /// The local origin in the CRS: easting, northing, orthogonal height, metres. `None`: chosen by the rule above.
+    pub origin: Option<[f64; 3]>,
 }
 
 /// What [`export_ifc_model`] writes for an alignment, and how it places the elements that carry
@@ -135,6 +170,7 @@ impl Default for IfcOptions {
             plate_thickness_mm: 3.0,
             artwork_offset_mm: 0.1,
             alignment: AlignmentExport::Simple,
+            georeference: None,
         }
     }
 }
@@ -245,6 +281,8 @@ struct Plan {
     road: bool,
     /// A cubic metre in the unit assignment, for volume quantities.
     volume_unit: bool,
+    /// The local origin (metres: easting, northing, height) to write with the CRS, and so to subtract.
+    georef_origin_m: Option<[f64; 3]>,
 }
 
 struct Writer<'a> {
@@ -273,6 +311,8 @@ struct Writer<'a> {
     reframed: BTreeMap<u32, rot::Rot>,
     thickness: f64,
     offset: f64,
+    /// Subtracted from every absolute site position (mm): the local origin of a georeferenced file.
+    shift_mm: [f64; 3],
 }
 
 impl<'a> Writer<'a> {
@@ -295,6 +335,7 @@ impl<'a> Writer<'a> {
             reframed: BTreeMap::new(),
             thickness: positive(options.plate_thickness_mm, 3.0),
             offset: positive(options.artwork_offset_mm, 0.1),
+            shift_mm: plan.georef_origin_m.map_or([0.0; 3], |o| [o[0] * 1000.0, o[1] * 1000.0, o[2] * 1000.0]),
         };
         let d = &mut w.data;
         let origin = d.add("IFCCARTESIANPOINT", "(0.,0.,0.)");
@@ -318,6 +359,18 @@ impl<'a> Writer<'a> {
         let site = d.add("IFCSITE", &format!("{site_guid},$,'Site',$,$,#{site_placement},$,$,.ELEMENT.,$,$,$,$,$"));
         let rel_guid = step_string(&global_id(&format!("{}/rel-aggregates", options.project_name)));
         d.add("IFCRELAGGREGATES", &format!("{rel_guid},$,$,$,#{project},(#{site})"));
+        if let (Some(g), Some(o)) = (&options.georeference, plan.georef_origin_m) {
+            // IfcProjectedCRS and the IfcMapConversion that places the file's origin in it. The
+            // file is in millimetres and the map unit is the metre: Scale is 0.001, the factor
+            // from file units to map units. XAxisAbscissa 1, XAxisOrdinate 0: no rotation.
+            let opt = |v: &Option<String>| v.as_ref().map_or("$".to_string(), |t| step_string(&clip(t)));
+            let map_unit = d.add("IFCSIUNIT", "*,.LENGTHUNIT.,$,.METRE.");
+            let crs = d.add(
+                "IFCPROJECTEDCRS",
+                &format!("{},{},{},{},{},{},#{map_unit}", step_string(&clip(&g.name)), opt(&g.description), opt(&g.geodetic_datum), opt(&g.vertical_datum), opt(&g.map_projection), opt(&g.map_zone)),
+            );
+            d.add("IFCMAPCONVERSION", &format!("#{context},#{crs},{},{},{},1.,0.,0.001", step_real(o[0]), step_real(o[1]), step_real(o[2])));
+        }
         w.container = site;
         w.container_placement = site_placement;
         w.site = site;

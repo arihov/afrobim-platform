@@ -58,6 +58,9 @@ impl AfroBimApp {
             ui.add_space(4.0);
             ui.label(RichText::new("The choice is kept in the document. Simple is the default and what earlier versions wrote.").small().weak());
             ui.add_space(6.0);
+            ui.label(RichText::new("Coordinate reference").strong());
+            ui.add(egui::Label::new(RichText::new(crate::crs_ui::export_statement(afrobim_kernel::project_crs(&self.doc).as_ref())).small().weak()).wrap());
+            ui.add_space(6.0);
             ui.horizontal(|ui| {
                 if ui.button("Choose the file and export…").clicked() {
                     export = true;

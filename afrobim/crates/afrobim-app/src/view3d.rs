@@ -535,6 +535,10 @@ impl AfroBimApp {
 
     /// World points that frame one element (its solids' corners, or the corners of its plate).
     pub(crate) fn element_points(&self, e: &afrobim_kernel::Element, site_mode: bool) -> Vec<V3> {
+        // Records at the model origin (project and annotation settings) are not geometry.
+        if e.category == afrobim_kernel::PROJECT_SETTINGS_CATEGORY || e.category == afrobim_annotate::SETTINGS_CATEGORY {
+            return Vec::new();
+        }
         let Some(frame) = self.frame_of(e, site_mode) else { return Vec::new() };
         if is_site_solid(&e.category) {
             // The corners of the solids themselves, so that levels well above zero are framed.
@@ -771,7 +775,7 @@ impl AfroBimApp {
         let label = if dark { Color32::from_rgb(0xA8, 0xB0, 0xBA) } else { Color32::from_rgb(0x50, 0x55, 0x5C) };
         let mut items: Vec<(f64, Vec<Shape>)> = Vec::new();
 
-        for e in self.doc.elements() {
+        for e in self.doc.elements().iter().filter(|e| e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY) {
             if e.category == crate::alignment_glue::CATEGORY {
                 // The centreline on the ground, in the site view only.
                 if site_mode {

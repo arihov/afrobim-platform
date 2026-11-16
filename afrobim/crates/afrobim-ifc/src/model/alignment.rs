@@ -858,7 +858,15 @@ impl Model<'_> {
 
     /// [`Model::root_placement_on`] for an element's own site placement.
     pub(super) fn root_placement(&mut self, e: &Element, pose: Pose) -> u32 {
+        // A site pose is moved by the local origin of a georeferenced file; a sheet pose is not.
+        let pose = if super::valid_site(e).is_some() { self.shifted(pose) } else { pose };
         self.root_placement_on(site_link(e), pose)
+    }
+
+    /// `pose` (a site position, mm) relative to the local origin of the file.
+    pub(super) fn shifted(&self, pose: Pose) -> Pose {
+        let s = self.w.shift_mm;
+        Pose { x: pose.x - s[0], y: pose.y - s[1], z: pose.z - s[2], rotation_deg: pose.rotation_deg }
     }
 
     fn linear_placement(&mut self, link: &Link, pose: Pose) -> Option<u32> {

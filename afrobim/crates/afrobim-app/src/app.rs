@@ -198,7 +198,7 @@ impl AfroBimApp {
             checks: CheckUi::default(),
             design: Default::default(),
             issues: Default::default(),
-            refs: Default::default(),
+            refs: crate::reference_models::RefUi::new(),
             vis: Default::default(),
             photo: Default::default(),
             pack: Default::default(),
@@ -886,6 +886,7 @@ impl AfroBimApp {
             project_name: project,
             application: format!("AfroBIM {}", env!("CARGO_PKG_VERSION")),
             alignment: crate::ifc_options::mode_of(&self.doc),
+            georeference: crate::crs_ui::georeference_of(afrobim_kernel::project_crs(&self.doc).as_ref()),
             ..afrobim_ifc::IfcOptions::default()
         };
         let export = afrobim_ifc::export_ifc_model(&self.doc, &inputs, &options);
@@ -1558,7 +1559,7 @@ impl AfroBimApp {
             // A typed point or offset is read in the document's length unit (a bare number is in
             // that unit); the controller works in millimetres, so it is handed the millimetres.
             let units = crate::anno_ui::units_of(&self.doc);
-            let text = match crate::anno_glue::parse_point(&text, self.ctl.base_point(), &units) {
+            let text = match crate::anno_glue::parse_point_crs(&text, self.ctl.base_point(), &units, afrobim_kernel::project_crs(&self.doc).as_ref()) {
                 Some(p) if text.chars().any(|c| c.is_ascii_digit()) => format!("{},{}", p.x, p.y),
                 _ => text,
             };

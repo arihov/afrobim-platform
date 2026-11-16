@@ -1078,7 +1078,7 @@ impl Model<'_> {
         for (index, c) in data.layout.columns.iter().enumerate() {
             let base = Pose { x: c.easting_m * 1000.0, y: c.northing_m * 1000.0, z: c.level_m.unwrap_or(0.0) * 1000.0, rotation_deg: 0.0 };
             let link = (!alignment.is_empty()).then(|| super::alignment::Link { alignment: alignment.clone(), station_m: c.station_m, offset_m: c.offset_m });
-            let placement = self.root_placement_on(link, base);
+            let placement = self.root_placement_on(link, self.shifted(base));
             let owner = format!("element/{}/column/{}", e.id.0, index + 1);
             let assembly = self.make("IFCELEMENTASSEMBLY", &self.w.guid(&owner), &c.mark, Some(&format!("Lighting column, {}", c.side.label())), None, placement, None, &format!("{}.{}", e.id.0, index + 1), true, "MAST");
             let luminaires = c.bracket_directions_rad.len();

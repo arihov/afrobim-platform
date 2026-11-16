@@ -143,6 +143,15 @@ area of use, likely swapped easting and northing, likely millimetres (values div
 fit), likely feet (values times 0.3048 fit). The unit and swap heuristics only run when the
 projection is implemented; for a named-only system the result is `CannotCheck`.
 
+### Additions (U2)
+
+`ProjectCrs::utm_wgs84(zone, south)`, `ProjectCrs::search(query, limit)` (an EPSG code prefix or part
+of a name, case and spacing ignored), `ProjectCrs::doubts(min, max)` (the UTM plausibility
+sentences the survey import used to get from its own type), `clear_project_crs`. A `ProjectCrs` reads
+the old corridor value `{"epsg": 32736, "name": "WGS 84 / UTM zone 36S"}` (no `kind`) as the system
+the kernel knows by that code, or as named-only. `afrobim-corridor` no longer has a type of its own:
+`CoordinateSystem` is this type.
+
 ### Limits, stated plainly
 
 * **No datum shift.** Arc 1960 and WGS 84 are different datums. The epsg.io WKT lists a three
@@ -167,19 +176,51 @@ projection is implemented; for a named-only system the result is `CannotCheck`.
 * The unit heuristics cannot tell a US survey foot from an international foot (2 parts per million).
 * Metric only: `LinearUnit` has one value.
 
-## View: no fixed zoom limit
+## View: no fixed zoom limit, exact at true coordinates
 
 `ViewTransform::MIN_SCALE` and `MAX_SCALE` are gone. The remaining guards keep `scale` finite
-and inside 1e-24 to 1e24 px/mm (`GUARD_MIN_SCALE`, `GUARD_MAX_SCALE`, far beyond any view) and the
-origin finite; a zoom or pan that would break them is ignored. `zoom_to_bounds` (also on the
+and inside 1e-24 to 1e24 px/mm (`GUARD_MIN_SCALE`, `GUARD_MAX_SCALE`, far beyond any view) and every
+stored number finite; a zoom or pan that would break them is ignored. `zoom_to_bounds` (also on the
 controller, with a margin), `CanvasController::zoom_to_selection`, and ZOOM Previous
 (`remember_view`, `zoom_previous`, last 50 views; zoom window and zoom to selection record
 themselves, a front end calls `remember_view` before `zoom_extents`, which takes `&self`).
 
-Precision: the view stores the screen position of the model origin, so far from the model origin
-at a high zoom the f64 spacing of `origin + world * scale` matters. Tested at x = 5e8 mm, y = 1e10
-mm: the round trip stays within a tenth of a pixel up to 1.5e5 px/mm (one millimetre across 150 000
-px), well past one model millimetre covering the screen; a 10 000 km extent fits and round trips
-to a micrometre. Much deeper than that at that position the f64 spacing exceeds a pixel and
-drawing is no longer exact. That is a property of f64 and of storing the origin in pixels, not a
-limit this crate sets.
+### How the view holds its position
+
+The view stores one model point, the **anchor** (`anchor_x`, `anchor_y`, millimetres, f64), and the
+screen position of that point (`screen_x`, `screen_y`, pixels):
+
+    screen = screen_anchor + (world - anchor) * scale
+
+A screen position is computed from the difference between a model position and the anchor, never
+from the model position alone, so precision does not depend on distance from (0, 0). Zooming about
+the cursor makes the model point under the cursor the new anchor. Panning moves the screen position
+of the anchor and, once it has wandered 1e5 px, moves the anchor instead (`RENORMALISE_PX`).
+`to_screen_local(origin, local)` places element-local coordinates by `(origin - anchor) + local`, so a
+mesh held as element-local numbers is placed without adding a small number to a large one.
+`from_origin` and `centred_on` build views; `origin_x()` and `origin_y()` give the old pixel origin
+for display only.
+
+### The limit, stated
+
+The only rounding is the spacing of f64 at the model coordinate: `2.2e-16 * |coordinate|`, which is
+1.9e-6 mm at 1e10 mm (a UTM northing of 10 000 km) and 6e-8 mm at 5e8 mm. A point cannot be told
+from its neighbour closer than that, whatever the zoom. Tested at x = 5e8 mm, y = 1e10 mm:
+
+* zooming in about the cursor from 10 m across to past 1e5 px/mm keeps the model point under the
+  cursor within 1e-3 mm, and 1 mm fills a 1000 px screen with a pixel resolved to a thousandth of a
+  millimetre; a 1e-5 mm step at y = 1e10 mm is resolved to within one f64 spacing;
+* zooming out until a 10 000 km extent fits works; a model coordinate round trips within a
+  micrometre there;
+* panning a million pixels and back changes a position by less than 1e-3 px.
+
+Element meshes are tessellated in f32 relative to the element's lower-left corner, so a vertex is
+good to about 1e-7 of the element's size (0.5 mm on a 5 km alignment). That is display only; the
+element origin and the drawing coordinates the modules generate are f64, and the application's
+snaps and measures use those. When a view is zoomed so far in that part of an element is beyond
+4e5 px from the screen, the application clips triangles and lines to that box in f64 before
+converting to f32, so what is on screen keeps its shape.
+
+The 3D camera follows the same rule: `Camera::from_eye` forms `(p - target) + forward * distance`,
+so large coordinates cancel before anything small is added; the near plane is
+`distance * 1e-4`; the distance is guarded only for finite and positive.

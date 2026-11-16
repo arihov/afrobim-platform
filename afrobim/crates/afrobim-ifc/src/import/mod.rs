@@ -171,6 +171,14 @@ pub struct MapConversion {
     /// Millimetres per unit of the eastings, northings and height (the target CRS map unit, or
     /// the project length unit when the CRS gives none).
     pub unit_mm: f64,
+    /// `IfcProjectedCRS` of the target: `Name` (for example `EPSG:32736`) and the other attributes
+    /// the file gives, as the file wrote them.
+    pub crs_name: Option<String>,
+    pub crs_description: Option<String>,
+    pub geodetic_datum: Option<String>,
+    pub vertical_datum: Option<String>,
+    pub map_projection: Option<String>,
+    pub map_zone: Option<String>,
 }
 
 /// Geometry coverage and everything the reader skipped.

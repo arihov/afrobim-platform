@@ -204,15 +204,26 @@ The bottom panel shows the last three lines of the command history, then a promp
 
 From left to right the status bar holds:
 
-- the cursor position in millimetres (or in the display units you chose, see `UNITS`);
+- the cursor position: easting and northing in metres of the project coordinate system, or the model position in millimetres (or the display units you chose, see `UNITS`) when there is none;
 - the toggles **GRID** (F7), **SNAP** (F9), **ORTHO** (F8) and **OSNAP** (F3, object snap for the annotation commands, `MOVE`, `COPY`, element grips and placing a sign);
 - the **annotation scale** control, shown as `1:n`. New text, dimensions and leaders are sized for this scale. Existing annotation keeps its own scale;
 - **2D** and **3D** (the 3D site view);
 - **Real** or **Outlined** display;
 - the latest status message;
-- on the right: the selection ("No selection", the name and size of one element, or the number of elements selected), the scale as "1 px = x mm", and the module status (the standard name, or why the sign tools are unavailable).
+- on the right: the selection ("No selection", the name and size of one element, or the number of elements selected), the project coordinate system (or "No coordinate system", a button), the latitude and longitude of the cursor where the system allows, the scale as "1 px = x mm", and the module status (the standard name, or why the sign tools are unavailable).
 
-The segments never overlap. The message takes the width the right-hand read-outs leave. When the window is narrow the read-outs are dropped in a fixed order, least useful first: the scale, then the module status, then the selection; the message always stays and is cut with an ellipsis (`…`) to the width it has. A path in the message is shortened in the middle and keeps its file name (`/Users/anna/…/Untitled.afrobim`). Hold the pointer over a shortened message to read it in full.
+The segments never overlap. The message takes the width the right-hand read-outs leave. When the window is narrow the read-outs are dropped in a fixed order, least useful first: the scale, then the module status, then the latitude and longitude, then the selection, then the coordinate system; the message always stays and is cut with an ellipsis (`…`) to the width it has. A path in the message is shortened in the middle and keeps its file name (`/Users/anna/…/Untitled.afrobim`). Hold the pointer over a shortened message to read it in full.
+
+### Coordinate systems
+
+The **project coordinate system** is a setting of the document: it says what the numbers in the model mean. It is set in Project settings, on the **Coordinate system** tab (`CRS`, alias `COORDSYS`, or click the system name at the right of the status bar). A new document has none, asks nothing, and the status bar says **No coordinate system**.
+
+- **What can be set.** A system the application can compute with: WGS 84 / UTM zones 1 to 60, north and south (EPSG:32601 to 32660 and 32701 to 32760), and Arc 1960 / UTM zones 35S, 36S, 37S, 35N, 36N, 37N (EPSG:21035 to 21037 and 21095 to 21097). Search by code or by name. Any other EPSG system can be recorded **named only** (a name, a code, or pasted WKT), and a **local site grid** with no geodetic meaning can be named. The horizontal and vertical datum are free text. The tab shows the kind (projected with maths, named only, local grid), the area of use, and where the system came from.
+- **Nothing is ever reprojected or moved.** Objects sit at the coordinates of their source file, in millimetres: an easting of 450 123.456 m is 450 123 456 mm in the model. Setting or changing the system only changes what those coordinates are taken to mean, and the dialog says so when the document already has objects. The application has no datum shift: latitude and longitude of an Arc 1960 system are Arc 1960 values, not WGS 84.
+- **Status bar.** The cursor reads **E** and **N** in metres in the project system (model coordinates when there is none). With a system the application can compute with, the latitude and longitude follow, with the datum they are on; hold the pointer over them for the grid convergence and the point scale factor. `ID` (alias `WHERE`) reports the full coordinates of a picked point. A point can be typed on the command line as `E,N` in metres.
+- **Imports.** The LandXML dialog has a **The file** tab: the application that wrote the file (Civil 3D or other), its units, its coordinate system, the extent per class of object, and the check against the project system: *same system*; *different system* (the file is still imported, at its own coordinates, with the warning stated); *not declared*; *extent outside the area of use*; *easting and northing look swapped*; *values look like millimetres or feet*. With no project system, the file's system can be taken for the project (ticked by default when the file declares one). The survey points dialog takes the project system as its default and offers to set it when the project has none. IFC reference models have their map conversion applied by default and are checked the same way. DXF underlays land at their file's numbers times the unit factor (the file's units, 1 mm per unit when it does not say).
+- **IFC export.** With a system, the file gets `IfcProjectedCRS` and `IfcMapConversion` and its geometry is written near a local origin (the least easting and northing, rounded down to a kilometre) so that viewers place it correctly; without one, the file is written as before and the export dialog says so.
+- **Limits.** The application checks only against the areas of use and the UTM zone rules it knows; the check is a prompt to look, not proof. Metric only. A system the application does not compute with gives no latitude, longitude, convergence or scale. Display meshes of long alignments are accurate to about 1e-7 of their size; positions, snaps and measures use the exact numbers.
 
 ### 2D canvas and 3D site view
 
@@ -224,7 +235,7 @@ The canvas is the model space. It is in millimetres with Y up.
 - **Open and import by dropping**: drop an `.afrobim`, `.xml` (LandXML), `.dxf` (underlay) or `.ifc` (reference model) file on the window. A question says what will happen, and names unsaved changes if opening would lose them; nothing happens until you confirm. (On macOS, double-clicking an `.afrobim` file in Finder starts the app without the file, because the framework does not pass on the open-document event; see `afrobim/docs/installing.md`.)
 - **Copy**: type `CO`, give a base point, then a point for each copy, then Enter. Ctrl+C and Ctrl+V also work.
 - **Erase**: Delete, or `E`.
-- **Zoom and pan**: the mouse wheel zooms about the cursor; the middle button pans; `Z` zooms to the extents; `ZW` zooms to a window picked with two corners.
+- **Zoom and pan**: the mouse wheel zooms about the cursor (in the 3D view too); the middle button pans; double middle click or `Z` zooms to the extents; `ZW` zooms to a window picked with two corners; `ZS` zooms to the selection; `ZP` returns to the previous view. There is no zoom limit: at UTM coordinates (northing 9 960 000 m) you can zoom until a millimetre fills the screen and out until 10 000 km fit. A model tree row zooms to its object on double click or from its right-click menu. The limit is the spacing of f64 at the coordinate, about 2e-6 mm at 1e10 mm.
 - **Undo and redo**: Ctrl+Z and Ctrl+Y. Every edit goes through undo, including the 4D, 5D and check inputs.
 - **Drafting aids**: F7 grid, F9 snap to a 50 mm grid for picked points, F8 ortho (holds moves to the X or Y axis).
 
@@ -748,6 +759,9 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 |---|---|---|---|
 | `ZOOM` | `Z`, `ZE` | Nothing | Fits every element. |
 | `ZOOMWINDOW` | `ZW` | Two corners | Fits the window. |
+| `ZOOMSELECTION` | `ZS`, `ZOOMOBJECT` | Nothing (a selection) | Fits the selected objects, in 2D or 3D. |
+| `ZOOMPREVIOUS` | `ZP` | Nothing | Returns to the view before the last zoom. |
+| `CRS` | `COORDSYS` | Nothing | Opens the project coordinate system (see the section on coordinate systems). |
 | `ZOOMIN` | `ZI` | Nothing | Zooms in about the centre of the view. |
 | `ZOOMOUT` | `ZO` | Nothing | Zooms out about the centre of the view. |
 | `3D` | `ORBIT`, `PLAN` | Nothing | Switches the 2D model space and the 3D site view. |

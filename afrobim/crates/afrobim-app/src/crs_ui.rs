@@ -202,6 +202,41 @@ pub fn where_lines(p: Pt, crs: Option<&ProjectCrs>) -> Vec<String> {
     out
 }
 
+/// What the IFC file states for the project's system, or None for no system and for a local site
+/// grid (a grid with no geodetic meaning is not a coordinate reference system to write).
+pub fn georeference_of(crs: Option<&ProjectCrs>) -> Option<afrobim_ifc::IfcGeoreference> {
+    let c = crs.filter(|c| c.kind != CrsKind::LocalGrid)?;
+    let (map_projection, map_zone) = match (c.kind, c.utm_zone()) {
+        (CrsKind::Projected, Some((zone, south))) => (Some("UTM".to_string()), Some(format!("{zone}{}", if south { 'S' } else { 'N' }))),
+        _ => (None, None),
+    };
+    let opt = |t: &str| (!t.trim().is_empty()).then(|| t.trim().to_string());
+    Some(afrobim_ifc::IfcGeoreference {
+        name: c.code().unwrap_or_else(|| c.name.clone()),
+        description: Some(match c.code() {
+            Some(code) => format!("{code} - {}", c.name),
+            None => c.name.clone(),
+        }),
+        geodetic_datum: opt(&c.horizontal_datum),
+        vertical_datum: opt(&c.vertical_datum),
+        map_projection,
+        map_zone,
+        origin: None,
+    })
+}
+
+/// The sentence the export dialog shows about the coordinate reference.
+pub fn export_statement(crs: Option<&ProjectCrs>) -> String {
+    match crs {
+        Some(c) if c.kind != CrsKind::LocalGrid => format!(
+            "The project coordinate system, {}, is written as IfcProjectedCRS with an IfcMapConversion. Geometry is written near a local origin (the least easting and northing of what has a site position, rounded down to a whole kilometre, height 0), and the map conversion carries that origin, so viewers place the model correctly without huge coordinates.",
+            c.label()
+        ),
+        Some(c) => format!("The project's system, {}, is a local site grid with no geodetic meaning: it is not written. Coordinates are written as they are, with no IfcMapConversion.", c.name),
+        None => "The project has no coordinate system, so no IfcProjectedCRS or IfcMapConversion is written and coordinates are written as they are in the model. Set one with CRS to georeference the file.".to_string(),
+    }
+}
+
 /// The coordinate system a LandXML file declares, as the application's type. `epsgCode` wins when
 /// it is a code the kernel can compute with; else the WKT the file carries, else the name. A
 /// `CoordinateSystem` element with nothing in it gives None.
@@ -473,6 +508,17 @@ pub fn object_count(doc: &Document) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_ifc_georeference_follows_the_project_system() {
+        assert!(georeference_of(None).is_none());
+        assert!(georeference_of(Some(&ProjectCrs::local_grid("Site"))).is_none());
+        let g = georeference_of(ProjectCrs::from_epsg(21036).as_ref()).unwrap();
+        assert_eq!((g.name.as_str(), g.map_zone.as_deref(), g.geodetic_datum.as_deref()), ("EPSG:21036", Some("36S"), Some("Arc 1960")));
+        let n = georeference_of(Some(&ProjectCrs::named_only(Some(2039), "Israeli Grid"))).unwrap();
+        assert!(n.map_projection.is_none() && n.name == "EPSG:2039");
+        assert!(export_statement(None).contains("no coordinate system"));
+    }
 
     #[test]
     fn eastings_and_northings_read_in_metres_at_true_magnitude() {

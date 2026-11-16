@@ -155,6 +155,36 @@ pub fn read_file(path: &Path, map_conversion: bool) -> ReadOutcome {
     }
 }
 
+/// The coordinate system the file states in its `IfcProjectedCRS`, as the application's type.
+/// `Name` is read as an EPSG code when it is one (`EPSG:32736`), else as a name.
+pub fn declared_crs(m: &ReferenceModel) -> Option<afrobim_kernel::ProjectCrs> {
+    let c = m.map_conversion.as_ref()?;
+    let name = c.crs_name.as_deref().or(c.crs_description.as_deref())?;
+    let mut crs = afrobim_kernel::ProjectCrs::parse(name).filter(|p| p.epsg.is_some()).unwrap_or_else(|| afrobim_kernel::ProjectCrs::named_only(None, name));
+    if crs.horizontal_datum.is_empty() {
+        crs.horizontal_datum = c.geodetic_datum.clone().unwrap_or_default();
+    }
+    if let Some(v) = &c.vertical_datum {
+        crs.vertical_datum = v.clone();
+    }
+    crs.source = afrobim_kernel::CrsSource::Ifc;
+    Some(crs)
+}
+
+/// What the check of the model against the project coordinate system says, as report lines. The
+/// extent is the model's plan extent in metres when the map conversion was applied (its
+/// coordinates are then projected coordinates); without it the file's own coordinates cannot be
+/// compared with a map system and only the declared system is compared.
+pub fn crs_lines(m: &ReferenceModel, applied: bool, extent_mm: Option<([f64; 3], [f64; 3])>, project: Option<&afrobim_kernel::ProjectCrs>) -> Vec<String> {
+    let declared = declared_crs(m);
+    let extent = extent_mm.filter(|_| applied).map(|(lo, hi)| afrobim_kernel::PlanExtent { min_easting: lo[0] / 1000.0, min_northing: lo[1] / 1000.0, max_easting: hi[0] / 1000.0, max_northing: hi[1] / 1000.0 });
+    let label = format!("{} ", m.project_name);
+    let mut out = vec!["Coordinate system check:".to_string()];
+    out.extend(crate::crs_ui::dataset_check(project, label.trim(), declared.as_ref(), extent).into_iter().map(|f| format!("  {}{}", if f.warning { "CHECK: " } else { "" }, f.message)));
+    out.push("  Nothing is reprojected. The model is at the coordinates it has, with the map conversion applied or not as chosen.".to_string());
+    out
+}
+
 /// The import report as lines for a window or a file: schema, units, the map conversion note,
 /// what was read and what was not (the "geometry not read" counts by type).
 pub fn report_lines(m: &ReferenceModel, applied_map_conversion: bool) -> Vec<String> {
@@ -293,6 +323,13 @@ fn unique_label(set: &RefSet, wanted: &str) -> String {
 }
 
 impl RefUi {
+    /// A fresh state. The file's `IfcMapConversion` is applied by default: a model that says where
+    /// it is on the map is placed there, at its true coordinates, and checked against the project's
+    /// coordinate system (the checkbox in the reference models window turns it off).
+    pub fn new() -> RefUi {
+        RefUi { apply_map_conversion: true, ..RefUi::default() }
+    }
+
     /// Reads the record when it changed, and starts reading the files of models not yet loaded.
     pub fn sync(&mut self, doc: &Document) {
         let current = doc.elements().iter().find(|e| e.category == CATEGORY).map(|e| e.data.clone()).unwrap_or(serde_json::Value::Null);
@@ -631,7 +668,7 @@ impl AfroBimApp {
             ui.label(RichText::new("Reference models are read-only IFC files. The document stores each file's path and a hash, not its contents; the file is read again when the document opens. A model in another coordinate frame needs the offset and rotation that line it up: enter them below (rotation about the file's own origin, then the offset).").small().weak());
             ui.label(RichText::new(format!("Limits: the importer reads the whole file into memory and refuses files of 4 GiB or more. Models above {DRAW_TRIANGLE_CAP} triangles in view are drawn as the boxes of their products.")).small().weak());
             ui.horizontal(|ui| {
-                ui.checkbox(&mut self.refs.apply_map_conversion, "apply the file's IfcMapConversion when it has one (default: use the file's own coordinates)");
+                ui.checkbox(&mut self.refs.apply_map_conversion, "apply the file's IfcMapConversion when it has one (on by default: the model is placed at its map coordinates; turn it off to use the file's own coordinates)");
                 if ui.button("Import IFC files...").clicked() {
                     import = true;
                 }
@@ -791,7 +828,26 @@ impl AfroBimApp {
             return;
         };
         let mut open = true;
-        let lines = self.refs.loaded.get(&label).map(|l| report_lines(&l.model, self.refs.set.models.iter().find(|m| m.label == label).is_some_and(|m| m.map_conversion))).unwrap_or_else(|| vec!["This model is not read.".to_string()]);
+        let applied = self.refs.set.models.iter().find(|m| m.label == label).is_some_and(|m| m.map_conversion);
+        let project = afrobim_kernel::project_crs(&self.doc);
+        let lines = self
+            .refs
+            .loaded
+            .get(&label)
+            .map(|l| {
+                let extent = l.bounds.iter().flatten().fold(None, |acc: Option<([f64; 3], [f64; 3])>, b| {
+                    Some(match acc {
+                        None => *b,
+                        Some(a) => ([a.0[0].min(b.0[0]), a.0[1].min(b.0[1]), a.0[2].min(b.0[2])], [a.1[0].max(b.1[0]), a.1[1].max(b.1[1]), a.1[2].max(b.1[2])]),
+                    })
+                });
+                let mut v = report_lines(&l.model, applied);
+                v.extend(crs_lines(&l.model, applied, extent, project.as_ref()));
+                v
+            })
+            .unwrap_or_else(|| vec!["This model is not read.".to_string()]);
+        let offer = if project.is_none() && applied { self.refs.loaded.get(&label).and_then(|l| declared_crs(&l.model)) } else { None };
+        let mut use_it = false;
         let warning = self.refs.loaded.get(&label).and_then(|l| l.warning.clone());
         crate::win::new(ctx, format!("Import report: {label}")).open(&mut open).default_width(640.0).default_height(420.0).show(ctx, |ui| {
             if let Some(w) = warning {
@@ -802,10 +858,20 @@ impl AfroBimApp {
                     ui.label(RichText::new(l).monospace().small());
                 }
             });
-            if ui.button("Copy").clicked() {
-                ctx.copy_text(lines.join("\n"));
-            }
+            ui.horizontal(|ui| {
+                if ui.button("Copy").clicked() {
+                    ctx.copy_text(lines.join("\n"));
+                }
+                if let Some(c) = &offer {
+                    if ui.button("Use this model's coordinate system for the project").on_hover_text(c.label()).clicked() {
+                        use_it = true;
+                    }
+                }
+            });
         });
+        if let (true, Some(c)) = (use_it, offer) {
+            self.apply_project_crs(c);
+        }
         self.refs.report_open = open;
     }
 

@@ -113,7 +113,41 @@ pub fn export_ifc_model(document: &Document, elements: &[IfcElementInput], optio
         .collect();
     let placed = by_id.values().any(|i| i.element.category != ALIGNMENT_CATEGORY && valid_site(i.element).is_some());
     let on_road = by_id.values().any(|i| road::is_road_category(&i.element.category));
-    let plan = Plan { road: placed || !alignments.is_empty() || on_road, volume_unit: on_road || by_id.values().any(|i| is_support(i.element)) };
+    // The local origin of a georeferenced file (see `IfcGeoreference`). Only when something has a
+    // position on the site; a sheet of signs has nothing to place on a map.
+    let mut alignments = alignments;
+    let georef_origin_m = options.georeference.as_ref().and_then(|g| {
+        if let Some(o) = g.origin {
+            return Some(o);
+        }
+        let (mut min_e, mut min_n) = (f64::INFINITY, f64::INFINITY);
+        for i in by_id.values() {
+            if i.element.category == ALIGNMENT_CATEGORY {
+                continue;
+            }
+            if let Some(s) = valid_site(i.element) {
+                min_e = min_e.min(s.x / 1000.0);
+                min_n = min_n.min(s.y / 1000.0);
+            }
+        }
+        for a in alignments.values() {
+            for el in &a.elements {
+                min_e = min_e.min(el.x);
+                min_n = min_n.min(el.y);
+            }
+        }
+        (min_e.is_finite() && min_n.is_finite()).then(|| [(min_e / 1000.0).floor() * 1000.0, (min_n / 1000.0).floor() * 1000.0, 0.0])
+    });
+    if let Some(o) = georef_origin_m {
+        // Alignments are written in the file's coordinates: move them by the same origin.
+        for a in alignments.values_mut() {
+            for el in &mut a.elements {
+                el.x -= o[0];
+                el.y -= o[1];
+            }
+        }
+    }
+    let plan = Plan { road: placed || !alignments.is_empty() || on_road, volume_unit: on_road || by_id.values().any(|i| is_support(i.element)), georef_origin_m };
 
     let mut m = Model {
         w: Writer::new(options, plan),
