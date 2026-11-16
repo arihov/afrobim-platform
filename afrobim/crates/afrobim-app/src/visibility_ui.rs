@@ -722,18 +722,21 @@ impl AfroBimApp {
         };
         let alignment = f.element.and_then(|id| self.doc.find(id)).and_then(|e| e.site.as_ref().and_then(|s| s.alignment.clone())).and_then(|name| crate::alignment_glue::alignments(&self.doc).into_iter().find(|a| a.1 == name).map(|a| a.0));
         let (mut keep, mut save, mut run) = (true, false, false);
-        let dlg = crate::ui_kit::Dialog::titled(title).subtitle("The inputs of the sight-distance analysis").width(640.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled(title).subtitle("The inputs of the sight-distance analysis").width(640.0).show(ctx, |ui| {
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An analysis aid: the result states no compliance. Every field starts empty except the one marked 'to confirm', which is the engine's own default and is not used until you accept it. The UK band of a speed is your decision.");
-            egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(500.0).show(ui, |ui| {
+            {
+                crate::ui_kit::heading(ui, "Driver and traffic");
                 if f.element.is_some() {
-                    ui.checkbox(&mut f.apply_all, "store these entries on every placed sign, not only this one");
+                    crate::ui_kit::toggle(ui, &mut f.apply_all, "Store these entries on every placed sign, not only this one");
                 }
                 crate::ui_kit::grid(ui, "vis-form", |ui| {
                     ui.label("Driver's lateral position");
-                    ui.horizontal(|ui| {
-                        ui.radio_value(&mut f.eye_mode, 1, "signed offset (right of centreline positive)");
-                        ui.radio_value(&mut f.eye_mode, 2, "distance to lane centre");
-                        ui.add(egui::TextEdit::singleline(&mut f.eye_text).desired_width(70.0).hint_text("m"));
+                    ui.vertical(|ui| {
+                        crate::ui_kit::segmented_of(ui, &mut f.eye_mode, &[(1, "Signed offset (right positive)"), (2, "Distance to lane centre")]);
+                        ui.horizontal(|ui| {
+                            ui.add(egui::TextEdit::singleline(&mut f.eye_text).desired_width(70.0).horizontal_align(egui::Align::RIGHT).hint_text("m"));
+                            ui.label("m");
+                        });
                     });
                     ui.end_row();
                     ui.label("Driver's eye height (m)");
@@ -747,10 +750,7 @@ impl AfroBimApp {
                     });
                     ui.end_row();
                     ui.label("Traffic keeps to");
-                    ui.horizontal(|ui| {
-                        ui.radio_value(&mut f.traffic, 1, "the left");
-                        ui.radio_value(&mut f.traffic, 2, "the right");
-                    });
+                    crate::ui_kit::segmented_of(ui, &mut f.traffic, &[(1, "The left"), (2, "The right")]);
                     ui.end_row();
                     ui.label("Direction of travel");
                     egui::ComboBox::from_id_salt("vis-dir").selected_text(["from the sign's rotation (the traffic it serves)", "up station", "down station"][f.direction as usize % 3]).show_ui(ui, |ui| {
@@ -762,8 +762,7 @@ impl AfroBimApp {
                     ui.label("Approach speed (85th percentile)");
                     ui.horizontal(|ui| {
                         ui.add(egui::TextEdit::singleline(&mut f.speed).desired_width(70.0).hint_text("blank: the sign's speed class"));
-                        ui.selectable_value(&mut f.speed_mph, false, "km/h");
-                        ui.selectable_value(&mut f.speed_mph, true, "mph");
+                        crate::ui_kit::segmented_of(ui, &mut f.speed_mph, &[(false, "km/h"), (true, "mph")]);
                     });
                     ui.end_row();
                     ui.label("UK speed band");
@@ -865,14 +864,12 @@ impl AfroBimApp {
                         ui.end_row();
                     }
                 });
-                ui.checkbox(&mut f.kerbed, "the road is kerbed at the sign");
-                ui.add_space(4.0);
+                crate::ui_kit::toggle(ui, &mut f.kerbed, "The road is kerbed at the sign");
                 crate::ui_kit::heading(ui, "Walls or banks beside the road (the inside of a curve): nothing beyond the offset can be seen");
                 let mut remove = None;
                 for (k, r) in f.lateral.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
-                        ui.selectable_value(&mut r.right, false, "left");
-                        ui.selectable_value(&mut r.right, true, "right");
+                        crate::ui_kit::segmented_of(ui, &mut r.right, &[(false, "Left"), (true, "Right")]);
                         ui.add(egui::TextEdit::singleline(&mut r.offset).desired_width(70.0).hint_text("offset m"));
                         ui.add(egui::TextEdit::singleline(&mut r.top).desired_width(70.0).hint_text("top m (opt)"));
                         ui.add(egui::TextEdit::singleline(&mut r.label).desired_width(160.0).hint_text("what it is"));
@@ -896,25 +893,25 @@ impl AfroBimApp {
                         ui.end_row();
                     }
                 });
-            });
+            }
             if !f.error.is_empty() {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &f.error);
             }
-            ui.horizontal(|ui| {
-                if ui.button("Store").clicked() {
-                    save = true;
-                }
-                if ui.button("Store and run").clicked() {
-                    save = true;
-                    run = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    keep = false;
-                }
-            });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Store and run").secondary(&["Store"]).show(ui));
         if dlg.closed {
             keep = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                keep = false;
+            }
+            if out.primary {
+                save = true;
+                run = true;
+            }
+            if out.secondary == Some(0) {
+                save = true;
+            }
         }
         if save {
             match store_form(&mut self.doc, &f) {
@@ -942,27 +939,16 @@ impl AfroBimApp {
         let (mut csv, mut rerun, mut edit, mut draw) = (false, false, false, false);
         let mut copy: Option<String> = None;
         let mut pick: Option<ElementId> = None;
-        let dlg = crate::ui_kit::Dialog::titled("Sign visibility results").subtitle("What the sight lines found, with no compliance stated").width(920.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Sign visibility results").subtitle("What the sight lines found, with no compliance stated").width(920.0).show(ctx, |ui| {
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An analysis aid. Each line is OK, FAILS, DIFFERS, INPUT NEEDED or INFORMATION with the provision it rests on; it states no compliance and the engineer decides. The road surface is the centreline level of the profile (no cross-fall); obstruction is geometric only.");
-            ui.horizontal(|ui| {
-                if ui.button("Run all signs").clicked() {
-                    rerun = true;
-                }
-                if ui.button("Edit inputs").clicked() {
-                    edit = true;
-                }
-                if ui.button("Plan and profile drawings").clicked() {
-                    draw = true;
-                }
-                if ui.button("Export CSV").clicked() {
-                    csv = true;
-                }
-                ui.checkbox(&mut self.vis.overlay, "Limiting sight line in 3D");
+            crate::ui_kit::form(ui, "vis-res-opts", |f| {
+                f.row("Limiting sight line in 3D", |ui| crate::ui_kit::toggle(ui, &mut self.vis.overlay, "Draw it in the 3D view"));
             });
             let Some(run) = &self.vis.run else {
-                ui.label(RichText::new("No run yet.").weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No run yet. Press Run all signs.");
                 return;
             };
+            crate::ui_kit::heading(ui, "Signs");
             egui::ScrollArea::vertical().id_salt("vis-list").max_height(170.0).auto_shrink([false, true]).show(ui, |ui| {
                 egui::Grid::new("vis-rows").num_columns(5).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                     for h in ["Sign", "Station", "Overall", "Clear distance (whole face)", "Limiting obstruction"] {
@@ -1019,9 +1005,23 @@ impl AfroBimApp {
                     copy = Some(a.report().join("\n"));
                 }
             });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Run all signs").secondary(&["Edit inputs", "Plan and profile drawings", "Export CSV..."]).cancel(Some("Close")).show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                rerun = true;
+            }
+            match out.secondary {
+                Some(0) => edit = true,
+                Some(1) => draw = true,
+                Some(2) => csv = true,
+                _ => {}
+            }
         }
         self.vis.results_open = open;
         if let Some(id) = pick {

@@ -226,16 +226,17 @@ impl AfroBimApp {
         let mut open = true;
         let (mut changed, mut load_mapping, mut save_mapping, mut other_file) = (false, false, false, false);
         let work = crate::win::work_rect(ctx);
-        let dlg = crate::ui_kit::Dialog::titled("Sign schedule: columns").subtitle("Match the columns of the file to the schedule fields").width(620.0).default_pos(crate::win::first_position(work)).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Sign schedule: columns").subtitle("Match the columns of the file to the schedule fields").width(620.0).default_pos(crate::win::first_position(work)).show(ctx, |ui| {
             let ui_state = &mut self.signsched;
-            ui.label(RichText::new(ui_state.path.as_ref().map(|p| p.display().to_string()).unwrap_or_default()).small().weak());
+            crate::ui_kit::heading(ui, "File");
+            crate::ui_kit::note(ui, ui_state.path.as_ref().map(|p| p.display().to_string()).unwrap_or_default());
             let Some(table) = ui_state.table.clone() else {
-                ui.label("No file chosen.");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No file chosen.");
                 return;
             };
             ui.label(format!("{} columns, {} data rows, delimiter '{}'.", table.headers.len(), table.rows.len(), if table.delimiter == '\t' { "tab".to_string() } else { table.delimiter.to_string() }));
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Each column of the file is matched to a field of the schedule by its header (synonyms such as Chainage for Station). Correct any that are wrong.");
-            ui.add_space(4.0);
+            crate::ui_kit::heading(ui, "Columns");
             let fields: Vec<Field> = {
                 let mut v: Vec<Field> = Field::FIXED.to_vec();
                 v.extend(afrobim_fabrication::sign_schedule::PARAMS.iter().map(|p| Field::Param(p.name.to_string())));
@@ -243,10 +244,10 @@ impl AfroBimApp {
             };
             egui::ScrollArea::vertical().max_height(130.0).show(ui, |ui| {
                 egui::Grid::new("sched-map").num_columns(4).spacing([10.0, 4.0]).striped(true).show(ui, |ui| {
-                    crate::ui_kit::heading(ui, "File column");
-                    crate::ui_kit::heading(ui, "Schedule field");
-                    crate::ui_kit::heading(ui, "Unit");
-                    crate::ui_kit::heading(ui, "First value");
+                    crate::ui_kit::th(ui, "File column");
+                    crate::ui_kit::th(ui, "Schedule field");
+                    crate::ui_kit::th(ui, "Unit");
+                    crate::ui_kit::th(ui, "First value");
                     ui.end_row();
                     for (i, h) in table.headers.iter().enumerate() {
                         ui.label(h);
@@ -302,7 +303,7 @@ impl AfroBimApp {
             if let Some(p) = &ui_state.proposal {
                 let missing: Vec<String> = Field::REQUIRED.iter().filter(|f| !ui_state.mapping.has(f)).map(field_label).collect();
                 if missing.is_empty() {
-                    ui.label(RichText::new("Every required field is mapped.").color(GOOD()).small());
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Success, "Every required field is mapped.");
                 } else {
                     crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("Required fields not mapped: {}", missing.join(", ")));
                 }
@@ -313,24 +314,25 @@ impl AfroBimApp {
                     crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("Headers that repeat a field another column took: {}", p.duplicate_headers.iter().map(|(h, f)| format!("{h} ({})", field_label(f))).collect::<Vec<_>>().join(", ")));
                 }
             }
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                if ui.button("Save mapping...").clicked() {
-                    save_mapping = true;
-                }
-                if ui.button("Load mapping...").clicked() {
-                    load_mapping = true;
-                }
-                if ui.button("Other file...").clicked() {
-                    other_file = true;
-                }
-            });
             if !ui_state.note.is_empty() {
-                ui.label(RichText::new(&ui_state.note).small());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, ui_state.note.clone());
             }
-        });
+        }, |ui| crate::ui_kit::Footer::new("Save mapping...").secondary(&["Load mapping...", "Other file..."]).cancel(Some("Close")).show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                save_mapping = true;
+            }
+            match out.secondary {
+                Some(0) => load_mapping = true,
+                Some(1) => other_file = true,
+                _ => {}
+            }
         }
         if save_mapping {
             if let Some(path) = rfd::FileDialog::new().add_filter("Column mapping (JSON)", &["json"]).set_file_name("sign-schedule-mapping.json").save_file() {
@@ -365,10 +367,11 @@ impl AfroBimApp {
         let mut open = true;
         let (mut apply_now, mut replan) = (false, false);
         let work = crate::win::work_rect(ctx);
-        let dlg = crate::ui_kit::Dialog::titled("Sign schedule: import plan").subtitle("What the import will add and change").width(700.0).default_pos(crate::win::first_position(work) + egui::vec2(0.0, 392.0)).show_body(ctx, |ui| {
+        let valid = std::cell::Cell::new(0usize);
+        let dlg = crate::ui_kit::Dialog::titled("Sign schedule: import plan").subtitle("What the import will add and change").width(700.0).default_pos(crate::win::first_position(work) + egui::vec2(0.0, 392.0)).show(ctx, |ui| {
             let st = &mut self.signsched;
             let Some(plan) = &st.plan else {
-                ui.label("No plan yet: choose a file with SIGNSCHEDULE.");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No plan yet: choose a file with SIGNSCHEDULE.");
                 return;
             };
             let plan = match plan {
@@ -385,14 +388,12 @@ impl AfroBimApp {
                 ui.label(RichText::new(format!("{dups} duplicate marks")).color(if dups > 0 { WARN() } else { Color32::GRAY }).strong());
             });
             if dups > 0 {
-                ui.horizontal(|ui| {
-                    ui.label("Duplicate marks:");
-                    ui.radio_value(&mut st.policy, DuplicatePolicy::Skip, "skip (keep the existing sign)");
-                    ui.radio_value(&mut st.policy, DuplicatePolicy::Update, "update (replace its definition and site placement)");
+                crate::ui_kit::form(ui, "sched-dups", |f| {
+                    f.row_note("Duplicate marks", "Skip keeps the existing sign; update replaces its definition and site placement.", |ui| crate::ui_kit::segmented_of(ui, &mut st.policy, &[(DuplicatePolicy::Skip, "Skip"), (DuplicatePolicy::Update, "Update")]));
                 });
             }
-            ui.add_space(4.0);
-            egui::ScrollArea::vertical().max_height(110.0).show(ui, |ui| {
+            crate::ui_kit::heading(ui, "Rows");
+            egui::ScrollArea::both().max_height(180.0).show(ui, |ui| {
                 egui::Grid::new("sched-plan").num_columns(5).spacing([10.0, 3.0]).striped(true).show(ui, |ui| {
                     for h in ["Line", "Mark", "What", "Where", "Result"] {
                         crate::ui_kit::th(ui, &h);
@@ -423,25 +424,31 @@ impl AfroBimApp {
             if !plan.unread_headers.is_empty() {
                 ui.label(RichText::new(format!("Columns not read: {}", plan.unread_headers.join(", "))).small().weak());
             }
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                if ui.add_enabled(plan.valid_count() > 0, egui::Button::new(format!("Apply {} row(s)", plan.valid_count()))).on_hover_text("One undo step").clicked() {
-                    apply_now = true;
-                }
-                if ui.button("Plan again").clicked() {
-                    replan = true;
-                }
-            });
+            valid.set(plan.valid_count());
             if !st.report.is_empty() {
-                ui.separator();
                 crate::ui_kit::heading(ui, "Report");
                 for l in &st.report {
                     ui.label(RichText::new(l).small());
                 }
             }
+        }, |ui| {
+            let n = valid.get();
+            let label = format!("Apply {n} row(s)");
+            crate::ui_kit::Footer::new(&label).enabled(n > 0, "No row can be applied").secondary(&["Plan again"]).cancel(Some("Close")).note("One undo step").show(ui)
         });
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                apply_now = true;
+            }
+            if out.secondary == Some(0) {
+                replan = true;
+            }
         }
         if apply_now {
             self.signsched_apply(ctx);

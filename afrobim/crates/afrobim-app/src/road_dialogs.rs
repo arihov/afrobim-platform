@@ -1271,22 +1271,25 @@ fn sections_window(ctx: &egui::Context, slot: &mut Option<SectionsView>) {
     let dark = ctx.style().visuals.dark_mode;
     let dlg = crate::ui_kit::Dialog::titled(format!("Cross-sections of {}", v.mark)).width(700.0).show_body(ctx, |ui| {
         let last = v.corridor.sections.len() - 1;
-        ui.horizontal(|ui| {
-            ui.label("Station");
-            let current = v.corridor.sections[v.index.min(last)].label.clone();
-            egui::ComboBox::from_id_salt("section-station").selected_text(current).show_ui(ui, |ui| {
-                for (i, s) in v.corridor.sections.iter().enumerate() {
-                    ui.selectable_value(&mut v.index, i, &s.label);
-                }
+        crate::ui_kit::heading(ui, "Section");
+        crate::ui_kit::form(ui, "section-view-form", |f| {
+            f.row("Station", |ui| {
+                ui.horizontal(|ui| {
+                    let current = v.corridor.sections[v.index.min(last)].label.clone();
+                    egui::ComboBox::from_id_salt("section-station").selected_text(current).show_ui(ui, |ui| {
+                        for (i, s) in v.corridor.sections.iter().enumerate() {
+                            ui.selectable_value(&mut v.index, i, &s.label);
+                        }
+                    });
+                    if ui.add_enabled(v.index > 0, egui::Button::new("Previous")).clicked() {
+                        v.index -= 1;
+                    }
+                    if ui.add_enabled(v.index < last, egui::Button::new("Next")).clicked() {
+                        v.index += 1;
+                    }
+                });
             });
-            if ui.add_enabled(v.index > 0, egui::Button::new("Previous")).clicked() {
-                v.index -= 1;
-            }
-            if ui.add_enabled(v.index < last, egui::Button::new("Next")).clicked() {
-                v.index += 1;
-            }
-            ui.label("Vertical exaggeration");
-            ui.add(egui::DragValue::new(&mut v.exaggeration).speed(0.1).range(1.0..=20.0));
+            f.row("Vertical exaggeration", |ui| crate::ui_kit::f64_field(ui, &mut v.exaggeration, "times", 1.0..=20.0, 0.1));
         });
         let section = &v.corridor.sections[v.index.min(last)];
         let drawn = corridor::section_drawing(section, v.exaggeration);
@@ -1308,6 +1311,7 @@ fn sections_window(ctx: &egui::Context, slot: &mut Option<SectionsView>) {
             }
         }
         crate::ui_kit::note(ui, "Ground green, earthworks line red, finished surface black, centreline grey. Looking up-station, left on the left.");
+        crate::ui_kit::heading(ui, "Areas and notes");
         for l in &drawn.labels {
             match l.kind {
                 corridor::LabelKind::Title | corridor::LabelKind::Areas => {
@@ -1319,7 +1323,7 @@ fn sections_window(ctx: &egui::Context, slot: &mut Option<SectionsView>) {
             }
         }
         for n in &section.notes {
-            ui.label(RichText::new(n).small().color(NOTE()));
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, n.clone());
         }
     });
     if dlg.closed {
