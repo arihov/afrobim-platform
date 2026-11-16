@@ -22,11 +22,156 @@ pub fn first_position(work: Rect) -> Pos2 {
     work.min + vec2(16.0, 12.0)
 }
 
+/// The icon a window title gets in its title bar: the first keyword the title contains.
+pub fn icon_for(title: &str) -> &'static str {
+    use egui_phosphor::regular as ph;
+    const TABLE: &[(&str, &str)] = &[
+        ("layer", ph::STACK),
+        ("units", ph::RULER),
+        ("project settings", ph::GEAR),
+        ("project information", ph::IDENTIFICATION_CARD),
+        ("landxml", ph::PATH),
+        ("survey", ph::MAP_PIN_AREA),
+        ("corridor", ph::ROAD_HORIZON),
+        ("cross-section", ph::CHART_LINE),
+        ("align", ph::BEZIER_CURVE),
+        ("pi table", ph::TABLE),
+        ("profile", ph::CHART_LINE_UP),
+        ("clash", ph::LIST_MAGNIFYING_GLASS),
+        ("issue", ph::CHAT_TEARDROP_TEXT),
+        ("bcf", ph::CHAT_TEARDROP_TEXT),
+        ("reference", ph::CUBE_FOCUS),
+        ("ifc", ph::CUBE_TRANSPARENT),
+        ("programme", ph::LIST_CHECKS),
+        ("schedule", ph::CALENDAR),
+        ("calendar", ph::CALENDAR),
+        ("gantt", ph::CHART_BAR_HORIZONTAL),
+        ("baseline", ph::FLAG_BANNER),
+        ("variance", ph::PLUS_MINUS),
+        ("progress", ph::CHART_LINE_UP),
+        ("wbs", ph::TREE_STRUCTURE),
+        ("critical", ph::FLOW_ARROW),
+        ("time-location", ph::CHART_SCATTER),
+        ("4d", ph::CLOCK_COUNTDOWN),
+        ("bill", ph::RECEIPT),
+        ("rate", ph::COINS),
+        ("currency", ph::CURRENCY_CIRCLE_DOLLAR),
+        ("estimate", ph::CALCULATOR),
+        ("cash flow", ph::CHART_LINE),
+        ("certificate", ph::CERTIFICATE),
+        ("earned value", ph::GAUGE),
+        ("site", ph::NOTE_PENCIL),
+        ("roll up", ph::ARROWS_MERGE),
+        ("look-ahead", ph::BINOCULARS),
+        ("sheet", ph::FILES),
+        ("title block", ph::SQUARE_HALF_BOTTOM),
+        ("report", ph::FILE_PDF),
+        ("check", ph::SEAL_CHECK),
+        ("calculation", ph::CALCULATOR),
+        ("visibility", ph::EYE),
+        ("photometry", ph::SUN_HORIZON),
+        ("lighting", ph::LIGHTBULB_FILAMENT),
+        ("lamp", ph::LAMP),
+        ("barrier", ph::BARRICADE),
+        ("pavement", ph::STACK),
+        ("marking", ph::ROAD_HORIZON),
+        ("support", ph::ANCHOR_SIMPLE),
+        ("gantry", ph::BRIDGE),
+        ("sign", ph::TRAFFIC_SIGN),
+        ("text", ph::TEXT_T),
+        ("dimension", ph::ARROWS_HORIZONTAL),
+        ("measure", ph::RULER),
+        ("snap", ph::CROSSHAIR_SIMPLE),
+        ("underlay", ph::IMAGE_SQUARE),
+        ("commands", ph::COMMAND),
+        ("about", ph::INFO),
+        ("export", ph::EXPORT),
+        ("import", ph::FILE_ARROW_DOWN),
+        ("dropped", ph::FILE_ARROW_DOWN),
+        ("appearance", ph::PALETTE),
+        ("add a", ph::PLUS_CIRCLE),
+        ("place", ph::MAP_PIN_LINE),
+        ("hang", ph::LINK_SIMPLE),
+        ("working", ph::SPINNER),
+    ];
+    let t = title.to_lowercase();
+    TABLE.iter().find(|(k, _)| t.contains(k)).map(|(_, g)| *g).unwrap_or(ph::APP_WINDOW)
+}
+
+static POSITIONS: std::sync::Mutex<Option<std::collections::BTreeMap<String, [f32; 2]>>> = std::sync::Mutex::new(None);
+static DIRTY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+thread_local! {
+    static SEEN: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Gives the window positions kept from the last run (title to x, y).
+pub fn load_positions(map: std::collections::BTreeMap<String, [f32; 2]>) {
+    if let Ok(mut p) = POSITIONS.lock() {
+        *p = Some(map);
+    }
+}
+
+/// The positions, when any window was moved since the last call.
+pub fn take_changed_positions() -> Option<std::collections::BTreeMap<String, [f32; 2]>> {
+    if DIRTY.swap(false, std::sync::atomic::Ordering::Relaxed) {
+        POSITIONS.lock().ok().and_then(|p| p.clone())
+    } else {
+        None
+    }
+}
+
+fn saved_position(title: &str) -> Option<Pos2> {
+    POSITIONS.lock().ok()?.as_ref()?.get(title).map(|p| Pos2::new(p[0], p[1]))
+}
+
+/// Called once a frame after the windows: remembers where each window shown this frame now is.
+pub fn end_frame(ctx: &Context) {
+    let seen = SEEN.with(|s| std::mem::take(&mut *s.borrow_mut()));
+    for title in seen {
+        let Some(rect) = ctx.memory(|m| m.area_rect(Id::new(title.as_str()))) else { continue };
+        let now = [rect.min.x.round(), rect.min.y.round()];
+        if let Ok(mut p) = POSITIONS.lock() {
+            let map = p.get_or_insert_with(Default::default);
+            if map.get(&title) != Some(&now) {
+                map.insert(title, now);
+                DIRTY.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+    }
+}
+
 /// A window that opens inside the central area and cannot leave it. Its size is capped to the
 /// area, so a window made for a large screen shrinks (and scrolls) rather than hang off the top.
+/// It has the glass frame and an icon in its title bar, and opens where it was left last time.
+/// Its id is that of the plain title, whatever the decoration.
 pub fn new<'a>(ctx: &Context, title: impl Into<WidgetText>) -> egui::Window<'a> {
+    let title: WidgetText = title.into();
+    let text = title.text().to_string();
+    let t = crate::theme::tokens(ctx);
+    let decorated = WidgetText::from(crate::theme::icon_text(icon_for(&text), &text, crate::theme::FONT_TITLE, t.text));
+    place(ctx, egui::Window::new(decorated), &text)
+}
+
+/// A window with the same placement rules and frame and no title bar decoration, for the dialog
+/// kit, which draws its own header.
+pub fn plain<'a>(ctx: &Context, title: &str) -> egui::Window<'a> {
+    place(ctx, egui::Window::new(title.to_string()), title)
+}
+
+fn place<'a>(ctx: &Context, win: egui::Window<'a>, title: &str) -> egui::Window<'a> {
     let work = work_rect(ctx);
-    egui::Window::new(title).constrain_to(work).default_pos(first_position(work)).max_size(work.size() - vec2(8.0, 8.0))
+    SEEN.with(|s| s.borrow_mut().push(title.to_string()));
+    let id = Id::new(title);
+    let win = win.id(id).constrain_to(work).max_size(work.size() - vec2(8.0, 8.0)).frame(crate::theme::window_frame(ctx));
+    // A saved position applies only on the very first frame of the window; after that the window is its own.
+    match saved_position(title) {
+        Some(p) if ctx.memory(|m| m.area_rect(id)).is_none() => win.current_pos(clamp_to(work, p)),
+        _ => win.default_pos(first_position(work)),
+    }
+}
+
+fn clamp_to(work: Rect, p: Pos2) -> Pos2 {
+    Pos2::new(p.x.clamp(work.min.x, (work.max.x - 120.0).max(work.min.x)), p.y.clamp(work.min.y, (work.max.y - 60.0).max(work.min.y)))
 }
 
 #[cfg(test)]
@@ -44,7 +189,7 @@ mod tests {
 
     #[test]
     fn a_window_made_here_opens_below_the_ribbon_and_inside_the_area_even_when_too_tall() {
-        let ctx = Context::default();
+        let ctx = crate::theme::test_context();
         let work = Rect::from_min_max(Pos2::new(200.0, 150.0), Pos2::new(1100.0, 820.0));
         let input = || egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1440.0, 860.0))), ..Default::default() };
         // A window that asks for 2000 px of height on a 670 px area, opened with no position given.

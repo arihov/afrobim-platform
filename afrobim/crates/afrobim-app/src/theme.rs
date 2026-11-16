@@ -145,7 +145,7 @@ impl Tokens {
                 surface: Color32::from_rgb(0x0F, 0x14, 0x1C),
                 surface_low: Color32::from_rgb(0x08, 0x0B, 0x10),
                 panel: if glass { rgba(0x16, 0x1C, 0x26, 214) } else { Color32::from_rgb(0x17, 0x1C, 0x25) },
-                window: if glass { rgba(0x18, 0x1F, 0x2B, 232) } else { Color32::from_rgb(0x1C, 0x23, 0x2E) },
+                window: if glass { rgba(0x18, 0x1F, 0x2B, 240) } else { Color32::from_rgb(0x1C, 0x23, 0x2E) },
                 raised: rgba(255, 255, 255, 20),
                 raised_hover: rgba(255, 255, 255, 36),
                 raised_active: rgba(255, 255, 255, 52),
@@ -170,7 +170,7 @@ impl Tokens {
                 surface: Color32::from_rgb(0xEE, 0xF1, 0xF6),
                 surface_low: Color32::from_rgb(0xDC, 0xE2, 0xEB),
                 panel: if glass { rgba(0xFA, 0xFB, 0xFD, 204) } else { Color32::from_rgb(0xF5, 0xF7, 0xFA) },
-                window: if glass { rgba(0xFC, 0xFD, 0xFF, 238) } else { Color32::from_rgb(0xFF, 0xFF, 0xFF) },
+                window: if glass { rgba(0xFC, 0xFD, 0xFF, 244) } else { Color32::from_rgb(0xFF, 0xFF, 0xFF) },
                 raised: rgba(0x1B, 0x28, 0x3C, 14),
                 raised_hover: rgba(0x1B, 0x28, 0x3C, 28),
                 raised_active: rgba(0x1B, 0x28, 0x3C, 44),
@@ -430,6 +430,16 @@ pub fn contrast(a: Color32, b: Color32) -> f64 {
     let (la, lb) = (luminance(a), luminance(b));
     let (hi, lo) = if la > lb { (la, lb) } else { (lb, la) };
     (hi + 0.05) / (lo + 0.05)
+}
+
+/// A context with the theme and the fonts in force, for tests that draw windows.
+#[cfg(test)]
+pub fn test_context() -> Context {
+    let ctx = Context::default();
+    install_fonts(&ctx);
+    apply(&ctx, &Theme::default());
+    let _ = ctx.run(egui::RawInput::default(), |_| {});
+    ctx
 }
 
 #[cfg(test)]

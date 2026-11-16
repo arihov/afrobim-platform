@@ -161,6 +161,7 @@ impl AfroBimApp {
             theme.scale = s.clamp(0.7, 2.0);
         }
         prefs.set_theme(&theme);
+        crate::win::load_positions(prefs.window_pos.clone());
         crate::theme::install_fonts(&cc.egui_ctx);
         crate::theme::apply(&cc.egui_ctx, &theme);
         let mut modules = crate::background::worker_registry();
@@ -2346,6 +2347,7 @@ impl AfroBimApp {
         self.signsched_windows(ctx);
         self.projset_window(ctx);
         self.survey_window(ctx);
+        self.appearance_window(ctx);
         self.issues_windows(ctx);
         self.visibility_windows(ctx);
         self.photometry_windows(ctx);
@@ -3074,6 +3076,13 @@ impl eframe::App for AfroBimApp {
         self.command_line(ctx);
         self.canvas(ctx);
         self.windows(ctx);
+        crate::win::end_frame(ctx);
+        if !ctx.input(|i| i.pointer.any_down()) {
+            if let Some(map) = crate::win::take_changed_positions() {
+                self.prefs.window_pos = map;
+                self.save_prefs();
+            }
+        }
 
         // Commit once input has settled, so a drag or a burst of typing is one undo step.
         let pointer_down = ctx.input(|i| i.pointer.any_down());

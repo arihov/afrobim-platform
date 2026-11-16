@@ -5,6 +5,7 @@ mod alignment_glue;
 mod anno_glue;
 mod anno_ui;
 mod app;
+mod appearance_ui;
 mod background;
 mod canvas;
 mod check_all;
@@ -70,6 +71,7 @@ mod u2_units_tests;
 mod u2_ifc_tests;
 #[cfg(test)]
 mod u2_tests;
+mod ui_kit;
 mod underlay;
 mod view3d;
 mod visibility_ui;
