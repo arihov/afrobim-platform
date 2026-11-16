@@ -11,6 +11,7 @@ use egui::{Key, KeyboardShortcut, Modifiers, PointerButton, RichText, Sense};
 
 use crate::commands::{self, Action, COMMANDS};
 use crate::icons::{self};
+use crate::ui_kit;
 use crate::render::{ElementMesh, Representation};
 use crate::{alignment_glue, markings_glue, modules_glue, road_dialogs, road_glue, signs_glue, supports_glue, Options};
 use crate::{check_ui::CheckUi, construction_ui::ConstructionUi, coordination_ui::CoordUi, cost_ui::CostUi, schedule_ui::SchedUi};
@@ -1961,7 +1962,7 @@ impl AfroBimApp {
                 let Some(e) = self.doc.find_mut(id) else { return };
                 let cat_now = e.category.clone();
 
-                egui::Grid::new("identity").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "identity", |ui| {
                     ui.label("Mark");
                     changed |= ui.text_edit_singleline(&mut e.name).changed();
                     ui.end_row();
@@ -2011,7 +2012,7 @@ impl AfroBimApp {
                     if !derived.is_empty() {
                         ui.add_space(8.0);
                         ui.label(RichText::new("Derived").strong());
-                        egui::Grid::new("derived").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
+                        crate::ui_kit::grid(ui, "derived", |ui| {
                             for (k, v) in &derived {
                                 ui.label(k);
                                 ui.label(v);
@@ -2366,35 +2367,35 @@ impl AfroBimApp {
         if let Some((sign, mut height, mut posts, mut inset)) = self.supports_dialog.take() {
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let (mut keep, mut add) = (true, false);
-            crate::win::new(ctx, format!("Supports for {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
-                egui::Grid::new("supports").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Mounting height (mm)");
-                    ui.add(egui::TextEdit::singleline(&mut height).hint_text("ground to the sign's lower edge").desired_width(190.0));
-                    ui.end_row();
-                    ui.label("Number of posts");
-                    ui.add(egui::DragValue::new(&mut posts).range(1..=6));
-                    ui.end_row();
-                    ui.label("Edge inset (mm)");
-                    ui.add(egui::DragValue::new(&mut inset).speed(5.0).range(0.0..=5000.0));
-                    ui.end_row();
-                });
-                ui.add_space(6.0);
-                ui.label(
-                    RichText::new("Posts and foundations are added with placeholder dimensions. Set every dimension in Properties, or size them for wind with Modify → Design the sign's supports (DESIGN).")
-                        .small()
-                        .weak(),
-                );
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    let valid = height.trim().parse::<f64>().is_ok_and(|h| h > 0.0);
-                    if ui.add_enabled(valid, egui::Button::new("Add supports")).clicked() {
-                        add = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+            let height_check = ui_kit::check_number(&height, &ui_kit::NumRule::required().above(0.0));
+            let valid = height_check.value().is_some();
+            let out = ui_kit::Dialog::titled(format!("Supports for {mark}")).subtitle("Posts and foundations under the sign").width(440.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::section(ui, "Posts", |ui| {
+                        ui_kit::form(ui, "supports", |fm| {
+                            fm.row("Mounting height", |ui| {
+                                let o = ui_kit::num_field(ui, &mut height, "mm", &ui_kit::NumRule::required().above(0.0));
+                                ui_kit::focus_once(ui, &o.response, "supports-height");
+                            });
+                            fm.row_note("Number of posts", "From 1 to 6", |ui| {
+                                ui.add(egui::DragValue::new(&mut posts).range(1..=6));
+                            });
+                            fm.row("Edge inset", |ui| {
+                                ui_kit::f64_field(ui, &mut inset, "mm", 0.0..=5000.0, 5.0);
+                            });
+                        });
+                    });
+                    ui_kit::callout(ui, ui_kit::Level::Info, "Posts and foundations are added with placeholder dimensions. Set every dimension in Properties, or size them for wind with Modify, Design the sign's supports (DESIGN).");
+                },
+                |ui| ui_kit::Footer::new("Add supports").enabled(valid, "Enter the mounting height, more than 0 mm").show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                add = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if add {
                 let h: f64 = height.trim().parse().unwrap_or(0.0);
                 self.sync_generated(); // the sign's size must be current
@@ -2414,96 +2415,100 @@ impl AfroBimApp {
             use supports_glue::WindChoice;
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let (mut keep, mut run) = (true, false);
-            crate::win::new(ctx, format!("Design supports for {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
-                egui::Grid::new("design").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Mounting height (mm)");
-                    ui.add(egui::TextEdit::singleline(&mut height).hint_text("ground to the sign's lower edge").desired_width(190.0));
-                    ui.end_row();
-                    ui.label("Number of posts");
-                    ui.add(egui::DragValue::new(&mut req.posts).range(1..=6));
-                    ui.end_row();
-                    ui.label("Edge inset (mm)");
-                    ui.add(egui::DragValue::new(&mut req.edge_inset_mm).speed(5.0).range(0.0..=5000.0));
-                    ui.end_row();
-                    ui.label("Basic wind pressure");
-                    ui.vertical(|ui| {
-                        ui.radio_value(&mut req.wind, WindChoice::MowtOpen, "MoWT Vol. 4 Table 2, open terrain");
-                        ui.radio_value(&mut req.wind, WindChoice::MowtBuiltUp, "MoWT Vol. 4 Table 2, built-up area");
-                        ui.horizontal(|ui| {
-                            let is_entered = matches!(req.wind, WindChoice::Entered(_));
-                            if ui.radio(is_entered, "Entered (kN/m²)").clicked() || is_entered {
-                                req.wind = WindChoice::Entered(entered);
-                            }
-                            if ui.add(egui::DragValue::new(&mut entered).speed(0.01).range(0.05..=5.0)).changed() {
-                                req.wind = WindChoice::Entered(entered);
+            let valid = ui_kit::check_number(&height, &ui_kit::NumRule::required().min(0.0)).value().is_some();
+            let out = ui_kit::Dialog::titled(format!("Design supports for {mark}")).subtitle("Size the posts and foundations of a sign for wind").width(520.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::section(ui, "Posts", |ui| {
+                        ui_kit::form(ui, "design-posts", |fm| {
+                            fm.row("Mounting height", |ui| {
+                                let o = ui_kit::num_field(ui, &mut height, "mm", &ui_kit::NumRule::required().min(0.0));
+                                ui_kit::focus_once(ui, &o.response, "design-height");
+                            });
+                            fm.row("Number of posts", |ui| {
+                                ui.add(egui::DragValue::new(&mut req.posts).range(1..=6));
+                            });
+                            fm.row("Edge inset", |ui| {
+                                ui_kit::f64_field(ui, &mut req.edge_inset_mm, "mm", 0.0..=5000.0, 5.0);
+                            });
+                        });
+                    });
+                    ui_kit::section(ui, "Wind", |ui| {
+                        ui_kit::form(ui, "design-wind", |fm| {
+                            fm.row("Basic wind pressure", |ui| {
+                                let mut which = match req.wind {
+                                    WindChoice::MowtOpen => 0,
+                                    WindChoice::MowtBuiltUp => 1,
+                                    WindChoice::Entered(_) => 2,
+                                };
+                                let before = which;
+                                ui_kit::radio_group(ui, &mut which, &["MoWT Vol. 4 Table 2, open terrain", "MoWT Vol. 4 Table 2, built-up area", "Entered"]);
+                                if which != before {
+                                    req.wind = match which {
+                                        0 => WindChoice::MowtOpen,
+                                        1 => WindChoice::MowtBuiltUp,
+                                        _ => WindChoice::Entered(entered),
+                                    };
+                                }
+                                if which == 2 {
+                                    ui_kit::f64_field(ui, &mut entered, "kN/m\u{b2}", 0.05..=5.0, 0.01);
+                                    req.wind = WindChoice::Entered(entered);
+                                }
+                            });
+                        });
+                    });
+                    ui_kit::section(ui, "Foundation", |ui| {
+                        ui_kit::form(ui, "design-foundation", |fm| {
+                            fm.row("Type", |ui| {
+                                ui_kit::segmented_of(ui, &mut req.spread, &[(false, "Planted, one per post"), (true, "Spread, one under the sign")]);
+                            });
+                            if req.spread {
+                                use afrobim_supports::design::AssumedGround;
+                                fm.row_note("Assumed ground", "Table 5.2", |ui| {
+                                    ui_kit::segmented_of(ui, &mut req.spread_ground, &[(AssumedGround::Poor, "Poor"), (AssumedGround::Average, "Average"), (AssumedGround::Good, "Good")]);
+                                });
+                                fm.row("Breadth along the sign", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.spread_breadth_mm, "mm", 300.0..=10000.0, 10.0);
+                                });
+                                fm.row("Thickness", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.spread_thickness_mm, "mm", 200.0..=3000.0, 10.0);
+                                });
+                                fm.row("Top below ground", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.spread_cover_mm, "mm", 0.0..=1000.0, 5.0);
+                                });
+                            } else {
+                                fm.row("Method", |ui| {
+                                    ui_kit::radios_of(ui, &mut req.cd354, &[(false, "PD 6547 (concrete surround resists)"), (true, "CD 354 rev 1 (post alone resists)")]);
+                                });
+                                fm.row("Foundation diameter", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.foundation_diameter_mm, "mm", 100.0..=2000.0, 10.0);
+                                });
+                                fm.row("Ground factor G", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.ground_factor, "kN/m\u{b2} per m", 1.0..=2000.0, 5.0);
+                                });
+                                fm.row("Minimum planting depth", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.min_planting_depth_mm, "mm", 100.0..=3000.0, 10.0);
+                                });
                             }
                         });
                     });
-                    ui.end_row();
-                    ui.label("Foundation");
-                    ui.vertical(|ui| {
-                        ui.radio_value(&mut req.spread, false, "Planted, one per post");
-                        ui.radio_value(&mut req.spread, true, "Spread, one under the sign");
-                    });
-                    ui.end_row();
-                    if req.spread {
-                        use afrobim_supports::design::AssumedGround;
-                        ui.label("Assumed ground (Table 5.2)");
-                        ui.horizontal(|ui| {
-                            ui.radio_value(&mut req.spread_ground, AssumedGround::Poor, "Poor");
-                            ui.radio_value(&mut req.spread_ground, AssumedGround::Average, "Average");
-                            ui.radio_value(&mut req.spread_ground, AssumedGround::Good, "Good");
-                        });
-                        ui.end_row();
-                        ui.label("Breadth along the sign (mm)");
-                        ui.add(egui::DragValue::new(&mut req.spread_breadth_mm).speed(10.0).range(300.0..=10000.0));
-                        ui.end_row();
-                        ui.label("Thickness (mm)");
-                        ui.add(egui::DragValue::new(&mut req.spread_thickness_mm).speed(10.0).range(200.0..=3000.0));
-                        ui.end_row();
-                        ui.label("Top below ground (mm)");
-                        ui.add(egui::DragValue::new(&mut req.spread_cover_mm).speed(5.0).range(0.0..=1000.0));
-                        ui.end_row();
-                    } else {
-                        ui.label("Method");
-                        ui.vertical(|ui| {
-                            ui.radio_value(&mut req.cd354, false, "PD 6547 (concrete surround resists)");
-                            ui.radio_value(&mut req.cd354, true, "CD 354 rev 1 (post alone resists)");
-                        });
-                        ui.end_row();
-                        ui.label("Foundation diameter (mm)");
-                        ui.add(egui::DragValue::new(&mut req.foundation_diameter_mm).speed(10.0).range(100.0..=2000.0));
-                        ui.end_row();
-                        ui.label("Ground factor G (kN/m² per m)");
-                        ui.add(egui::DragValue::new(&mut req.ground_factor).speed(5.0).range(1.0..=2000.0));
-                        ui.end_row();
-                        ui.label("Minimum planting depth (mm)");
-                        ui.add(egui::DragValue::new(&mut req.min_planting_depth_mm).speed(10.0).range(100.0..=3000.0));
-                        ui.end_row();
-                    }
-                });
-                ui.add_space(6.0);
-                ui.label(
-                    RichText::new(
+                    ui_kit::callout(
+                        ui,
+                        ui_kit::Level::Info,
                         "Steel S355 CHS posts on level ground, to the IHE Sign Structures Guide 2021 (BS EN 12899-1). \
                          Planted: G = 230 is the guide's value for poor ground, and the minimum planting depth is from BS EN 40-2 Table 7, which AfroBIM does not hold. \
                          Spread: the length is sized for the breadth and thickness given; the ground is assumed and must be proved by testing; concrete and reinforcement are not designed. \
                          The result is a calculation for an engineer to check.",
-                    )
-                    .small()
-                    .weak(),
-                );
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    let valid = height.trim().parse::<f64>().is_ok_and(|h| h >= 0.0);
-                    if ui.add_enabled(valid, egui::Button::new("Design")).clicked() {
-                        run = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+                    );
+                },
+                |ui| ui_kit::Footer::new("Design").enabled(valid, "Enter the mounting height, 0 mm or more").show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                run = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if run {
                 req.mounting_height_mm = height.trim().parse().unwrap_or(0.0);
                 self.sync_generated(); // the sign's size must be current
@@ -2531,125 +2536,120 @@ impl AfroBimApp {
             let choices = alignment_glue::alignments(&self.doc);
             let types = markings_glue::line_types();
             let (mut keep, mut lay) = (true, false);
-            crate::win::new(ctx, "Road marking").collapsible(false).resizable(false).show(ctx, |ui| {
-                let spec = &types[req.line.min(types.len() - 1)];
-                egui::Grid::new("marking").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Alignment");
-                    let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
-                    egui::ComboBox::from_id_salt("marking-alignment").selected_text(current).show_ui(ui, |ui| {
-                        for (id, name) in &choices {
-                            ui.selectable_value(&mut alignment, Some(*id), name);
-                        }
-                    });
-                    ui.end_row();
-                    ui.label("Line type");
-                    egui::ComboBox::from_id_salt("marking-type").width(330.0).selected_text(format!("{} (diagram {})", spec.name, spec.diagram)).show_ui(ui, |ui| {
-                        for (i, t) in types.iter().enumerate() {
-                            if ui.selectable_value(&mut req.line, i, format!("{} (diagram {}, {})", t.name, t.diagram, t.speed.label())).clicked() {
-                                req.width_mm = None;
-                            }
-                        }
-                    });
-                    ui.end_row();
-                    ui.label("Basis");
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.selectable_value(&mut req.basis_uganda, false, afrobim_markings::Basis::Uk.label());
-                            ui.selectable_value(&mut req.basis_uganda, true, afrobim_markings::Basis::Uganda.label());
+            let spec = &types[req.line.min(types.len() - 1)];
+            let can_lay = alignment.is_some();
+            let out = ui_kit::Dialog::titled("Road marking").subtitle("A longitudinal line laid along an alignment").width(560.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::section(ui, "Line", |ui| {
+                        ui_kit::form(ui, "marking-line", |fm| {
+                            fm.row("Alignment", |ui| {
+                                let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
+                                egui::ComboBox::from_id_salt("marking-alignment").selected_text(current).show_ui(ui, |ui| {
+                                    for (id, name) in &choices {
+                                        ui.selectable_value(&mut alignment, Some(*id), name);
+                                    }
+                                });
+                            });
+                            fm.row("Line type", |ui| {
+                                egui::ComboBox::from_id_salt("marking-type").width(330.0).selected_text(format!("{} (diagram {})", spec.name, spec.diagram)).show_ui(ui, |ui| {
+                                    for (i, t) in types.iter().enumerate() {
+                                        if ui.selectable_value(&mut req.line, i, format!("{} (diagram {}, {})", t.name, t.diagram, t.speed.label())).clicked() {
+                                            req.width_mm = None;
+                                        }
+                                    }
+                                });
+                            });
+                            fm.row("Pattern", |ui| {
+                                ui.add(egui::Label::new(format!("{}; {}", spec.pattern.label(), spec.citation)).wrap());
+                            });
+                            fm.row("Basis", |ui| {
+                                ui.vertical(|ui| {
+                                    ui_kit::segmented_of(ui, &mut req.basis_uganda, &[(false, afrobim_markings::Basis::Uk.label()), (true, afrobim_markings::Basis::Uganda.label())]);
+                                    if req.basis_uganda {
+                                        ui_kit::callout(ui, ui_kit::Level::Warning, format!("{}: not defined in the Uganda manual (the longitudinal catalogue here is the UK diagrams; the Uganda lines are under Uganda lines).", spec.name));
+                                        let mut on = req.uk_fallback.is_some();
+                                        if ui_kit::toggle(ui, &mut on, "Use the UK value").changed() {
+                                            req.uk_fallback = on.then(String::new);
+                                        }
+                                        if let Some(reason) = &mut req.uk_fallback {
+                                            ui.add(egui::TextEdit::multiline(reason).desired_rows(2).desired_width(330.0).hint_text("required: the reason is stored with the marking"));
+                                        }
+                                    } else {
+                                        req.uk_fallback = None;
+                                    }
+                                });
+                            });
+                            fm.row("Width", |ui| {
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.selectable_value(&mut req.width_mm, None, "From the table");
+                                    for w in spec.widths_mm {
+                                        ui.selectable_value(&mut req.width_mm, Some(*w), format!("{w} mm"));
+                                    }
+                                });
+                            });
+                            fm.row("Material", |ui| {
+                                ui.add(egui::TextEdit::singleline(&mut req.material).hint_text("not stated").desired_width(190.0));
+                            });
                         });
-                        if req.basis_uganda {
-                            ui.label(RichText::new(format!("{}: not defined in the Uganda manual (the longitudinal catalogue here is the UK diagrams; the Uganda lines are under Uganda lines).", spec.name)).small().color(crate::theme::warn()));
-                            let mut on = req.uk_fallback.is_some();
-                            if ui.checkbox(&mut on, "use the UK value").changed() {
-                                req.uk_fallback = on.then(String::new);
-                            }
-                            if let Some(reason) = &mut req.uk_fallback {
-                                ui.add(egui::TextEdit::multiline(reason).desired_rows(2).desired_width(330.0).hint_text("required: the reason is stored with the marking"));
-                            }
-                        } else {
-                            req.uk_fallback = None;
-                        }
                     });
-                    ui.end_row();
-                    ui.label("Pattern");
-                    ui.label(format!("{}; {}", spec.pattern.label(), spec.citation));
-                    ui.end_row();
-                    ui.label("Speed limit");
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            let mut kmh = req.speed_kmh.is_some();
-                            ui.selectable_value(&mut kmh, false, "mph");
-                            ui.selectable_value(&mut kmh, true, "km/h");
-                            if kmh != req.speed_kmh.is_some() {
-                                req.speed_kmh = kmh.then(|| (afrobim_markings::kmh(req.speed_mph).round(), None));
-                            }
-                            match &mut req.speed_kmh {
+                    ui_kit::section(ui, "Speed limit", |ui| {
+                        ui_kit::form(ui, "marking-speed", |fm| {
+                            fm.row("Unit", |ui| {
+                                let mut kmh = req.speed_kmh.is_some();
+                                ui_kit::segmented_of(ui, &mut kmh, &[(false, "mph"), (true, "km/h")]);
+                                if kmh != req.speed_kmh.is_some() {
+                                    req.speed_kmh = kmh.then(|| (afrobim_markings::kmh(req.speed_mph).round(), None));
+                                }
+                            });
+                            fm.row("Limit", |ui| match &mut req.speed_kmh {
                                 Some((v, _)) => {
-                                    ui.add(egui::DragValue::new(v).range(5.0..=130.0).suffix(" km/h"));
+                                    ui_kit::f64_field(ui, v, "km/h", 5.0..=130.0, 1.0);
                                 }
                                 None => {
-                                    ui.add(egui::DragValue::new(&mut req.speed_mph).range(5..=70));
-                                    ui.label(RichText::new(afrobim_markings::speed_label(req.speed_mph)).small().weak());
+                                    ui.horizontal(|ui| {
+                                        ui.add(egui::DragValue::new(&mut req.speed_mph).range(5..=70));
+                                        ui.label("mph");
+                                        ui_kit::note(ui, afrobim_markings::speed_label(req.speed_mph));
+                                    });
                                 }
-                            }
+                            });
                         });
                         // A km/h limit meets the manual's mph tables through the project's rule.
                         if let Some((v, answer)) = &mut req.speed_kmh {
                             let r = crate::projset::resolve_answered(&self.doc, *v, false, &crate::projset::marking_thresholds(), *answer);
-                            ui.label(RichText::new(&r.band_note).small());
+                            ui_kit::note(ui, r.band_note.clone());
                             if let Some(ask) = r.ask {
-                                ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).small().color(crate::theme::warn()));
-                                ui.horizontal(|ui| {
-                                    ui.selectable_value(answer, Some(true), "Yes, take the band");
-                                    ui.selectable_value(answer, Some(false), "No, keep the exact value");
-                                });
+                                ui_kit::callout(ui, ui_kit::Level::Warning, format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph));
+                                ui_kit::segmented_of(ui, answer, &[(None, "Not answered"), (Some(true), "Yes, take the band"), (Some(false), "No, keep the exact value")]);
                             } else {
-                                ui.label(RichText::new(format!("The tables are read at {} mph.", r.mph_used.round())).small().weak());
+                                ui_kit::note(ui, format!("The tables are read at {} mph.", r.mph_used.round()));
                             }
                         }
                     });
-                    ui.end_row();
-                    ui.label("Width (mm)");
-                    ui.horizontal(|ui| {
-                        ui.selectable_value(&mut req.width_mm, None, "From the table");
-                        for w in spec.widths_mm {
-                            ui.selectable_value(&mut req.width_mm, Some(*w), w.to_string());
-                        }
+                    ui_kit::section(ui, "Position", |ui| {
+                        ui_kit::form(ui, "marking-position", |fm| {
+                            fm.raw(|ui| crate::station_input::station_row(ui, &self.doc, alignment, "marking-start", "Start station", &mut req.start_station_m));
+                            fm.raw(|ui| crate::station_input::station_row(ui, &self.doc, alignment, "marking-end", "End station", &mut req.end_station_m));
+                            fm.row("Offset from the alignment", |ui| {
+                                ui.horizontal(|ui| {
+                                    ui_kit::f64_field(ui, &mut req.distance_m, "m", 0.0..=50.0, 0.05);
+                                    ui_kit::segmented_of(ui, &mut req.right, &[(false, "Left"), (true, "Right")]);
+                                });
+                            });
+                        });
+                        ui_kit::note(ui, crate::station_input::note(&self.doc, alignment));
                     });
-                    ui.end_row();
-                    crate::station_input::station_row(ui, &self.doc, alignment, "marking-start", "Start station", &mut req.start_station_m);
-                    crate::station_input::station_row(ui, &self.doc, alignment, "marking-end", "End station", &mut req.end_station_m);
-                    ui.label("Offset from the alignment (m)");
-                    ui.horizontal(|ui| {
-                        ui.add(egui::DragValue::new(&mut req.distance_m).speed(0.05).range(0.0..=50.0));
-                        ui.selectable_value(&mut req.right, false, "Left");
-                        ui.selectable_value(&mut req.right, true, "Right");
-                    });
-                    ui.end_row();
-                    ui.label("Material");
-                    ui.add(egui::TextEdit::singleline(&mut req.material).hint_text("not stated").desired_width(190.0));
-                    ui.end_row();
-                });
-                ui.add_space(4.0);
-                ui.label(
-                    RichText::new(
-                        "Patterns and widths are from the Traffic Signs Manual Chapter 5 (2018). Its tables are in mph: how a km/h limit maps to them is the engineer's decision. \
-                         The line is shown in the 3D site view and measured under Export quantities.",
-                    )
-                    .small()
-                    .weak(),
-                );
-                ui.label(RichText::new(crate::station_input::note(&self.doc, alignment)).small().weak());
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(alignment.is_some(), egui::Button::new("Lay the line")).clicked() {
-                        lay = true;
-                    }
-                    if ui.button("Close").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+                    ui_kit::note(ui, "Patterns and widths are from the Traffic Signs Manual Chapter 5 (2018). Its tables are in mph: how a km/h limit maps to them is the engineer's decision. The line is shown in the 3D site view and measured under Export quantities.");
+                },
+                |ui| ui_kit::Footer::new("Lay the line").enabled(can_lay, "Choose the alignment").cancel(Some("Close")).show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                lay = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if lay {
                 if let Some(a) = alignment {
                     match markings_glue::add(&mut self.doc, a, &req) {
@@ -2680,47 +2680,38 @@ impl AfroBimApp {
             let info = &modules_glue::KINDS[kind.min(modules_glue::KINDS.len() - 1)];
             let choices = alignment_glue::alignments(&self.doc);
             let (mut keep, mut add) = (true, false);
-            crate::win::new(ctx, format!("Add a {}", info.label.to_lowercase())).collapsible(false).resizable(false).show(ctx, |ui| {
-                egui::Grid::new("road-element").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Alignment");
-                    let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
-                    egui::ComboBox::from_id_salt("road-alignment").selected_text(current).show_ui(ui, |ui| {
-                        for (id, name) in &choices {
-                            ui.selectable_value(&mut alignment, Some(*id), name);
+            let can_add = alignment.is_some();
+            let out = ui_kit::Dialog::titled(format!("Add a {}", info.label.to_lowercase())).subtitle("Placed along an alignment with placeholder dimensions").width(460.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::form(ui, "road-element", |fm| {
+                        fm.row("Alignment", |ui| {
+                            ui_kit::element_combo(ui, "road-alignment", &choices, &mut alignment);
+                        });
+                        fm.raw(|ui| crate::station_input::station_row(ui, &self.doc, alignment, "road-start", if info.span { "Start station" } else { "Station" }, &mut start));
+                        if info.span {
+                            fm.raw(|ui| crate::station_input::station_row(ui, &self.doc, alignment, "road-end", "End station", &mut end));
+                        }
+                        if info.offset {
+                            fm.row("Offset from the alignment", |ui| {
+                                ui.horizontal(|ui| {
+                                    ui_kit::f64_field(ui, &mut distance, "m", 0.0..=200.0, 0.1);
+                                    ui_kit::segmented_of(ui, &mut right, &[(false, "Left"), (true, "Right")]);
+                                });
+                            });
                         }
                     });
-                    ui.end_row();
-                    crate::station_input::station_row(ui, &self.doc, alignment, "road-start", if info.span { "Start station" } else { "Station" }, &mut start);
-                    if info.span {
-                        crate::station_input::station_row(ui, &self.doc, alignment, "road-end", "End station", &mut end);
-                    }
-                    if info.offset {
-                        ui.label("Offset from the alignment (m)");
-                        ui.horizontal(|ui| {
-                            ui.add(egui::DragValue::new(&mut distance).speed(0.1).range(0.0..=200.0));
-                            ui.selectable_value(&mut right, false, "Left");
-                            ui.selectable_value(&mut right, true, "Right");
-                        });
-                        ui.end_row();
-                    }
-                });
-                ui.add_space(4.0);
-                ui.label(
-                    RichText::new("It is added with placeholder dimensions that are not design values: select it and set every dimension in Properties, then run CHECK.")
-                        .small()
-                        .weak(),
-                );
-                ui.label(RichText::new(crate::station_input::note(&self.doc, alignment)).small().weak());
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(alignment.is_some(), egui::Button::new("Add")).clicked() {
-                        add = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+                    ui_kit::note(ui, crate::station_input::note(&self.doc, alignment));
+                    ui_kit::callout(ui, ui_kit::Level::Info, "It is added with placeholder dimensions that are not design values: select it and set every dimension in Properties, then run CHECK.");
+                },
+                |ui| ui_kit::Footer::new("Add").enabled(can_add, "Choose the alignment").show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                add = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if add {
                 let offset = if right { distance } else { -distance };
                 match alignment.ok_or_else(|| "Choose an alignment.".to_string()).and_then(|a| modules_glue::add(&mut self.doc, kind, a, start, end, offset)) {
@@ -2766,52 +2757,46 @@ impl AfroBimApp {
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let choices = modules_glue::gantries(&self.doc);
             let (mut keep, mut hang) = (true, false);
-            crate::win::new(ctx, format!("Hang {mark} on a gantry")).collapsible(false).resizable(false).show(ctx, |ui| {
-                egui::Grid::new("hang").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Gantry");
-                    let current = choices.iter().find(|c| Some(c.0) == gantry).map(|c| c.1.clone()).unwrap_or_default();
-                    egui::ComboBox::from_id_salt("hang-gantry").selected_text(current).show_ui(ui, |ui| {
-                        for (id, name) in &choices {
-                            ui.selectable_value(&mut gantry, Some(*id), name);
+            let can_hang = gantry.is_some();
+            let out = ui_kit::Dialog::titled(format!("Hang {mark} on a gantry")).subtitle("Fix the sign under a gantry boom").width(480.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::form(ui, "hang", |fm| {
+                        fm.row("Gantry", |ui| {
+                            ui_kit::element_combo(ui, "hang-gantry", &choices, &mut gantry);
+                        });
+                        fm.row("Position", |ui| {
+                            ui.vertical(|ui| {
+                                ui_kit::segmented_of(ui, &mut by_lane, &[(false, "By offset"), (true, "Over a lane")]);
+                                if by_lane {
+                                    ui.horizontal(|ui| {
+                                        ui.add(egui::DragValue::new(&mut lane).range(1..=12));
+                                        ui.label("lane number, from 1 at the left");
+                                    });
+                                } else {
+                                    ui_kit::f64_field(ui, &mut offset, "m from the centreline", -200.0..=200.0, 0.1);
+                                }
+                            });
+                        });
+                        if !by_lane {
+                            fm.row("Faces traffic travelling", |ui| {
+                                ui_kit::segmented_of(ui, &mut up, &[(true, "Up-station"), (false, "Down-station")]);
+                            });
                         }
-                    });
-                    ui.end_row();
-                    ui.label("Position");
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.radio_value(&mut by_lane, false, "Offset from the centreline (m)");
-                            ui.add_enabled(!by_lane, egui::DragValue::new(&mut offset).speed(0.1));
-                        });
-                        ui.horizontal(|ui| {
-                            ui.radio_value(&mut by_lane, true, "Over lane number");
-                            ui.add_enabled(by_lane, egui::DragValue::new(&mut lane).range(1..=12));
+                        fm.row_note("Lower edge", "Above the boom underside; negative hangs it below the boom", |ui| {
+                            ui_kit::f64_field(ui, &mut bottom, "mm", -100000.0..=100000.0, 10.0);
                         });
                     });
-                    ui.end_row();
-                    if !by_lane {
-                        ui.label("Faces traffic travelling");
-                        ui.horizontal(|ui| {
-                            ui.selectable_value(&mut up, true, "Up-station");
-                            ui.selectable_value(&mut up, false, "Down-station");
-                        });
-                        ui.end_row();
-                    }
-                    ui.label("Lower edge above the boom underside (mm)");
-                    ui.add(egui::DragValue::new(&mut bottom).speed(10.0));
-                    ui.end_row();
-                });
-                ui.add_space(4.0);
-                ui.label(RichText::new("Lanes are those entered on the gantry, numbered from 1 at the left. A negative level hangs the sign below the boom. Run CHECK on the gantry afterwards for headroom.").small().weak());
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(gantry.is_some(), egui::Button::new("Hang")).clicked() {
-                        hang = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+                    ui_kit::note(ui, "Lanes are those entered on the gantry, numbered from 1 at the left. Run CHECK on the gantry afterwards for headroom.");
+                },
+                |ui| ui_kit::Footer::new("Hang").enabled(can_hang, "Choose the gantry").show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                hang = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if hang {
                 match gantry.ok_or_else(|| "Choose a gantry.".to_string()).and_then(|g| modules_glue::hang_sign(&mut self.doc, g, sign, by_lane.then_some(lane), offset, bottom, up)) {
                     Ok(note) => {
@@ -2839,18 +2824,26 @@ impl AfroBimApp {
 
         if let Some((mark, lines)) = self.design_report.take() {
             let mut open = true;
-            let dlg = crate::ui_kit::Dialog::titled(format!("Calculation for {mark}")).width(640.0).show_body(ctx, |ui| {
-                egui::ScrollArea::vertical().max_height(460.0).show(ui, |ui| {
+            let dlg = ui_kit::Dialog::titled(format!("Calculation for {mark}")).subtitle("Read it and check it: it is a calculation for an engineer to review").width(640.0).show(
+                ctx,
+                |ui| {
                     for line in &lines {
-                        let text = RichText::new(line).small();
                         let flagged = line.contains("FAILS") || line.contains("NOT ENOUGH") || ["Check:", "Note:", "WARNING"].iter().any(|p| line.starts_with(p));
-                        ui.label(if flagged { text.color(crate::theme::warn()) } else { text });
+                        let t = crate::theme::tokens_ui(ui);
+                        ui.add(egui::Label::new(RichText::new(line).size(crate::theme::FONT_SMALL + 1.0).color(if flagged { t.warning } else { t.text })).wrap());
                     }
-                });
-                if ui.button("Copy").clicked() {
+                },
+                |ui| ui_kit::Footer::new("Copy to clipboard").cancel(Some("Close")).show(ui),
+            );
+            if let Some((_, f)) = &dlg.inner {
+                if f.primary {
                     ctx.copy_text(lines.join("\n"));
+                    self.status = "Copied the calculation.".into();
                 }
-            });
+                if f.cancel {
+                    open = false;
+                }
+            }
             if dlg.closed {
                 open = false;
             }
@@ -2863,52 +2856,43 @@ impl AfroBimApp {
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let choices = alignment_glue::alignments(&self.doc);
             let (mut keep, mut place) = (true, false);
-            crate::win::new(ctx, format!("Place {mark} on an alignment")).collapsible(false).resizable(false).show(ctx, |ui| {
-                egui::Grid::new("station").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Alignment");
-                    let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
-                    egui::ComboBox::from_id_salt("alignment").selected_text(current).show_ui(ui, |ui| {
-                        for (id, name) in &choices {
-                            ui.selectable_value(&mut alignment, Some(*id), name);
-                        }
-                    });
-                    ui.end_row();
-                    ui.label("Station (m)");
-                    ui.add(egui::DragValue::new(&mut station).speed(1.0));
-                    ui.end_row();
-                    let regions = alignment.map(|a| alignment_glue::region_count(&self.doc, a)).unwrap_or(1);
-                    if regions > 1 {
-                        ui.label("Stationing region");
-                        ui.horizontal(|ui| {
-                            ui.add(egui::DragValue::new(&mut region).range(0..=regions));
-                            ui.label(RichText::new(format!("1 to {regions}; 0 if the station occurs once")).small().weak());
+            let can_place = alignment.is_some();
+            let regions = alignment.map(|a| alignment_glue::region_count(&self.doc, a)).unwrap_or(1);
+            if regions <= 1 {
+                region = 0;
+            }
+            let out = ui_kit::Dialog::titled(format!("Place {mark} on an alignment")).subtitle("Set the sign out by station and offset").width(460.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::form(ui, "station", |fm| {
+                        fm.row("Alignment", |ui| {
+                            ui_kit::element_combo(ui, "alignment", &choices, &mut alignment);
                         });
-                        ui.end_row();
-                    } else {
-                        region = 0;
-                    }
-                    ui.label("Offset from centreline (m)");
-                    ui.add(egui::DragValue::new(&mut offset).speed(0.1).range(0.0..=200.0));
-                    ui.end_row();
-                    ui.label("Side, looking up-station");
-                    ui.horizontal(|ui| {
-                        ui.selectable_value(&mut right, false, "Left");
-                        ui.selectable_value(&mut right, true, "Right");
+                        fm.row("Station", |ui| {
+                            ui_kit::f64_field(ui, &mut station, "m", -1.0e9..=1.0e9, 1.0);
+                        });
+                        if regions > 1 {
+                            fm.row_note("Stationing region", &format!("1 to {regions}; 0 if the station occurs once"), |ui| {
+                                ui.add(egui::DragValue::new(&mut region).range(0..=regions));
+                            });
+                        }
+                        fm.row("Offset from the centreline", |ui| {
+                            ui_kit::f64_field(ui, &mut offset, "m", 0.0..=200.0, 0.1);
+                        });
+                        fm.row("Side, looking up-station", |ui| {
+                            ui_kit::segmented_of(ui, &mut right, &[(false, "Left"), (true, "Right")]);
+                        });
                     });
-                    ui.end_row();
-                });
-                ui.add_space(4.0);
-                ui.label(RichText::new("The sign faces the traffic on its own side of the road, for traffic keeping left.").small().weak());
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(alignment.is_some(), egui::Button::new("Place")).clicked() {
-                        place = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+                    ui_kit::note(ui, "The sign faces the traffic on its own side of the road, for traffic keeping left.");
+                },
+                |ui| ui_kit::Footer::new("Place").enabled(can_place, "Choose the alignment").show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                place = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if place {
                 if let Some(a) = alignment {
                     match alignment_glue::place_sign(&mut self.doc, sign, a, station, region.checked_sub(1), offset, right) {

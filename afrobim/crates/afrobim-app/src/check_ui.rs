@@ -157,7 +157,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
         ui.label(RichText::new(text).small());
     };
     ui.label(RichText::new("Run-off coefficient (SDM Table 3.7 and 3.8)").strong());
-    egui::Grid::new("sanral-basic").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "sanral-basic", |ui| {
         field(ui, "Catchment area (km²)", &mut s.area_km2, "enter the area");
         field(ui, "Mean annual precipitation (mm)", &mut s.map_mm, "selects the column of Table 3.7");
         field(ui, "Dolomitic share of the rural area (%)", &mut s.dolomite_percent, "enter 0 if none");
@@ -256,7 +256,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
     }
     ui.add_space(6.0);
     ui.label(RichText::new("Rainfall (always yours)").strong());
-    egui::Grid::new("sanral-rain").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "sanral-rain", |ui| {
         field(ui, "Point rainfall depth for Tc and T (mm)", &mut s.point_rainfall_mm, "from the DDF, Hershfield or Design Rainfall Estimation");
         field(ui, "Where the depth comes from", &mut s.rainfall_source, "your source and its date");
         ui.label("Area reduction factor");
@@ -613,8 +613,9 @@ impl AfroBimApp {
         let mark = self.doc.find(d.element).map(|e| e.name.clone()).unwrap_or_default();
         let has_rational = inputs::load::<RationalInputs>(&self.doc, d.element, inputs::KEY_RATIONAL).is_some();
         let (mut keep, mut run, mut rational) = (true, false, false);
-        crate::win::new(ctx, format!("Check the capacity of {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
-            egui::Grid::new("drain-check").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                let footer_ok = true;
+        let dlg = crate::ui_kit::Dialog::titled(format!("Check the capacity of {mark}")).width(480.0).resizable(false).show(ctx, |ui| {
+            crate::ui_kit::grid(ui, "drain-check", |ui| {
                 flow_rows(ui, &mut d.form.flow_m3_s, &mut d.form.flow_from_rational, has_rational, &mut rational);
                 ui.label("Basis");
                 basis_radios(ui, &mut d.form);
@@ -623,16 +624,16 @@ impl AfroBimApp {
             });
             ui.add_space(4.0);
             ui.label(RichText::new("The design flow is the engineer's: AfroBIM holds no rainfall data. Every field starts empty. The drain's gradient, lining and roughness are those entered in Properties. What you enter is kept on the drain, for CHECKALL.").small().weak());
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                if ui.button("Check").clicked() {
-                    run = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    keep = false;
-                }
-            });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Check").enabled(footer_ok, "Complete the inputs").cancel(Some("Cancel")).show(ui));
+        if let Some((_, f)) = &dlg.inner {
+            run = f.primary;
+            if f.cancel {
+                keep = false;
+            }
+        }
+        if dlg.closed {
+            keep = false;
+        }
         if rational {
             self.checks.open_rational(&self.doc, Some(d.element));
         }
@@ -664,8 +665,9 @@ impl AfroBimApp {
         let mark = self.doc.find(d.element).map(|e| e.name.clone()).unwrap_or_default();
         let has_rational = inputs::load::<RationalInputs>(&self.doc, d.element, inputs::KEY_RATIONAL).is_some();
         let (mut keep, mut run, mut rational) = (true, false, false);
-        crate::win::new(ctx, format!("Check the culvert {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
-            egui::Grid::new("culvert-check").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                let footer_ok = true;
+        let dlg = crate::ui_kit::Dialog::titled(format!("Check the culvert {mark}")).width(480.0).resizable(false).show(ctx, |ui| {
+            crate::ui_kit::grid(ui, "culvert-check", |ui| {
                 flow_rows(ui, &mut d.form.flow_m3_s, &mut d.form.flow_from_rational, has_rational, &mut rational);
                 ui.label("Design basis");
                 culvert_basis_radios(ui, &mut d.form);
@@ -733,16 +735,16 @@ impl AfroBimApp {
             });
             ui.add_space(4.0);
             ui.label(RichText::new("MoWT: the complete check is inlet control (FHWA HDS-5 equations, the inlet edge you choose) and outlet control (DDM Section 9.4.2); the greater governs and is named, and the outlet lines are shown first. With no inlet edge or allowable headwater only the outlet half is shown, and it is marked as incomplete. SANRAL: SDM Table 7.2 and Eq. 7.4, for the barrel of this element. Each basis keeps its own values. Every field starts empty and what you enter is kept on the culvert, for CHECKALL.").small().weak());
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                if ui.button("Check").clicked() {
-                    run = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    keep = false;
-                }
-            });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Check").enabled(footer_ok, "Complete the inputs").cancel(Some("Cancel")).show(ui));
+        if let Some((_, f)) = &dlg.inner {
+            run = f.primary;
+            if f.cancel {
+                keep = false;
+            }
+        }
+        if dlg.closed {
+            keep = false;
+        }
         if rational {
             self.checks.open_rational(&self.doc, Some(d.element));
         }
@@ -777,15 +779,14 @@ impl AfroBimApp {
         let Some(mut d) = self.checks.rational.take() else { return };
         let target = d.element.and_then(|id| self.doc.find(id)).map(|e| e.name.clone());
         let (mut keep, mut calculate, mut use_it) = (true, false, false);
-        crate::win::new(ctx, match &target {
+        let keep_label = target.as_ref().map(|mark| format!("Keep on {mark} and use as its design flow"));
+        let dlg = crate::ui_kit::Dialog::titled(match &target {
             Some(mark) => format!("Rational method for {mark}"),
             None => "Rational method".to_string(),
-        })
-        .collapsible(false)
-        .resizable(true)
-        .default_width(600.0)
-        .show(ctx, |ui| {
-            egui::ScrollArea::vertical().max_height(520.0).auto_shrink([false, true]).show(ui, |ui| {
+        }).subtitle("Peak flow from the catchment, by the rational method").width(600.0).show(
+            ctx,
+            |ui| {
+            ui.scope(|ui| {
                 ui.horizontal(|ui| {
                     ui.label("Method");
                     ui.selectable_value(&mut d.form.use_sanral, false, "MoWT (Vol. 2, 4.4.2)");
@@ -818,7 +819,7 @@ impl AfroBimApp {
                     d.form.rows.push(CatchmentRow::default());
                 }
                 ui.add_space(6.0);
-                egui::Grid::new("rational-flow").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "rational-flow", |ui| {
                     field(ui, "Design rainfall intensity (mm/h)", &mut d.form.intensity_mm_h, "for the time of concentration");
                     field(ui, "Where the intensity comes from", &mut d.form.intensity_source, "your source and its date");
                     field(ui, "Recurrence multiplier", &mut d.form.frequency_multiplier, "empty: none applied");
@@ -827,21 +828,6 @@ impl AfroBimApp {
                 ui.add_space(4.0);
                 ui.label(RichText::new("MoWT Road Design Manual Vol. 2, Sections 4.4.2 and 4.4.3. AfroBIM holds no rainfall data: the intensity, the areas and the runoff coefficients are yours. Every field starts empty.").small().weak());
                 }
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Calculate").clicked() {
-                        calculate = true;
-                    }
-                    if let Some(mark) = &target {
-                        if ui.button(format!("Keep on {mark} and use as its design flow")).clicked() {
-                            calculate = true;
-                            use_it = true;
-                        }
-                    }
-                    if ui.button("Close").clicked() {
-                        keep = false;
-                    }
-                });
                 match &d.result {
                     Some(Ok((q, lines))) => {
                         ui.separator();
@@ -859,7 +845,27 @@ impl AfroBimApp {
                     None => {}
                 }
             });
-        });
+        },
+            |ui| {
+                let labels: Vec<&str> = keep_label.iter().map(String::as_str).collect();
+                crate::ui_kit::Footer::new("Calculate").secondary(&labels).cancel(Some("Close")).show(ui)
+            },
+        );
+        if let Some((_, f)) = &dlg.inner {
+            if f.primary {
+                calculate = true;
+            }
+            if f.secondary == Some(0) {
+                calculate = true;
+                use_it = true;
+            }
+            if f.cancel {
+                keep = false;
+            }
+        }
+        if dlg.closed {
+            keep = false;
+        }
         if calculate {
             d.result = Some(d.form.run_flow());
             if let Some(Ok((q, _))) = &d.result {

@@ -39,11 +39,12 @@ pub struct Dialog {
     min_width: f32,
     resizable: bool,
     max_body: Option<f32>,
+    pos: Option<egui::Pos2>,
 }
 
 impl Dialog {
     pub fn new(title: impl Into<String>, icon: &'static str) -> Self {
-        Dialog { title: title.into(), id_title: None, icon, subtitle: None, help: None, width: 460.0, min_width: 340.0, resizable: true, max_body: None }
+        Dialog { title: title.into(), id_title: None, icon, subtitle: None, help: None, width: 460.0, min_width: 340.0, resizable: true, max_body: None, pos: None }
     }
     /// A dialog whose icon is chosen from its title (the same table the window frame uses).
     pub fn titled(title: impl Into<String>) -> Self {
@@ -71,6 +72,11 @@ impl Dialog {
         self.min_width = w.min(340.0);
         self
     }
+    /// Where the window opens when it has no remembered position.
+    pub fn default_pos(mut self, p: egui::Pos2) -> Self {
+        self.pos = Some(p);
+        self
+    }
     pub fn resizable(mut self, r: bool) -> Self {
         self.resizable = r;
         self
@@ -91,7 +97,11 @@ impl Dialog {
         let mut closed = false;
         let key = self.id_title.clone().unwrap_or_else(|| self.title.clone());
         let id = Id::new(&key).with("kit-help");
-        let out = crate::win::plain(ctx, &key)
+        let mut window = crate::win::plain(ctx, &key);
+        if let Some(p) = self.pos {
+            window = window.default_pos(p);
+        }
+        let out = window
             .title_bar(false)
             .collapsible(false)
             .resizable(self.resizable)
@@ -237,6 +247,11 @@ impl Form<'_> {
 /// A two-column grid of labelled rows. `id` must be unique in the window.
 pub fn form<R>(ui: &mut Ui, id: &str, rows: impl FnOnce(&mut Form) -> R) -> R {
     egui::Grid::new(Id::new(("kit-form", id))).num_columns(2).spacing([theme::SP_LG, 6.0]).min_col_width(130.0).show(ui, |ui| rows(&mut Form { ui })).inner
+}
+
+/// An aligned two-column grid for the helpers that add their own label and widget cells.
+pub fn grid<R>(ui: &mut Ui, id: &str, cells: impl FnOnce(&mut Ui) -> R) -> R {
+    egui::Grid::new(Id::new(("kit-grid", id))).num_columns(2).spacing([theme::SP_LG, 6.0]).min_col_width(130.0).show(ui, cells).inner
 }
 
 /// A collapsible "Advanced" block, closed until opened (and remembered while the window lives).
@@ -498,6 +513,46 @@ pub fn segmented(ui: &mut Ui, selected: &mut usize, items: &[&str]) -> bool {
         }
     });
     changed
+}
+
+/// A segmented control over values of any comparable type.
+pub fn segmented_of<T: PartialEq + Clone>(ui: &mut Ui, value: &mut T, items: &[(T, &str)]) -> bool {
+    let mut i = items.iter().position(|(v, _)| v == value).unwrap_or(0);
+    let labels: Vec<&str> = items.iter().map(|(_, l)| *l).collect();
+    let changed = segmented(ui, &mut i, &labels);
+    if changed {
+        *value = items[i].0.clone();
+    }
+    changed
+}
+
+/// Radio buttons over values of any comparable type, one per line.
+pub fn radios_of<T: PartialEq + Clone>(ui: &mut Ui, value: &mut T, items: &[(T, &str)]) -> bool {
+    let mut i = items.iter().position(|(v, _)| v == value).unwrap_or(0);
+    let labels: Vec<&str> = items.iter().map(|(_, l)| *l).collect();
+    let changed = radio_group(ui, &mut i, &labels);
+    if changed {
+        *value = items[i].0.clone();
+    }
+    changed
+}
+
+/// A drop-down over named model elements (alignments, gantries); `sel` is the chosen one.
+pub fn element_combo(ui: &mut Ui, id: &str, choices: &[(afrobim_kernel::ElementId, String)], sel: &mut Option<afrobim_kernel::ElementId>) -> bool {
+    let mut changed = false;
+    let current = choices.iter().find(|c| Some(c.0) == *sel).map(|c| c.1.clone()).unwrap_or_else(|| "(none)".to_string());
+    egui::ComboBox::from_id_salt(("kit-element", id)).width(220.0).selected_text(current).show_ui(ui, |ui| {
+        for (eid, name) in choices {
+            changed |= ui.selectable_value(sel, Some(*eid), name).changed();
+        }
+    });
+    changed
+}
+
+/// A muted explanatory paragraph (a source, a limit, a note under a form).
+pub fn note(ui: &mut Ui, text: impl Into<String>) {
+    let t = tokens_ui(ui);
+    ui.add(egui::Label::new(RichText::new(text.into()).size(theme::FONT_SMALL).color(t.text_muted)).wrap());
 }
 
 /// A checkbox with its label.

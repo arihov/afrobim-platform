@@ -232,18 +232,6 @@ fn index_options(labels: Vec<String>) -> Vec<(usize, String)> {
     labels.into_iter().enumerate().collect()
 }
 
-fn buttons(ui: &mut Ui, ok: &str, enabled: bool, add: &mut bool, keep: &mut bool) {
-    ui.add_space(6.0);
-    ui.horizontal(|ui| {
-        if ui.add_enabled(enabled, egui::Button::new(ok)).clicked() {
-            *add = true;
-        }
-        if ui.button("Cancel").clicked() {
-            *keep = false;
-        }
-    });
-}
-
 fn column_fields(ui: &mut Ui, f: &mut ColumnFields) {
     ui.label("Mounting height");
     number(ui, &mut f.mounting_height_m, 0.1, " m");
@@ -387,9 +375,10 @@ fn lighting_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add) = (true, false);
-    crate::win::new(ctx, "Street lighting installation").collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
-            egui::Grid::new("lighting").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+    let footer_ok = alignment.is_some();
+    let dlg = crate::ui_kit::Dialog::titled("Street lighting installation").subtitle("An installation of lighting columns along an alignment").width(480.0).resizable(false).show(ctx, |ui| {
+        ui.scope(|ui| {
+            crate::ui_kit::grid(ui, "lighting", |ui| {
                 alignment_row(ui, "lighting-alignment", &choices, &mut alignment);
                 ui.label("Reference");
                 text(ui, &mut req.reference, "e.g. LZ-01", 120.0);
@@ -430,8 +419,16 @@ fn lighting_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
         });
         not_a_design(ui, "Nothing here is a design value: spacing, set-back, mounting height and the class are the engineer's. AfroBIM does no photometric, structural or electrical design. The offset is positive to the right.");
         ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
-        buttons(ui, "Add", alignment.is_some(), &mut add, &mut keep);
-    });
+    }, |ui| crate::ui_kit::Footer::new("Add").enabled(footer_ok, "Choose the alignment").show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        add = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if add {
         match alignment.ok_or_else(|| "Choose an alignment.".to_string()).and_then(|a| road_glue::add_lighting(doc, a, &req)) {
             Ok(mark) => out.push(Outcome::Added(mark.clone(), format!("Added {mark}. Select it and run CHECK to see which requirements need your input."))),
@@ -449,8 +446,9 @@ fn column_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Opt
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add) = (true, false);
-    crate::win::new(ctx, "Lighting column").collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::Grid::new("column").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+    let footer_ok = alignment.is_some();
+    let dlg = crate::ui_kit::Dialog::titled("Lighting column").subtitle("A single column at a junction or conflict area").width(480.0).resizable(false).show(ctx, |ui| {
+        crate::ui_kit::grid(ui, "column", |ui| {
             alignment_row(ui, "column-alignment", &choices, &mut alignment);
             ui.label("Mark");
             text(ui, &mut req.mark, "e.g. LC-001", 120.0);
@@ -484,8 +482,16 @@ fn column_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Opt
         });
         not_a_design(ui, "For a junction or conflict area. Mounting height, outreach and the luminaire are entered, not designed.");
         ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
-        buttons(ui, "Add", alignment.is_some(), &mut add, &mut keep);
-    });
+    }, |ui| crate::ui_kit::Footer::new("Add").enabled(footer_ok, "Choose the alignment").show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        add = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if add {
         match alignment.ok_or_else(|| "Choose an alignment.".to_string()).and_then(|a| road_glue::add_light_column(doc, a, &req)) {
             Ok(mark) => out.push(Outcome::Added(mark.clone(), format!("Added {mark}."))),
@@ -505,9 +511,10 @@ fn barrier_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Op
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add) = (true, false);
-    crate::win::new(ctx, "Safety barrier run").collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
-            egui::Grid::new("barrier").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+    let footer_ok = alignment.is_some();
+    let dlg = crate::ui_kit::Dialog::titled("Safety barrier run").subtitle("A vehicle restraint system along an alignment").width(480.0).resizable(false).show(ctx, |ui| {
+        ui.scope(|ui| {
+            crate::ui_kit::grid(ui, "barrier", |ui| {
                 alignment_row(ui, "barrier-alignment", &choices, &mut alignment);
                 ui.label("Mark");
                 text(ui, &mut req.name, "e.g. VRS-001", 120.0);
@@ -565,8 +572,16 @@ fn barrier_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Op
         });
         not_a_design(ui, "The class, working width and severity are what the engineer chooses (CD 377 and the risk assessment). Run CHECK for the requirement checks.");
         ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
-        buttons(ui, "Add", alignment.is_some(), &mut add, &mut keep);
-    });
+    }, |ui| crate::ui_kit::Footer::new("Add").enabled(footer_ok, "Choose the alignment").show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        add = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if add {
         match alignment.ok_or_else(|| "Choose an alignment.".to_string()).and_then(|a| road_glue::add_restraint(doc, a, &req)) {
             Ok(mark) => out.push(Outcome::Added(mark.clone(), format!("Added {mark}. Run CHECK for its requirement checks."))),
@@ -590,8 +605,9 @@ fn speed_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Elem
     let Some((id, mut speed)) = slot.take() else { return };
     let mark = doc.find(id).map(|e| e.name.clone()).unwrap_or_default();
     let (mut keep, mut run) = (true, false);
-    crate::win::new(ctx, format!("Check {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::Grid::new("speed").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+    let footer_ok = true;
+    let dlg = crate::ui_kit::Dialog::titled(format!("Check {mark}")).width(480.0).resizable(false).show(ctx, |ui| {
+        crate::ui_kit::grid(ui, "speed", |ui| {
             ui.label("Speed limit");
             ui.horizontal(|ui| {
                 number(ui, &mut speed.value, 1.0, "");
@@ -613,8 +629,16 @@ fn speed_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Elem
             }
         }
         not_a_design(ui, "The checks need the speed limit. Every other input is left not entered, and the report says which checks it stops.");
-        buttons(ui, "Check", true, &mut run, &mut keep);
-    });
+    }, |ui| crate::ui_kit::Footer::new("Check").enabled(footer_ok, "Complete the inputs").show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        run = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if run {
         match road_glue::check_restraint(doc, id, speed) {
             Ok(lines) => {
@@ -638,9 +662,10 @@ fn pavement_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add, mut design_first) = (true, false, false);
-    crate::win::new(ctx, "Pavement").collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
-            egui::Grid::new("pavement").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+    let footer_ok = alignment.is_some();
+    let dlg = crate::ui_kit::Dialog::titled("Pavement").subtitle("A pavement structure along an alignment").width(520.0).resizable(false).show(ctx, |ui| {
+        ui.scope(|ui| {
+            crate::ui_kit::grid(ui, "pavement", |ui| {
                 alignment_row(ui, "pavement-alignment", &choices, &mut alignment);
                 ui.label("Mark");
                 text(ui, &mut req.name, "e.g. PV-001", 120.0);
@@ -679,19 +704,17 @@ fn pavement_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
         });
         not_a_design(ui, "Enter the layers, or run a design method first. Shoulders take the layers of the carriageway; edit them in Properties.");
         ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui.add_enabled(alignment.is_some(), egui::Button::new("Add")).clicked() {
-                add = true;
-            }
-            if ui.button("Design the layers first…").clicked() {
-                design_first = true;
-            }
-            if ui.button("Cancel").clicked() {
-                keep = false;
-            }
-        });
-    });
+    }, |ui| crate::ui_kit::Footer::new("Add").enabled(footer_ok, "Choose the alignment").secondary(&["Design the layers first..."]).show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        add = f.primary;
+        design_first = f.secondary == Some(0);
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if design_first {
         if design.is_none() {
             *design = Some(DesignDialog { form: DesignForm::default(), element: None, layers: None, make: None });
@@ -717,7 +740,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
     let Some(mut d) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut run, mut create) = (true, false, false);
-    crate::win::new(ctx, "Pavement design").collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
+    let dlg = crate::ui_kit::Dialog::titled("Pavement design").subtitle("Layers from a design method, as a calculation for an engineer to check").width(560.0).show(ctx, |ui| {
         ui.horizontal_wrapped(|ui| {
             ui.label("Method");
             for (i, m) in road_glue::methods().iter().enumerate() {
@@ -738,7 +761,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
         });
         ui.label(RichText::new("Inputs kept on a pavement are used by CHECKALL, which compares the method's layers with the pavement's own.").small().weak());
         ui.separator();
-        egui::ScrollArea::vertical().max_height(480.0).show(ui, |ui| match d.form.method {
+        ui.scope(|ui| match d.form.method {
             0 => mowt_form(ui, &mut d.form.mowt),
             1 => dmrb_form(ui, &mut d.form.dmrb),
             road_glue::SA_METHOD => trh4_form(ui, &mut d.form.trh4),
@@ -752,7 +775,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
                 ui.label(format!("{}: {} mm", l.name, l.thickness_mm));
             }
             if let Some((alignment, req)) = &mut d.make {
-                egui::Grid::new("design-make").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "design-make", |ui| {
                     alignment_row(ui, "design-alignment", &choices, alignment);
                     ui.label("Mark");
                     text(ui, &mut req.name, "e.g. PV-001", 120.0);
@@ -773,16 +796,16 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
             ui.add_enabled(false, egui::Button::new("Make a pavement from these layers")).on_disabled_hover_text(road_glue::SA_NO_LAYERS);
             ui.label(RichText::new(road_glue::SA_NO_LAYERS).small().color(NOTE()));
         }
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui.button("Run the method").clicked() {
-                run = true;
-            }
-            if ui.button("Close").clicked() {
-                keep = false;
-            }
-        });
-    });
+    }, |ui| crate::ui_kit::Footer::new("Run the method").cancel(Some("Close")).show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        run = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if run {
         match d.form.run() {
             Ok(result) => {
@@ -845,7 +868,7 @@ fn mowt_form(ui: &mut Ui, f: &mut MowtForm) {
         f.classes.push(ClassRow { name: String::new(), daily_first_year: 0.0, esa_per_vehicle: 0.0 });
     }
     ui.label(RichText::new("The damage factor is entered as ESAs per vehicle from an axle load survey. Entering axle loads is not offered here.").small().weak());
-    egui::Grid::new("mowt").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "mowt", |ui| {
         ui.label("Growth rate");
         number(ui, &mut f.growth_percent, 0.1, " % a year");
         ui.end_row();
@@ -919,7 +942,7 @@ fn dmrb_form(ui: &mut Ui, f: &mut DmrbForm) {
     if ui.button("Add a flow").clicked() {
         f.flows.push((0, 0.0));
     }
-    egui::Grid::new("dmrb").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "dmrb", |ui| {
         ui.label("Scheme");
         ui.horizontal(|ui| {
             ui.selectable_value(&mut f.maintenance, false, "New (WN)");
@@ -949,7 +972,7 @@ fn dmrb_form(ui: &mut Ui, f: &mut DmrbForm) {
 fn trh4_form(ui: &mut Ui, f: &mut road_glue::Trh4Form) {
     ui.label(RichText::new(road_glue::SA_E80_NOTE).strong().color(NOTE()));
     ui.add_space(4.0);
-    egui::Grid::new("trh4").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "trh4", |ui| {
         ui.label("Road category");
         let shown = f.category.map(|c| road_glue::SA_ROAD_CATEGORIES[c.min(3)].to_string()).unwrap_or_else(|| "choose".to_string());
         egui::ComboBox::from_id_salt("trh4-category").selected_text(shown).show_ui(ui, |ui| {
@@ -1016,7 +1039,7 @@ fn trh4_form(ui: &mut Ui, f: &mut road_glue::Trh4Form) {
 }
 
 fn aashto_form(ui: &mut Ui, f: &mut AashtoForm) {
-    egui::Grid::new("aashto").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "aashto", |ui| {
         ui.label("Design lane 18-kip ESALs (W18)");
         number(ui, &mut f.w18, 1000.0, "");
         ui.end_row();

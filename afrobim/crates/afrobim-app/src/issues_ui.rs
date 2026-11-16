@@ -451,7 +451,7 @@ impl AfroBimApp {
                 let Some(issue) = self.coord.co.issue_mut(&guid) else { return };
                 egui::ScrollArea::vertical().id_salt("issue-detail").auto_shrink([false, false]).show(ui, |ui| {
                     changed |= ui.add(egui::TextEdit::singleline(&mut issue.title).desired_width(f32::INFINITY)).changed();
-                    egui::Grid::new("issue-fields").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
+                    crate::ui_kit::grid(ui, "issue-fields", |ui| {
                         ui.label("Status");
                         let mut status = issue.status.clone();
                         if combo(ui, "issue-status", &mut status, &STATUSES) {

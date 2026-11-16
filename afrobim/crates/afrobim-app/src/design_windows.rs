@@ -102,7 +102,7 @@ fn builtin_picker(ui: &mut egui::Ui, b: &mut BuiltinChoice) {
     let bases = afrobim_design::builtin_bases();
     let Some(info) = bases.first() else { return };
     ui.label(RichText::new(&info.name).small());
-    egui::Grid::new("chk-builtin").num_columns(2).spacing([10.0, 5.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "chk-builtin", |ui| {
         ui.label("Road class");
         let shown = b.class.and_then(|c| info.classes.iter().find(|x| x.class == c)).map(|x| x.name.to_string()).unwrap_or_else(|| "choose".into());
         egui::ComboBox::from_id_salt("chk-class").selected_text(shown).show_ui(ui, |ui| {

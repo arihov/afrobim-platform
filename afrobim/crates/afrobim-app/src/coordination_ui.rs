@@ -424,8 +424,9 @@ impl AfroBimApp {
                 }
             }
             let (mut keep, mut save) = (true, false);
-            crate::win::new(ctx, if form.index.is_some() { "Edit clash test" } else { "Add a clash test" }).collapsible(false).resizable(false).default_width(560.0).show(ctx, |ui| {
-                egui::Grid::new("clash-form").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                        let footer_ok = true;
+            let dlg = crate::ui_kit::Dialog::titled(if form.index.is_some() { "Edit clash test" } else { "Add a clash test" }).width(560.0).resizable(false).show(ctx, |ui| {
+                crate::ui_kit::grid(ui, "clash-form", |ui| {
                     ui.label("Name");
                     ui.add_sized([300.0, 20.0], egui::TextEdit::singleline(&mut form.name).hint_text("e.g. Services against structures"));
                     ui.end_row();
@@ -463,16 +464,16 @@ impl AfroBimApp {
                 if !form.error.is_empty() {
                     ui.label(RichText::new(&form.error).color(BAD()));
                 }
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Save the test").clicked() {
-                        save = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+            }, |ui| crate::ui_kit::Footer::new("Save the test").enabled(footer_ok, "Complete the inputs").cancel(Some("Cancel")).show(ui));
+            if let Some((_, f)) = &dlg.inner {
+                save = f.primary;
+                if f.cancel {
+                    keep = false;
+                }
+            }
+            if dlg.closed {
+                keep = false;
+            }
             if save {
                 match form.build(&self.coord.co.tests) {
                     Ok(t) => {

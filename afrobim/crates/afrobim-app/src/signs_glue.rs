@@ -423,7 +423,7 @@ pub fn edit_ui(ui: &mut egui::Ui, data: &mut Value) -> bool {
     };
     let mut changed = false;
 
-    egui::Grid::new("sign-def").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "sign-def", |ui| {
         ui.label("Type");
         ui.label(format!("{:?}", def.kind));
         ui.end_row();
@@ -472,7 +472,7 @@ pub fn edit_ui(ui: &mut egui::Ui, data: &mut Value) -> bool {
     );
     if !has_destinations {
         // Standard signs are defined by a diagram or symbol and an optional legend.
-        egui::Grid::new("sign-std").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+        crate::ui_kit::grid(ui, "sign-std", |ui| {
             ui.label(if def.kind == SignKind::SupplementaryPlate { "Plate type" } else { "Diagram / symbol" });
             changed |= optional_text(ui, &mut def.symbol_id, "e.g. 504.1 or 670:30", 150.0);
             ui.end_row();

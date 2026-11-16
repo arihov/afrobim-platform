@@ -722,13 +722,13 @@ impl AfroBimApp {
         };
         let alignment = f.element.and_then(|id| self.doc.find(id)).and_then(|e| e.site.as_ref().and_then(|s| s.alignment.clone())).and_then(|name| crate::alignment_glue::alignments(&self.doc).into_iter().find(|a| a.1 == name).map(|a| a.0));
         let (mut keep, mut save, mut run) = (true, false, false);
-        crate::win::new(ctx, title).collapsible(false).default_width(640.0).default_height(620.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled(title).subtitle("The inputs of the sight-distance analysis").width(640.0).show_body(ctx, |ui| {
             ui.label(RichText::new("An analysis aid: the result states no compliance. Every field starts empty except the one marked 'to confirm', which is the engine's own default and is not used until you accept it. The UK band of a speed is your decision.").small().weak());
             egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(500.0).show(ui, |ui| {
                 if f.element.is_some() {
                     ui.checkbox(&mut f.apply_all, "store these entries on every placed sign, not only this one");
                 }
-                egui::Grid::new("vis-form").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "vis-form", |ui| {
                     ui.label("Driver's lateral position");
                     ui.horizontal(|ui| {
                         ui.radio_value(&mut f.eye_mode, 1, "signed offset (right of centreline positive)");
@@ -889,7 +889,7 @@ impl AfroBimApp {
                 }
                 ui.add_space(4.0);
                 ui.label(RichText::new("Analysis settings (resolution of the sweep, not standard values; the engine's own starting values)").strong());
-                egui::Grid::new("vis-analysis").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "vis-analysis", |ui| {
                     for (label, field) in [("Sweep length before the sign (m)", &mut f.start), ("Eye step (m)", &mut f.step), ("Road sample spacing (m)", &mut f.sample), ("Bisection tolerance (m)", &mut f.tolerance), ("Sight-line grid (points per side)", &mut f.grid)] {
                         ui.label(label);
                         ui.add(egui::TextEdit::singleline(field).desired_width(70.0));
@@ -913,6 +913,9 @@ impl AfroBimApp {
                 }
             });
         });
+        if dlg.closed {
+            keep = false;
+        }
         if save {
             match store_form(&mut self.doc, &f) {
                 Ok(count) => {

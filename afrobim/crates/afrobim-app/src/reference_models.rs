@@ -905,7 +905,7 @@ impl AfroBimApp {
         };
         let dlg = crate::ui_kit::Dialog::titled("Reference product").width(420.0).show_body(ctx, |ui| {
             ui.label(RichText::new("Read-only: the model is a reference.").small().weak());
-            egui::Grid::new("ref-product").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
+            crate::ui_kit::grid(ui, "ref-product", |ui| {
                 for (k, v) in [
                     ("Model", label.clone()),
                     ("Name", p.name.clone()),

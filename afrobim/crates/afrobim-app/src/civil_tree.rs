@@ -408,7 +408,7 @@ pub fn edit_command(category: &str) -> Option<Cv> {
 pub fn civil_panel(ui: &mut Ui, e: &mut afrobim_kernel::Element) -> (bool, Option<Cv>) {
     let mut changed = false;
     let mut open = None;
-    egui::Grid::new("civil-props").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "civil-props", |ui| {
         ui.label("Status");
         let cur = e.properties.get(PROP_STATUS).cloned().unwrap_or_else(|| STATUSES[0].into());
         let mut chosen = cur.clone();

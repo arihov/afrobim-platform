@@ -711,7 +711,7 @@ impl AfroBimApp {
                 ui.checkbox(&mut f.orient_confirmed, "I have checked this orientation against the polar diagram");
                 ui.add_space(4.0);
                 ui.label(RichText::new("4. Calculation settings (none is prefilled)").strong());
-                egui::Grid::new("photo-settings").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "photo-settings", |ui| {
                     for (label, field, hint) in [
                         ("Maintenance factor (0 to 1)", &mut f.maintenance, "yours, from BS 5489-1 or the supplier"),
                         ("Contribution distance (m)", &mut f.contribution, "luminaires further away add nothing"),

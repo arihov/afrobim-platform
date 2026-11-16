@@ -558,7 +558,7 @@ impl AfroBimApp {
         let dlg = crate::ui_kit::Dialog::titled("Programme: activities and logic").width(900.0).show_body(ctx, |ui| {
             let Some(p) = s.prog.as_mut() else {
                 ui.label("There is no programme yet. Enter its name, its start date and its working weekdays. None are assumed.");
-                egui::Grid::new("new-prog").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "new-prog", |ui| {
                     ui.label("Programme name");
                     ui.add_sized([240.0, 20.0], egui::TextEdit::singleline(&mut s.new_prog.name));
                     ui.end_row();
@@ -1329,7 +1329,7 @@ impl AfroBimApp {
                 s.link_form.action = Some(LinkAction::Construct);
             }
             let ids: Vec<(String, String)> = p.activities.iter().map(|a| (a.id.clone(), format!("{}  {}", a.id, a.name))).collect();
-            egui::Grid::new("link-form").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+            crate::ui_kit::grid(ui, "link-form", |ui| {
                 ui.label("Activity");
                 let shown = ids.iter().find(|i| i.0 == s.link_form.activity).map(|i| i.1.clone()).unwrap_or_else(|| "choose".into());
                 egui::ComboBox::from_id_salt("lk-act").width(300.0).selected_text(shown).show_ui(ui, |ui| {
@@ -1359,7 +1359,7 @@ impl AfroBimApp {
             }
             ui.add_space(4.0);
             ui.label(RichText::new("By rule (every field you give must match; a mark pattern uses * and ?)").strong());
-            egui::Grid::new("link-rule").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+            crate::ui_kit::grid(ui, "link-rule", |ui| {
                 ui.label("Category");
                 egui::ComboBox::from_id_salt("lk-cat").selected_text(if s.link_form.category.is_empty() { "any".to_string() } else { s.link_form.category.clone() }).show_ui(ui, |ui| {
                     ui.selectable_value(&mut s.link_form.category, String::new(), "any");

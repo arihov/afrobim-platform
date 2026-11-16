@@ -997,7 +997,7 @@ impl AfroBimApp {
         let units = crate::anno_ui::units_of(&self.doc);
         let u = &units;
         let work = crate::win::work_rect(ctx);
-        crate::win::new(ctx, "PI table").default_pos(egui::pos2(work.min.x + 16.0, (work.max.y - 250.0).max(work.min.y + 40.0))).open(&mut open).default_width(900.0).default_height(230.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("PI table").subtitle("The points of intersection of the horizontal geometry").width(900.0).default_pos(egui::pos2(work.min.x + 16.0, (work.max.y - 250.0).max(work.min.y + 40.0))).show_body(ctx, |ui| {
             ui.label(RichText::new(format!("{name}: start station {}", units.station(design.horizontal.start_station_m))).strong());
             ui.label(RichText::new("Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.").small().weak());
             if let Err(e) = &solution {
@@ -1124,6 +1124,9 @@ impl AfroBimApp {
                 ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD() } else { WARN() }));
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         self.design.bufs = bufs;
         if !bad_input.is_empty() {
             self.status = bad_input;

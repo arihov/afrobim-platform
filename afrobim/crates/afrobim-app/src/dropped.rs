@@ -12,7 +12,6 @@
 
 use std::path::{Path, PathBuf};
 
-use egui::RichText;
 
 /// What a dropped file is, by its extension.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -91,23 +90,29 @@ impl crate::app::AfroBimApp {
         let unsaved = kind == DropKind::Document && has_unsaved(self.drops.saved, crate::background::fingerprint(&self.doc), self.doc.elements().len());
         let (title, text, button) = describe(kind, &path, unsaved);
         let mut answer = None;
-        crate::win::new(ctx, "Dropped file").collapsible(false).resizable(false).show(ctx, |ui| {
-            ui.set_max_width(420.0);
-            ui.label(RichText::new(title).strong());
-            ui.label(text);
-            ui.label(RichText::new(path.display().to_string()).small().weak());
-            if self.drops.queue.len() > 1 {
-                ui.label(RichText::new(format!("{} more file(s) waiting.", self.drops.queue.len() - 1)).small().weak());
+        let waiting = self.drops.queue.len().saturating_sub(1);
+        let unsupported = kind == DropKind::Unsupported;
+        let out = crate::ui_kit::Dialog::titled("Dropped file").subtitle(title).width(460.0).resizable(false).show(
+            ctx,
+            |ui| {
+                crate::ui_kit::callout(ui, if unsupported { crate::ui_kit::Level::Warning } else { crate::ui_kit::Level::Info }, text);
+                crate::ui_kit::note(ui, path.display().to_string());
+                if waiting > 0 {
+                    crate::ui_kit::note(ui, format!("{waiting} more file(s) waiting."));
+                }
+            },
+            |ui| crate::ui_kit::Footer::new(button).cancel(if unsupported { None } else { Some("Cancel") }).show(ui),
+        );
+        if let Some((_, f)) = &out.inner {
+            if f.primary {
+                answer = Some(true);
+            } else if f.cancel {
+                answer = Some(false);
             }
-            ui.horizontal(|ui| {
-                if ui.button(button).clicked() {
-                    answer = Some(true);
-                }
-                if kind != DropKind::Unsupported && ui.button("Cancel").clicked() {
-                    answer = Some(false);
-                }
-            });
-        });
+        }
+        if out.closed {
+            answer = Some(false);
+        }
         let Some(yes) = answer else { return };
         self.drops.queue.remove(0);
         if !yes || kind == DropKind::Unsupported {

@@ -199,9 +199,10 @@ impl AfroBimApp {
         let Some(mut d) = self.ext_marking_dialog.take() else { return };
         let choices = alignment_glue::alignments(&self.doc);
         let (mut keep, mut lay) = (true, false);
-        crate::win::new(ctx, format!("Road markings: {}", d.group.title())).collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
+                let footer_ok = d.alignment.is_some();
+        let dlg = crate::ui_kit::Dialog::titled(format!("Road markings: {}", d.group.title())).width(560.0).show(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(620.0).auto_shrink([false, true]).show(ui, |ui| {
-                egui::Grid::new("extmark").num_columns(2).spacing([10.0, 7.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "extmark", |ui| {
                     ui.label("Alignment");
                     let current = choices.iter().find(|c| Some(c.0) == d.alignment).map(|c| c.1.clone()).unwrap_or_default();
                     egui::ComboBox::from_id_salt("extmark-alignment").selected_text(current).show_ui(ui, |ui| {
@@ -386,16 +387,16 @@ impl AfroBimApp {
                         .weak(),
                 );
             });
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                if ui.add_enabled(d.alignment.is_some(), egui::Button::new("Lay the marking")).clicked() {
-                    lay = true;
-                }
-                if ui.button("Close").clicked() {
-                    keep = false;
-                }
-            });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Lay the marking").enabled(footer_ok, "Complete the inputs").cancel(Some("Close")).show(ui));
+        if let Some((_, f)) = &dlg.inner {
+            lay = f.primary;
+            if f.cancel {
+                keep = false;
+            }
+        }
+        if dlg.closed {
+            keep = false;
+        }
         if lay {
             if let Some(a) = d.alignment {
                 match glue::add(&mut self.doc, a, &d.req) {

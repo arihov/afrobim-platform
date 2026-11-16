@@ -1013,7 +1013,7 @@ impl AfroBimApp {
             ui.label(RichText::new("What every title block of the project says. Nothing is filled in for you: every field starts empty. A sheet can override the revision, date and the three names for itself.").small().weak());
             ui.add_space(4.0);
             egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(430.0).show(ui, |ui| {
-                egui::Grid::new("project-info").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "project-info", |ui| {
                     let info = &mut s.info;
                     for (label, field) in [
                         ("Project", &mut info.project),
@@ -1190,7 +1190,7 @@ impl AfroBimApp {
                     ui.label(RichText::new("These are the program's neutral defaults. None comes from a drafting standard or from an organisation: set them to the contract's requirement.").small().weak());
                     ui.label("New sheets start on");
                     page_editor(ui, "defaults-page", &mut s.defaults);
-                    egui::Grid::new("text-heights").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
+                    crate::ui_kit::grid(ui, "text-heights", |ui| {
                         let t = &mut set.styles.text;
                         for (label, v) in [("Title text height (mm)", &mut t.title), ("Heading (mm)", &mut t.heading), ("Normal (mm)", &mut t.normal), ("Label (mm)", &mut t.label), ("Small print (mm)", &mut t.small)] {
                             ui.label(label);
@@ -1319,31 +1319,36 @@ impl AfroBimApp {
             f.groups = self.doc.elements().iter().filter(|e| e.category == crate::civil::SAMPLES).map(|e| e.name.clone()).collect();
             let range_note = ranges.iter().find(|r| r.0 == f.alignment).map(|r| r.1.clone()).unwrap_or_default();
             let title = if f.editing.is_some() { format!("Edit sheet: {}", f.kind.short()) } else { format!("Add: {}", f.kind.short()) };
-            crate::win::new(ctx, title).collapsible(false).default_width(560.0).show(ctx, |ui| {
-                egui::ScrollArea::vertical().auto_shrink([true, true]).max_height(560.0).show(ui, |ui| {
+            let editing = f.editing.is_some();
+            let form_error = f.error.clone();
+            let dlg = crate::ui_kit::Dialog::titled(title).subtitle("A sheet, or a series of sheets, in the set").width(560.0).show(
+                ctx,
+                |ui| {
                     form_fields(ui, &mut f, &alignments, &corridors, &surfaces, &signs, &categories, &range_note, &units);
-                });
-                ui.add_space(6.0);
-                if !f.error.is_empty() {
-                    ui.label(RichText::new(&f.error).color(WARN()));
-                }
-                ui.horizontal(|ui| {
-                    let label = if f.editing.is_some() { "Save changes" } else { "Add to the set" };
-                    if ui.button(label).clicked() {
-                        let old = f.editing.and_then(|i| s.set.as_ref().and_then(|set| set.sources.get(i)).cloned());
-                        match f.build(&self.doc, old.as_ref()) {
-                            Ok(src) => {
-                                built = Some((f.editing, src));
-                                form_done = true;
-                            }
-                            Err(e) => f.error = e,
+                    if !form_error.is_empty() {
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, form_error.clone());
+                    }
+                },
+                |ui| crate::ui_kit::Footer::new(if editing { "Save changes" } else { "Add to the set" }).show(ui),
+            );
+            if let Some((_, fo)) = &dlg.inner {
+                if fo.primary {
+                    let old = f.editing.and_then(|i| s.set.as_ref().and_then(|set| set.sources.get(i)).cloned());
+                    match f.build(&self.doc, old.as_ref()) {
+                        Ok(src) => {
+                            built = Some((f.editing, src));
+                            form_done = true;
                         }
+                        Err(e) => f.error = e,
                     }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+                }
+                if fo.cancel {
+                    keep = false;
+                }
+            }
+            if dlg.closed {
+                keep = false;
+            }
             if keep && !form_done {
                 s.form = Some(f);
             }
@@ -1664,7 +1669,7 @@ fn combo_row(ui: &mut Ui, label: &str, id: &str, value: &mut String, options: &[
 
 #[allow(clippy::too_many_arguments)]
 fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors: &[String], surfaces: &[String], signs: &[String], categories: &[(String, String)], range_note: &str, u: &DisplayUnits) {
-    egui::Grid::new("source-form").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "source-form", |ui| {
         ui.label("Sheet title");
         edit(ui, &mut f.title, 260.0, "");
         ui.end_row();

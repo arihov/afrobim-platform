@@ -584,7 +584,7 @@ impl AfroBimApp {
             ui.checkbox(&mut self.anno.osnap.on, "Object snap on (F3)");
             ui.label(RichText::new("Used by the text, dimension, leader and measure commands, when dragging an annotation grip, by the base point and second point of MOVE and COPY, when dragging a grip of an element, and when placing a sign hung from the cursor (its centre lands on the point). Pick a mode to see which elements provide it.").small().weak());
             ui.add_space(4.0);
-            egui::Grid::new("osnap-modes").num_columns(2).spacing([14.0, 6.0]).show(ui, |ui| {
+            crate::ui_kit::grid(ui, "osnap-modes", |ui| {
                 for m in SnapMode::ALL {
                     let mut on = self.anno.osnap.has(m);
                     if ui.checkbox(&mut on, m.label()).changed() {
@@ -879,7 +879,7 @@ impl AfroBimApp {
             let s: &mut TextStyle = &mut st.text_styles[self.anno.text_sel];
             let is_current = s.name == current_name;
             let mut make_current = false;
-            egui::Grid::new("text-style-grid").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
+            crate::ui_kit::grid(ui, "text-style-grid", |ui| {
                 ui.label("Name");
                 ui.add(egui::TextEdit::singleline(&mut s.name).desired_width(160.0));
                 ui.end_row();
@@ -974,7 +974,7 @@ impl AfroBimApp {
             let mut make_current = false;
             egui::ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
                 ui.label(RichText::new("Sizes (paper millimetres, defaults to edit; the annotation scale multiplies them)").strong());
-                egui::Grid::new("dim-style-sizes").num_columns(2).spacing([12.0, 5.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "dim-style-sizes", |ui| {
                     ui.label("Name");
                     ui.add(egui::TextEdit::singleline(&mut s.name).desired_width(160.0));
                     ui.end_row();
@@ -1021,7 +1021,7 @@ impl AfroBimApp {
                 });
                 ui.add_space(6.0);
                 ui.label(RichText::new("Value text").strong());
-                egui::Grid::new("dim-style-text").num_columns(2).spacing([12.0, 5.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "dim-style-text", |ui| {
                     ui.label("Length unit");
                     ui.horizontal(|ui| {
                         ui.radio_value(&mut s.length_unit, ann::LengthUnit::Millimetre, "mm");
@@ -1105,17 +1105,21 @@ impl AfroBimApp {
         let Some((id, mut text)) = self.anno.edit.take() else { return };
         let (mut ok, mut cancel) = (false, false);
         let mark = self.doc.find(id).map(|e| e.name.clone()).unwrap_or_default();
-        crate::win::new(ctx, format!("Edit text of {mark}")).collapsible(false).default_width(420.0).show(ctx, |ui| {
-            ui.add(egui::TextEdit::multiline(&mut text).desired_rows(5).desired_width(f32::INFINITY));
-            ui.horizontal(|ui| {
-                if ui.button("OK").clicked() {
-                    ok = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    cancel = true;
-                }
-            });
-        });
+        let dlg = crate::ui_kit::Dialog::titled(format!("Edit text of {mark}")).subtitle("The words of this text object").width(420.0).show(
+            ctx,
+            |ui| {
+                let r = ui.add(egui::TextEdit::multiline(&mut text).desired_rows(5).desired_width(f32::INFINITY));
+                crate::ui_kit::focus_once(ui, &r, "anno-edit-text");
+            },
+            |ui| crate::ui_kit::Footer::new("OK").show(ui),
+        );
+        if let Some((_, f)) = &dlg.inner {
+            ok = f.primary;
+            cancel = f.cancel;
+        }
+        if dlg.closed {
+            cancel = true;
+        }
         if ok {
             match anno_glue::set_text(&mut self.doc, id, &text) {
                 Ok(()) => {
@@ -1170,7 +1174,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
         Ann::Text(t) => {
             ui.label("Text");
             ui.add(egui::TextEdit::multiline(&mut t.text).desired_rows(3).desired_width(f32::INFINITY));
-            egui::Grid::new("ann-text-grid").num_columns(2).spacing([10.0, 5.0]).show(ui, |ui| {
+            crate::ui_kit::grid(ui, "ann-text-grid", |ui| {
                 ui.label("Style");
                 egui::ComboBox::from_id_salt("ann-text-style").selected_text(t.style.clone()).show_ui(ui, |ui| {
                     for s in &st.text_styles {
@@ -1237,7 +1241,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
             if d.overrides.len() < texts.len() {
                 d.overrides.resize(texts.len(), None);
             }
-            egui::Grid::new("ann-dim-grid").num_columns(2).spacing([10.0, 5.0]).show(ui, |ui| {
+            crate::ui_kit::grid(ui, "ann-dim-grid", |ui| {
                 ui.label("Style");
                 egui::ComboBox::from_id_salt("ann-dim-style").selected_text(d.style.name.clone()).show_ui(ui, |ui| {
                     for s in &st.dim_styles {

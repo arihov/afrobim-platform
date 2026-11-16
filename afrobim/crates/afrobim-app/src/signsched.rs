@@ -226,7 +226,7 @@ impl AfroBimApp {
         let mut open = true;
         let (mut changed, mut load_mapping, mut save_mapping, mut other_file) = (false, false, false, false);
         let work = crate::win::work_rect(ctx);
-        crate::win::new(ctx, "Sign schedule: columns").open(&mut open).default_width(620.0).default_pos(crate::win::first_position(work)).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Sign schedule: columns").subtitle("Match the columns of the file to the schedule fields").width(620.0).default_pos(crate::win::first_position(work)).show_body(ctx, |ui| {
             let ui_state = &mut self.signsched;
             ui.label(RichText::new(ui_state.path.as_ref().map(|p| p.display().to_string()).unwrap_or_default()).small().weak());
             let Some(table) = ui_state.table.clone() else {
@@ -329,6 +329,9 @@ impl AfroBimApp {
                 ui.label(RichText::new(&ui_state.note).small());
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         if save_mapping {
             if let Some(path) = rfd::FileDialog::new().add_filter("Column mapping (JSON)", &["json"]).set_file_name("sign-schedule-mapping.json").save_file() {
                 self.signsched.note = match std::fs::write(&path, self.signsched.mapping.to_json()) {
@@ -362,7 +365,7 @@ impl AfroBimApp {
         let mut open = true;
         let (mut apply_now, mut replan) = (false, false);
         let work = crate::win::work_rect(ctx);
-        crate::win::new(ctx, "Sign schedule: import plan").open(&mut open).default_width(700.0).default_pos(crate::win::first_position(work) + egui::vec2(0.0, 392.0)).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Sign schedule: import plan").subtitle("What the import will add and change").width(700.0).default_pos(crate::win::first_position(work) + egui::vec2(0.0, 392.0)).show_body(ctx, |ui| {
             let st = &mut self.signsched;
             let Some(plan) = &st.plan else {
                 ui.label("No plan yet: choose a file with SIGNSCHEDULE.");
@@ -437,6 +440,9 @@ impl AfroBimApp {
                 }
             }
         });
+        if dlg.closed {
+            open = false;
+        }
         if apply_now {
             self.signsched_apply(ctx);
         }

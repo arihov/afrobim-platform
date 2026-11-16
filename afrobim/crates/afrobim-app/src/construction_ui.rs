@@ -429,7 +429,7 @@ impl AfroBimApp {
                     ui.radio_value(&mut r.quantity, false, "percent complete");
                     ui.radio_value(&mut r.quantity, true, "quantity done to date");
                 });
-                egui::Grid::new("rec-measure").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "rec-measure", |ui| {
                     if r.quantity {
                         ui.label("Quantity done");
                         ui.horizontal(|ui| {
@@ -819,7 +819,7 @@ impl AfroBimApp {
                         .small()
                         .weak(),
                 );
-                egui::Grid::new("evm-setup").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "evm-setup", |ui| {
                     ui.label("Data date");
                     changed |= tf(ui, &mut c.settings.data_date, "YYYY-MM-DD", 100.0).changed();
                     ui.end_row();
