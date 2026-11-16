@@ -31,6 +31,9 @@ pub struct LandXmlForm {
     take_points: Vec<bool>,
     take_parcels: Vec<bool>,
     take_profiles: Vec<bool>,
+    /// The pipe networks of the file (`PipeNetworks`), read by the pipes crate, and which to bring in.
+    pipes: Result<afrobim_pipes::LandXmlPipes, String>,
+    take_pipes: Vec<bool>,
     as_definition: bool,
     tab: usize,
 }
@@ -49,9 +52,11 @@ impl LandXmlForm {
             _ => 0,
         };
         let file = read_landxml_file(&path).map_err(|e| e.to_string());
+        let pipes = afrobim_pipes::read_landxml_pipes(&path).map_err(|e| e.to_string());
+        let take_pipes = pipes.as_ref().map(|p| vec![true; p.networks.len()]).unwrap_or_default();
         let file_crs = file.as_ref().ok().and_then(|f| f.coordinate_system.as_ref()).and_then(crate::crs_ui::from_landxml);
         let (np, nr, nf) = file.as_ref().map(|f| (crate::civil_landxml::point_groups(f).len(), crate::civil_landxml::all_parcels(f).len(), f.ground_profiles.len())).unwrap_or((0, 0, 0));
-        LandXmlForm { path, file, file_crs, use_file_crs: true, alignments, surfaces, take_alignment, take_surface, take_points: vec![true; np], take_parcels: vec![true; nr], take_profiles: vec![true; nf], as_definition: true, tab }
+        LandXmlForm { path, file, file_crs, use_file_crs: true, alignments, surfaces, take_alignment, take_surface, take_points: vec![true; np], take_parcels: vec![true; nr], take_profiles: vec![true; nf], pipes, take_pipes, as_definition: true, tab }
     }
 
     fn picked(&self) -> (usize, usize) {
@@ -59,7 +64,7 @@ impl LandXmlForm {
     }
 
     fn civil_picked(&self) -> usize {
-        [&self.take_points, &self.take_parcels, &self.take_profiles].iter().map(|v| v.iter().filter(|b| **b).count()).sum()
+        [&self.take_points, &self.take_parcels, &self.take_profiles, &self.take_pipes].iter().map(|v| v.iter().filter(|b| **b).count()).sum()
     }
 }
 
@@ -78,12 +83,12 @@ impl AfroBimApp {
         let units = crate::anno_ui::units_of(&self.doc);
         let file = form.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         let (na, ns) = form.picked();
-        let nothing_in_file = form.alignments.as_ref().map(|a| a.alignments.is_empty()).unwrap_or(true) && form.surfaces.as_ref().map(|s| s.surfaces.is_empty()).unwrap_or(true) && form.take_points.is_empty() && form.take_parcels.is_empty() && form.take_profiles.is_empty();
+        let nothing_in_file = form.alignments.as_ref().map(|a| a.alignments.is_empty()).unwrap_or(true) && form.surfaces.as_ref().map(|s| s.surfaces.is_empty()).unwrap_or(true) && form.take_points.is_empty() && form.take_parcels.is_empty() && form.take_profiles.is_empty() && form.take_pipes.is_empty();
         let reason = if nothing_in_file { "The file holds no alignment or surface" } else { "Tick something to import" };
         let alignment_count = form.alignments.as_ref().map(|a| a.alignments.len()).unwrap_or(0);
         let surface_count = form.surfaces.as_ref().map(|s| s.surfaces.len()).unwrap_or(0);
         let project = project_crs(&self.doc);
-        let labels = ["The file".to_string(), format!("Alignments ({alignment_count})"), format!("Surfaces ({surface_count})"), format!("Points ({})", form.take_points.len()), format!("Parcels ({})", form.take_parcels.len()), format!("Profiles ({})", form.take_profiles.len())];
+        let labels = ["The file".to_string(), format!("Alignments ({alignment_count})"), format!("Surfaces ({surface_count})"), format!("Points ({})", form.take_points.len()), format!("Parcels ({})", form.take_parcels.len()), format!("Profiles ({})", form.take_profiles.len()), format!("Pipe networks ({})", form.take_pipes.len())];
         let tab_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
         let nc = form.civil_picked();
         let button = format!("Import {}{}", if nc > 0 { format!("{nc} civil object(s) and ") } else { String::new() }, match (na, ns) {
@@ -106,7 +111,8 @@ impl AfroBimApp {
                         2 => surfaces_tab(ui, &mut form),
                         3 => civil_tab(ui, &mut form, 0),
                         4 => civil_tab(ui, &mut form, 1),
-                        _ => civil_tab(ui, &mut form, 2),
+                        5 => civil_tab(ui, &mut form, 2),
+                        _ => pipes_tab(ui, &mut form),
                     }
                 },
                 |ui| Footer::new(&button).enabled(na + ns + nc > 0, reason).icon(crate::glyphs::by_name("LANDXML")).show(ui),
@@ -448,6 +454,30 @@ fn civil_tab(ui: &mut egui::Ui, form: &mut LandXmlForm, which: usize) {
     }
 }
 
+/// The Pipe networks tab: the networks of the file with their structures and pipes, and the notes
+/// of the reader. A network comes in with no parts list (the file carries sizes, not parts).
+fn pipes_tab(ui: &mut egui::Ui, form: &mut LandXmlForm) {
+    match &form.pipes {
+        Err(e) => {
+            ui_kit::callout(ui, Level::Warning, format!("The pipe networks of the file cannot be read: {e}"));
+        }
+        Ok(p) if p.networks.is_empty() => {
+            ui_kit::callout(ui, Level::Info, "The file has no pipe networks (PipeNetworks).");
+        }
+        Ok(p) => {
+            ui_kit::section(ui, "Pipe networks in the file (each becomes a pipe network)", |ui| {
+                for (i, n) in p.networks.iter().enumerate() {
+                    ui.checkbox(&mut form.take_pipes[i], format!("{}  ({:?}, {} structures, {} pipes)", n.name, n.network_type, n.structure_count(), n.pipe_count()));
+                }
+            });
+            for n in &p.notes {
+                ui.label(egui::RichText::new(n).small().weak());
+            }
+            ui_kit::note(ui, "Coordinates come in as they are in the file. The file carries no ground surface or rules: set them in the network properties.");
+        }
+    }
+}
+
 impl AfroBimApp {
     /// The points, parcels and ground profiles ticked in the dialog. Returns how many were added.
     fn landxml_apply_civil(&mut self, form: &LandXmlForm, notes: &mut Vec<String>) -> usize {
@@ -482,6 +512,21 @@ impl AfroBimApp {
         for (ps, take) in file.ground_profiles.iter().zip(&form.take_profiles) {
             if *take {
                 added += crate::civil_landxml::add_profile(&mut self.doc, ps, &source).len();
+            }
+        }
+        if let Ok(p) = &form.pipes {
+            for (net, take) in p.networks.iter().zip(&form.take_pipes) {
+                if *take {
+                    let mut data = crate::civil_pipes::PipeNetData::default();
+                    data.network = net.clone();
+                    let id = crate::civil_pipes::add(&mut self.doc, &net.name, &data, &source);
+                    let _ = id;
+                    added += 1;
+                    notes.push(format!("LandXML: pipe network {} with {} structures and {} pipes.", net.name, net.structure_count(), net.pipe_count()));
+                }
+            }
+            if form.take_pipes.iter().any(|t| *t) {
+                notes.extend(p.notes.iter().map(|n| format!("LandXML: {n}")));
             }
         }
         added

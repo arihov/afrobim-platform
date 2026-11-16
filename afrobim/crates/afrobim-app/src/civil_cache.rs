@@ -36,7 +36,7 @@ impl CivilState {
 
 /// Whether a category's scene reads other elements (alignments, surfaces, profiles).
 fn depends(category: &str) -> bool {
-    matches!(category, PROFILE | PROFILE_VIEW | CORRIDOR | SAMPLES | PARCEL)
+    matches!(category, PROFILE | PROFILE_VIEW | CORRIDOR | SAMPLES | PARCEL | PIPEPROFILE | GRADING | INTERSECTION | ROUNDABOUT)
 }
 
 /// A hash of what the dependent scenes read: every alignment and every civil element's revision.
@@ -184,7 +184,7 @@ impl crate::app::AfroBimApp {
     fn fit_bounds(&mut self, id: ElementId, b: &Built) {
         let Some(cat) = self.doc.find(id).map(|e| e.category.clone()) else { return };
         let bounds = match cat.as_str() {
-            PROFILE_VIEW | SAMPLES | CORRIDOR => civil_build::scene_bounds(&b.scene),
+            PROFILE_VIEW | SAMPLES | CORRIDOR | PIPEPROFILE => civil_build::scene_bounds(&b.scene),
             SURFACE => b.tin.as_ref().map(|t| {
                 let x = t.bounds();
                 civil::Bounds { min_e: x.min_x, min_n: x.min_y, max_e: x.max_x, max_n: x.max_y }

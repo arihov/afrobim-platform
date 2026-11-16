@@ -84,6 +84,8 @@ pub fn build(e: &Element, ctx: &Ctx) -> Built {
         ASSEMBLY => build_assembly(e),
         CORRIDOR => crate::civil_build2::build_corridor(e, ctx),
         SAMPLES => crate::civil_build2::build_samples(e, ctx),
+        PIPENET => crate::civil_pipes::build_pipenet(e, ctx),
+        PIPEPROFILE => crate::civil_pipes::build_pipe_profile(e, ctx),
         _ => Ok(Built::default()),
     };
     result.unwrap_or_else(|msg| {

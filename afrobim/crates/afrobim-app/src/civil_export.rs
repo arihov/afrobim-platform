@@ -107,7 +107,7 @@ pub fn build_file(doc: &Document, ctx: &Ctx) -> (LandXmlFile, Vec<String>) {
                     }
                 }
             }
-            ASSEMBLY | PROFILE_VIEW | CORRIDOR => {}
+            ASSEMBLY | PROFILE_VIEW | CORRIDOR | PIPENET | PIPEPROFILE => {}
             _ => {}
         }
     }
@@ -154,7 +154,26 @@ pub fn landxml_text(doc: &Document, ctx: &Ctx) -> (String, Vec<String>) {
     let (file, mut notes) = build_file(doc, ctx);
     let out = write_landxml_file(&file, &LandXmlOptions::default());
     notes.extend(out.warnings);
-    (out.text, notes)
+    let mut text = out.text;
+    // The pipe networks are written by the pipes crate and spliced in before the closing tag.
+    let nets: Vec<afrobim_pipes::PipeNetwork> = doc.elements().iter().filter(|e| e.category == PIPENET && !hidden(e)).filter_map(|e| get::<crate::civil_pipes::PipeNetData>(doc, e.id, PIPENET).map(|d| {
+        let mut n = d.network;
+        n.name = e.name.clone();
+        n
+    })).collect();
+    if !nets.is_empty() {
+        match afrobim_pipes::write_landxml_pipes(&nets, &afrobim_pipes::WriteOptions::now()) {
+            Ok(xml) => match (xml.find("<PipeNetworks"), xml.rfind("</PipeNetworks>")) {
+                (Some(a), Some(b)) => match text.rfind("</LandXML>") {
+                    Some(at) => text.insert_str(at, &format!("{}\n", &xml[a..b + "</PipeNetworks>".len()])),
+                    None => notes.push("The pipe networks could not be added: the LandXML text has no closing tag.".into()),
+                },
+                _ => notes.push("The pipe networks could not be added: the pipes writer gave no PipeNetworks element.".into()),
+            },
+            Err(e) => notes.push(format!("Pipe networks are left out of the LandXML: {e}")),
+        }
+    }
+    (text, notes)
 }
 
 impl crate::app::AfroBimApp {

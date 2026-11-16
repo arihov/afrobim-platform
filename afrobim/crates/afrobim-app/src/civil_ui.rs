@@ -13,6 +13,13 @@ pub struct CivilUi {
     pub cor: crate::civil_corridor::CorridorUi,
     pub parcels: crate::civil_parcels::ParcelUi,
     pub qty: crate::civil_quantities::QtyUi,
+    pub pipes: crate::pipes_ui::PipesUi,
+    pub grade: crate::grading_ui::GradeUi,
+    pub junction: crate::junction_ui::JunctionUi,
+    /// Positions picked in the model for the dialog that asked (easting, northing).
+    pub queue: Vec<(f64, f64)>,
+    /// Keep picking after each click (until the dialog closes).
+    pub pick_repeat: bool,
     /// The next click in the model is a point for this dialog.
     pub pick: Option<PickFor>,
     /// Temporary drawing in the model (a flow path): not saved.
@@ -25,6 +32,8 @@ pub enum PickFor {
     Spot,
     Flow,
     ParcelCorner,
+    /// Each click is added to `CivilUi::queue` for the open dialog.
+    Queue,
 }
 
 impl AfroBimApp {
@@ -35,6 +44,16 @@ impl AfroBimApp {
             Cv::CivilLandXml => self.civil_landxml_out(),
             Cv::CivilDemo => self.civil_demo(),
             Cv::Defaults => self.defaults_cmd(),
+            Cv::PipeNew => self.pipe_new_cmd(),
+            Cv::PipeParts => self.pipe_parts_cmd(),
+            Cv::PipeProps => self.pipe_props_cmd(),
+            Cv::PipeEdit => self.pipe_edit_cmd(),
+            Cv::PipeCheck => self.pipe_check_cmd(),
+            Cv::PipeTables => self.pipe_tables_cmd(),
+            Cv::PipeQty => self.pipe_qty_cmd(),
+            Cv::PipeProfile => self.pipe_profile_cmd(),
+            Cv::FeatureLine | Cv::FeatureLineEdit | Cv::GradeSite | Cv::GradeCreate | Cv::GradeGroup | Cv::GradeHelpers => self.grading_cmd(cv),
+            Cv::Intersection | Cv::Roundabout => self.junction_cmd(cv),
             Cv::ParcelPick | Cv::ParcelDeed | Cv::ParcelProps | Cv::ParcelTopology | Cv::ParcelSplit | Cv::ParcelSchedule => self.civil_parcel_cmd(cv),
             Cv::Earthworks => self.civil_quantities_cmd(),
             Cv::Assembly => self.civil_assembly_cmd(),
@@ -53,5 +72,8 @@ impl AfroBimApp {
         self.civil_corridor_windows(ctx);
         self.civil_quantities_windows(ctx);
         self.civil_parcel_windows(ctx);
+        self.pipes_windows(ctx);
+        self.grading_windows(ctx);
+        self.junction_windows(ctx);
     }
 }

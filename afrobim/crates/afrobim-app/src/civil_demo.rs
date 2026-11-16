@@ -154,8 +154,59 @@ pub fn build(doc: &mut Document) -> Vec<String> {
         Ok(_) => {}
         Err(e) => notes.push(format!("Road reserve split: {e}")),
     }
+    notes.extend(pipe_demo(doc, surf_id, &al));
     let _ = pts_id;
     let _: Option<ElementId> = None;
+    notes
+}
+
+/// A small pipe run beside the first straight of the demonstration road: four structures and three
+/// pipes from the labelled example parts list. Every number is an example.
+fn pipe_demo(doc: &mut Document, surf_id: ElementId, al: &Alignment) -> Vec<String> {
+    use afrobim_pipes::{PartFamily, PipeSpec, RunPoint, RunSpec, StructureKind};
+    let mut notes = Vec::new();
+    let cat = crate::pipes_ui::example_catalogue();
+    let Some(part) = cat.parts.iter().find(|p| p.family == PartFamily::Pipe).cloned() else { return vec!["The example parts list has no pipe.".into()] };
+    let spart = cat.parts.iter().find(|p| p.family == PartFamily::Structure).cloned();
+    let Some(first) = al.elements.first() else { return notes };
+    let (x0, y0, h) = (first.x, first.y, first.heading_rad);
+    // Offset 10 m to the right of the road's first straight, stations 8, 33, 58 and 83 m.
+    let at = |s: f64| (x0 + s * h.cos() + 10.0 * h.sin(), y0 + s * h.sin() - 10.0 * h.cos());
+    let pts: Vec<RunPoint> = [8.0, 33.0, 58.0, 83.0].iter().map(|s| { let (e, n) = at(*s); RunPoint { easting_m: e, northing_m: n, rim_level_m: ground_z(e, n) } }).collect();
+    let mut data = crate::civil_pipes::PipeNetData::default();
+    data.example = true;
+    data.network = afrobim_pipes::PipeNetwork::new("Demo pipe network (example values)");
+    data.network.network_type = afrobim_pipes::NetworkType::Storm;
+    data.network.surface_name = Some("Demo existing ground (example data)".into());
+    data.catalogue = cat.clone();
+    data.surface = Some(surf_id.0);
+    let start_invert = pts[0].rim_level_m - 1.6;
+    let spec = RunSpec { structure_kind: StructureKind::Manhole, structure_prefix: "MH".into(), pipe_prefix: "P".into(), pipe: match PipeSpec::from_part(&part) { Ok(s) => s, Err(e) => return vec![e.to_string()] }, start_invert_m: start_invert, slope: 0.012 };
+    match data.network.add_run(&pts, &spec) {
+        Ok((structs, pipes)) => {
+            if let Some(sp) = &spart {
+                for s in &structs {
+                    let _ = data.network.swap_structure_part(*s, sp);
+                }
+            }
+            for p in &pipes {
+                if let Ok(pp) = data.network.pipe_mut(*p) {
+                    pp.design_flow_m3_s = Some(0.12);
+                }
+            }
+            let last = *pipes.last().unwrap();
+            let end_invert = data.network.pipe(last).map(|p| p.end_invert_m).unwrap_or(0.0);
+            data.tailwater_m = Some(end_invert + 0.2);
+            data.clearance_m = Some(0.3);
+            data.rules.min_slope = Some(0.005);
+            data.rules.min_cover_m = Some(0.6);
+            let net_id = crate::civil_pipes::add(doc, "Demo pipe network (example values)", &data, SOURCE);
+            let (e, n) = (E0, N0 + 150.0);
+            let pp = crate::civil_pipes::PipeProfileData { network: net_id.0, pipes: pipes.iter().map(|p| p.0).collect(), alignment: None, surface: Some(surf_id.0), insertion: [e, n], vertical_exaggeration: 5.0, ground_spacing_m: 5.0, tailwater_m: data.tailwater_m };
+            civil::add(doc, PIPEPROFILE, "Demo pipe profile (example values)", serde_json::to_value(&pp).unwrap_or_default(), Some(Bounds { min_e: e, min_n: n, max_e: e + 100.0, max_n: n + 30.0 }), SOURCE);
+        }
+        Err(e) => notes.push(format!("Pipe run: {e}")),
+    }
     notes
 }
 

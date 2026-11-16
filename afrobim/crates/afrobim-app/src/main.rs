@@ -28,6 +28,12 @@ mod civil_surface;
 mod civil_scene;
 mod civil_tree;
 mod civil_ui;
+mod civil_pipes;
+mod pipes_ui;
+mod grading_ui;
+mod junction_ui;
+mod civil_grading;
+mod civil_junction;
 mod defaults_glue;
 #[cfg(test)]
 mod a1_tests;

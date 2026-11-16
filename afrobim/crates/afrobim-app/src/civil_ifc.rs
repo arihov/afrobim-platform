@@ -22,6 +22,9 @@ pub fn mapping_note(category: &str) -> &'static str {
         POINTS => "Not mapped: kept in the document and in LandXML (CgPoints)",
         PARCEL => "Not mapped: kept in the document and in LandXML (Parcels)",
         PROFILE | PROFILE_VIEW => "Not mapped: a profile is written with its alignment only as LandXML",
+        PIPENET | PIPEPROFILE => "Not mapped: no verified IFC entity (LandXML only)",
+        FEATURELINE | GRADING => "Not mapped: no verified IFC entity",
+        INTERSECTION | ROUNDABOUT => "Not mapped: no verified IFC entity",
         ASSEMBLY | CORRIDOR | SAMPLES => "Not mapped yet: no verified IFC entity for this object",
         _ => "Not mapped",
     }

@@ -44,13 +44,32 @@ pub enum Cv {
     CivilDemo,
     // Defaults
     Defaults,
+    // Pipe networks
+    PipeNew,
+    PipeParts,
+    PipeProps,
+    PipeEdit,
+    PipeCheck,
+    PipeTables,
+    PipeQty,
+    PipeProfile,
+    // Grading
+    FeatureLine,
+    FeatureLineEdit,
+    GradeSite,
+    GradeCreate,
+    GradeGroup,
+    GradeHelpers,
+    // Intersections
+    Intersection,
+    Roundabout,
 }
 
 
 
 /// Every civil command (a test checks each one is in the command table).
 #[cfg(test)]
-pub const ALL: [Cv; 31] = [
+pub const ALL: [Cv; 47] = [
     Cv::Toolspace,
     Cv::Points,
     Cv::PointCreate,
@@ -82,6 +101,22 @@ pub const ALL: [Cv; 31] = [
     Cv::CivilLandXml,
     Cv::CivilDemo,
     Cv::Defaults,
+    Cv::PipeNew,
+    Cv::PipeParts,
+    Cv::PipeProps,
+    Cv::PipeEdit,
+    Cv::PipeCheck,
+    Cv::PipeTables,
+    Cv::PipeQty,
+    Cv::PipeProfile,
+    Cv::FeatureLine,
+    Cv::FeatureLineEdit,
+    Cv::GradeSite,
+    Cv::GradeCreate,
+    Cv::GradeGroup,
+    Cv::GradeHelpers,
+    Cv::Intersection,
+    Cv::Roundabout,
 ];
 
 pub fn glyph(c: Cv) -> &'static str {
@@ -117,5 +152,21 @@ pub fn glyph(c: Cv) -> &'static str {
         Cv::CivilLandXml => ph::FILE_CODE,
         Cv::CivilDemo => ph::FLASK,
         Cv::Defaults => ph::BOOK_BOOKMARK,
+        Cv::PipeNew => ph::PIPE,
+        Cv::PipeParts => ph::LIST_PLUS,
+        Cv::PipeProps => ph::SLIDERS_HORIZONTAL,
+        Cv::PipeEdit => ph::PENCIL_SIMPLE_LINE,
+        Cv::PipeCheck => ph::SEAL_CHECK,
+        Cv::PipeTables => ph::TABLE,
+        Cv::PipeQty => ph::CALCULATOR,
+        Cv::PipeProfile => ph::CHART_LINE,
+        Cv::FeatureLine => ph::VECTOR_TWO,
+        Cv::FeatureLineEdit => ph::PENCIL_SIMPLE,
+        Cv::GradeSite => ph::CIRCLES_THREE,
+        Cv::GradeCreate => ph::MOUNTAINS,
+        Cv::GradeGroup => ph::STACK_PLUS,
+        Cv::GradeHelpers => ph::BOUNDING_BOX,
+        Cv::Intersection => ph::ARROWS_SPLIT,
+        Cv::Roundabout => ph::CIRCLE_NOTCH,
     }
 }

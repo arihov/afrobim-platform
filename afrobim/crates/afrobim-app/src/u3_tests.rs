@@ -108,10 +108,10 @@ fn every_civil_command_is_in_the_table_with_an_icon() {
     }
     let n = COMMANDS.iter().filter(|c| matches!(c.action, Action::Civil(_))).count();
     assert_eq!(n, crate::civil_cmds::ALL.len());
-    // The Civil workspace shows the Civil tab, whose panels are the eight the plan names.
+    // The Civil workspace shows the Civil tab, whose panels are the plan's eight, then pipe networks, grading and intersections.
     let ws = crate::workspace::WORKSPACES.iter().find(|w| w.name == "Civil").expect("a Civil workspace");
     assert!(ws.visible_tabs().iter().any(|t| t.tab == crate::ribbon::Tab::Civil));
-    assert_eq!(crate::ribbon::panel_titles(crate::ribbon::Tab::Civil), vec!["Points", "Surfaces", "Alignments", "Profiles", "Sections", "Corridors", "Parcels", "Quantities"]);
+    assert_eq!(crate::ribbon::panel_titles(crate::ribbon::Tab::Civil), vec!["Points", "Surfaces", "Alignments", "Profiles", "Sections", "Corridors", "Parcels", "Pipe networks", "Grading", "Intersections", "Quantities"]);
 }
 
 #[test]

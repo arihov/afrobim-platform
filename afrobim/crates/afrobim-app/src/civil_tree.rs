@@ -21,6 +21,8 @@ enum Act {
     Delete(ElementId),
     ToggleHidden(ElementId),
     Run(Cv, Option<ElementId>),
+    /// Select the element and centre the plan on a point (a structure or a pipe of a network).
+    ZoomPoint(ElementId, f64, f64),
 }
 
 /// One object row: what the tree needs of an element.
@@ -50,6 +52,12 @@ fn icon_of(category: &str) -> &'static str {
         CORRIDOR => ph::ROAD_HORIZON,
         SAMPLES => ph::LINE_SEGMENTS,
         PARCEL => ph::POLYGON,
+        PIPENET => ph::PIPE,
+        PIPEPROFILE => ph::CHART_LINE,
+        FEATURELINE => ph::VECTOR_TWO,
+        GRADING => ph::MOUNTAINS,
+        INTERSECTION => ph::ARROWS_SPLIT,
+        ROUNDABOUT => ph::CIRCLE_NOTCH,
         c if c == afrobim_alignment::CATEGORY => ph::PATH,
         _ => ph::SQUARE,
     }
@@ -281,6 +289,43 @@ impl AfroBimApp {
                     self.row_ui(ui, r, acts, &[("Edit assembly...", Cv::Assembly)]);
                 }
             });
+            // Pipe networks, with their structures and pipes under each, and the profiles of runs.
+            let nets = self.rows(PIPENET);
+            let pprofiles = self.rows(PIPEPROFILE);
+            self.node(ui, "ts-pipes", ph::PIPE, "Pipe Networks", nets.len(), Some(("Create pipe network...", Cv::PipeNew)), &mut acts, |ui, acts| {
+                for r in &nets {
+                    self.row_ui(ui, r, acts, &[("Properties and rules...", Cv::PipeProps), ("Edit network...", Cv::PipeEdit), ("Checks...", Cv::PipeCheck), ("Tables...", Cv::PipeTables), ("Quantities...", Cv::PipeQty), ("Profile of a run...", Cv::PipeProfile), ("Parts list...", Cv::PipeParts)]);
+                    let Some(d) = crate::civil_pipes::data_of(&self.doc, r.id) else { continue };
+                    let net = &d.network;
+                    ui.indent(("pipenet-in", r.id.0), |ui| {
+                        egui::CollapsingHeader::new(crate::theme::icon_text(ph::CIRCLE, &format!("Structures ({})", net.structure_count()), 12.0, ui.visuals().text_color())).id_salt(("pn-st", r.id.0)).default_open(net.structure_count() <= 12).show(ui, |ui| {
+                            for st in net.structures() {
+                                let text = format!("{}  ({})  rim {:.2}", st.name, st.kind.label(), st.rim_level_m);
+                                let resp = ui.selectable_label(false, crate::theme::icon_text(ph::CIRCLE, &text, 12.0, ui.visuals().text_color()));
+                                if resp.clicked() || resp.double_clicked() {
+                                    acts.push(Act::ZoomPoint(r.id, st.easting_m, st.northing_m));
+                                }
+                            }
+                        });
+                        egui::CollapsingHeader::new(crate::theme::icon_text(ph::PIPE, &format!("Pipes ({})", net.pipe_count()), 12.0, ui.visuals().text_color())).id_salt(("pn-pp", r.id.0)).default_open(net.pipe_count() <= 12).show(ui, |ui| {
+                            for p in net.pipes() {
+                                let at = net.pipe_path(p.id).map(|pa| pa.point_at(pa.length_m / 2.0)).unwrap_or([0.0, 0.0]);
+                                let text = format!("{}  {}  {:.2} %", p.name, p.shape.size_label(), net.slope(p.id).unwrap_or(0.0) * 100.0);
+                                let resp = ui.selectable_label(false, crate::theme::icon_text(ph::PIPE, &text, 12.0, ui.visuals().text_color()));
+                                if resp.clicked() || resp.double_clicked() {
+                                    acts.push(Act::ZoomPoint(r.id, at[0], at[1]));
+                                }
+                            }
+                        });
+                    });
+                }
+                if !pprofiles.is_empty() {
+                    ui.label(crate::theme::icon_text(ph::CHART_LINE, "Pipe profiles", 12.0, ui.visuals().weak_text_color()));
+                    for r in &pprofiles {
+                        self.row_ui(ui, r, acts, &[("Edit profile...", Cv::PipeProfile)]);
+                    }
+                }
+            });
             let parcels = self.rows(PARCEL);
             self.node(ui, "ts-parcels", ph::POLYGON, "Parcels (Site)", parcels.len(), Some(("Create parcel...", Cv::ParcelPick)), &mut acts, |ui, acts| {
                 for r in &parcels {
@@ -341,6 +386,10 @@ impl AfroBimApp {
                 }
                 self.schedule_commit_now();
             }
+            Act::ZoomPoint(id, e, n) => {
+                self.doc.select(&[id], SelectMode::Replace);
+                self.civil_zoom_to(e, n, 14.0);
+            }
             Act::Run(cv, id) => {
                 if let Some(id) = id {
                     self.doc.select(&[id], SelectMode::Replace);
@@ -399,6 +448,12 @@ pub fn edit_command(category: &str) -> Option<Cv> {
         CORRIDOR => Cv::CorridorModel,
         SAMPLES => Cv::SampleLines,
         PARCEL => Cv::ParcelProps,
+        PIPENET => Cv::PipeProps,
+        PIPEPROFILE => Cv::PipeProfile,
+        FEATURELINE => Cv::FeatureLineEdit,
+        GRADING => Cv::GradeGroup,
+        INTERSECTION => Cv::Intersection,
+        ROUNDABOUT => Cv::Roundabout,
         _ => return None,
     })
 }

@@ -183,6 +183,9 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Sections", items: &[Big(Icon::Section, "Sample lines", "SAMPLELINES"), Big(Icon::Section, "Views", "SECTIONVIEWS")] },
         Panel { title: "Corridors", items: &[Big(Icon::Pavement, "Assembly", "ASSEMBLY"), Big(Icon::Corridor, "Corridor", "CORRIDORMODEL")] },
         Panel { title: "Parcels", items: &[Big(Icon::Area, "Create", "PARCELPICK"), Big(Icon::Measure, "Deed", "PARCELDEED"), Small(Icon::Project, "Properties", "PARCELPROPS"), Small(Icon::CheckAll, "Topology", "PARCELTOPOLOGY"), Small(Icon::Design, "Split", "PARCELSPLIT"), Small(Icon::Schedule, "Schedule", "ACQUISITION")] },
+        Panel { title: "Pipe networks", items: &[Big(Icon::Drainage, "Create", "PIPENEW"), Big(Icon::ResultsList, "Parts", "PIPEPARTS"), Big(Icon::Options, "Rules", "PIPEPROPS"), Big(Icon::AlignEdit, "Edit", "PIPEEDIT"), Big(Icon::CheckAll, "Checks", "PIPECHECK"), Small(Icon::ResultsList, "Tables", "PIPETABLES"), Small(Icon::Quantities, "Quantities", "PIPEQTY"), Small(Icon::ProfileDesign, "Profile", "PIPEPROFILE")] },
+        Panel { title: "Grading", items: &[Big(Icon::Alignment, "Feature line", "FEATURELINE"), Big(Icon::AlignEdit, "Edit line", "FLEDIT"), Big(Icon::Layers, "Sites", "GRADESITE"), Big(Icon::Surface, "Grading", "GRADING"), Big(Icon::Quantities, "Groups", "GRADINGGROUP"), Small(Icon::Area, "Pad, pond", "GRADEHELPERS")] },
+        Panel { title: "Intersections", items: &[Big(Icon::Tee, "Intersection", "INTERSECTION"), Big(Icon::Roundabout, "Roundabout", "ROUNDABOUT")] },
         Panel { title: "Quantities", items: &[Big(Icon::Quantities, "Earthworks", "EARTHWORKS"), Small(Icon::LandXmlOut, "LandXML", "CIVILXML"), Small(Icon::Help, "Demo", "CIVILDEMO"), Small(Icon::Options, "Defaults", "DEFAULTS")] },
     ];
     const DESIGN: &[Panel] = &[

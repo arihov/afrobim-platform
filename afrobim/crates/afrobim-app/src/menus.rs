@@ -281,6 +281,21 @@ impl AfroBimApp {
                             a(ui, &mut pick, c(cv), l);
                         }
                     });
+                    submenu(ui, egui_phosphor::regular::PIPE, "Pipe networks", |ui| {
+                        for (cv, l) in [(PipeNew, "Create network…"), (PipeParts, "Parts list…"), (PipeProps, "Properties and rules…"), (PipeEdit, "Edit network…"), (PipeCheck, "Checks…"), (PipeTables, "Tables…"), (PipeQty, "Quantities and trenches…"), (PipeProfile, "Profile of a run…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::VECTOR_TWO, "Grading", |ui| {
+                        for (cv, l) in [(FeatureLine, "Create feature line…"), (FeatureLineEdit, "Edit feature line…"), (GradeSite, "Sites and crossings…"), (GradeCreate, "Create grading…"), (GradeGroup, "Grading groups and volumes…"), (GradeHelpers, "Pad, pond, ditch…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::ARROWS_SPLIT, "Intersections", |ui| {
+                        for (cv, l) in [(Intersection, "Intersection…"), (Roundabout, "Roundabout…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
                     a(ui, &mut pick, c(Earthworks), "Earthworks and mass haul…");
                     sep(ui);
                     a(ui, &mut pick, c(CivilLandXml), "Export civil data as LandXML…");

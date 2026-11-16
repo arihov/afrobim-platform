@@ -201,7 +201,20 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
     let cols = d.columns.max(1);
     let ex = if d.vertical_exaggeration.is_finite() && d.vertical_exaggeration > 0.0 { d.vertical_exaggeration } else { 1.0 };
     let swath_w = views.iter().map(|v| v.line.left_swath_m + v.line.right_swath_m).fold(0.0, f64::max);
+    // Pipes of the networks of the document that cross each section line (cut by the line at its
+    // station, within the swath), drawn in the section view.
+    let nets: Vec<afrobim_pipes::PipeNetwork> = ctx.elements.iter().filter(|x| x.category == crate::civil::PIPENET).filter_map(|x| serde_json::from_value::<crate::civil_pipes::PipeNetData>(x.data.clone()).ok().map(|n| n.network)).collect();
+    let align = ctx.alignment_named(&d.group.alignment);
+    let pipe_secs: Vec<Vec<afrobim_pipes::SectionView>> = views.iter().map(|v| nets.iter().filter_map(|n| align.as_ref().and_then(|a| n.section_at_station(a, v.line.station_m, v.line.left_swath_m.max(v.line.right_swath_m), None).ok())).collect()).collect();
     let (mut zlo, mut zhi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for secs in &pipe_secs {
+        for sec in secs {
+            for c in &sec.crossings {
+                zlo = zlo.min(c.outer_bottom_m);
+                zhi = zhi.max(c.outer_top_m);
+            }
+        }
+    }
     for v in &views {
         for gl in &v.ground_lines {
             for run in &gl.runs {
@@ -260,6 +273,22 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
                     pts.push(pts[0]);
                     sc.lines.push(SLine::new(pts, colour_of(&sh.code), 0.8));
                 }
+            }
+        }
+        // Pipe crossings: the outside of the barrel at the section, as an ellipse (the cut of a
+        // round pipe by a plane square to the alignment is a circle; the view's exaggeration
+        // stretches it), and a label.
+        for sec in &pipe_secs[k] {
+            for c in &sec.crossings {
+                let (cz, rz, rx) = ((c.outer_bottom_m + c.outer_top_m) / 2.0, (c.outer_top_m - c.outer_bottom_m) / 2.0, (c.inside_width_m + (c.outer_top_m - c.outer_bottom_m - c.inside_height_m)) / 2.0);
+                let ring: Vec<[f64; 2]> = (0..=24).map(|i| { let a = std::f64::consts::TAU * i as f64 / 24.0; [px(c.offset_m + rx * a.cos()), py(cz + rz * a.sin())] }).collect();
+                sc.lines.push(SLine::new(ring, [0x4D, 0xA3, 0xFF], 1.6));
+                sc.texts.push(SText { at: [px(c.offset_m), py(c.outer_top_m)], text: format!("{} {}", c.name, c.size_label), rgb: [0x4D, 0xA3, 0xFF], height_mm: 0.0, px: 8.5, anchor: 3, prio: 3, halo: true });
+            }
+            for st in &sec.structures {
+                let (x, bottom) = (st.offset_m, st.sump_level_m.unwrap_or(st.rim_level_m - 1.0));
+                let q = vec![[px(x - st.outer_radius_m), py(bottom)], [px(x + st.outer_radius_m), py(bottom)], [px(x + st.outer_radius_m), py(st.rim_level_m)], [px(x - st.outer_radius_m), py(st.rim_level_m)], [px(x - st.outer_radius_m), py(bottom)]];
+                sc.lines.push(SLine::new(q, [0xE0, 0xB0, 0x40], 1.2));
             }
         }
     }

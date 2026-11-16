@@ -32,9 +32,15 @@ pub const ASSEMBLY: &str = "civil-assembly";
 pub const CORRIDOR: &str = "civil-corridor";
 pub const SAMPLES: &str = "civil-samples";
 pub const PARCEL: &str = "civil-parcel";
+pub const PIPENET: &str = "civil-pipenet";
+pub const PIPEPROFILE: &str = "civil-pipeprofile";
+pub const FEATURELINE: &str = "civil-featureline";
+pub const GRADING: &str = "civil-grading";
+pub const INTERSECTION: &str = "civil-intersection";
+pub const ROUNDABOUT: &str = "civil-roundabout";
 
 /// Category, display name and the plural the toolspace shows.
-pub const KINDS: [(&str, &str, &str); 8] = [
+pub const KINDS: [(&str, &str, &str); 14] = [
     (POINTS, "Point set", "Points"),
     (SURFACE, "Surface", "Surfaces"),
     (PROFILE, "Ground profile", "Profiles"),
@@ -43,6 +49,12 @@ pub const KINDS: [(&str, &str, &str); 8] = [
     (CORRIDOR, "Corridor", "Corridors"),
     (SAMPLES, "Sample line group", "Sample Line Groups"),
     (PARCEL, "Parcel", "Parcels"),
+    (PIPENET, "Pipe network", "Pipe Networks"),
+    (PIPEPROFILE, "Pipe profile", "Pipe Profiles"),
+    (FEATURELINE, "Feature line", "Feature Lines"),
+    (GRADING, "Grading group", "Grading Groups"),
+    (INTERSECTION, "Intersection", "Intersections"),
+    (ROUNDABOUT, "Roundabout", "Roundabouts"),
 ];
 
 pub fn is_civil(category: &str) -> bool {
@@ -313,6 +325,12 @@ fn readable(category: &str, data: &serde_json::Value) -> Result<(), String> {
         CORRIDOR => ok::<CorridorData>(data),
         SAMPLES => ok::<SampleData>(data),
         PARCEL => ok::<afrobim_cogo::Parcel>(data),
+        PIPENET => ok::<crate::civil_pipes::PipeNetData>(data),
+        PIPEPROFILE => ok::<crate::civil_pipes::PipeProfileData>(data),
+        FEATURELINE => ok::<crate::civil_grading::FeatureLineData>(data),
+        GRADING => ok::<crate::civil_grading::GradingData>(data),
+        INTERSECTION => ok::<crate::civil_junction::IntersectionData>(data),
+        ROUNDABOUT => ok::<crate::civil_junction::RoundaboutData>(data),
         _ => Ok(()),
     }
 }
