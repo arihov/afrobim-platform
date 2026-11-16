@@ -574,7 +574,7 @@ impl AfroBimApp {
                 });
                 crate::ui_kit::note(ui, "Holidays are added in the calendar editor (CALENDAR). None are built in.");
                 if !s.problem.is_empty() {
-                    ui.label(RichText::new(&s.problem).color(BAD()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &s.problem);
                 }
                 if ui.button("Create the programme").clicked() {
                     let days: Vec<Weekday> = Weekday::ALL.iter().enumerate().filter(|(i, _)| s.new_prog.days[*i]).map(|(_, w)| *w).collect();
@@ -613,7 +613,7 @@ impl AfroBimApp {
                 }
             });
             if date_of(&s.start_text).is_none() {
-                ui.label(RichText::new("The start date must be YYYY-MM-DD.").small().color(BAD()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, "The start date must be YYYY-MM-DD.");
             }
             ui.separator();
             crate::ui_kit::heading(ui, "Activities");
@@ -637,7 +637,7 @@ impl AfroBimApp {
                 egui::Grid::new("activities").num_columns(heads.len()).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
                     let columns = heads.len();
                     for h in heads {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for (kind, level) in order {
@@ -692,7 +692,7 @@ impl AfroBimApp {
                                     });
                                     ui.add_sized([86.0, 20.0], egui::TextEdit::singleline(text).hint_text("YYYY-MM-DD"));
                                     if *kind != 0 && date_of(text).is_none() {
-                                        ui.label(RichText::new("date needed").small().color(WARN()));
+                                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "date needed");
                                     }
                                     if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this constraint").clicked() {
                                         remove = Some(k);
@@ -786,7 +786,7 @@ impl AfroBimApp {
             egui::ScrollArea::vertical().id_salt("deps").max_height(150.0).auto_shrink([false, true]).show(ui, |ui| {
                 egui::Grid::new("dependencies").num_columns(5).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
                     for h in ["Predecessor", "Successor", "Type", "Lag (days)", ""] {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for (i, d) in p.dependencies.iter_mut().enumerate() {
@@ -843,13 +843,13 @@ impl AfroBimApp {
                 }
             });
             if !s.problem.is_empty() {
-                ui.label(RichText::new(&s.problem).color(BAD()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &s.problem);
             }
             ui.add_space(4.0);
             match &s.result {
                 Some(Err(m)) => {
                     for l in m {
-                        ui.label(RichText::new(l).small().color(BAD()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, l);
                     }
                 }
                 Some(Ok(sch)) => {
@@ -912,7 +912,7 @@ impl AfroBimApp {
                     }
                 });
                 if cal.working_days.is_empty() {
-                    ui.label(RichText::new("A calendar needs at least one working weekday.").small().color(BAD()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, "A calendar needs at least one working weekday.");
                 }
                 ui.add_space(4.0);
                 ui.label(RichText::new("Holidays and other days off (entered by you; none are built in)").strong());
@@ -967,7 +967,7 @@ impl AfroBimApp {
                 }
             });
             if !s.problem.is_empty() {
-                ui.label(RichText::new(&s.problem).color(BAD()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &s.problem);
             }
         });
         if dlg.closed {
@@ -992,7 +992,7 @@ impl AfroBimApp {
                 Some(Err(m)) => {
                     ui.label(RichText::new("The programme cannot be scheduled until these are fixed:").color(BAD()).strong());
                     for l in m {
-                        ui.label(RichText::new(format!("  {l}")).color(BAD()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("  {l}"));
                     }
                 }
                 Some(Ok(sch)) => {
@@ -1013,7 +1013,7 @@ impl AfroBimApp {
                     egui::ScrollArea::both().id_salt("sched-rows").max_height(280.0).auto_shrink([false, false]).show(ui, |ui| {
                         egui::Grid::new("sched-grid").num_columns(12).striped(true).spacing([10.0, 3.0]).show(ui, |ui| {
                             for h in ["Id", "Name", "Days", "Early start", "Early finish", "Late start", "Late finish", "Total float", "Free float", "Critical", "Status", "Done"] {
-                                ui.label(RichText::new(h).strong());
+                                crate::ui_kit::th(ui, &h);
                             }
                             ui.end_row();
                             for r in &sch.rows {
@@ -1075,7 +1075,7 @@ impl AfroBimApp {
                     ui.horizontal(|ui| {
                         ui.label("Scale");
                         ui.add(egui::Slider::new(&mut s.gantt_scale, 1.0..=8.0).show_value(false));
-                        crate::ui_kit::note(ui, "Critical activities red, others blue, finished grey; black strip is progress; thin grey bar is the baseline; green line the data date.");
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Critical activities red, others blue, finished grey; black strip is progress; thin grey bar is the baseline; green line the data date.");
                     });
                     if let Some(p) = &s.prog {
                         if !p.summaries.is_empty() {
@@ -1095,14 +1095,14 @@ impl AfroBimApp {
                                 }
                             });
                             if let Some(e) = &s.ext.rollup_error {
-                                ui.label(RichText::new(format!("The roll-up could not be made on this basis ({e}); activities are drawn without summary rows.")).small().color(WARN()));
+                                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("The roll-up could not be made on this basis ({e}); activities are drawn without summary rows."));
                             }
                         }
                     }
                     egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| paint_gantt(ui, g, s.gantt_scale));
                 }
                 (Some(Err(m)), _) => {
-                    ui.label(RichText::new(format!("The programme cannot be scheduled: {}", m.join("; "))).color(BAD()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("The programme cannot be scheduled: {}", m.join("; ")));
                 }
                 _ => {
                     ui.label("There is no programme yet (PROGRAMME).");
@@ -1182,7 +1182,7 @@ impl AfroBimApp {
                     egui::ScrollArea::both().auto_shrink([false, true]).max_height(360.0).show(ui, |ui| {
                         egui::Grid::new("variance-grid").num_columns(7).striped(true).spacing([10.0, 3.0]).show(ui, |ui| {
                             for h in ["Id", "Name", "Status", "Start", "Finish", "Duration", "Float"] {
-                                ui.label(RichText::new(h).strong());
+                                crate::ui_kit::th(ui, &h);
                             }
                             ui.end_row();
                             let n = |x: Option<i64>| x.map(|v| format!("{v:+}")).unwrap_or_default();
@@ -1198,7 +1198,7 @@ impl AfroBimApp {
                             }
                         });
                     });
-                    crate::ui_kit::note(ui, "Variances are current minus baseline, in working days of each activity's calendar.");
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Variances are current minus baseline, in working days of each activity's calendar.");
                 }
             }
         });
@@ -1248,11 +1248,11 @@ impl AfroBimApp {
                     reschedule = true;
                 }
             });
-            crate::ui_kit::note(ui, "Progress is as of the end of the data date. Work done keeps its actual dates; work left is scheduled from the next working day. Actual dates may not be after the data date.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Progress is as of the end of the data date. Work done keeps its actual dates; work left is scheduled from the next working day. Actual dates may not be after the data date.");
             egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(300.0).show(ui, |ui| {
                 egui::Grid::new("progress-grid").num_columns(6).striped(true).spacing([10.0, 4.0]).show(ui, |ui| {
                     for h in ["Id", "Name", "Percent complete", "Actual start", "Actual finish", "Status"] {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for a in p.activities.iter_mut() {
@@ -1283,7 +1283,7 @@ impl AfroBimApp {
             match &s.result {
                 Some(Err(m)) => {
                     for l in m {
-                        ui.label(RichText::new(l).small().color(BAD()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, l);
                     }
                 }
                 Some(Ok(sch)) => {
@@ -1460,13 +1460,13 @@ impl AfroBimApp {
                 });
                 egui::CollapsingHeader::new(format!("Links to elements that no longer exist ({})", r.missing_elements.len())).default_open(true).show(ui, |ui| {
                     for (a, id) in &r.missing_elements {
-                        ui.label(RichText::new(format!("{a}: element {} is not in the document", id.0)).color(WARN()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("{a}: element {} is not in the document", id.0));
                     }
                 });
                 egui::CollapsingHeader::new(format!("Rules that match nothing ({})", r.empty_rules.len())).default_open(true).show(ui, |ui| {
                     for k in &r.empty_rules {
                         if let Some(l) = p.links.get(*k) {
-                            ui.label(RichText::new(format!("{}: {}", l.activity, selector_text(doc, &l.selector))).color(WARN()));
+                            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("{}: {}", l.activity, selector_text(doc, &l.selector)));
                         }
                     }
                 });
@@ -1548,14 +1548,14 @@ impl AfroBimApp {
                     ui.selectable_value(&mut s.ext.play.speed, v, format!("{v} days/s"));
                 }
             });
-            crate::ui_kit::note(ui, "Playback moves the date forward in the 3D view; drag the bar to scrub. Speed is how many days of the programme pass each second of viewing.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Playback moves the date forward in the 3D view; drag the bar to scrub. Speed is how many days of the programme pass each second of viewing.");
             ui.add_space(4.0);
             ui.label(RichText::new(format!(
                 "State at the end of the day: {} not started, {} in progress, {} complete, {} removed. Elements no link reaches stay as drawn.",
                 counts[0], counts[1], counts[2], counts[3]
             ))
             .small());
-            crate::ui_kit::note(ui, "Not started: ghosted or hidden. In progress: amber. Complete: normal. Demolished or temporary work that is over: removed.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Not started: ghosted or hidden. In progress: amber. Complete: normal. Demolished or temporary work that is over: removed.");
             let _ = doc;
         });
         if dlg.closed {

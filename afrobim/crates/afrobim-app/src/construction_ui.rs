@@ -18,15 +18,6 @@ use crate::construction_glue::{self as glue, EacKind, EvmOutput, Measure, Record
 
 #[allow(non_snake_case)]
 
-fn BAD() -> egui::Color32 {
-
-    crate::theme::danger()
-
-}
-#[allow(non_snake_case)]
-fn WARN() -> egui::Color32 {
-    crate::theme::warn()
-}
 #[allow(non_snake_case)]
 fn GOOD() -> egui::Color32 {
     crate::theme::success()
@@ -220,7 +211,7 @@ fn message(ui: &mut Ui, m: &Option<Result<String, String>>) {
             ui.label(RichText::new(t).color(GOOD()));
         }
         Some(Err(t)) => {
-            ui.label(RichText::new(t).color(BAD()));
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, t);
         }
         None => {}
     }
@@ -474,7 +465,7 @@ impl AfroBimApp {
                         tf(ui, &mut r.reason, "required for a correction", 340.0);
                     });
                 }
-                crate::ui_kit::note(ui, "A percent below the previous record is refused unless it is a correction with a reason. A quantity needs a target quantity in the same unit.");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "A percent below the previous record is refused unless it is a correction with a reason. A quantity needs a target quantity in the same unit.");
                 if r.quantity {
                     ui.separator();
                     crate::ui_kit::heading(ui, "Target quantities");
@@ -618,14 +609,14 @@ impl AfroBimApp {
             });
             let (from, to) = (date_of(&c.filter.from), date_of(&c.filter.to));
             if (!c.filter.from.trim().is_empty() && from.is_none()) || (!c.filter.to.trim().is_empty() && to.is_none()) {
-                ui.label(RichText::new("A date is typed as YYYY-MM-DD; a date that is not read is not used.").small().color(WARN()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "A date is typed as YYYY-MM-DD; a date that is not read is not used.");
             }
             let rows = glue::filtered_records(&c.book.log, c.filter.element, from, to);
             ui.label(RichText::new(format!("{} of {} record(s)", rows.len(), c.book.log.records().len())).small().weak());
             egui::ScrollArea::both().max_height(ui.available_height() - 30.0).auto_shrink([false, false]).show(ui, |ui| {
                 egui::Grid::new("log-grid").num_columns(8).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                     for h in ["Date", "Element", "Measured", "Percent", "Recorded by", "Note", "Files", "Correction"] {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for (_, r, percent) in &rows {
@@ -698,13 +689,13 @@ impl AfroBimApp {
             });
             match &c.preview {
                 Some(Err(e)) => {
-                    ui.label(RichText::new(e).color(BAD()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
                 }
                 Some(Ok(r)) => {
                     egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
                         egui::Grid::new("rollup-grid").num_columns(7).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                             for h in ["Activity", "Percent", "Weights", "Elements recorded", "Actual start", "Actual finish", ""] {
-                                ui.label(RichText::new(h).strong());
+                                crate::ui_kit::th(ui, &h);
                             }
                             ui.end_row();
                             for a in &r.activities {
@@ -720,7 +711,7 @@ impl AfroBimApp {
                         });
                         if !r.unlinked_activities.is_empty() {
                             ui.add_space(4.0);
-                            ui.label(RichText::new(format!("No element is linked to: {}. Their progress is left as it is.", r.unlinked_activities.join(", "))).small().color(WARN()));
+                            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("No element is linked to: {}. Their progress is left as it is.", r.unlinked_activities.join(", ")));
                         }
                     });
                     ui.add_space(4.0);
@@ -738,14 +729,14 @@ impl AfroBimApp {
                     ui.label(RichText::new(format!("{activity}: {what} {date} (inferred from the records)")).small());
                 }
                 if !report.unknown_activities.is_empty() {
-                    ui.label(RichText::new(format!("Not in the programme: {}", report.unknown_activities.join(", "))).small().color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("Not in the programme: {}", report.unknown_activities.join(", ")));
                 }
                 match outcome {
                     Ok(t) => {
                         ui.label(RichText::new(t).small());
                     }
                     Err(e) => {
-                        ui.label(RichText::new(format!("The programme could not be rescheduled: {e}")).color(BAD()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("The programme could not be rescheduled: {e}"));
                     }
                 }
             }
@@ -922,12 +913,12 @@ impl AfroBimApp {
                     }
                 });
                 if !c.cost.error.is_empty() {
-                    ui.label(RichText::new(&c.cost.error).color(BAD()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &c.cost.error);
                 }
                 ui.separator();
                 match c.evm.clone() {
                     Some(Err(e)) => {
-                        ui.label(RichText::new(format!("Not calculated: {e}")).color(BAD()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("Not calculated: {e}"));
                     }
                     Some(Ok(out)) => {
                         evm_output(ui, &out, decimals);
@@ -1005,14 +996,14 @@ impl AfroBimApp {
             });
             match &result {
                 Err(e) => {
-                    ui.label(RichText::new(e).color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, e);
                 }
                 Ok((look, delays)) => {
                     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                         ui.label(RichText::new(format!("Look-ahead ({} activities)", look.len())).strong());
                         egui::Grid::new("look-grid").num_columns(7).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                             for h in ["Activity", "WBS", "Name", "Event", "Start", "Finish", "Float (days)"] {
-                                ui.label(RichText::new(h).strong());
+                                crate::ui_kit::th(ui, &h);
                             }
                             ui.end_row();
                             for r in look {
@@ -1034,7 +1025,7 @@ impl AfroBimApp {
                         ui.label(RichText::new(format!("Delay list ({} activities)", delays.len())).strong());
                         egui::Grid::new("delay-grid").num_columns(6).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                             for h in ["Activity", "Name", "Baseline finish", "Forecast finish", "Finish variance (working days)", "Start variance"] {
-                                ui.label(RichText::new(h).strong());
+                                crate::ui_kit::th(ui, &h);
                             }
                             ui.end_row();
                             for r in delays {
@@ -1090,18 +1081,18 @@ fn evm_output(ui: &mut Ui, out: &EvmOutput, decimals: u32) {
         ui.end_row();
     });
     if out.eac_unchosen {
-        ui.label(RichText::new("No EAC formula is chosen, so the EAC and the figures that depend on it are not shown.").small().color(WARN()));
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "No EAC formula is chosen, so the EAC and the figures that depend on it are not shown.");
     } else {
         ui.label(RichText::new(format!("EAC by {}: {}", e.eac.formula, e.eac.definition)).small());
     }
     for n in &e.notes {
-        ui.label(RichText::new(n).small().color(WARN()));
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, n);
     }
     ui.add_space(6.0);
     crate::ui_kit::heading(ui, "By activity");
     egui::Grid::new("evm-activities").num_columns(7).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
         for h in ["Activity", "Name", "BAC", "PV", "Percent", "EV", "AC"] {
-            ui.label(RichText::new(h).strong());
+            crate::ui_kit::th(ui, &h);
         }
         ui.end_row();
         for a in &e.activities {
@@ -1119,7 +1110,7 @@ fn evm_output(ui: &mut Ui, out: &EvmOutput, decimals: u32) {
     ui.label(RichText::new("By month (cumulative to the month end or the data date)").strong());
     egui::Grid::new("evm-periods").num_columns(7).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
         for h in ["Month", "PV in month", "PV to date", "EV in month", "EV to date", "AC in month", "AC to date"] {
-            ui.label(RichText::new(h).strong());
+            crate::ui_kit::th(ui, &h);
         }
         ui.end_row();
         for r in &out.periods.rows {

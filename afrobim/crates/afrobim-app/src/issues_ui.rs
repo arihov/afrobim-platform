@@ -25,10 +25,6 @@ fn BAD() -> egui::Color32 {
     crate::theme::danger()
 
 }
-#[allow(non_snake_case)]
-fn WARN() -> egui::Color32 {
-    crate::theme::warn()
-}
 
 /// What the BCF dialogs say about the files, as the engine's README states it.
 pub const BCF_LIMITS: &str = "AfroBIM writes and reads BCF 2.1 only; BCF 3.0 is not supported and a 3.0 file is refused. The files have been checked against the BCF 2.1 schemas and read back by AfroBIM, but they have not been opened in any other BCF tool, so how another tool shows the viewpoints and the selected objects is not known.";
@@ -353,7 +349,7 @@ impl AfroBimApp {
         let mut delete: Option<String> = None;
         let mut message: Option<String> = None;
         let dlg = crate::ui_kit::Dialog::titled("Issues").subtitle("Problems raised against elements, with viewpoints").width(960.0).show_body(ctx, |ui| {
-            crate::ui_kit::note(ui, "Issues are kept in the document with the clash tests. Raise one from a clash or a group of clashes, or write a free-standing one; add comments and viewpoints; exchange them as BCF 2.1 (BCFOUT, BCFIN).");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Issues are kept in the document with the clash tests. Raise one from a clash or a group of clashes, or write a free-standing one; add comments and viewpoints; exchange them as BCF 2.1 (BCFOUT, BCFIN).");
             ui.horizontal(|ui| {
                 ui.label("Your name");
                 ui.add(egui::TextEdit::singleline(&mut self.issues.author).desired_width(140.0).hint_text("author of what you add"));
@@ -399,7 +395,7 @@ impl AfroBimApp {
                 }
             });
             if !self.issues.message.is_empty() {
-                ui.label(RichText::new(&self.issues.message).small().color(WARN()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &self.issues.message);
             }
             ui.separator();
             let n = self.coord.co.issues.len();
@@ -411,7 +407,7 @@ impl AfroBimApp {
                 egui::ScrollArea::vertical().id_salt("issue-list").max_height(150.0).auto_shrink([false, true]).show(ui, |ui| {
                     egui::Grid::new("issue-list-grid").num_columns(7).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
                         for h in ["Title", "Status", "Priority", "Type", "Assignee", "Due", "Labels"] {
-                            ui.label(RichText::new(h).strong());
+                            crate::ui_kit::th(ui, &h);
                         }
                         ui.end_row();
                         for i in &self.coord.co.issues {
@@ -628,7 +624,7 @@ impl AfroBimApp {
         let mut open = true;
         let mut export = false;
         let dlg = crate::ui_kit::Dialog::titled("Export issues as BCF").subtitle("Write the issues to a BCF file").width(560.0).show_body(ctx, |ui| {
-            ui.label(RichText::new(BCF_LIMITS).small().color(WARN()));
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, BCF_LIMITS);
             ui.add_space(4.0);
             ui.label(format!("{} issue(s) in the document.", self.coord.co.issues.len()));
             ui.label(match &self.last_ifc_name {
@@ -666,8 +662,8 @@ impl AfroBimApp {
         let mut open = true;
         let mut import = false;
         let dlg = crate::ui_kit::Dialog::titled("Import issues from BCF").subtitle("Read issues from a BCF file").width(560.0).show_body(ctx, |ui| {
-            ui.label(RichText::new(BCF_LIMITS).small().color(WARN()));
-            crate::ui_kit::note(ui, "An issue with the same GUID replaces the one in the document; the others are added. What the model cannot hold is listed as not imported.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, BCF_LIMITS);
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An issue with the same GUID replaces the one in the document; the others are added. What the model cannot hold is listed as not imported.");
             if ui.button("Choose a file and import").clicked() {
                 import = true;
             }

@@ -2005,7 +2005,7 @@ impl AfroBimApp {
                         definition_edited = Some(id);
                     }
                 } else if modules_glue::is_surface(&e.category) {
-                    crate::ui_kit::note(ui, "An imported ground surface. Its triangles are not edited here: import it again to change it. Its figures are under Derived.");
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An imported ground surface. Its triangles are not edited here: import it again to change it. Its figures are under Derived.");
                 }
 
                 if let Some((derived, notes)) = derived {

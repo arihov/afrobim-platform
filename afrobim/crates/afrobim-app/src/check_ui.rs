@@ -270,7 +270,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
         });
         ui.end_row();
     });
-    crate::ui_kit::note(ui, "SANRAL Drainage Manual, 6th edition (2013), Section 3.5.1. AfroBIM holds no rainfall data and no map: the depth, the shares and the factors are yours. Every field starts empty.");
+    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "SANRAL Drainage Manual, 6th edition (2013), Section 3.5.1. AfroBIM holds no rainfall data and no map: the depth, the shares and the factors are yours. Every field starts empty.");
 }
 
 /// The SANRAL culvert entries below the flow. The slope unit is a question with no default.
@@ -623,7 +623,7 @@ impl AfroBimApp {
                 field(ui, "Required freeboard (m)", &mut d.form.required_freeboard_m, "only if the project states one");
             });
             ui.add_space(4.0);
-            crate::ui_kit::note(ui, "The design flow is the engineer's: AfroBIM holds no rainfall data. Every field starts empty. The drain's gradient, lining and roughness are those entered in Properties. What you enter is kept on the drain, for CHECKALL.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "The design flow is the engineer's: AfroBIM holds no rainfall data. Every field starts empty. The drain's gradient, lining and roughness are those entered in Properties. What you enter is kept on the drain, for CHECKALL.");
         }, |ui| crate::ui_kit::Footer::new("Check").enabled(footer_ok, "Complete the inputs").cancel(Some("Cancel")).show(ui));
         if let Some((_, f)) = &dlg.inner {
             run = f.primary;
@@ -729,12 +729,12 @@ impl AfroBimApp {
                     sanral_culvert_rows(ui, &mut d.form.sanral);
                 } else {
                     ui.label("");
-                    ui.label(RichText::new("The UK DMRB basis has no culvert hydraulic check in the engine: only its layout limits are checked. Choose MoWT or SANRAL for the hydraulics.").small().color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "The UK DMRB basis has no culvert hydraulic check in the engine: only its layout limits are checked. Choose MoWT or SANRAL for the hydraulics.");
                     ui.end_row();
                 }
             });
             ui.add_space(4.0);
-            crate::ui_kit::note(ui, "MoWT: the complete check is inlet control (FHWA HDS-5 equations, the inlet edge you choose) and outlet control (DDM Section 9.4.2); the greater governs and is named, and the outlet lines are shown first. With no inlet edge or allowable headwater only the outlet half is shown, and it is marked as incomplete. SANRAL: SDM Table 7.2 and Eq. 7.4, for the barrel of this element. Each basis keeps its own values. Every field starts empty and what you enter is kept on the culvert, for CHECKALL.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "MoWT: the complete check is inlet control (FHWA HDS-5 equations, the inlet edge you choose) and outlet control (DDM Section 9.4.2); the greater governs and is named, and the outlet lines are shown first. With no inlet edge or allowable headwater only the outlet half is shown, and it is marked as incomplete. SANRAL: SDM Table 7.2 and Eq. 7.4, for the barrel of this element. Each basis keeps its own values. Every field starts empty and what you enter is kept on the culvert, for CHECKALL.");
         }, |ui| crate::ui_kit::Footer::new("Check").enabled(footer_ok, "Complete the inputs").cancel(Some("Cancel")).show(ui));
         if let Some((_, f)) = &dlg.inner {
             run = f.primary;
@@ -826,7 +826,7 @@ impl AfroBimApp {
                     field(ui, "Storage factor Cs", &mut d.form.storage_factor, "empty: the basic method");
                 });
                 ui.add_space(4.0);
-                crate::ui_kit::note(ui, "MoWT Road Design Manual Vol. 2, Sections 4.4.2 and 4.4.3. AfroBIM holds no rainfall data: the intensity, the areas and the runoff coefficients are yours. Every field starts empty.");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "MoWT Road Design Manual Vol. 2, Sections 4.4.2 and 4.4.3. AfroBIM holds no rainfall data: the intensity, the areas and the runoff coefficients are yours. Every field starts empty.");
                 }
                 match &d.result {
                     Some(Ok((q, lines))) => {
@@ -840,7 +840,7 @@ impl AfroBimApp {
                     }
                     Some(Err(e)) => {
                         ui.separator();
-                        ui.label(RichText::new(format!("Not calculated: {e}")).color(BAD()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("Not calculated: {e}"));
                     }
                     None => {}
                 }

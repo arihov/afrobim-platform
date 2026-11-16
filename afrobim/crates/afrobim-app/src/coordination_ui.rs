@@ -12,10 +12,6 @@ use crate::coordination_glue as glue;
 use crate::view3d::WorldCtx;
 
 const STATUSES: [Status; 5] = [Status::New, Status::Active, Status::Reviewed, Status::Approved, Status::Resolved];
-#[allow(non_snake_case)]
-fn BAD() -> egui::Color32 {
-    crate::theme::danger()
-}
 
 /// A clash test being added or edited. The tolerance is text because nothing is prefilled.
 #[derive(Default, Clone)]
@@ -354,15 +350,15 @@ impl AfroBimApp {
             let mut add = false;
             let dlg = crate::ui_kit::Dialog::titled("Clash tests").subtitle("Which groups of elements are tested against which").width(760.0).show_body(ctx, |ui| {
                 ui.set_min_width(720.0);
-                crate::ui_kit::note(ui, "Reference models appear in the selections as categories 'reference:<model>' (pick one model) and by their IFC entity type under layers (for example IFCWALL).");
-                crate::ui_kit::note(ui, "A test checks one selection of elements against another. Hard tests find solids that overlap; clearance tests find solids closer than the tolerance you enter. AfroBIM offers no tolerances: they come from your project requirements.");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Reference models appear in the selections as categories 'reference:<model>' (pick one model) and by their IFC entity type under layers (for example IFCWALL).");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "A test checks one selection of elements against another. Hard tests find solids that overlap; clearance tests find solids closer than the tolerance you enter. AfroBIM offers no tolerances: they come from your project requirements.");
                 ui.add_space(4.0);
                 if self.coord.co.tests.is_empty() {
                     ui.label(RichText::new("No tests yet.").weak());
                 }
                 egui::Grid::new("clash-tests-grid").num_columns(6).striped(true).spacing([12.0, 4.0]).show(ui, |ui| {
                     for h in ["Name", "Type", "Selection A", "Selection B", "Tolerance", ""] {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for (i, t) in self.coord.co.tests.iter().enumerate() {
@@ -462,7 +458,7 @@ impl AfroBimApp {
                     ui.end_row();
                 });
                 if !form.error.is_empty() {
-                    ui.label(RichText::new(&form.error).color(BAD()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &form.error);
                 }
             }, |ui| crate::ui_kit::Footer::new("Save the test").enabled(footer_ok, "Complete the inputs").cancel(Some("Cancel")).show(ui));
             if let Some((_, f)) = &dlg.inner {
@@ -556,7 +552,7 @@ impl AfroBimApp {
                 egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
                     egui::Grid::new("clash-results-grid").num_columns(10).striped(true).spacing([10.0, 4.0]).show(ui, |ui| {
                         for h in ["", "Id", "Test", "Element A", "Element B", "Kind", "Depth or distance", "Status", "Assignee", "Comment"] {
-                            ui.label(RichText::new(h).strong());
+                            crate::ui_kit::th(ui, &h);
                         }
                         ui.end_row();
                         for i in rows {

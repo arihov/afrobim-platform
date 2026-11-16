@@ -22,10 +22,6 @@ const GRIP_HOT: Color32 = Color32::from_rgb(0xFF, 0x5A, 0x36);
 fn BAD() -> egui::Color32 {
     crate::theme::danger()
 }
-#[allow(non_snake_case)]
-fn WARN() -> egui::Color32 {
-    crate::theme::warn()
-}
 /// Pixels of a grip's reach.
 const GRIP_REACH_PX: f64 = 7.0;
 /// Pixels within which object snap takes a candidate.
@@ -582,7 +578,7 @@ impl AfroBimApp {
         let mut open = true;
         let dlg = crate::ui_kit::Dialog::titled("Object snap settings").subtitle("Which points the cursor snaps to").width(560.0).show_body(ctx, |ui| {
             ui.checkbox(&mut self.anno.osnap.on, "Object snap on (F3)");
-            crate::ui_kit::note(ui, "Used by the text, dimension, leader and measure commands, when dragging an annotation grip, by the base point and second point of MOVE and COPY, when dragging a grip of an element, and when placing a sign hung from the cursor (its centre lands on the point). Pick a mode to see which elements provide it.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Used by the text, dimension, leader and measure commands, when dragging an annotation grip, by the base point and second point of MOVE and COPY, when dragging a grip of an element, and when placing a sign hung from the cursor (its centre lands on the point). Pick a mode to see which elements provide it.");
             ui.add_space(4.0);
             crate::ui_kit::grid(ui, "osnap-modes", |ui| {
                 for m in SnapMode::ALL {
@@ -917,7 +913,7 @@ impl AfroBimApp {
             }
             crate::ui_kit::note(ui, format!("Annotation scale 1:{}: a paper height of {:.1} mm is {:.0} mm in the model. Sizes are paper millimetres, multiplied by the annotation scale. Every size here is an editable default and no drafting standard is claimed. Layout uses Helvetica widths whatever font is named.", st.annotation_scale, st.text_styles[self.anno.text_sel].height_paper_mm, st.text_styles[self.anno.text_sel].height_paper_mm * st.annotation_scale));
             if !self.anno.style_note.is_empty() {
-                ui.label(RichText::new(&self.anno.style_note).small().color(WARN()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &self.anno.style_note);
             }
         });
         if dlg.closed {
@@ -1080,9 +1076,9 @@ impl AfroBimApp {
                 apply = true;
             }
             crate::ui_kit::note(ui, format!("A preview at 1:{scale}: a dimension line with text {:.0} mm high and arrows {:.0} mm long in the model.", st.dim_styles[self.anno.dim_sel].text_height_mm * scale, st.dim_styles[self.anno.dim_sel].arrow_size_mm * scale));
-            crate::ui_kit::note(ui, "Every size is an editable default; none is taken from a drafting standard. Text override of one dimension is in its Properties and keeps the measured value shown.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Every size is an editable default; none is taken from a drafting standard. Text override of one dimension is in its Properties and keeps the measured value shown.");
             if !self.anno.style_note.is_empty() {
-                ui.label(RichText::new(&self.anno.style_note).small().color(WARN()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &self.anno.style_note);
             }
         });
         if dlg.closed {
@@ -1165,7 +1161,7 @@ const JUSTIFY: [(Justify, &str); 9] = [
 /// The Definition section of the Properties panel for an annotation. True when something changed.
 pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments: &[String]) -> bool {
     let Ok(mut a) = ann::read(e) else {
-        ui.label(RichText::new("The annotation cannot be read.").color(BAD()));
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, "The annotation cannot be read.");
         return false;
     };
     let before = a.clone();
@@ -1294,7 +1290,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
                     _ => {}
                 }
             });
-            crate::ui_kit::note(ui, "The measured value is recomputed from the points; an override shows beside it here.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "The measured value is recomputed from the points; an override shows beside it here.");
         }
         Ann::Leader(l) => {
             match &mut l.text {
@@ -1329,7 +1325,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
         match ann::write(e, a) {
             Ok(()) => return true,
             Err(err) => {
-                ui.label(RichText::new(format!("Not applied: {err}")).color(BAD()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("Not applied: {err}"));
                 let _ = ann::write(e, before);
             }
         }

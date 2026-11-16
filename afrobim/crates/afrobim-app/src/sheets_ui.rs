@@ -1010,7 +1010,7 @@ impl AfroBimApp {
         let mut apply = false;
         let mut s = std::mem::take(&mut self.sheets);
         let dlg = crate::ui_kit::Dialog::titled("Project information").subtitle("Names and numbers printed on every sheet").width(640.0).show_body(ctx, |ui| {
-            crate::ui_kit::note(ui, "What every title block of the project says. Nothing is filled in for you: every field starts empty. A sheet can override the revision, date and the three names for itself.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "What every title block of the project says. Nothing is filled in for you: every field starts empty. A sheet can override the revision, date and the three names for itself.");
             ui.add_space(4.0);
             egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(430.0).show(ui, |ui| {
                 crate::ui_kit::grid(ui, "project-info", |ui| {
@@ -1058,7 +1058,7 @@ impl AfroBimApp {
                 }
                 ui.add_space(8.0);
                 crate::ui_kit::heading(ui, "Other fields");
-                crate::ui_kit::note(ui, "A caption and its text. A title block layout can show any of them (Title block editor).");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "A caption and its text. A title block layout can show any of them (Title block editor).");
                 let mut remove: Option<usize> = None;
                 egui::Grid::new("user-fields").num_columns(3).spacing([6.0, 4.0]).show(ui, |ui| {
                     for (i, f) in s.info.user_fields.iter_mut().enumerate() {
@@ -1085,7 +1085,7 @@ impl AfroBimApp {
                     apply = true;
                 }
                 if changed {
-                    ui.label(RichText::new("Not applied yet.").small().color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "Not applied yet.");
                 } else if !s.info_message.is_empty() {
                     ui.label(RichText::new(&s.info_message).small().weak());
                 }
@@ -1163,7 +1163,7 @@ impl AfroBimApp {
                 ui.add_space(8.0);
                 ui.label("There is no sheet set yet. Enter a name and press New set; then add sheets from the templates.");
                 if !s.message.is_empty() {
-                    ui.label(RichText::new(&s.message).small().color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &s.message);
                 }
                 return;
             }
@@ -1187,7 +1187,7 @@ impl AfroBimApp {
                 });
                 // ── defaults: paper, frame, pens, text ──
                 egui::CollapsingHeader::new("Defaults: paper, frame, pens and text heights (neutral starting values, editable)").default_open(false).show(ui, |ui| {
-                    crate::ui_kit::note(ui, "These are the program's neutral defaults. None comes from a drafting standard or from an organisation: set them to the contract's requirement.");
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "These are the program's neutral defaults. None comes from a drafting standard or from an organisation: set them to the contract's requirement.");
                     ui.label("New sheets start on");
                     page_editor(ui, "defaults-page", &mut s.defaults);
                     crate::ui_kit::grid(ui, "text-heights", |ui| {
@@ -1303,7 +1303,7 @@ impl AfroBimApp {
                 None => ui.label(RichText::new("Not composed yet. Every compose reads the live model.").small().weak()),
             };
             if !s.message.is_empty() {
-                ui.label(RichText::new(&s.message).small().color(WARN()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &s.message);
             }
         });
         if dlg.closed {
@@ -1421,7 +1421,7 @@ impl AfroBimApp {
         let has_set = s.set.is_some();
         let dlg = crate::ui_kit::Dialog::titled("Title block").subtitle("The layout of the title block as data").width(860.0).show_body(ctx, |ui| {
             let Some(tb) = s.tb.as_mut() else { return };
-            crate::ui_kit::note(ui, "The title block is data: rows of cells, a revision table and a logo box. Nothing here reproduces any organisation's title block; build your own, or load one from a file you keep.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "The title block is data: rows of cells, a revision table and a logo box. Nothing here reproduces any organisation's title block; build your own, or load one from a file you keep.");
             ui.horizontal_wrapped(|ui| {
                 if ui.add_enabled(has_set, egui::Button::new("Apply to every sheet of the set")).clicked() {
                     apply = true;
@@ -1440,7 +1440,7 @@ impl AfroBimApp {
                 }
             });
             if !s.tb_message.is_empty() {
-                ui.label(RichText::new(&s.tb_message).small().color(WARN()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &s.tb_message);
             }
             ui.separator();
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
@@ -1550,7 +1550,7 @@ impl AfroBimApp {
                     crate::ui_kit::note(ui, "The composer had nothing to report.");
                 }
                 for w in &mine {
-                    ui.label(RichText::new(format!("{sheet_number}: {w}")).small().color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("{sheet_number}: {w}"));
                 }
                 for w in &others {
                     ui.label(RichText::new(*w).small());
@@ -1826,10 +1826,10 @@ fn form_fields(ui: &mut Ui, f: &mut SourceForm, alignments: &[String], corridors
     });
     if !range_note.is_empty() && matches!(f.kind, FormKind::Plan | FormKind::Profile) {
         ui.label(RichText::new(range_note).small().weak());
-        crate::ui_kit::note(ui, "Stations are entered as the stations shown on the drawings, as 1+250.000 or as a number of metres; lengths and intervals are in the document's display unit (a trailing m or mm overrides it). With station equations, pick the region where a station occurs more than once; AfroBIM converts to internal stations.");
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Stations are entered as the stations shown on the drawings, as 1+250.000 or as a number of metres; lengths and intervals are in the document's display unit (a trailing m or mm overrides it). With station equations, pick the region where a station occurs more than once; AfroBIM converts to internal stations.");
     }
     if f.kind == FormKind::Props {
-        crate::ui_kit::note(ui, "This sheet was not made by these forms: its title, paper and numbering can be changed here.");
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "This sheet was not made by these forms: its title, paper and numbering can be changed here.");
     }
 }
 
@@ -1926,7 +1926,7 @@ fn titleblock_editor(ui: &mut Ui, tb: &mut TitleBlockLayout, user_labels: &[Stri
                 }
             }
         });
-        crate::ui_kit::note(ui, "Unticking removes the field's cells; ticking adds a row for it at the end. Order, sizes and captions are edited below.");
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Unticking removes the field's cells; ticking adds a row for it at the end. Order, sizes and captions are edited below.");
     });
     ui.add_space(4.0);
     crate::ui_kit::heading(ui, "Blocks, top down");

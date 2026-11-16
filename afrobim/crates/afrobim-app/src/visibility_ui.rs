@@ -723,7 +723,7 @@ impl AfroBimApp {
         let alignment = f.element.and_then(|id| self.doc.find(id)).and_then(|e| e.site.as_ref().and_then(|s| s.alignment.clone())).and_then(|name| crate::alignment_glue::alignments(&self.doc).into_iter().find(|a| a.1 == name).map(|a| a.0));
         let (mut keep, mut save, mut run) = (true, false, false);
         let dlg = crate::ui_kit::Dialog::titled(title).subtitle("The inputs of the sight-distance analysis").width(640.0).show_body(ctx, |ui| {
-            crate::ui_kit::note(ui, "An analysis aid: the result states no compliance. Every field starts empty except the one marked 'to confirm', which is the engine's own default and is not used until you accept it. The UK band of a speed is your decision.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An analysis aid: the result states no compliance. Every field starts empty except the one marked 'to confirm', which is the engine's own default and is not used until you accept it. The UK band of a speed is your decision.");
             egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(500.0).show(ui, |ui| {
                 if f.element.is_some() {
                     ui.checkbox(&mut f.apply_all, "store these entries on every placed sign, not only this one");
@@ -740,7 +740,7 @@ impl AfroBimApp {
                     ui.vertical(|ui| {
                         ui.horizontal(|ui| {
                             ui.add(egui::TextEdit::singleline(&mut f.eye_height).desired_width(70.0));
-                            ui.label(RichText::new("to confirm").strong().color(WARN()));
+                            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "to confirm");
                             ui.checkbox(&mut f.eye_height_accepted, "accept this value");
                         });
                         crate::ui_kit::note(ui, format!("Engine default, stated in held sources for other criteria, not for sign visibility: {UK_EYE_HEIGHT}; {UG_EYE_HEIGHT}."));
@@ -775,7 +775,7 @@ impl AfroBimApp {
                                 ui.label(RichText::new(format!("From the approach speed: {}", by_rule.label())).strong());
                                 ui.label(RichText::new(&r.band_note).small().weak());
                                 if let Some(ask) = r.ask {
-                                    ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).color(WARN()));
+                                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph));
                                     ui.horizontal(|ui| {
                                         ui.selectable_value(&mut f.band_answer, Some(true), "Yes, take the band");
                                         ui.selectable_value(&mut f.band_answer, Some(false), "No, keep the exact value");
@@ -791,7 +791,7 @@ impl AfroBimApp {
                                 }
                             }
                             None => {
-                                crate::ui_kit::note(ui, "Enter the approach speed to have the band resolved by the project's rule, or choose one:");
+                                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Enter the approach speed to have the band resolved by the project's rule, or choose one:");
                                 egui::ComboBox::from_id_salt("vis-band").selected_text(f.band.map(|b| b.label()).unwrap_or("not chosen")).show_ui(ui, |ui| {
                                     ui.selectable_value(&mut f.band, None, "not chosen");
                                     for b in SpeedBandMph::ALL {
@@ -898,7 +898,7 @@ impl AfroBimApp {
                 });
             });
             if !f.error.is_empty() {
-                ui.label(RichText::new(&f.error).color(BAD()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &f.error);
             }
             ui.horizontal(|ui| {
                 if ui.button("Store").clicked() {
@@ -943,7 +943,7 @@ impl AfroBimApp {
         let mut copy: Option<String> = None;
         let mut pick: Option<ElementId> = None;
         let dlg = crate::ui_kit::Dialog::titled("Sign visibility results").subtitle("What the sight lines found, with no compliance stated").width(920.0).show_body(ctx, |ui| {
-            crate::ui_kit::note(ui, "An analysis aid. Each line is OK, FAILS, DIFFERS, INPUT NEEDED or INFORMATION with the provision it rests on; it states no compliance and the engineer decides. The road surface is the centreline level of the profile (no cross-fall); obstruction is geometric only.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An analysis aid. Each line is OK, FAILS, DIFFERS, INPUT NEEDED or INFORMATION with the provision it rests on; it states no compliance and the engineer decides. The road surface is the centreline level of the profile (no cross-fall); obstruction is geometric only.");
             ui.horizontal(|ui| {
                 if ui.button("Run all signs").clicked() {
                     rerun = true;
@@ -966,7 +966,7 @@ impl AfroBimApp {
             egui::ScrollArea::vertical().id_salt("vis-list").max_height(170.0).auto_shrink([false, true]).show(ui, |ui| {
                 egui::Grid::new("vis-rows").num_columns(5).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                     for h in ["Sign", "Station", "Overall", "Clear distance (whole face)", "Limiting obstruction"] {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for a in &run.analyses {
@@ -993,16 +993,16 @@ impl AfroBimApp {
             };
             egui::ScrollArea::vertical().id_salt("vis-lines").auto_shrink([false, false]).show(ui, |ui| {
                 if let Some(why) = &a.skipped {
-                    ui.label(RichText::new(format!("{} was not analysed: {why}", a.mark)).color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("{} was not analysed: {why}", a.mark));
                 }
                 if let Some(d) = self.doc.find(a.element).and_then(|e| e.properties.get(crate::demo_glue::KEY_DEMO_VISIBILITY)) {
-                    ui.label(RichText::new(format!("DEMO inputs: {d}")).strong().color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("DEMO inputs: {d}"));
                 }
                 if let Some(l) = band_line(&self.doc, a.element) {
                     ui.label(RichText::new(l).small().strong());
                 }
                 if afrobim_visibility::load(&self.doc, a.element).is_some() && !eye_height_accepted(&self.doc, a.element) {
-                    ui.label(RichText::new("The stored inputs use the engine's default eye height, which has not been confirmed for this sign. Open the inputs and accept it.").color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "The stored inputs use the engine's default eye height, which has not been confirmed for this sign. Open the inputs and accept it.");
                 }
                 for l in &a.lines {
                     ui.horizontal_wrapped(|ui| {
@@ -1056,12 +1056,12 @@ impl AfroBimApp {
         let drawings = self.vis.analysis().map(|a| drawings_of(a, self.vis.scene.as_ref(), exaggeration.unwrap_or(5.0)));
         let mark = self.vis.analysis().map(|a| a.mark.clone()).unwrap_or_default();
         let dlg = crate::ui_kit::Dialog::titled(format!("Visibility drawings: {mark}")).width(900.0).show_body(ctx, |ui| {
-            crate::ui_kit::note(ui, "The plan shows the eye positions along the approach coloured by what they see, the sight lines at the limit and the obstruction. The profile is the limiting sight line over the road and ground. Add either to a drawing sheet as a Detail sheet in SHEETSET (kinds 'Sign visibility, plan envelope' and 'Sign visibility, sight-line profile').");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "The plan shows the eye positions along the approach coloured by what they see, the sight lines at the limit and the obstruction. The profile is the limiting sight line over the road and ground. Add either to a drawing sheet as a Detail sheet in SHEETSET (kinds 'Sign visibility, plan envelope' and 'Sign visibility, sight-line profile').");
             ui.horizontal(|ui| {
                 ui.label("Profile vertical exaggeration");
                 ui.add(egui::TextEdit::singleline(&mut self.vis.exaggeration).desired_width(50.0));
                 if exaggeration.is_none() {
-                    ui.label(RichText::new("enter a number above zero").small().color(BAD()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, "enter a number above zero");
                 }
             });
             let Some((plan, profile)) = &drawings else {

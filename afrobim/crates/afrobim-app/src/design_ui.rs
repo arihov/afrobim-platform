@@ -999,15 +999,15 @@ impl AfroBimApp {
         let work = crate::win::work_rect(ctx);
         let dlg = crate::ui_kit::Dialog::titled("PI table").subtitle("The points of intersection of the horizontal geometry").width(900.0).default_pos(egui::pos2(work.min.x + 16.0, (work.max.y - 250.0).max(work.min.y + 40.0))).show_body(ctx, |ui| {
             ui.label(RichText::new(format!("{name}: start station {}", units.station(design.horizontal.start_station_m))).strong());
-            crate::ui_kit::note(ui, "Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.");
             if let Err(e) = &solution {
-                ui.label(RichText::new(format!("The design cannot be solved: {e}")).color(BAD()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("The design cannot be solved: {e}"));
             }
             egui::ScrollArea::both().auto_shrink([false, true]).max_height(260.0).show(ui, |ui| {
                 egui::Grid::new("pi-table").num_columns(12).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
                     let heads = ["PI".to_string(), "Station".to_string(), crate::disp::head(u, "East"), crate::disp::head(u, "North"), "Deflection".to_string(), crate::disp::head(u, "Radius"), crate::disp::head(u, "Feasible R"), crate::disp::head(u, "Spiral in"), crate::disp::head(u, "Spiral out"), crate::disp::head(u, "T"), crate::disp::head(u, "L"), String::new()];
                     for h in heads {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for (i, pi) in pis.iter().enumerate() {
@@ -1050,7 +1050,7 @@ impl AfroBimApp {
                             ui.horizontal(|ui| {
                                 let r = ui.add_sized([62.0, 20.0], egui::TextEdit::singleline(&mut radius_text).hint_text("needed"));
                                 if pi.radius == 0.0 {
-                                    ui.label(RichText::new("needed").small().color(WARN()));
+                                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "needed");
                                 }
                                 if r.lost_focus() {
                                     let t = radius_text.clone();
@@ -1116,7 +1116,7 @@ impl AfroBimApp {
             });
             if let Ok(s) = &solution {
                 for w in &s.warnings {
-                    ui.label(RichText::new(w).small().color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, w);
                 }
                 ui.label(RichText::new(format!("Length {}, end station {}.", crate::disp::len_u(u, s.alignment.length()), crate::disp::station(u, s.alignment.end_station_m()))).small());
             }

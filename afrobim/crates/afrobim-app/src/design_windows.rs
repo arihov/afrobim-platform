@@ -294,7 +294,7 @@ impl AfroBimApp {
                         run = true;
                     }
                     if let Err(why) = c.builtin.selection() {
-                        ui.label(RichText::new(format!("Still to choose: {why}.")).small().color(WARN()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("Still to choose: {why}."));
                     }
                 });
             }
@@ -308,7 +308,7 @@ impl AfroBimApp {
                     });
                 }
                 Some(Err(e)) => {
-                    ui.label(RichText::new(e).color(BAD()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
                 }
                 Some(Ok(b)) => {
                     ui.label(format!("Loaded: {} with {} row(s).", b.name, b.rows.len()));
@@ -340,11 +340,11 @@ impl AfroBimApp {
                     ui.label(RichText::new("No results yet.").weak());
                 }
                 Some(Err(e)) => {
-                    ui.label(RichText::new(e).color(BAD()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
                 }
                 Some(Ok(r)) => {
                     if c.report_rev != revision {
-                        ui.label(RichText::new("The design changed since these results: run the checks again.").color(WARN()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "The design changed since these results: run the checks again.");
                     }
                     ui.label(format!("{} pass, {} fail, {} not checked. Limits: {}; row {}.", r.count(CheckStatus::Pass), r.count(CheckStatus::Fail), r.count(CheckStatus::NotChecked), r.basis_name, r.row_label));
                     ui.label(RichText::new(format!("Source string of the limits table: {}", r.source)).small());
@@ -356,7 +356,7 @@ impl AfroBimApp {
                         crate::ui_kit::heading(ui, "By element");
                         egui::Grid::new("chk-elements").num_columns(5).striped(true).spacing([14.0, 3.0]).show(ui, |ui| {
                             for h in ["Element", "Status", "Pass", "Fail", "Not checked"] {
-                                ui.label(RichText::new(h).strong());
+                                crate::ui_kit::th(ui, &h);
                             }
                             ui.end_row();
                             let mut seen: Vec<&str> = Vec::new();
@@ -377,10 +377,10 @@ impl AfroBimApp {
                         });
                         ui.add_space(6.0);
                         crate::ui_kit::heading(ui, "Every check");
-                        crate::ui_kit::note(ui, "Values and limits are shown in the document's units. The source of a limit keeps the unit the limits table prints, and the message is the engine's own text.");
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Values and limits are shown in the document's units. The source of a limit keeps the unit the limits table prints, and the message is the engine's own text.");
                         egui::Grid::new("chk-items").num_columns(7).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                             for h in ["Element", "Check", "Value", "Limit", "Status", "Source of the limit", "Message"] {
-                                ui.label(RichText::new(h).strong());
+                                crate::ui_kit::th(ui, &h);
                             }
                             ui.end_row();
                             for i in &r.items {
@@ -398,7 +398,7 @@ impl AfroBimApp {
                     });
                 }
             }
-            crate::ui_kit::note(ui, "These are checks of the geometry against the limits chosen: lateral sight distance, passing and decision sight distance, superelevation and combinations of horizontal and vertical alignment are not checked. A pass is not a certification.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "These are checks of the geometry against the limits chosen: lateral sight distance, passing and decision sight distance, superelevation and combinations of horizontal and vertical alignment are not checked. A pass is not a certification.");
         });
         if dlg.closed {
             open = false;
@@ -517,7 +517,7 @@ impl AfroBimApp {
                     }
                 });
                 if !o.message.is_empty() {
-                    ui.label(RichText::new(&o.message).color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &o.message);
                 }
                 let (Some(set_id), Some(loaded)) = (set_id, loaded) else {
                     ui.label("There is no option set yet. Name one above and press New set, then add the current design to it as an option.");
@@ -526,7 +526,7 @@ impl AfroBimApp {
                 let set = match loaded {
                     Ok(s) => s,
                     Err(e) => {
-                        ui.label(RichText::new(e).color(BAD()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
                         return;
                     }
                 };
@@ -578,7 +578,7 @@ impl AfroBimApp {
                         }
                     });
                 });
-                crate::ui_kit::note(ui, "Cut, fill and land take need a ground surface and a typical section; cost needs your estimate. A figure that cannot be computed says why.");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Cut, fill and land take need a ground surface and a typical section; cost needs your estimate. A figure that cannot be computed says why.");
                 ui.separator();
                 crate::ui_kit::heading(ui, "Options");
                 ui.horizontal(|ui| {
@@ -690,7 +690,7 @@ impl AfroBimApp {
                             }
                             egui::CollapsingHeader::new(format!("Notes: {}", r.name)).default_open(false).show(ui, |ui| {
                                 if let Some(e) = &r.error {
-                                    ui.label(RichText::new(format!("Cannot be built: {e}")).color(BAD()));
+                                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("Cannot be built: {e}"));
                                 }
                                 for n in &r.notes {
                                     ui.label(RichText::new(n).small());
@@ -712,7 +712,7 @@ impl AfroBimApp {
                         }
                         ui.separator();
                         crate::ui_kit::heading(ui, "Weighted scoring");
-                        crate::ui_kit::note(ui, "You choose the criteria, their weights and which way is better. Each criterion is scaled 0 to 1 between the worst and the best option and weighted by your weight. None is prefilled, and the unweighted figures above stay in view.");
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "You choose the criteria, their weights and which way is better. Each criterion is scaled 0 to 1 between the worst and the best option and weighted by your weight. None is prefilled, and the unweighted figures above stay in view.");
                         egui::Grid::new("opt-criteria").num_columns(4).spacing([10.0, 4.0]).show(ui, |ui| {
                             for (i, c) in set.criteria.iter().enumerate() {
                                 let label = figure_keys().iter().find(|k| k.0 == c.key).map(|k| k.1.to_string()).unwrap_or_else(|| c.key.clone());
@@ -810,7 +810,7 @@ impl AfroBimApp {
                         ui.label("The set has no options yet. Add the current design above.");
                     }
                     Some(Err(e)) => {
-                        ui.label(RichText::new(e).color(BAD()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
                     }
                     None => {}
                 }

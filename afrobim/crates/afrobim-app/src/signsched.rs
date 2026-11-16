@@ -234,7 +234,7 @@ impl AfroBimApp {
                 return;
             };
             ui.label(format!("{} columns, {} data rows, delimiter '{}'.", table.headers.len(), table.rows.len(), if table.delimiter == '\t' { "tab".to_string() } else { table.delimiter.to_string() }));
-            crate::ui_kit::note(ui, "Each column of the file is matched to a field of the schedule by its header (synonyms such as Chainage for Station). Correct any that are wrong.");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Each column of the file is matched to a field of the schedule by its header (synonyms such as Chainage for Station). Correct any that are wrong.");
             ui.add_space(4.0);
             let fields: Vec<Field> = {
                 let mut v: Vec<Field> = Field::FIXED.to_vec();
@@ -304,13 +304,13 @@ impl AfroBimApp {
                 if missing.is_empty() {
                     ui.label(RichText::new("Every required field is mapped.").color(GOOD()).small());
                 } else {
-                    ui.label(RichText::new(format!("Required fields not mapped: {}", missing.join(", "))).color(BAD()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("Required fields not mapped: {}", missing.join(", ")));
                 }
                 if !p.unmapped_headers.is_empty() {
-                    ui.label(RichText::new(format!("Not matched by the synonyms (and so not read unless you map them): {}", p.unmapped_headers.join(", "))).small().color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("Not matched by the synonyms (and so not read unless you map them): {}", p.unmapped_headers.join(", ")));
                 }
                 if !p.duplicate_headers.is_empty() {
-                    ui.label(RichText::new(format!("Headers that repeat a field another column took: {}", p.duplicate_headers.iter().map(|(h, f)| format!("{h} ({})", field_label(f))).collect::<Vec<_>>().join(", "))).small().color(WARN()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("Headers that repeat a field another column took: {}", p.duplicate_headers.iter().map(|(h, f)| format!("{h} ({})", field_label(f))).collect::<Vec<_>>().join(", ")));
                 }
             }
             ui.add_space(4.0);
@@ -374,7 +374,7 @@ impl AfroBimApp {
             let plan = match plan {
                 Ok(p) => p,
                 Err(e) => {
-                    ui.label(RichText::new(e).color(BAD()));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
                     return;
                 }
             };
@@ -395,7 +395,7 @@ impl AfroBimApp {
             egui::ScrollArea::vertical().max_height(110.0).show(ui, |ui| {
                 egui::Grid::new("sched-plan").num_columns(5).spacing([10.0, 3.0]).striped(true).show(ui, |ui| {
                     for h in ["Line", "Mark", "What", "Where", "Result"] {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for r in &plan.rows {
@@ -413,7 +413,7 @@ impl AfroBimApp {
                             RowOutcome::Invalid(issues) => {
                                 ui.label("");
                                 ui.label("");
-                                ui.label(RichText::new(issues.iter().map(|i| i.message.as_str()).collect::<Vec<_>>().join("; ")).color(BAD()));
+                                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, issues.iter().map(|i| i.message.as_str()).collect::<Vec<_>>().join("; "));
                             }
                         }
                         ui.end_row();

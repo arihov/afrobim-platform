@@ -31,14 +31,6 @@ use crate::view3d::Camera;
 pub const CATEGORY: &str = "reference";
 pub const LAYER: &str = "Reference";
 const NAME: &str = "Reference models";
-#[allow(non_snake_case)]
-fn WARN() -> egui::Color32 {
-    crate::theme::warn()
-}
-#[allow(non_snake_case)]
-fn BAD() -> egui::Color32 {
-    crate::theme::danger()
-}
 
 /// Above this many triangles in view, products are drawn as their boxes (the view is a software
 /// projection and would stop being responsive).
@@ -665,7 +657,7 @@ impl AfroBimApp {
         let mut accept: Option<String> = None;
         let mut zoom: Option<String> = None;
         let dlg = crate::ui_kit::Dialog::titled("Reference models").subtitle("IFC models shown for reference and clash tests").width(900.0).show_body(ctx, |ui| {
-            crate::ui_kit::note(ui, "Reference models are read-only IFC files. The document stores each file's path and a hash, not its contents; the file is read again when the document opens. A model in another coordinate frame needs the offset and rotation that line it up: enter them below (rotation about the file's own origin, then the offset).");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Reference models are read-only IFC files. The document stores each file's path and a hash, not its contents; the file is read again when the document opens. A model in another coordinate frame needs the offset and rotation that line it up: enter them below (rotation about the file's own origin, then the offset).");
             crate::ui_kit::note(ui, format!("Limits: the importer reads the whole file into memory and refuses files of 4 GiB or more. Models above {DRAW_TRIANGLE_CAP} triangles in view are drawn as the boxes of their products."));
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.refs.apply_map_conversion, "apply the file's IfcMapConversion when it has one (on by default: the model is placed at its map coordinates; turn it off to use the file's own coordinates)");
@@ -713,14 +705,14 @@ impl AfroBimApp {
                             (Some(l), _) => {
                                 ui.label(RichText::new(format!("{} products, {} with geometry, {} triangles{}.", l.model.report.products, l.model.clashable().len(), l.triangles, if l.triangles > DRAW_TRIANGLE_CAP { " (drawn as boxes)" } else { "" })).small());
                                 if let Some(w) = &l.warning {
-                                    ui.label(RichText::new(w).small().color(WARN()));
+                                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, w);
                                     if ui.small_button("Accept the file as it is now").clicked() {
                                         accept = Some(label.clone());
                                     }
                                 }
                             }
                             (None, Some(why)) => {
-                                ui.label(RichText::new(format!("File not read: {why}. The stored path and hash are kept; restore the file and reopen the document, or remove the model.")).small().color(BAD()));
+                                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("File not read: {why}. The stored path and hash are kept; restore the file and reopen the document, or remove the model."));
                             }
                             (None, None) => {
                                 crate::ui_kit::note(ui, "Reading...");
@@ -854,7 +846,7 @@ impl AfroBimApp {
         let warning = self.refs.loaded.get(&label).and_then(|l| l.warning.clone());
         let dlg = crate::ui_kit::Dialog::titled(format!("Import report: {label}")).width(640.0).show_body(ctx, |ui| {
             if let Some(w) = warning {
-                ui.label(RichText::new(w).color(WARN()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, w);
             }
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 for l in &lines {

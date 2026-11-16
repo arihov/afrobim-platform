@@ -158,11 +158,11 @@ impl AfroBimApp {
                 }
             });
             if surfaces.is_empty() {
-                ui.label(RichText::new("There is no survey surface in this document, so there is no ground line. Import one with SURFACE (LandXML) or make one with SURVEY (a point file).").small().color(WARN()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "There is no survey surface in this document, so there is no ground line. Import one with SURFACE (LandXML) or make one with SURVEY (a point file).");
             }
             let exag = parse(&ui_state.exag_text).filter(|v| *v > 0.0);
             if !ui_state.exag_text.trim().is_empty() && exag.is_none() {
-                ui.label(RichText::new("The exaggeration must be a number greater than zero; blank fits the window.").small().color(BAD()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, "The exaggeration must be a number greater than zero; blank fits the window.");
             }
             let shown_exag = profile_plot(ui, &alignment, &design, &ui_state.ground, &mut ui_state.drag, &mut ui_state.pending, ui_state.fit_result.as_ref().and_then(|r| r.as_ref().ok()), exag, ui_state.add_mode, u, &mut edit);
             ui.label(RichText::new(match shown_exag {
@@ -205,7 +205,7 @@ impl AfroBimApp {
                 });
             }
             if !ui_state.problem.is_empty() {
-                ui.label(RichText::new(&ui_state.problem).color(BAD()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, &ui_state.problem);
             }
             if ui_state.fit_open {
                 ui.separator();
@@ -216,7 +216,7 @@ impl AfroBimApp {
                 match v.solve() {
                     Ok(sol) => pvi_table(ui, v, &sol, &mut ui_state, u, &mut edit),
                     Err(e) => {
-                        ui.label(RichText::new(format!("The profile cannot be solved: {e}")).color(BAD()));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("The profile cannot be solved: {e}"));
                     }
                 }
             }
@@ -334,7 +334,7 @@ fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &m
     }
     match &st.fit_result {
         Some(Err(e)) => {
-            ui.label(RichText::new(e).color(BAD()));
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
         }
         Some(Ok(fit)) => {
             egui::Frame::new().fill(Color32::from_rgb(0x5A, 0x3A, 0x10)).inner_margin(8.0).corner_radius(4.0).show(ui, |ui| {
@@ -348,7 +348,7 @@ fn fit_section(ui: &mut egui::Ui, st: &mut ProfileUi, run: &mut bool, accept: &m
                 crate::disp::len_u(u, fit.rms_difference_m)
             ));
             if !fit.gaps.is_empty() {
-                ui.label(RichText::new(format!("{} stretch(es) where the centreline is off the surface were left out.", fit.gaps.len())).small().color(WARN()));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("{} stretch(es) where the centreline is off the surface were left out.", fit.gaps.len()));
             }
             for n in &fit.notes {
                 ui.label(RichText::new(n).small());
@@ -581,7 +581,7 @@ fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::Vertic
         egui::Grid::new("pvi-grid").num_columns(11).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
             let heads = ["PVI".to_string(), "Station".to_string(), crate::disp::head(u, "Level"), "Grade in %".to_string(), "Grade out %".to_string(), "Curve by".to_string(), "Value".to_string(), crate::disp::head(u, "L"), crate::disp::k_head(u), "High or low point".to_string(), String::new()];
             for h in heads {
-                ui.label(RichText::new(h).strong());
+                crate::ui_kit::th(ui, &h);
             }
             ui.end_row();
             for (i, p) in v.pvis.iter().enumerate() {
@@ -683,6 +683,6 @@ fn pvi_table(ui: &mut egui::Ui, v: &VerticalDesign, sol: &afrobim_design::Vertic
         }
     });
     for w in &sol.warnings {
-        ui.label(RichText::new(w).small().color(WARN()));
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, w);
     }
 }
