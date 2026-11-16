@@ -6,7 +6,7 @@
 
 use std::path::PathBuf;
 
-use afrobim_corridor::{parse_landxml_surfaces, read_landxml_surfaces, SurfaceImport, SurfaceXmlError};
+use afrobim_corridor::{parse_landxml_surfaces, parse_landxml_surfaces_with, read_landxml_surfaces, SurfaceImport, SurfaceReadOptions, SurfaceXmlError};
 
 fn import(name: &str) -> SurfaceImport {
     read_landxml_surfaces(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("landxml").join(name)).unwrap()
@@ -46,7 +46,19 @@ fn a_tin_surface_is_read_northing_first() {
     let notes = file.notes.join("\n");
     assert!(notes.contains("Surface 'EG': 1 face(s) marked invisible"), "{notes}");
     assert!(notes.contains("Surface 'EG': 1 face(s) were left out because they name a point that is not among the surface's points"), "{notes}");
+    // The grid is left out by default, and read as two triangles per cell on request.
     assert!(notes.contains("Surface 'Gridded' was not imported: its surfType is 'grid'"), "{notes}");
+    let text = std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests").join("landxml").join("surface.xml")).unwrap();
+    let with_grid = parse_landxml_surfaces_with(&text, &SurfaceReadOptions { grid_as_tin: true }).unwrap();
+    assert!(with_grid.notes.join("\n").contains("Surface 'Gridded' is a grid: each four-point cell was split into two triangles"));
+    let grid = &with_grid.surfaces[1];
+    assert_eq!((grid.name.as_str(), grid.surf_type.as_str()), ("Gridded", "grid"));
+    assert_eq!((grid.tin.points().len(), grid.tin.triangles().len()), (4, 2));
+    assert_eq!(grid.tin.points()[2], [10.0, 10.0, 10.0]);
+    close(grid.tin.plan_area(), 100.0, "one 10 m cell");
+    assert_eq!(eg.surf_type, "TIN");
+    assert_eq!((eg.description.as_deref(), eg.state.as_deref()), (Some("existing ground"), None));
+    assert!(eg.source_data.is_empty());
 }
 
 #[test]
@@ -91,4 +103,28 @@ fn files_that_are_not_surfaces() {
     assert!(notes.contains("1 face(s) were left out because they have no area in plan"), "{notes}");
     assert!(notes.contains("Surface 'S' was not imported: a surface needs at least one triangle."), "{notes}");
     assert!(notes.contains("Surface 'T' was not imported: it has no Definition"), "{notes}");
+}
+
+#[test]
+fn utm_sized_coordinates_and_source_data_survive_exactly() {
+    // Easting about 450 000 m, northing about 9 960 000 m (south of the equator), four decimals.
+    let file = import("surface_utm_source_data.xml");
+    assert_eq!(file.surfaces.len(), 1, "{:?}", file.notes);
+    let s = &file.surfaces[0];
+    assert_eq!((s.name.as_str(), s.description.as_deref(), s.state.as_deref(), s.surf_type.as_str()), ("EG", Some("existing ground"), Some("existing"), "TIN"));
+    assert_eq!(s.tin.points()[0], [450000.1234, 9960000.5678, 1150.25]);
+    assert_eq!(s.tin.points()[2], [450010.1234, 9960010.5678, 1152.5]);
+    assert_eq!(s.tin.triangles().len(), 2);
+    let b = s.tin.bounds();
+    assert_eq!((b.min_x, b.max_x, b.min_y, b.max_y), (450000.1234, 450010.1234, 9960000.5678, 9960010.5678));
+
+    let src = &s.source_data;
+    assert_eq!((src.breaklines.len(), src.contours.len(), src.boundaries.len(), src.data_points.len()), (1, 1, 1, 1));
+    let bl = &src.breaklines[0];
+    assert_eq!((bl.name.as_deref(), bl.brk_type.as_deref()), (Some("ridge"), Some("standard")));
+    assert_eq!((bl.points[0].x, bl.points[0].y, bl.points[0].z), (450000.1234, 9960000.5678, Some(1150.25)));
+    assert_eq!((src.contours[0].elevation_m, src.contours[0].points[1].x, src.contours[0].points[1].y), (1151.0, 450005.1234, 9960005.5678));
+    assert_eq!((src.boundaries[0].bnd_type.as_str(), src.boundaries[0].edge_trim, src.boundaries[0].points.len()), ("outer", true, 4));
+    assert_eq!((src.data_points[0].points[0].x, src.data_points[0].points[0].y, src.data_points[0].points[0].z), (450000.1234, 9960000.5678, Some(1150.25)));
+    assert!(file.notes.is_empty(), "{:?}", file.notes);
 }

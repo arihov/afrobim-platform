@@ -37,7 +37,7 @@ mod tin;
 mod volumes;
 
 pub use crs::CoordinateSystem;
-pub use landxml::{parse_landxml_surfaces, read_landxml_surfaces, ImportedSurface, SurfaceImport, SurfaceXmlError};
+pub use landxml::{parse_landxml_surfaces, parse_landxml_surfaces_with, read_landxml_surfaces, ImportedSurface, SurfaceImport, SurfaceReadOptions, SurfaceXmlError};
 pub use module::{
     add_corridor, add_surface, add_surface_in, build_corridor, corridor_element, corridor_of, import_landxml_surfaces, import_survey_surface,
     refresh_corridor, set_corridor_definition, surface_crs, surface_display_mesh, surface_of, surfaces, CorridorElement, CorridorModule, CorridorSummary,
