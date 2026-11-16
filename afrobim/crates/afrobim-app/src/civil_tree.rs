@@ -235,7 +235,8 @@ impl AfroBimApp {
                     }
                 }
             }
-            let total = surfaces.len() + corridor_surfaces.len();
+            let grading_surfaces = self.rows(GRADING);
+            let total = surfaces.len() + corridor_surfaces.len() + grading_surfaces.len();
             self.node(ui, "ts-surfaces", ph::MOUNTAINS, "Surfaces", total, Some(("Create surface...", Cv::SurfaceNew)), &mut acts, |ui, acts| {
                 for r in &surfaces {
                     let menu: &[(&str, Cv)] = &[("Definition...", Cv::SurfaceDef), ("Surface style...", Cv::SurfaceStyle), ("Volumes...", Cv::Volumes)];
@@ -245,6 +246,9 @@ impl AfroBimApp {
                     if ui.selectable_label(false, crate::theme::icon_text(ph::MOUNTAINS, n, 13.0, ui.visuals().text_color())).double_clicked() {
                         acts.push(Act::Zoom(*id));
                     }
+                }
+                for r in &grading_surfaces {
+                    self.row_ui(ui, r, acts, &[("Volumes and balance...", Cv::GradeGroup), ("New grading...", Cv::GradeCreate)]);
                 }
             });
             let aligns = self.rows(afrobim_alignment::CATEGORY);
@@ -287,6 +291,27 @@ impl AfroBimApp {
             self.node(ui, "ts-asm", ph::STACK_SIMPLE, "Assemblies", asms.len(), Some(("Assembly editor...", Cv::Assembly)), &mut acts, |ui, acts| {
                 for r in &asms {
                     self.row_ui(ui, r, acts, &[("Edit assembly...", Cv::Assembly)]);
+                }
+            });
+            // Sites (feature lines by site) and grading groups.
+            let site_names = crate::civil_grading::sites(&self.doc);
+            let flines = self.rows(FEATURELINE);
+            self.node(ui, "ts-sites", ph::VECTOR_TWO, "Sites and Feature Lines", flines.len(), Some(("Create feature line...", Cv::FeatureLine)), &mut acts, |ui, acts| {
+                for site in &site_names {
+                    let members = crate::civil_grading::lines_of(&self.doc, site);
+                    egui::CollapsingHeader::new(crate::theme::icon_text(ph::CIRCLES_THREE, &format!("{site} ({})", members.len()), 12.5, ui.visuals().text_color())).id_salt(("site", site.as_str())).default_open(true).show(ui, |ui| {
+                        for (id, _, _) in &members {
+                            if let Some(r) = flines.iter().find(|r| r.id == *id) {
+                                self.row_ui(ui, r, acts, &[("Edit feature line...", Cv::FeatureLineEdit), ("Sites and crossings...", Cv::GradeSite), ("Create grading...", Cv::GradeCreate)]);
+                            }
+                        }
+                    });
+                }
+            });
+            let groups = self.rows(GRADING);
+            self.node(ui, "ts-grading", ph::MOUNTAINS, "Grading Groups", groups.len(), Some(("Create grading...", Cv::GradeCreate)), &mut acts, |ui, acts| {
+                for r in &groups {
+                    self.row_ui(ui, r, acts, &[("Volumes and balance...", Cv::GradeGroup), ("New grading...", Cv::GradeCreate), ("Pad, pond, ditch...", Cv::GradeHelpers)]);
                 }
             });
             // Pipe networks, with their structures and pipes under each, and the profiles of runs.

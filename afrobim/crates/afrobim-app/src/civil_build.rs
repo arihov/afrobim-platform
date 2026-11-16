@@ -85,6 +85,8 @@ pub fn build(e: &Element, ctx: &Ctx) -> Built {
         CORRIDOR => crate::civil_build2::build_corridor(e, ctx),
         SAMPLES => crate::civil_build2::build_samples(e, ctx),
         PIPENET => crate::civil_pipes::build_pipenet(e, ctx),
+        FEATURELINE => crate::civil_grading::build_featureline(e),
+        GRADING => crate::civil_grading::build_grading(e, ctx),
         PIPEPROFILE => crate::civil_pipes::build_pipe_profile(e, ctx),
         _ => Ok(Built::default()),
     };

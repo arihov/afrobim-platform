@@ -99,6 +99,14 @@ pub fn citation_line(v: &DefaultValue) -> String {
     format!("{} {} v{} ({}), {}, p{}: {} ({})", c.pack_id.to_uppercase(), c.document_reference, c.version, c.published, c.clause, c.page, v.status.label(), c.verb)
 }
 
+/// A resolved default as text.
+pub fn summary_of(r: &Resolved) -> String {
+    match r {
+        Resolved::Number(n) => fmt_num(*n),
+        Resolved::Formula(t) | Resolved::Text(t) => t.clone(),
+    }
+}
+
 /// The values of a table entry in a short text.
 pub fn summary(e: &afrobim_defaults::Entry) -> String {
     use afrobim_defaults::Kind;

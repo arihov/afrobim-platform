@@ -296,7 +296,7 @@ pub fn of_category(doc: &Document, category: &str) -> Vec<(ElementId, String)> {
 
 /// The surfaces a profile or corridor can use: civil surfaces and imported TIN surfaces.
 pub fn surface_choices(doc: &Document) -> Vec<(ElementId, String)> {
-    doc.elements().iter().filter(|e| e.category == SURFACE || e.category == afrobim_corridor::SURFACE_CATEGORY).map(|e| (e.id, e.name.clone())).collect()
+    doc.elements().iter().filter(|e| e.category == SURFACE || e.category == GRADING || e.category == afrobim_corridor::SURFACE_CATEGORY).map(|e| (e.id, e.name.clone())).collect()
 }
 
 pub fn status_of(e: &Element) -> String {

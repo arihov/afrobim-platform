@@ -185,7 +185,7 @@ impl crate::app::AfroBimApp {
         let Some(cat) = self.doc.find(id).map(|e| e.category.clone()) else { return };
         let bounds = match cat.as_str() {
             PROFILE_VIEW | SAMPLES | CORRIDOR | PIPEPROFILE => civil_build::scene_bounds(&b.scene),
-            SURFACE => b.tin.as_ref().map(|t| {
+            SURFACE | GRADING => b.tin.as_ref().map(|t| {
                 let x = t.bounds();
                 civil::Bounds { min_e: x.min_x, min_n: x.min_y, max_e: x.max_x, max_n: x.max_y }
             }),
@@ -193,7 +193,7 @@ impl crate::app::AfroBimApp {
         };
         if let Some(bounds) = bounds {
             // The 3D mesh is in the frame of the element's origin: a moved origin means a rebuild.
-            if civil::set_bounds(&mut self.doc, id, bounds) && (cat == SURFACE || cat == CORRIDOR) {
+            if civil::set_bounds(&mut self.doc, id, bounds) && (cat == SURFACE || cat == CORRIDOR || cat == GRADING) {
                 civil::touch(&mut self.doc, id);
             }
         }
@@ -244,8 +244,8 @@ pub fn build_all(elements: Vec<Element>, tins: HashMap<u64, Arc<afrobim_corridor
     let mut order: Vec<ElementId> = stale.clone();
     order.sort_by_key(|id| match ctx.element(id.0).map(|e| e.category.as_str()) {
         Some(SURFACE) => 0,
-        Some(PROFILE) | Some(ASSEMBLY) => 1,
-        Some(CORRIDOR) => 2,
+        Some(PROFILE) | Some(ASSEMBLY) | Some(FEATURELINE) => 1,
+        Some(CORRIDOR) | Some(GRADING) => 2,
         _ => 3,
     });
     let mut out = Vec::new();

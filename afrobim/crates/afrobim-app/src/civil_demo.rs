@@ -155,9 +155,26 @@ pub fn build(doc: &mut Document) -> Vec<String> {
         Err(e) => notes.push(format!("Road reserve split: {e}")),
     }
     notes.extend(pipe_demo(doc, surf_id, &al));
+    notes.extend(grading_demo(doc, surf_id));
     let _ = pts_id;
     let _: Option<ElementId> = None;
     notes
+}
+
+/// A graded building pad: an outline, a platform level and slopes to the ground, all examples.
+fn grading_demo(doc: &mut Document, surf_id: ElementId) -> Vec<String> {
+    use afrobim_grading::{building_pad, PlatformSurface, ProjectionParams, Slope};
+    let (e, n) = (E0 + 215.0, N0 + 225.0);
+    let outline = [[e, n], [e + 36.0, n], [e + 36.0, n + 28.0], [e, n + 28.0]];
+    let level = (ground_z(e + 18.0, n + 14.0) * 10.0).round() / 10.0 + 0.4;
+    let params = ProjectionParams { ray_spacing: 2.0, facet_angle: 15.0_f64.to_radians() };
+    match building_pad("Demo pad (example values)", &outline, &PlatformSurface::Level { level }, Slope::Ratio(2.0), Slope::Ratio(3.0), 40.0, params) {
+        Ok(pkg) => {
+            crate::civil_grading::add_package(doc, &pkg, Some(surf_id), SOURCE, true);
+            vec![]
+        }
+        Err(e) => vec![format!("Pad: {e}")],
+    }
 }
 
 /// A small pipe run beside the first straight of the demonstration road: four structures and three

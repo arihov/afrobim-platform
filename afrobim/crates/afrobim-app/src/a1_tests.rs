@@ -49,3 +49,22 @@ fn road_type_choices_come_from_the_pack() {
     assert!(dg::number(&c.key("verge_width").unwrap(), &c.cond()).is_none());
     assert!(dg::labels_of("xs.rural_all_purpose.carriageway_width").contains(&"WS2".to_string()));
 }
+
+pub(crate) fn demo_doc() -> afrobim_kernel::Document {
+    let mut doc = afrobim_kernel::Document::default();
+    let notes = crate::civil_demo::build(&mut doc);
+    assert!(notes.is_empty(), "{notes:?}");
+    doc
+}
+
+pub(crate) fn ctx_with_tins(doc: &afrobim_kernel::Document) -> crate::civil_build::Ctx {
+    let base = crate::civil_build::Ctx { elements: doc.elements().to_vec(), tins: Default::default() };
+    let mut tins = std::collections::HashMap::new();
+    for e in doc.elements().iter().filter(|e| e.category == crate::civil::SURFACE) {
+        if let Some(t) = crate::civil_build::build(e, &base).tin {
+            tins.insert(e.id.0, t);
+        }
+    }
+    crate::civil_build::Ctx { elements: doc.elements().to_vec(), tins }
+}
+
