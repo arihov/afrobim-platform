@@ -175,11 +175,6 @@ pub fn build_featureline(e: &Element) -> Result<Built, String> {
     Ok(Built { scene: s, ..Default::default() })
 }
 
-/// What a grading group built, kept with its inputs for the dialogs and the derived figures.
-pub struct GroupOut {
-    pub build: GroupBuild,
-}
-
 /// Builds a group from the elements of the context: its site's feature lines and its ground.
 pub fn run_group(d: &GradingData, ctx: &Ctx) -> Result<GroupBuild, String> {
     let site = site_from(&ctx.elements, &d.site);

@@ -14,7 +14,7 @@ The reader is a practising highway engineer. The manual does not explain CAD or 
 6. Civil objects
 7. First hour walkthrough: signs and roads
 8. The ribbon tabs, in ribbon order
-9. Command reference (all 205 commands)
+9. Command reference (all 222 commands)
 10. Standards and editions
 11. Known slips in the source documents
 12. What has not been verified
@@ -48,7 +48,7 @@ It covers:
 - It does not import every format. XML schedules are not read; IFC is read only as reference models; BCF 3.0 is not supported; DWG is refused (convert to DXF first).
 - It has no cost rates, exchange rates, percentages or standard bill structure. The user enters them.
 - It does not reproject coordinates or shift datums between coordinate systems. Arc 1960 and WGS 84 are different datums, and no shift is applied between them (chapter 4).
-- Round 5 did not build pipe networks, grading objects, intersections and roundabout wizards, point clouds, data shortcuts or reprojection between systems (round 5 plan).
+- Round 5 did not build pipe networks, grading objects, intersections and roundabout wizards, point clouds, data shortcuts or reprojection between systems (round 5 plan). Round 6 builds pipe networks, grading and intersections with roundabouts (sections 6.9 to 6.11) and the defaults system (section 6.12).
 - Two further interfaces exist outside the desktop app: a Python package (`afrobim/python`) and an MCP server (`afrobim-mcp`). Their READMEs are in `afrobim/python` and `afrobim/crates/afrobim-mcp/README.md`. This manual does not cover them.
 
 ### The eight BIM workflow stages
@@ -162,7 +162,7 @@ These come from `crates/afrobim-app/src/main.rs`. An argument that is not an opt
 
 The window has three bands and two columns. From top to bottom: the menu bar, then the ribbon, with the workspace switcher at its left end. Below the ribbon are the left panel (the Tool Sets and the toolspace), the drawing area in the middle, and the right panel (Properties and Layers). The command line and the status bar sit at the bottom.
 
-Every route to a command runs the same entry in one command table, `crates/afrobim-app/src/commands.rs`, which holds 205 commands. The menus, the ribbon, the Tool Sets, the command palette and the command line therefore always do the same thing. Section 9 lists all 205.
+Every route to a command runs the same entry in one command table, `crates/afrobim-app/src/commands.rs`, which holds 222 commands. The menus, the ribbon, the Tool Sets, the command palette and the command line therefore always do the same thing. Section 9 lists all 222.
 
 ### 3.1 Workspaces
 
@@ -178,6 +178,7 @@ Table 3.1 gives what each workspace shows, taken from `workspace.rs`.
 |---|---|---|---|
 | All | Every tab and every panel | Traffic signs, Modify and Zoom | Left and right |
 | Civil | Civil (all panels), Insert (all panels) | None: the toolspace takes the whole left panel | Left and right |
+| Pipes, Grading and Junctions | Civil (Surfaces, Alignments, Pipe networks, Grading, Intersections, Quantities), Insert (all panels) | None: the toolspace takes the whole left panel | Left and right |
 | Survey and Terrain | Insert (all panels), Roads (Earthworks panel only) | Modify and Zoom | Left and right |
 | Road Design | Roads (Alignment, Pavement and Earthworks panels), Design (all panels), Insert (all panels) | Modify and Zoom | Left and right |
 | Signs and Markings | Signs (all panels), Roads (Alignment and Markings panels), Insert (all panels), Modify (all panels) | Traffic signs, Modify and Zoom | Left and right |
@@ -208,7 +209,7 @@ The menu bar has ten menus: File, Edit, View, Insert, Civil, Modify, Analyse, To
 - **Edit.** Undo, Redo, Copy, Paste, Erase, Select all.
 - **View.** Zoom extents, Zoom window, Zoom to selection, Zoom previous, Zoom in, Zoom out. 2D model space or 3D view. Dark or light model space. Grid, Snap, Ortho and Outlined.
 - **Insert.** Standard signs. The traffic sign templates of the active standard. Road markings (lines along an alignment, stop and give way, arrows, hatching and chevrons, yellow lines, road studs, worded markings, Uganda lane and edge lines). Road elements (side drain, pipe culvert, portal gantry, cantilever gantry). Street lighting, lighting column, safety barrier, pavement, corridor, survey points (CSV), ground surface (LandXML), DXF underlay and IFC reference model.
-- **Civil.** Toolspace. Submenus for Points, Surfaces, Profiles, Corridors and sections, and Parcels. Earthworks and mass haul. Export civil data as LandXML. Demonstration data. Section 6 covers each command.
+- **Civil.** Toolspace. Submenus for Points, Surfaces, Profiles, Corridors and sections, Parcels, Pipe networks, Grading and Intersections. Earthworks and mass haul. Export civil data as LandXML. Demonstration data. Section 6 covers each command.
 - **Modify.** Move, Copy, Erase and Arrange. Sign actions: place the sign on an alignment, add supports, design supports, remove supports, hang the sign on a gantry, take it off a gantry. Design an alignment, edit the alignment in plan, profile editor, edit text.
 - **Analyse.** Check the whole model, check the selected element, alignment design checks, pavement design, rational method flow, sign visibility, photometry and corridor cross-sections, with a Coordination submenu.
 - **Tools.** Layer manager, Units, Object snap settings, Text styles, Dimension styles. Submenus for Sheets (sheet sets, sheet preview, title block), Annotate, Measure, Programme (4D), Cost (5D) and Construction. Design standard, with UK and Uganda.
@@ -707,10 +708,110 @@ Parcels are plane polygons with boundaries of lines and circular arcs, carrying 
 
 - The LandXML reader has been tested on one Civil 3D 2023 export, an alignment with a design profile and an existing ground profile, in US survey feet. Other LandXML files in the tests were written by hand to the schema. Nothing has been read from Civil 3D beyond that one file.
 - Read from that file: units, coordinate system, horizontal geometry, the ground profile, the alignment profile and the plan features. No surface, parcel, point, cross-section or superelevation from Civil 3D has been read in the tests.
-- Elements the whole-file reader does not read are counted and reported, not treated as errors. They include roadways, pipe networks, survey data, monuments, grade models, cant, watersheds, volumes and feature dictionaries.
+- Elements the whole-file reader does not read are counted and reported, not treated as errors. They include roadways, pipe networks (the import dialog reads them separately, section 6.9), survey data, monuments, grade models, cant, watersheds, volumes and feature dictionaries.
 - Station labels and other text in the plan drawing are not written.
 - The LandXML export has been checked against the schema and the AfroBIM importer, not against a file read by Civil 3D or another program.
 - A spiral in a LandXML parcel boundary is carried as its chord.
+
+### 6.9 Pipe networks
+
+A **pipe network** is one civil object (category `civil-pipenet`, listed under Pipe Networks in the Prospector, with its structures and pipes under it). It holds structures (manholes, catch basins, headwalls, outfalls, junctions, null nodes) and the pipes between them, the parts list it was made with, a rule set, and the inputs of its checks. Everything it draws and computes is a calculation for an engineer to check, not a certified design.
+
+**Commands.**
+
+- `PIPENEW` creates a network from structure positions picked in the model (or typed), upstream first, with a pipe part and a structure part from the parts list, or a typed diameter. The start invert and the slope are inputs. The rim levels come from the ground surface you choose, or are typed.
+- `PIPEPARTS` loads a parts list from CSV or JSON, or the labelled example list ("EXAMPLE parts list: example values, not a standard or a manufacturer's catalogue"), keeps it for new networks or in a chosen network, and exports CSV. Nothing is built in: the engine holds no pipe size, material or roughness.
+- `PIPEPROPS` edits the network's type, status, ground surface, alignment, tailwater level, kinematic viscosity, interference clearance, cover sample spacing, the networks it is compared with, and the rule set (minimum and maximum slope, cover, pipe length, drop across a structure, velocity, depth ratio, match mode). A blank rule is off and the check says it was skipped.
+- `PIPEEDIT` inserts a structure into a pipe, moves and deletes structures (with or without joining the pipes either side), swaps a pipe or structure part, sets inverts by slope, by drop across a structure or by cover under the ground surface, and sets design flows, inflows, loss coefficients, rim and sump levels.
+- `PIPECHECK` runs cover, slope, length, drops, hydraulics at the design flows, grade lines from the tailwater level, and interference within the network and between networks, as a background job with progress. Each finding has a button that zooms to the element.
+- `PIPETABLES` shows the structure and pipe tables with CSV. `PIPEQTY` gives pipe lengths by size and material, structure counts and trench volumes (excavation by depth band, bedding, pipe displacement) from inputs you enter, with CSV and a send to the bill (category Pipe networks).
+- `PIPEPROFILE` draws a run of pipes in a profile view in the model: ground, structures, pipes by invert and crown, and the hydraulic grade line when a tailwater level is given. Pipes that cross a sample line are drawn in the section views of that sample line group.
+
+**Drawing.** In plan the pipes are drawn with their outside width, a flow arrow and a label, the structures with their footprint and name. In 3D a round pipe is a cylinder, a box pipe a box, a structure a cylinder or a box from its sump (or its lowest invert) to its rim.
+
+**Exchange.** The LandXML import dialog has a Pipe networks tab. `CIVILXML` writes the networks as `PipeNetworks`. A network read from LandXML has no parts list, ground surface or rules: set them in `PIPEPROPS`.
+
+**Defaults.** The minimum gradient and minimum velocity rules are filled from the defaults basis for the setting (urban or rural, design or deteriorated) and pipe diameter you choose. The Colebrook-White roughness of a typed pipe is filled for a carrier or a combined drain. The basis holds no minimum cover, maximum velocity, chamber spacing or minimum pipe diameter for pipes: those fields stay empty inputs.
+
+**Limits.**
+
+- Uniform flow only. No gradually varied flow, backwater, drawdown, hydraulic jump, air entrainment, sediment or surcharge dynamics. A flow above the full-bore discharge is reported as exceeding capacity. In the grade line, when the tailwater is above the uniform-flow depth but below the crown, backwater is not computed and an information finding says so.
+- No method for the structure loss coefficient K is included: with no K entered the grade line is friction only, and the result says so. No entrance, exit, bend or junction loss formulae, no drop-structure or benching hydraulics, no inlet capacity of catch basins or gullies.
+- No rainfall or runoff. Flows are inputs.
+- Trees only. A loop is reported as an error and flows are not accumulated through it. A branch is allowed but the flow is not split: each pipe is given the whole accumulated flow, and a warning says so.
+- Egg sections have no built-in profile; elliptical sections are true ellipses.
+- Interference treats a pipe as a circle of its outer radius swept along its centreline (conservative for box, egg and elliptical pipes) and a structure as a vertical cylinder. Pipes that share a structure are not compared with each other.
+- Cover is to the outside top of the barrel. `apply_rules` is a simple downstream to upstream pass, not an optimiser. Moving a structure or swapping a part leaves the inverts alone.
+- Quantities: pipe lengths are centre to centre of structures. The trench has no structure pits, working space, support, rock, de-watering, swell or compaction, and the bedding is under the pipe only.
+- LandXML: a network needs two structures and one pipe, and every structure needs a pipe. Channels, `StructFlow`, Hazen-Williams coefficients and nested `Units` are not read.
+- No IFC is written for pipe networks: no verified entity.
+
+### 6.10 Grading
+
+**Feature lines** (`civil-featureline`) are 3D lines of PIs and elevation points. Feature lines with the same site name form a **site** and share one elevation where they cross. A **grading group** (`civil-grading`) holds gradings (a footprint feature line, a side, a criterion) and infills, and builds one surface, which is listed under Surfaces and used like any surface. It is rebuilt when a footprint, the target surface or the group settings change.
+
+**Commands.**
+
+- `FEATURELINE` creates a feature line by picking PIs with their levels, from an alignment and its design profile, draped on a surface, or as a stepped offset of another feature line (an offset and a level difference or a grade).
+- `FLEDIT` shows the vertex table with levels and grades (edit either and apply), a CSV of the grade table, and the tools: fillet, weed, delete a vertex, reverse, join, break at a station, raise or lower, insert an elevation point, and set the levels from a surface. A change that cannot be made is refused with the reason and changes nothing.
+- `GRADESITE` lists the feature lines of a site with their style priorities and resolves the crossings: the higher priority wins, then the line edited last, then the line made first (reported as a tie). Every crossing is listed with both levels before and after, with CSV.
+- `GRADING` creates a grading: footprint, side, criterion (target surface with cut and fill slopes and a search distance, target distance, target elevation, relative elevation), range, ray spacing, facet angle and the spacing of the slope pattern ticks. The slopes are inputs: the defaults basis records that DMRB gives no side slope (CD 622 leaves it to the geotechnical assessment), and the dialog says so.
+- `GRADINGGROUP` calculates cut, fill and net volumes against a base surface with cut and fill factors you enter, raises and lowers the group, sends the volumes to the bill, and finds an auto-balance shift between limits you give, as a background job; every evaluation is listed.
+- `GRADEHELPERS` makes a building pad (outline, level or plane platform, slopes to the ground), a pond (closed rim, floor level, inside slope) with its stage-storage table and CSV, and a ditch or berm swept along a line from a template of offset and level steps.
+
+**Drawing.** Feature lines are drawn in plan and in 3D at their levels. A grading draws its daylight lines and projection lines, the slope pattern ticks between footprint and daylight, and its surface in 3D.
+
+**Limits.**
+
+- Ray positions on arcs follow the facet angle; crossings of sites are found on arcs flattened at the facet angle you give (the error is one sagitta); draping does not add elevation points along arcs. `fillet` needs two straight spans; `weed` leaves arcs alone; inserting a PI or deleting a vertex straightens the spans it touches.
+- At an interior corner the miter assumes the neighbouring walls project with the same slope. With different criteria on the two walls the faces meet along the bisector but are not tied exactly. On uneven ground use a smaller ray spacing.
+- Loop clean-up collapses loops in the daylight line; it does not resolve overlap between different gradings of a group.
+- Where the ground leaves the surface or no crossing is found within the search distance, the ray fails, the faces beside it are missing and the group does not close. Self-intersecting footprints and interior corners sharper than the miter allows are not supported.
+- Transitions blend along the same ray, so both criteria must find daylight there.
+- Ponds assume the rim is the highest line of the basin; stage-storage does not test for spill.
+- Not included: smoothing of feature lines, stepped offset that keeps arcs as arcs, grading to a surface by a corridor-style station interval criterion, optimisation by slope limits, detection of overlapping gradings, different cut and fill slopes on the two sides of a ditch.
+- A ditch or berm makes feature lines (one per template point); the triangles between them are not kept.
+- No IFC is written for feature lines or grading groups.
+
+### 6.11 Intersections and roundabouts
+
+`INTERSECTION` takes two alignments, lists every crossing of them, and builds the intersection with the `afrobim-junction` engine: the lane edges of both roads with widening tables, a kerb return for each existing quadrant (simple, compound or chamfer), the kerb lines, optional islands, and, when you ask for the levels, the edge profiles, the secondary profile locked to the primary and the return profiles with their low points. The dialog has a live plan preview and a findings list that update as you type. Creating makes real objects: the alignments (with their profiles) are alignment elements of the document, listed under the intersection in the Intersections node of the Prospector, the kerb return low points are marked, and, if you tick it, the corridor regions are made through the corridor model as a corridor element (a baseline on the primary, one per secondary arm and one per return, using assemblies from the document).
+
+`ROUNDABOUTDESIGN` (the existing `ROUNDABOUT` inserts the map sign) designs a roundabout: inscribed circle, circulatory carriageway, apron and central island, and for each arm (on an alignment) the entry and exit kerbs and the splitter island. The measured entry angle and entry path radius are shown beside the limits of the defaults basis, with the statement that the measuring construction is AfroBIM's own and is not the construction CD 116 defines.
+
+**Dependency refresh.** When a source alignment or an assembly of the corridor library changes, the engine's dependency record says so: the intersection or roundabout is rebuilt, its old alignments are replaced by new ones and the status line says what changed.
+
+**Defaults.** Where the dialog knows the condition, fields are filled from the defaults basis with their citation: the kerb return radius (CD 123, for the radius basis you choose: no design vehicle urban or rural, design vehicle urban, rural or staggered, ghost island), the turning lane taper, length and width (simple junction taper, ghost island taper, or the diverge lengths for a design speed and gradient case), the secondary approach lane width, the primary road edge offset for single carriageway types, the crossfall, and for roundabouts (CD 116) the inscribed circle diameter, entry width, entry kerb radius, exit kerb radius and circulatory width. Visibility distances are shown as a reference. Every other field is an input.
+
+**Limits.**
+
+- No design check against limits: skew, curvature, grade, kerb radius and widths are reported as values; the roundabout dialog compares only with the basis limits it shows, as a guide.
+- A crossing on an extension (a secondary that stops short of the primary) is refused by the build. A secondary that starts on the primary and runs away is a tee.
+- Compound returns assume straight edges near the corner. Returns are built for the four quadrants of one crossing; no roundabout-to-intersection mixing and no multi-leg junction beyond two crossing roads.
+- The vertical part needs profiles on both roads. The locked profile is piecewise linear across the primary carriageway. The edge level is the road's crossfall plane extended to the edge, including a widened edge.
+- A widening taper on a curved road is a straight chord (the deviation is reported); the offset of a spiral is piecewise.
+- Corridor: the corridor crate takes a link that runs to an offset and a level together (the slope is whatever joins them), but has no region bounded by an outline, so islands are returned as outlines only. Regions are laid out by station, so on a skewed junction the wedge between a secondary arm and the primary edge is not clipped between regions. `end_inset` moves the first and last section of each region in from its end.
+- Roundabout kerbs assume the arm alignment is straight near the circle; an entry whose flare line passes farther from the centre than the inscribed radius has no tangent entry arc and is refused. Splitter nose roundings need the last side to be long enough. The entry arc must start downstream of the give-way line for the entered entry width to hold (the build reports when it does not).
+- No IFC is written for intersections or roundabouts.
+
+### 6.12 The defaults system
+
+Until round 6 every dimension in a dialog was an empty required input. The project now has a **defaults basis**: a standards pack whose values pre-fill the fields of the dialogs. The DMRB pack is the only one populated; the abstraction allows others (MoWT Uganda, SATCC, TRH) as further pack files. The basis is chosen in Project settings, on the Defaults basis tab, and is stored in the document; "No defaults" turns every default off.
+
+**What a bound field shows.** A field whose key the pack holds, under the condition the dialog knows, is pre-filled and shows the citation beside it: the document, its version and date, the table or clause, the page, the status and the document's own verb. The value stays editable. A field that differs from the default shows "changed from the default" with the default value and a Reset button. A field with no entry in the pack stays an empty required input and says so. If the condition changes (a design speed, a road type), the field follows the default unless you typed a value of your own.
+
+**`DEFAULTS`** opens a browsable, searchable table of the whole pack with every value, its unit, source, status and condition, and a tab listing the keys the application asks for that the pack does not hold, with the reason. At the top it shows the pack's own statement: the values were read by an automated reader and have not been reviewed by an engineer.
+
+**Where it is used.** The assembly editor (road type group and road type; lane width by lane, hard shoulder and hard strip widths, verge width, lane crossfall), the profile fit (design speed gives crest and sag K, road type gives the maximum grade), the corridor dialog (superelevation limit for rural or urban areas, compared with the alignment's stored cross-fall), the design check dialog (reference values at a design speed: stopping sight distances, minimum radii by superelevation, K values, gradients), pipe network rules, intersections and roundabouts (sections 6.9 and 6.11).
+
+**A default is a starting value, not a requirement of the project.** Even a value whose status is "requirement" is a requirement of the DMRB, not of the project, and binds a design only where the project adopts the DMRB as its basis. A value below the desirable minimum (status "relaxation") needs an approved relaxation or departure, which AfroBIM does not encode.
+
+**Limits.**
+
+- DMRB is a UK standard: its values assume UK traffic, vehicles, climate and practice. For work under the MoWT Uganda manuals, switch basis when a MoWT pack exists; until then the values are a starting point that the engineer must confirm.
+- Not held by the pack (those fields stay empty inputs): connector road cross-sections, the VRS set-back, verge or berm widths the figures show as "Varies", signal-controlled junction geometry, the stagger distance table, mini-roundabout tables, the minimum carrier pipe diameter, minimum pipe cover, maximum pipe velocity, chamber spacing, gully spacing, earthworks side slope angle (DMRB gives none) and surface tolerance, survey and setting-out tolerances, pavement design values (CD 226) and lighting values.
+- Cross-section widths in CD 127 were read from figures (images), so they were read visually and are the entries most worth a second look.
+- Tables are looked up exactly; interpolation happens only where the document allows it, and a result that was interpolated is flagged.
 
 ## 7. First hour walkthrough: signs and roads
 
@@ -1238,9 +1339,9 @@ The Civil tab, and the toolspace that goes with it, are described in section 6 (
 
 ## 9. Command reference
 
-This is every command in `crates/afrobim-app/src/commands.rs`: **205 commands**, the same count as the table in that file. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
+This is every command in `crates/afrobim-app/src/commands.rs`: **222 commands**, the same count as the table in that file. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
 
-The counts by group are: Home 22, Edit 3, Insert 7, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 30, Design 10, Structures 4, Coordination 8, 4D 19, 5D 7, Construction 7, Output 13, Manage 10, View 6 and Help 3. Those add to 205. The palette and the command line reach every command.
+The counts by group are: Home 22, Edit 3, Insert 7, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 47, Design 10, Structures 4, Coordination 8, 4D 19, 5D 7, Construction 7, Output 13, Manage 10, View 6 and Help 3. Those add to 222. The palette and the command line reach every command.
 
 ### Home: 22 commands
 
@@ -1365,7 +1466,7 @@ The counts by group are: Home 22, Edit 3, Insert 7, Annotate 27, Modify 1, Signs
 | `RATIONAL` | `RUNOFF` | - | Peak flow by the rational method from the catchment areas, runoff coefficients and intensity you enter; keep it on the selected drain or culvert |
 | `SECTIONS` | `XSECTIONS` | - | Show the cross-sections of the selected corridor, station by station |
 
-### Civil: 30 commands
+### Civil: 47 commands
 
 | Command | Aliases | Also on | Help text |
 |---|---|---|---|
@@ -1376,21 +1477,38 @@ The counts by group are: Home 22, Edit 3, Insert 7, Annotate 27, Modify 1, Signs
 | `CIVILXML` | `LANDXMLALL`, `LANDXMLCIVIL` | - | Write everything civil that the document holds to a LandXML file, with the project coordinate system |
 | `COGO` | `INVERSE`, `COGOTOOLS` | - | COGO tools: inverse, bearing and distance, intersections, station and offset to an alignment |
 | `CORRIDORMODEL` | `NEWCORRIDOR`, `CORRIDOR2` | - | Corridor from a baseline, regions with an assembly each, a frequency and a ground surface (the older CORRIDOR keeps working on old documents) |
+| `DEFAULTS` | `DEFAULTSBASIS`, `STANDARDVALUES` | - | Browse the engineering defaults of the project's basis (DMRB today): every value with its document, version, clause and status, and the statement that the values were not reviewed by an engineer |
 | `DESCKEYS` | `DESCRIPTIONKEYS` | - | Edit the description keys that turn field codes into full descriptions, styles and layers |
 | `EARTHWORKS` | `CIVILQUANTITIES`, `MASSHAUL` | - | Earthworks table, material volumes by shape code and the mass haul diagram, with CSV export and a send to the bill |
+| `FEATURELINE` | `FLINE`, `NEWFEATURELINE` | - | Create a feature line by picking, from an alignment and profile, draped on a surface, or as a stepped offset of another |
+| `FLEDIT` | `FEATURELINEEDIT`, `FLELEV` | - | Edit a feature line: elevation table with grades, quick elevation edit, fillet, join, break and weed |
 | `FLOWPATH` | `WATERDROP` | - | Trace the steepest-descent path of water from an easting and northing over a surface |
+| `GRADEHELPERS` | `PAD`, `POND`, `DITCH` | - | Grading helpers: building pad, pond with its stage-storage table, ditch or berm along a line |
+| `GRADESITE` | `SITES`, `SITE` | - | Sites: feature lines that share one elevation where they cross, with the crossings resolved and reported |
+| `GRADING` | `NEWGRADING`, `GRADINGCREATE` | - | Create a grading from a feature line footprint: side, criterion and slopes, into a grading group |
+| `GRADINGGROUP` | `GRADINGGROUPS`, `GRADEVOLUME` | - | Grading groups: the surface they build, cut, fill and net volumes, raise and lower, auto-balance with its iterations |
 | `GROUNDPROFILE` | `EXISTINGPROFILE`, `SAMPLEPROFILE` | - | Sample an existing ground profile from a surface along an alignment |
+| `INTERSECTION` | `INTERSECT`, `TJUNCTION` | - | Intersection of two alignments: crossings, corridor type, edge offsets, widening and kerb returns with a live plan preview, creating real alignments, profiles and a corridor |
 | `PARCELDEED` | `DEED` | - | Create a parcel from the courses of a deed (bearing and distance) with a closure report |
 | `PARCELPICK` | `PARCEL`, `CREATEPARCEL` | - | Create a parcel from typed or picked corner points |
 | `PARCELPROPS` | `PARCELPROPERTIES` | - | Parcel properties: owner, land reference, land use, status |
 | `PARCELSPLIT` | `RESERVE`, `ROADRESERVE` | - | Split the parcels by an alignment offset (road reserve): take and remainder parcels |
 | `PARCELTOPOLOGY` | `TOPOLOGY` | - | Check the parcels of the site for gaps and overlaps |
+| `PIPECHECK` | `PIPECHECKS` | - | Check a pipe network: cover, slope, length, drops, hydraulics at the design flows, grade lines from a tailwater level and interference, with findings that zoom to the element |
+| `PIPEEDIT` | `EDITPIPES` | - | Edit a pipe network: insert, move and delete structures, swap parts, set inverts by slope, by drop or by cover under a surface |
+| `PIPENEW` | `NEWPIPES`, `PIPENETWORK` | - | Create a pipe network by picking structure positions in the model, with the parts of a chosen parts list |
+| `PIPEPARTS` | `PARTSLIST`, `PARTSCATALOGUE` | - | Parts list manager for pipe networks: load a CSV or JSON list or the labelled example list, and keep it for new networks or in a network |
+| `PIPEPROFILE` | `PIPEPVIEW` | - | Draw a run of a pipe network in a profile view: ground, structures, pipes, and the hydraulic grade line |
+| `PIPEPROPS` | `PIPERULES`, `NETWORKPROPS` | - | Pipe network properties and rule set: type, status, ground surface, tailwater level, clearance and the rules the checks use (defaults from the basis where it has them) |
+| `PIPEQTY` | `PIPEQUANTITIES`, `TRENCH` | - | Pipe network quantities: pipe lengths, structure counts and trench volumes from your inputs, with CSV and a send to the bill |
+| `PIPETABLES` | `PIPETABLE` | - | Structure and pipe tables of a network with CSV export |
 | `POINTCREATE` | `CREATEPOINT`, `PT` | - | Create a COGO point by typed easting, northing and elevation, or by picking in the model |
 | `POINTEXPORT` | `EXPORTPOINTS` | - | Export the points of a point set or group to a point file |
 | `POINTGROUPS` | `PTGROUPS` | - | Point groups: include and exclude rules, surface points, order |
 | `POINTS` | `IMPORTPOINTS`, `COGOPOINTS` | - | Import COGO points from a point file: the format is detected and previewed, the coordinate system is checked, and the duplicate policy is yours |
 | `POINTTABLE` | `PTTABLE` | - | Edit the points of a point set in a table: sort, filter and edit any cell |
 | `PROFILEVIEW` | `PVIEW` | - | Draw a profile view in the model: grid, ground and design lines and bands |
+| `ROUNDABOUTDESIGN` | `RBDESIGN`, `CIVILROUNDABOUT` | - | Roundabout design (ROUNDABOUT inserts the map sign): arms on alignments: inscribed circle, entry and exit geometry, entry angle and entry path radius against the basis limits |
 | `SAMPLELINES` | `SAMPLELINEGROUP`, `SL` | - | Sample line group: stations, swath widths and the surfaces cut at each line |
 | `SECTIONVIEWS` | `SECVIEWS` | - | Draw the section views of a sample line group as an array in the model |
 | `SPOT` | `SPOTELEVATION`, `SPOTELEV` | - | Read the elevation of a surface at an easting and northing |
@@ -1805,7 +1923,7 @@ The round 4 polish corrected the READMEs that disagreed with the code: the works
 - **Command names for sheets.** `SHEETS` with its alias `FABRICATION` is the fabrication sheets, one per sign. The drawing sheets use `SHEETSET`, `SHEETPREVIEW`, `TITLEBLOCK`, `PROJECTINFO`, `SHEETPDF` and `SHEETDXF`.
 - **Windows.** Every window is made by `win::new` in `win.rs`, which keeps it inside the central area recorded by the canvas each frame. New windows should be made the same way.
 - **Ribbon and menus.** The ribbon has eighteen tabs and the menu bar ten menus: File, Edit, View, Insert, Civil, Modify, Analyse, Tools, Window and Help. The menus are not a separate command set. Every item runs a command from the command table. The Signs tab is built from the sign templates of the active standard.
-- **Command table.** `commands.rs` holds 205 commands. The reference table in section 9 holds all 205, grouped by ribbon tab. Every one is on a ribbon tab, or is a sign template that the Signs tab and the Insert menu show. The earlier edition of this manual said 169, which predated the civil commands.
+- **Command table.** `commands.rs` holds 222 commands. The reference table in section 9 holds all 222, grouped by ribbon tab. Every one is on a ribbon tab, or is a sign template that the Signs tab and the Insert menu show. The earlier edition of this manual said 169, which predated the civil commands.
 - **Speed band.** `projset.rs` shows the rule and its examples. The rule's thresholds belong to each check, as the workspace README says; the rule holds none.
 - **Corridor objects.** The corridor crate's README says its new corridor objects are not a kernel document element, and are meant to be held by the caller. The application stores the civil corridor model as a civil element, with its data serialised, so the README describes the crate, not the application.
 - **Coordinate system wiring.** The project coordinate system is stored with the project settings (`project_crs`). A file without the key reads as having no system. The import checks (section 4.5) only read; nothing is moved.

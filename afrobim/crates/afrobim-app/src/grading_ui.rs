@@ -159,9 +159,13 @@ impl AfroBimApp {
         let mut go = false;
         let mut pick = false;
         let busy_pick = self.civil_ui.pick.is_some();
+        let demo = self.options.civil_demo;
         let out = Dialog::new("Create feature line", crate::glyphs::by_name("FEATURELINE")).width(680.0).resizable(true).max_body_height(600.0).help("A feature line is a 3D line made of PIs (plan geometry) and elevation points. Lines of the same site share one elevation where they cross. Pick the PIs in the model with their levels typed or read from a surface, take a line from an alignment and its design profile, drape a plan line on a surface, or offset another feature line by a distance and a level difference or grade.").show(
             ctx,
             |ui| {
+                if demo {
+                    ui_kit::callout(ui, Level::Info, "Some fields hold example values for the demonstration: they are not from any standard or design.");
+                }
                 ui_kit::tabs(ui, &mut f.mode, &FL_MODES);
                 ui_kit::form(ui, "fl-head", |fm| {
                     fm.row("Name", |ui| d::text(ui, &mut f.name, "e.g. Platform edge"));
@@ -830,9 +834,13 @@ impl AfroBimApp {
         let groups = civil::of_category(&self.doc, GRADING);
         let mut go = false;
         let side_note = crate::defaults_glue::get("earthworks.side_slopes.no_value", &afrobim_defaults::Conditions::none());
+        let demo = self.options.civil_demo;
         let out = Dialog::new("Create grading", crate::glyphs::by_name("GRADING")).width(700.0).resizable(true).max_body_height(620.0).help("A grading projects slopes from a feature line footprint, on the side you choose, until it meets the target. Choose the criterion and its slopes. Cut and fill slopes, the ray spacing and the facet angle are inputs.").show(
             ctx,
             |ui| {
+                if demo {
+                    ui_kit::callout(ui, Level::Info, "Some fields hold example values for the demonstration: they are not from any standard or design.");
+                }
                 ui_kit::form(ui, "gn-head", |fm| {
                     fm.row("Name", |ui| d::text(ui, &mut f.name, "e.g. Platform batter"));
                     fm.row("Footprint", |ui| lines_combo(ui, "gn-fp", &self.doc, &mut f.footprint));
@@ -1272,9 +1280,13 @@ impl AfroBimApp {
         let groups = civil::of_category(&self.doc, GRADING);
         let mut act = 0u8;
         let mut pick = false;
+        let demo = self.options.civil_demo;
         let out = Dialog::new("Grading helpers", crate::glyphs::by_name("GRADEHELPERS")).width(720.0).resizable(true).max_body_height(620.0).help("A building pad is graded from its outline to the ground; a pond is graded down from a closed rim line to a floor; a ditch or berm is a stepped template swept along a line. Every level, slope and distance is an input.").show_body(
             ctx,
             |ui| {
+                if demo {
+                    ui_kit::callout(ui, Level::Info, "Some fields hold example values for the demonstration: they are not from any standard or design.");
+                }
                 ui_kit::tabs(ui, &mut f.tab, &["Building pad", "Pond", "Ditch or berm"]);
                 ui_kit::form(ui, "hp-head", |fm| {
                     fm.row("Name", |ui| d::text(ui, &mut f.name, "e.g. Pad A"));

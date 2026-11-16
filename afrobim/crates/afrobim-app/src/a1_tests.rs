@@ -68,3 +68,45 @@ pub(crate) fn ctx_with_tins(doc: &afrobim_kernel::Document) -> crate::civil_buil
     crate::civil_build::Ctx { elements: doc.elements().to_vec(), tins }
 }
 
+
+/// Every command A1 added opens a window of its own on the civil demonstration, in both looks, and
+/// draws something (the dialog kit's own windows are checked for every command by `u4_dialogs_test`).
+#[test]
+fn every_a1_command_opens_its_dialog_on_the_civil_demonstration() {
+    use crate::civil_cmds::Cv;
+    use crate::commands::{Action, COMMANDS};
+    use crate::u4_dialogs_test::{app_for, frame, windows};
+    let new: [Cv; 17] = [Cv::Defaults, Cv::PipeNew, Cv::PipeParts, Cv::PipeProps, Cv::PipeEdit, Cv::PipeCheck, Cv::PipeTables, Cv::PipeQty, Cv::PipeProfile, Cv::FeatureLine, Cv::FeatureLineEdit, Cv::GradeSite, Cv::GradeCreate, Cv::GradeGroup, Cv::GradeHelpers, Cv::Intersection, Cv::Roundabout];
+    let mut problems = Vec::new();
+    for theme in ["dark-glass", "light-glass"] {
+        for cv in new {
+            let info = COMMANDS.iter().find(|c| c.action == Action::Civil(cv)).unwrap_or_else(|| panic!("{cv:?} is not in the command table"));
+            let (ctx, mut app) = app_for(theme, true);
+            frame(&ctx, &mut app, 2);
+            let before = windows(&ctx);
+            app.options_mut().run = Some(info.name.to_string());
+            let shapes = frame(&ctx, &mut app, 4);
+            if windows(&ctx) <= before {
+                problems.push(format!("{} ({theme}) opened no window", info.name));
+            }
+            if shapes == 0 {
+                problems.push(format!("{} ({theme}) drew nothing", info.name));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// The new element categories load from a document saved without them (an old document).
+#[test]
+fn a_document_saved_before_round_six_still_loads() {
+    let mut doc = afrobim_kernel::Document::default();
+    doc.add("signs", "x", afrobim_kernel::Pt::new(0.0, 0.0), 10.0, 10.0, "0", serde_json::json!({}));
+    let back = afrobim_kernel::Document::from_json(&doc.to_json()).unwrap();
+    assert_eq!(back.elements().len(), 1);
+    let mut reg = afrobim_kernel::ModuleRegistry::default();
+    crate::civil::register(&mut reg);
+    for (c, _, _) in crate::civil::KINDS {
+        assert!(reg.categories().any(|(cat, _)| cat == c), "{c} is registered");
+    }
+}

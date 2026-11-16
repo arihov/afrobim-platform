@@ -9,12 +9,12 @@
 use afrobim_corridor::Tin;
 use afrobim_draw::Mesh3;
 use afrobim_kernel::{Document, Element, ElementId};
-use afrobim_pipes::{Footprint, HydraulicSettings, PartsCatalogue, PipeId, PipeNetwork, RuleSet, StructureId, StructureInner, TrenchSpec};
+use afrobim_pipes::{Footprint, HydraulicSettings, PartsCatalogue, PipeId, PipeNetwork, RuleSet, StructureInner, TrenchSpec};
 use serde::{Deserialize, Serialize};
 
-use crate::civil::{self, Bounds, PIPENET, PIPEPROFILE};
+use crate::civil::{self, Bounds, PIPENET};
 use crate::civil_build::{mm, Built, Ctx};
-use crate::civil_scene::{SFill, SLine, SText, Scene, L3};
+use crate::civil_scene::{SFill, SLine, SText, Scene};
 
 /// The data of a pipe network element.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -251,7 +251,7 @@ pub fn tube(name: &str, pts: &[[f64; 3]], rx: f64, ry: f64, round: bool, colour:
         centres.push(*p);
     }
     let mut tris: Vec<[u32; 3]> = Vec::new();
-    let mut add = |a: u32, b: u32, c: u32, outward: [f64; 3], tris: &mut Vec<[u32; 3]>, vs: &Vec<[f64; 3]>| {
+    let add = |a: u32, b: u32, c: u32, outward: [f64; 3], tris: &mut Vec<[u32; 3]>, vs: &Vec<[f64; 3]>| {
         let nrm = cross(sub(vs[b as usize], vs[a as usize]), sub(vs[c as usize], vs[a as usize]));
         let facing = nrm[0] * outward[0] + nrm[1] * outward[1] + nrm[2] * outward[2];
         if facing >= 0.0 { tris.push([a, b, c]) } else { tris.push([a, c, b]) }
@@ -402,9 +402,4 @@ pub fn build_pipe_profile(e: &Element, ctx: &Ctx) -> Result<Built, String> {
     s.derived.push(("Vertical exaggeration".into(), format!("{ex}")));
     s.derived.push(("Datum (m)".into(), format!("{datum:.2}")));
     Ok(Built { scene: s, report, ..Default::default() })
-}
-
-/// The structure and pipe ids of a network by name, for the findings' zoom.
-pub fn structure_by_name(net: &PipeNetwork, name: &str) -> Option<StructureId> {
-    net.structure_by_name(name).map(|s| s.id)
 }

@@ -431,6 +431,16 @@ pub fn num_field(ui: &mut Ui, text: &mut String, unit: &str, rule: &NumRule) -> 
     NumOut { response: response.expect("the field was added"), check }
 }
 
+/// A numeric field bound to a defaults key: pre-filled from the project's defaults basis under the
+/// condition the dialog knows, with the citation beside it, a marker when the value was changed from
+/// the default and a reset. With no entry in the basis it is an empty required input. `salt` tells
+/// two fields of one dialog apart; `factor` converts the pack's number to the field's convention.
+/// (The behaviour is in `defaults_glue::field`; this is the kit's name for it.)
+#[allow(clippy::too_many_arguments)]
+pub fn default_num_field(ui: &mut Ui, salt: impl std::hash::Hash, text: &mut String, unit: &str, key: &str, cond: &afrobim_defaults::Conditions, factor: f64, rule: &NumRule) -> Option<f64> {
+    crate::defaults_glue::field(ui, salt, text, unit, key, cond, factor, rule)
+}
+
 /// A drag-or-type field for an `f64` kept as a number, with a unit suffix.
 pub fn f64_field(ui: &mut Ui, value: &mut f64, unit: &str, range: std::ops::RangeInclusive<f64>, speed: f64) -> Response {
     let t = tokens_ui(ui);

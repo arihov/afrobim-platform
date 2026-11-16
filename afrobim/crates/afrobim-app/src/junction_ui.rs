@@ -75,7 +75,7 @@ fn draw_preview(ui: &mut egui::Ui, p: &Preview) {
             if l.len() == 1 {
                 painter.circle_stroke(map(l[0]), 5.0, Stroke::new(1.5_f32, *col));
             } else if l.len() >= 2 {
-                painter.add(egui::Shape::line(l.iter().map(|q| map(*q)).collect(), Stroke::new(if name == "roads" { 1.0 } else { 1.6 }, *col)));
+                painter.add(egui::Shape::line(l.iter().map(|q| map(*q)).collect(), Stroke::new(if name == "roads" { 1.0_f32 } else { 1.6_f32 }, *col)));
             }
         }
     }
@@ -389,9 +389,13 @@ impl AfroBimApp {
         let ready = matches!(&f.preview, Some((_, Ok(_))));
         let editing = f.edit.is_some();
         let pos = NumRule::default().min(0.0);
+        let demo = self.options.civil_demo;
         let out = Dialog::new("Intersection", crate::glyphs::by_name("INTERSECTION")).width(960.0).resizable(true).max_body_height(680.0).help("Choose the two alignments and the crossing, then the lane edge offsets, any widening, and the kerb return of each quadrant. The plan preview and the findings update as you type. Creating makes real alignments with their profiles (the four edges, the kerb returns and lines, the secondary profile locked to the primary) and, if you ask for it, a corridor. Fields with a defaults entry for the condition you choose are pre-filled with the citation; the rest are inputs.").show(
             ctx,
             |ui| {
+                if demo {
+                    ui_kit::callout(ui, Level::Info, "Some fields hold example values for the demonstration: they are not from any standard or design.");
+                }
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.set_width(430.0);
@@ -812,9 +816,13 @@ impl AfroBimApp {
         let mut pick = false;
         let pos = NumRule::required().above(0.0);
         let cond0 = Conditions::none();
+        let demo = self.options.civil_demo;
         let out = Dialog::new("Roundabout", crate::glyphs::by_name("ROUNDABOUTDESIGN")).width(960.0).resizable(true).max_body_height(680.0).help("A roundabout is an inscribed circle, a circulatory carriageway, an apron and a central island, with each arm's entry and exit kerbs and splitter island. The entry angle and the entry path radius are measured by AfroBIM's own construction (not the construction CD 116 defines) and are shown beside the limits of the defaults basis as a guide. The fields the basis has a value for are pre-filled with their citation.").show(
             ctx,
             |ui| {
+                if demo {
+                    ui_kit::callout(ui, Level::Info, "Some fields hold example values for the demonstration: they are not from any standard or design.");
+                }
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.set_width(440.0);

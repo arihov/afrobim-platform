@@ -82,6 +82,16 @@ pub const WORKSPACES: &[Workspace] = &[
         everything: false,
     },
     Workspace {
+        name: "Pipes, Grading and Junctions",
+        glyph: ph::PIPE,
+        blurb: "Pipe networks, grading, intersections and roundabouts, with surfaces and quantities",
+        tabs: &[WsTab::only(Tab::Civil, &["Surfaces", "Alignments", "Pipe networks", "Grading", "Intersections", "Quantities"]), WsTab::all(Tab::Insert)],
+        palettes: Palettes { signs: false, modify: false },
+        show_left: true,
+        show_right: true,
+        everything: false,
+    },
+    Workspace {
         name: "Survey and Terrain",
         glyph: ph::MOUNTAINS,
         blurb: "Survey points, ground surfaces, reference drawings",

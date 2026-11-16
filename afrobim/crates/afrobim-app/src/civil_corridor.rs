@@ -163,7 +163,7 @@ impl AfroBimApp {
                         ui.vertical(|ui| {
                             ui_kit::segmented(ui, &mut f.area, &["Rural", "Urban"]);
                             let key = if f.area == 0 { "link.superelevation.max_rural" } else { "link.superelevation.max_urban" };
-                            crate::defaults_glue::field(ui, "cor-emax", &mut f.emax, "%", key, &afrobim_defaults::Conditions::none(), 1.0, &NumRule::default().above(0.0));
+                            ui_kit::default_num_field(ui, "cor-emax", &mut f.emax, "%", key, &afrobim_defaults::Conditions::none(), 1.0, &NumRule::default().above(0.0));
                         });
                     });
                 });

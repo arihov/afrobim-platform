@@ -760,7 +760,6 @@ pub struct EditForm {
     e: String,
     n: String,
     rim: String,
-    at_chainage: String,
     merge: bool,
     part: usize,
     inv_mode: usize,
@@ -787,7 +786,7 @@ impl AfroBimApp {
             return;
         }
         let net = self.doc.primary().filter(|id| nets.iter().any(|n| n.0 == *id)).or_else(|| nets.first().map(|n| n.0));
-        self.civil_ui.pipes.edit = Some(EditForm { net, tool: 0, pipe: None, structure: None, name: String::new(), kind: 0, e: String::new(), n: String::new(), rim: String::new(), at_chainage: String::new(), merge: false, part: 0, inv_mode: 0, anchor_end: 0, anchor_invert: String::new(), slope_pct: String::new(), drop: String::new(), match_mode: 0, cover: String::new(), flow: String::new(), inflow: String::new(), loss_k: String::new(), sump: String::new(), message: String::new() });
+        self.civil_ui.pipes.edit = Some(EditForm { net, tool: 0, pipe: None, structure: None, name: String::new(), kind: 0, e: String::new(), n: String::new(), rim: String::new(), merge: false, part: 0, inv_mode: 0, anchor_end: 0, anchor_invert: String::new(), slope_pct: String::new(), drop: String::new(), match_mode: 0, cover: String::new(), flow: String::new(), inflow: String::new(), loss_k: String::new(), sump: String::new(), message: String::new() });
     }
 
     fn pipe_edit_window(&mut self, ctx: &egui::Context) {
@@ -1814,7 +1813,7 @@ mod tests {
         let (doc, id) = demo();
         let mut app = app();
         app.doc = doc;
-        let form = |tool: usize| EditForm { net: Some(id), tool, pipe: None, structure: None, name: String::new(), kind: 0, e: String::new(), n: String::new(), rim: String::new(), at_chainage: String::new(), merge: false, part: 0, inv_mode: 0, anchor_end: 0, anchor_invert: String::new(), slope_pct: String::new(), drop: String::new(), match_mode: 0, cover: String::new(), flow: String::new(), inflow: String::new(), loss_k: String::new(), sump: String::new(), message: String::new() };
+        let form = |tool: usize| EditForm { net: Some(id), tool, pipe: None, structure: None, name: String::new(), kind: 0, e: String::new(), n: String::new(), rim: String::new(), merge: false, part: 0, inv_mode: 0, anchor_end: 0, anchor_invert: String::new(), slope_pct: String::new(), drop: String::new(), match_mode: 0, cover: String::new(), flow: String::new(), inflow: String::new(), loss_k: String::new(), sump: String::new(), message: String::new() };
         let before = cp::data_of(&app.doc, id).unwrap().network;
         let (p1, s2) = (before.pipes().next().unwrap().id, before.structures().nth(1).unwrap().id);
         // Insert a structure in the first pipe at a typed position with a typed rim level.

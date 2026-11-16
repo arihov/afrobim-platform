@@ -711,7 +711,7 @@ fn part_editor(ui: &mut Ui, p: &mut EdPart, road: &crate::defaults_glue::RoadCho
                 };
                 match bind {
                     Some((key, cond, factor)) => {
-                        crate::defaults_glue::field(ui, ("asm", p.kind, i), &mut p.vals[i], unit, &key, &cond, factor, &ui_kit::NumRule::required());
+                        ui_kit::default_num_field(ui, ("asm", p.kind, i), &mut p.vals[i], unit, &key, &cond, factor, &ui_kit::NumRule::required());
                     }
                     None => {
                         d::num(ui, &mut p.vals[i], unit);
