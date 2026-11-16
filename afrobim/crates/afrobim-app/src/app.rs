@@ -141,6 +141,8 @@ pub struct AfroBimApp {
     pub(crate) appearance_open: bool,
     pub(crate) palette_open: bool,
     hook_frames: u32,
+    /// Frames drawn so far: `--run` waits for the first layouts so that view commands see the canvas.
+    update_frames: u32,
     pub(crate) palette: crate::palette::PaletteState,
     pub(crate) prefs: crate::prefs::Prefs,
     pub(crate) rep: Representation,
@@ -262,6 +264,7 @@ impl AfroBimApp {
             appearance_open: false,
             palette_open: false,
             hook_frames: 0,
+            update_frames: 0,
             palette: Default::default(),
             prefs,
             rep: Representation::Real,
@@ -3001,7 +3004,10 @@ impl eframe::App for AfroBimApp {
         self.shortcuts(ctx);
         // `--run COMMAND`: runs a command once at start-up (on the element named by `--focus`, when
         // given), to look at a dialog or window without a pointer.
-        if let Some(command) = self.options.run.take() {
+        self.update_frames = self.update_frames.saturating_add(1);
+        if self.options.run.is_some() && self.update_frames < 3 {
+            ctx.request_repaint();
+        } else if let Some(command) = self.options.run.take() {
             if let Some(mark) = self.options.focus.clone() {
                 if let Some(id) = self.doc.elements().iter().find(|e| e.name == mark).map(|e| e.id) {
                     self.doc.select(&[id], SelectMode::Replace);

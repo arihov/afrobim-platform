@@ -94,14 +94,16 @@ impl AfroBimApp {
 
         let label = if dark { Color32::from_rgb(0xA8, 0xB0, 0xBA) } else { Color32::from_rgb(0x50, 0x55, 0x5C) };
         // The civil objects: scenes built off the UI thread, painted culled to the view.
+        let mut labels = crate::civil_scene::Labels::default();
         for e in self.doc.elements() {
             if crate::civil::is_civil(&e.category) && !crate::civil::hidden(e) {
                 if let Some((_, b)) = self.civil.built.get(&e.id) {
-                    b.scene.paint(painter, &self.view, rect, ink, self.doc.is_selected(e.id));
+                    b.scene.paint(painter, &mut labels, &self.view, rect, ink, self.doc.is_selected(e.id));
                 }
             }
         }
-        self.civil_ui.overlay.paint(painter, &self.view, rect, ink, false);
+        self.civil_ui.overlay.paint(painter, &mut labels, &self.view, rect, ink, false);
+        labels.flush(painter, dark);
         // Layer colour and line weight: black is "automatic" (the canvas ink); the weight is drawn
         // as a pen width in pixels (about 4 px per millimetre, between 1 and 6).
         let layer_props = afrobim_annotate::settings::load(&self.doc).layers;

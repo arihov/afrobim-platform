@@ -210,7 +210,7 @@ pub fn surface_scene(tin: &Tin, style: &SurfaceStyle, origin_m: (f64, f64)) -> S
                     }
                     if c.major {
                         let mid = pts[pts.len() / 2];
-                        s.texts.push(SText { at: mid, text: format!("{:.1}", c.level), rgb: C_CONTOUR, height_mm: 0.0, px: 9.5, anchor: 0 });
+                        s.texts.push(SText { at: mid, text: format!("{:.1}", c.level), rgb: C_CONTOUR, height_mm: 0.0, px: 9.5, anchor: 0, prio: 1, halo: false });
                     }
                     s.lines.push(SLine::new(pts, C_CONTOUR, if c.major { 1.6 } else { 0.8 }));
                 }
@@ -271,7 +271,7 @@ fn build_parcel(e: &Element) -> Result<Built, String> {
     s.lines.push(SLine::new(pts, colour, 1.6));
     if let Ok(l) = p.label(0, DISPLAY_FLATNESS_M) {
         for (i, t) in l.lines.iter().enumerate() {
-            s.texts.push(SText { at: [l.at.e * 1000.0, l.at.n * 1000.0], text: t.clone(), rgb: colour, height_mm: 0.0, px: if i == 0 { 12.0 } else { 10.5 }, anchor: if i == 0 { 3 } else { 4 } });
+            s.texts.push(SText { at: [l.at.e * 1000.0, l.at.n * 1000.0], text: t.clone(), rgb: colour, height_mm: 0.0, px: if i == 0 { 12.0 } else { 10.5 }, anchor: if i == 0 { 3 } else { 4 }, prio: if i == 0 { 6 } else { 5 }, halo: true });
         }
     }
     if let (Ok(a), Ok(per)) = (p.area(), p.perimeter()) {
@@ -397,7 +397,7 @@ fn build_profile_view(e: &Element, ctx: &Ctx) -> Result<Built, String> {
     let mut z = datum;
     while z <= ztop + 1e-9 {
         sc.lines.push(SLine::new(vec![[x0, py(z)], [x1, py(z)]], C_GRID, 0.5));
-        sc.texts.push(SText { at: [x0 - text_h * 0.3, py(z)], text: format!("{z:.2}"), rgb: C_TEXT, height_mm: text_h, px: 0.0, anchor: 2 });
+        sc.texts.push(SText { at: [x0 - text_h * 0.3, py(z)], text: format!("{z:.2}"), rgb: C_TEXT, height_mm: text_h, px: 0.0, anchor: 2, prio: 4, halo: false });
         z += zstep;
     }
     let sstep = nice_step((s1 - s0) / 8.0);
@@ -443,7 +443,7 @@ fn build_profile_view(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         for (i, l) in labels.iter().enumerate() {
             let yb = y0 - row * (i + 1) as f64;
             sc.lines.push(SLine::new(vec![[x0, yb], [x1, yb]], C_GRID, 0.5));
-            sc.texts.push(SText { at: [x0 - row * 0.2, yb + row / 2.0], text: l.to_string(), rgb: C_TEXT, height_mm: row * 0.6, px: 0.0, anchor: 2 });
+            sc.texts.push(SText { at: [x0 - row * 0.2, yb + row / 2.0], text: l.to_string(), rgb: C_TEXT, height_mm: row * 0.6, px: 0.0, anchor: 2, prio: 4, halo: false });
         }
         let ground_at = |s: f64| grounds.first().and_then(|g| nearest(&g.1, s));
         for s in &stations {
@@ -458,12 +458,12 @@ fn build_profile_view(e: &Element, ctx: &Ctx) -> Result<Built, String> {
             ];
             for (i, t) in cells.iter().enumerate() {
                 let yb = y0 - row * (i + 1) as f64;
-                sc.texts.push(SText { at: [px(*s), yb + row / 2.0], text: t.clone(), rgb: C_TEXT, height_mm: row * 0.6, px: 0.0, anchor: 0 });
+                sc.texts.push(SText { at: [px(*s), yb + row / 2.0], text: t.clone(), rgb: C_TEXT, height_mm: row * 0.6, px: 0.0, anchor: 0, prio: 4, halo: false });
             }
         }
         sc.lines.push(SLine::new(vec![[x0, y0 - row * 4.0], [x1, y0 - row * 4.0]], C_GRID, 1.0));
     }
-    sc.texts.push(SText { at: [x0, y1 + (zstep * ex * 1000.0) * 0.4], text: format!("{}  datum {datum:.2} m, vertical exaggeration {ex}:1", d.alignment), rgb: C_TEXT, height_mm: text_h * 1.2, px: 0.0, anchor: 1 });
+    sc.texts.push(SText { at: [x0, y1 + (zstep * ex * 1000.0) * 0.4], text: format!("{}  datum {datum:.2} m, vertical exaggeration {ex}:1", d.alignment), rgb: C_TEXT, height_mm: text_h * 1.2, px: 0.0, anchor: 1, prio: 5, halo: false });
     sc.derived.push(("Alignment".into(), d.alignment.clone()));
     sc.derived.push(("Datum (m)".into(), format!("{datum:.3}")));
     sc.derived.push(("Vertical exaggeration".into(), format!("{ex}")));

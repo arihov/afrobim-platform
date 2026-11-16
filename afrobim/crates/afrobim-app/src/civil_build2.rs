@@ -114,7 +114,7 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         let a = (v.x + l * s, v.y - l * c);
         let b = (v.x - r * s, v.y + r * c);
         sc.lines.push(SLine::new(vec![mm(a.0, a.1), mm(b.0, b.1)], [0xE0, 0xC0, 0x3B], 1.2));
-        sc.texts.push(SText { at: mm(a.0, a.1), text: v.label.clone(), rgb: [0xE0, 0xC0, 0x3B], height_mm: 0.0, px: 9.5, anchor: 3 });
+        sc.texts.push(SText { at: mm(a.0, a.1), text: v.label.clone(), rgb: [0xE0, 0xC0, 0x3B], height_mm: 0.0, px: 9.5, anchor: 3, prio: 3, halo: false });
     }
     // The section views as an array in the model, from the insertion point.
     let cols = d.columns.max(1);
@@ -154,10 +154,10 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         let frame = [[x0 * 1000.0, y0 * 1000.0], [(x0 + cell_w - 1.0) * 1000.0, y0 * 1000.0], [(x0 + cell_w - 1.0) * 1000.0, (y0 + cell_h - 0.5) * 1000.0], [x0 * 1000.0, (y0 + cell_h - 0.5) * 1000.0], [x0 * 1000.0, y0 * 1000.0]];
         sc.lines.push(SLine::new(frame.to_vec(), C_GRID, 0.8));
         sc.lines.push(SLine::new(vec![[px(0.0), py(zlo)], [px(0.0), py(zhi)]], C_GRID, 0.5));
-        sc.texts.push(SText { at: [(x0 + 1.0) * 1000.0, (y0 + cell_h - 1.2) * 1000.0], text: v.label.clone(), rgb: C_TEXT, height_mm: 0.0, px: 11.0, anchor: 1 });
+        sc.texts.push(SText { at: [(x0 + 1.0) * 1000.0, (y0 + cell_h - 1.2) * 1000.0], text: v.label.clone(), rgb: C_TEXT, height_mm: 0.0, px: 11.0, anchor: 1, prio: 4, halo: false });
         let mut z = (zlo / step).ceil() * step;
         while z <= zhi + 1e-9 {
-            sc.texts.push(SText { at: [(x0 + 0.5) * 1000.0, py(z)], text: format!("{z:.1}"), rgb: C_TEXT, height_mm: 0.0, px: 8.5, anchor: 1 });
+            sc.texts.push(SText { at: [(x0 + 0.5) * 1000.0, py(z)], text: format!("{z:.1}"), rgb: C_TEXT, height_mm: 0.0, px: 8.5, anchor: 1, prio: 2, halo: false });
             z += step;
         }
         for gl in &v.ground_lines {

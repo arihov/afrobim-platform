@@ -45,6 +45,10 @@ pub struct SText {
     pub px: f32,
     /// 0 centre, 1 left, 2 right (of the point), 3 above, 4 below.
     pub anchor: u8,
+    /// Which label wins when two would overlap: the higher number is drawn, the other is skipped.
+    pub prio: u8,
+    /// A background behind the text so that it reads over linework.
+    pub halo: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -88,7 +92,7 @@ fn text_anchor(a: u8) -> Align2 {
 
 impl Scene {
     /// Paints what is in `rect`. `ink` is the canvas ink, used for the point markers.
-    pub fn paint(&self, painter: &Painter, view: &ViewTransform, rect: Rect, ink: Color32, selected: bool) {
+    pub fn paint(&self, painter: &Painter, labels: &mut Labels, view: &ViewTransform, rect: Rect, ink: Color32, selected: bool) {
         let lo = view.to_world(Pt::new(rect.left() as f64, rect.bottom() as f64));
         let hi = view.to_world(Pt::new(rect.right() as f64, rect.top() as f64));
         let (x0, y0, x1, y1) = (lo.x.min(hi.x), lo.y.min(hi.y), lo.x.max(hi.x), lo.y.max(hi.y));
@@ -128,14 +132,14 @@ impl Scene {
             } else {
                 t.px
             };
-            painter.text(to(t.at), text_anchor(t.anchor), &t.text, FontId::proportional(size), col(t.rgb));
+            labels.add(Label { pos: to(t.at), anchor: text_anchor(t.anchor), text: t.text.clone(), size, colour: col(t.rgb), prio: t.prio, halo: t.halo });
         }
         if !self.points.is_empty() {
-            self.paint_points(painter, view, (x0, y0, x1, y1), rect, ink, selected);
+            self.paint_points(painter, labels, view, (x0, y0, x1, y1), rect, ink, selected);
         }
     }
 
-    fn paint_points(&self, painter: &Painter, view: &ViewTransform, (x0, y0, x1, y1): (f64, f64, f64, f64), rect: Rect, ink: Color32, selected: bool) {
+    fn paint_points(&self, painter: &Painter, labels: &mut Labels, view: &ViewTransform, (x0, y0, x1, y1): (f64, f64, f64, f64), rect: Rect, ink: Color32, selected: bool) {
         let visible: Vec<&PMark> = self.points.iter().filter(|p| p.at[0] >= x0 && p.at[0] <= x1 && p.at[1] >= y0 && p.at[1] <= y1).collect();
         // More than this many markers cannot be told apart: draw an even share of them.
         const MARK_CAP: usize = 20_000;
@@ -170,7 +174,6 @@ impl Scene {
         if lines == 0 {
             return;
         }
-        let font = FontId::proportional(10.5);
         let weak = colour.gamma_multiply(0.8);
         for p in &visible {
             let s = view.to_screen(Pt::new(p.at[0], p.at[1]));
@@ -190,7 +193,7 @@ impl Scene {
             let shown = parts.len().min(lines);
             let mut y = c.y - 5.5 * shown as f32;
             for (t, strong) in parts.into_iter().take(shown) {
-                painter.text(pos2(c.x, y), Align2::LEFT_CENTER, t, font.clone(), if strong { colour } else { weak });
+                labels.add(Label { pos: pos2(c.x, y), anchor: Align2::LEFT_CENTER, text: t, size: 10.5, colour: if strong { colour } else { weak }, prio: if strong { 2 } else { 1 }, halo: false });
                 y += 11.0;
             }
         }
@@ -208,4 +211,66 @@ fn poly_crosses(poly: &[[f64; 2]], x0: f64, y0: f64, x1: f64, y1: f64) -> bool {
         d = d.max(p[1]);
     }
     c >= x0 && a <= x1 && d >= y0 && b <= y1
+}
+
+/// One label waiting to be placed.
+pub struct Label {
+    pub pos: egui::Pos2,
+    pub anchor: Align2,
+    pub text: String,
+    pub size: f32,
+    pub colour: Color32,
+    pub prio: u8,
+    pub halo: bool,
+}
+
+/// The labels of a frame, collected from every object and placed together: by priority, and a
+/// label that would overlap one already placed is skipped, so that text never piles up.
+#[derive(Default)]
+pub struct Labels {
+    items: Vec<Label>,
+}
+
+impl Labels {
+    pub fn add(&mut self, l: Label) {
+        self.items.push(l);
+    }
+
+    /// Places and paints the labels. `dark` picks the colour of the halo behind the ones that have one.
+    pub fn flush(&mut self, painter: &Painter, dark: bool) {
+        use std::collections::HashMap;
+        let mut items = std::mem::take(&mut self.items);
+        // Stable: among equal priorities the first added (nearer the start of the drawing order) wins.
+        items.sort_by_key(|l| std::cmp::Reverse(l.prio));
+        const CELL: f32 = 96.0;
+        let mut grid: HashMap<(i32, i32), Vec<Rect>> = HashMap::new();
+        let halo_fill = if dark { Color32::from_rgba_unmultiplied(18, 22, 28, 215) } else { Color32::from_rgba_unmultiplied(255, 255, 255, 220) };
+        for l in items {
+            let galley = painter.layout_no_wrap(l.text, FontId::proportional(l.size), l.colour);
+            let rect = l.anchor.anchor_size(l.pos, galley.size());
+            let probe = rect.expand(1.5);
+            let (cx0, cy0, cx1, cy1) = ((probe.left() / CELL).floor() as i32, (probe.top() / CELL).floor() as i32, (probe.right() / CELL).floor() as i32, (probe.bottom() / CELL).floor() as i32);
+            let mut clash = false;
+            'scan: for cx in cx0..=cx1 {
+                for cy in cy0..=cy1 {
+                    if grid.get(&(cx, cy)).is_some_and(|v| v.iter().any(|r| r.intersects(probe))) {
+                        clash = true;
+                        break 'scan;
+                    }
+                }
+            }
+            if clash {
+                continue;
+            }
+            for cx in cx0..=cx1 {
+                for cy in cy0..=cy1 {
+                    grid.entry((cx, cy)).or_default().push(rect);
+                }
+            }
+            if l.halo {
+                painter.rect_filled(rect.expand2(egui::vec2(3.0, 1.0)), 3.0, halo_fill);
+            }
+            painter.galley(rect.min, galley, l.colour);
+        }
+    }
 }
