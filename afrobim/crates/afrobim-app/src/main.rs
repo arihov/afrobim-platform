@@ -13,6 +13,7 @@ mod u4_tests;
 #[cfg(test)]
 mod u4_dialogs_test;
 mod civil_assembly;
+mod civil_targets;
 mod civil_cmds;
 mod civil_corridor;
 mod civil_demo;
