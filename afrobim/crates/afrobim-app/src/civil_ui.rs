@@ -8,6 +8,7 @@ pub struct CivilUi {
     pub tree: crate::civil_tree::TreeState,
     pub points: crate::civil_points::PointsUi,
     pub surf: crate::civil_surface::SurfaceUi,
+    pub prof: crate::civil_profile::ProfileUi,
     /// The next click in the model is a point for this dialog.
     pub pick: Option<PickFor>,
     /// Temporary drawing in the model (a flow path): not saved.
@@ -27,6 +28,7 @@ impl AfroBimApp {
         match cv {
             Cv::Toolspace => self.show_left = !self.show_left,
             Cv::CivilDemo => self.civil_demo(),
+            Cv::GroundProfile | Cv::ProfileView => self.civil_profile_cmd(cv),
             Cv::SurfaceNew | Cv::SurfaceDef | Cv::SurfaceStyle | Cv::SpotElev | Cv::FlowPath | Cv::Volumes => self.civil_surface_cmd(cv),
             Cv::Points | Cv::PointCreate | Cv::PointTable | Cv::PointGroups | Cv::DescKeys | Cv::PointExport | Cv::Cogo | Cv::Traverse => self.civil_points_cmd(cv),
             other => self.status = format!("{other:?} is not available yet."),
@@ -36,5 +38,6 @@ impl AfroBimApp {
     pub(crate) fn civil_windows(&mut self, ctx: &egui::Context) {
         self.civil_points_windows(ctx);
         self.civil_surface_windows(ctx);
+        self.civil_profile_windows(ctx);
     }
 }

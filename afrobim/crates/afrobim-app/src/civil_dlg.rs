@@ -73,3 +73,8 @@ pub fn num_opt_rule(ui: &mut Ui, text: &mut String, unit: &str, rule: &NumRule) 
         Check::Bad(_) => Err(()),
     }
 }
+
+/// The value of a field's text under a rule, without drawing the field.
+pub fn num_rule_peek(text: &str, rule: &NumRule) -> Option<f64> {
+    ui_kit::check_number(text, rule).value()
+}

@@ -11,6 +11,7 @@ mod civil_dlg;
 mod civil_ifc;
 mod civil_landxml;
 mod civil_points;
+mod civil_profile;
 mod civil_surface;
 mod civil_scene;
 mod civil_tree;

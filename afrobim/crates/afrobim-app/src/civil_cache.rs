@@ -147,11 +147,31 @@ impl crate::app::AfroBimApp {
         Some((derived, notes))
     }
 
+    /// Sizes an element to what it draws, once that is known (a profile view, a corridor, sections).
+    fn fit_bounds(&mut self, id: ElementId, b: &Built) {
+        let Some(cat) = self.doc.find(id).map(|e| e.category.clone()) else { return };
+        let bounds = match cat.as_str() {
+            PROFILE_VIEW | SAMPLES | CORRIDOR => civil_build::scene_bounds(&b.scene),
+            SURFACE => b.tin.as_ref().map(|t| {
+                let x = t.bounds();
+                civil::Bounds { min_e: x.min_x, min_n: x.min_y, max_e: x.max_x, max_n: x.max_y }
+            }),
+            _ => None,
+        };
+        if let Some(bounds) = bounds {
+            // The 3D mesh is in the frame of the element's origin: a moved origin means a rebuild.
+            if civil::set_bounds(&mut self.doc, id, bounds) && (cat == SURFACE || cat == CORRIDOR) {
+                civil::touch(&mut self.doc, id);
+            }
+        }
+    }
+
     pub(crate) fn civil_tick(&mut self) {
         if let Some(polled) = crate::background::take(&mut self.bg.civil, &self.doc) {
             match polled {
                 Poll::Done(out) => {
                     for (id, key, b) in out {
+                        self.fit_bounds(id, &b);
                         self.civil.built.insert(id, (key, b));
                         self.civil.applied += 1;
                     }
@@ -178,6 +198,7 @@ impl crate::app::AfroBimApp {
         }
         let tins: HashMap<u64, Arc<afrobim_corridor::Tin>> = self.civil.built.iter().filter_map(|(id, (_, b))| b.tin.clone().map(|t| (id.0, t))).collect();
         for (id, key, b) in build_all(snapshot(&self.doc), tins, stale, dep) {
+            self.fit_bounds(id, &b);
             self.civil.built.insert(id, (key, b));
             self.civil.applied += 1;
         }

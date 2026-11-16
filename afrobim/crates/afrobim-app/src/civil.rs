@@ -247,6 +247,11 @@ pub fn get<T: serde::de::DeserializeOwned>(doc: &Document, id: ElementId, catego
     serde_json::from_value(e.data.clone()).ok()
 }
 
+/// The profile view data of an element (the category is checked).
+pub fn get_profile_view(doc: &Document, id: ElementId) -> Option<ProfileViewData> {
+    get(doc, id, PROFILE_VIEW)
+}
+
 /// Replaces the element's data, moves it to the new bounds (source coordinates) and bumps its
 /// revision so the scene is rebuilt.
 pub fn set(doc: &mut Document, id: ElementId, data: serde_json::Value, bounds: Option<Bounds>) {
@@ -358,4 +363,25 @@ pub fn element_bounds_m(e: &Element) -> Bounds {
 /// at the origin and do not count when the view is fitted to the drawing).
 pub fn has_plan_position(category: &str) -> bool {
     category != ASSEMBLY && category != PROFILE
+}
+
+/// Moves and sizes an element to bounds (source coordinates) without changing its revision: used
+/// when the drawn extent of an object is known only after its scene is built.
+pub fn set_bounds(doc: &mut Document, id: ElementId, b: Bounds) -> bool {
+    if let Some(e) = doc.find_mut(id) {
+        let at = afrobim_kernel::model_point_from_crs(b.min_e, b.min_n);
+        let (w, h) = (((b.max_e - b.min_e) * 1000.0).max(1.0), ((b.max_n - b.min_n) * 1000.0).max(1.0));
+        if (e.origin.x - at.x).abs() < 1.0 && (e.origin.y - at.y).abs() < 1.0 && (e.width - w).abs() < 1.0 && (e.height - h).abs() < 1.0 {
+            return false;
+        }
+        e.origin = at;
+        e.width = w;
+        e.height = h;
+        if let Some(s) = &mut e.site {
+            s.x = at.x;
+            s.y = at.y;
+        }
+        return true;
+    }
+    false
 }
