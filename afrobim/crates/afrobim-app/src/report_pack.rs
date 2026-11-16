@@ -826,7 +826,7 @@ pub fn summary_line(pack: &Pack) -> String {
 
 // ─── the window ─────────────────────────────────────────────────────────────────────────
 
-use egui::{Color32, RichText};
+use egui::{RichText};
 
 use crate::app::AfroBimApp;
 

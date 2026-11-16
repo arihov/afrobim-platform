@@ -7,10 +7,10 @@ use afrobim_kernel::{
     CanvasController, CanvasEvent, Document, Element, ElementId, Generated, ModuleRegistry, Pt, SelectMode, Severity,
     UndoHistory, ViewTransform, FILE_EXTENSION,
 };
-use egui::{Color32, Key, KeyboardShortcut, Modifiers, PointerButton, RichText, Sense};
+use egui::{Key, KeyboardShortcut, Modifiers, PointerButton, RichText, Sense};
 
 use crate::commands::{self, Action, COMMANDS};
-use crate::icons::{self, Icon};
+use crate::icons::{self};
 use crate::render::{ElementMesh, Representation};
 use crate::{alignment_glue, markings_glue, modules_glue, road_dialogs, road_glue, signs_glue, supports_glue, Options};
 use crate::{check_ui::CheckUi, construction_ui::ConstructionUi, coordination_ui::CoordUi, cost_ui::CostUi, schedule_ui::SchedUi};
@@ -1484,25 +1484,6 @@ impl AfroBimApp {
         }
     }
 
-    /// Imports the TIN surfaces of a LandXML file as ground surface elements.
-    pub(crate) fn import_surface(&mut self, ctx: &egui::Context, path: PathBuf) {
-        match road_glue::import_surfaces(&mut self.doc, &path) {
-            Ok((added, notes)) => {
-                self.sync_generated();
-                self.status = format!("Imported {added} surface(s) from {}.", path.display());
-                for note in notes.iter().take(6) {
-                    self.log(format!("LandXML: {note}"));
-                }
-                if !notes.is_empty() {
-                    self.status.push_str(&format!(" {} note(s) in the command history.", notes.len()));
-                }
-                self.fitted_3d = false;
-                self.schedule_commit(ctx);
-            }
-            Err(e) => self.status = format!("Could not import {}: {e}", path.display()),
-        }
-    }
-
     /// The primary selection when it is a sign.
     fn selected_sign(&self) -> Option<ElementId> {
         self.doc.primary().filter(|id| self.doc.find(*id).is_some_and(|e| e.category == signs_glue::CATEGORY))
@@ -1714,20 +1695,21 @@ impl AfroBimApp {
     fn status_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
                 let w = self.ctl.cursor_world();
                 let units = crate::anno_ui::units_of(&self.doc);
-                ui.add_sized([210.0, 16.0], egui::Label::new(RichText::new(format!("{} , {}", units.length(w.x), units.length_u(w.y))).monospace()));
+                ui.add_sized([210.0, 16.0], egui::Label::new(RichText::new(format!("{} , {}", units.length(w.x), units.length_u(w.y))).monospace().size(12.0)));
                 ui.separator();
-                if ui.selectable_label(self.grid_on, "GRID").on_hover_text("Grid display (F7)").clicked() {
+                if ui.selectable_label(self.grid_on, RichText::new("GRID").size(11.5).strong()).on_hover_text("Grid display (F7)").clicked() {
                     self.grid_on = !self.grid_on;
                 }
-                if ui.selectable_label(self.ctl.snap_on, "SNAP").on_hover_text("Snap picked points to a 50 mm grid (F9)").clicked() {
+                if ui.selectable_label(self.ctl.snap_on, RichText::new("SNAP").size(11.5).strong()).on_hover_text("Snap picked points to a 50 mm grid (F9)").clicked() {
                     self.ctl.snap_on = !self.ctl.snap_on;
                 }
-                if ui.selectable_label(self.ctl.ortho_on, "ORTHO").on_hover_text("Hold moves to the X or Y axis (F8)").clicked() {
+                if ui.selectable_label(self.ctl.ortho_on, RichText::new("ORTHO").size(11.5).strong()).on_hover_text("Hold moves to the X or Y axis (F8)").clicked() {
                     self.ctl.ortho_on = !self.ctl.ortho_on;
                 }
-                if ui.selectable_label(self.anno.osnap.on, "OSNAP").on_hover_text("Object snap for annotation commands, MOVE, COPY, grips and placing a sign (F3). OSNAPSETTINGS says which modes and what provides them").clicked() {
+                if ui.selectable_label(self.anno.osnap.on, RichText::new("OSNAP").size(11.5).strong()).on_hover_text("Object snap for annotation commands, MOVE, COPY, grips and placing a sign (F3). OSNAPSETTINGS says which modes and what provides them").clicked() {
                     self.anno.osnap.on = !self.anno.osnap.on;
                 }
                 if crate::anno_ui::scale_control(ui, &mut self.doc) {
@@ -2921,16 +2903,17 @@ impl eframe::App for AfroBimApp {
         for (k, part) in spec.split(';').enumerate() {
             let start = 4 + 4 * k as u32;
             let hover = part.trim().ends_with('h');
-            let nums: Vec<f32> = part.trim().trim_end_matches('h').split(',').filter_map(|v| v.trim().parse().ok()).collect();
+            let button = if part.trim().ends_with('r') { egui::PointerButton::Secondary } else { egui::PointerButton::Primary };
+            let nums: Vec<f32> = part.trim().trim_end_matches(['h', 'r']).split(',').filter_map(|v| v.trim().parse().ok()).collect();
             let [x, y] = nums[..] else { continue };
             let pos = egui::pos2(x, y);
             if f == start {
                 raw_input.events.push(egui::Event::PointerMoved(pos));
                 if !hover {
-                    raw_input.events.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() });
+                    raw_input.events.push(egui::Event::PointerButton { pos, button, pressed: true, modifiers: Default::default() });
                 }
             } else if f == start + 1 && !hover {
-                raw_input.events.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() });
+                raw_input.events.push(egui::Event::PointerButton { pos, button, pressed: false, modifiers: Default::default() });
             }
         }
     }

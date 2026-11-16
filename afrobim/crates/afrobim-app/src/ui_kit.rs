@@ -1,3 +1,4 @@
+#![allow(dead_code)] // the kit is the public API of the dialogs: not every piece is used yet
 //! The dialog kit: shared building blocks so that every window looks and behaves the same.
 //!
 //! A dialog is `Dialog::new(title, icon).subtitle(..).help(..).width(..).show(ctx, body, footer)`:

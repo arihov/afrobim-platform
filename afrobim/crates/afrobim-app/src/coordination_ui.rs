@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 
 use afrobim_coordination::{Clash, ClashKind, ClashTest, Coordination, Scene, Selection, Status};
 use afrobim_kernel::{Document, ElementId};
-use egui::{Color32, RichText};
+use egui::{RichText};
 
 use crate::app::AfroBimApp;
 use crate::coordination_glue as glue;

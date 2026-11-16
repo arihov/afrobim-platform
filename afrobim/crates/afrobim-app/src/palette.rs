@@ -145,7 +145,7 @@ impl AfroBimApp {
                         }
                     }
                 });
-                ui.add_space(4.0);
+                ui.add_space(8.0);
                 ui.label(RichText::new("Up and Down to choose  ·  Enter to run  ·  Esc to close").size(theme::FONT_SMALL).color(t.text_muted));
             });
         });

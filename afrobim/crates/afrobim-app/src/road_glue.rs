@@ -663,12 +663,6 @@ impl DesignForm {
 
 // ─── ground surfaces ────────────────────────────────────────────────────────────────────
 
-/// Imports the TIN surfaces of a LandXML file. Returns how many were added and the reader's notes.
-pub fn import_surfaces(doc: &mut Document, path: &std::path::Path) -> Result<(usize, Vec<String>), String> {
-    let (ids, notes) = corridor::import_landxml_surfaces(doc, path)?;
-    Ok((ids.len(), notes))
-}
-
 // ─── corridors ──────────────────────────────────────────────────────────────────────────
 
 /// What the "Corridor" dialog collects. The template is the same both sides of the centreline.

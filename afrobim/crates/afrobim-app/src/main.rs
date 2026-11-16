@@ -198,7 +198,7 @@ pub struct Options {
     pub scale: Option<f32>,
     /// Workspace to start in, e.g. `"Road Design"`.
     pub workspace: Option<String>,
-    /// Screenshot aid: pointer actions at start-up, `x,y` to click and `x,yh` to hover, separated
+    /// Screenshot aid: pointer actions at start-up, `x,y` to click, `x,yh` to hover and `x,yr` to right-click, separated
     /// by semicolons, in points (to open a menu or show a tooltip without a pointer).
     pub click: Option<String>,
     /// Open the LandXML import dialog on this file at start-up (instead of importing at once).

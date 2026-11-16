@@ -98,6 +98,7 @@ impl Theme {
 #[derive(Clone, Copy, Debug)]
 pub struct Tokens {
     pub dark: bool,
+    #[allow(dead_code)]
     pub glass: bool,
     /// The opaque base behind everything (the window clear colour, and the top of the gradient).
     pub surface: Color32,
@@ -248,6 +249,7 @@ pub fn tokens_ui(ui: &Ui) -> Tokens {
 }
 
 /// The theme in force.
+#[allow(dead_code)]
 pub fn current(ctx: &Context) -> Theme {
     ctx.data(|d| d.get_temp::<Theme>(Id::new(THEME_ID))).unwrap_or_default()
 }
@@ -421,6 +423,7 @@ pub fn over(fg: Color32, bg: Color32) -> Color32 {
     Color32::from_rgb(mix(fr, bg.r()), mix(fg_, bg.g()), mix(fb, bg.b()))
 }
 
+#[allow(dead_code)]
 fn luminance(c: Color32) -> f64 {
     let lin = |v: u8| {
         let s = v as f64 / 255.0;
@@ -434,6 +437,7 @@ fn luminance(c: Color32) -> f64 {
 }
 
 /// The WCAG contrast ratio of two opaque colours, 1 to 21.
+#[allow(dead_code)] // used by the tests, and by any code that checks a colour pair
 pub fn contrast(a: Color32, b: Color32) -> f64 {
     let (la, lb) = (luminance(a), luminance(b));
     let (hi, lo) = if la > lb { (la, lb) } else { (lb, la) };

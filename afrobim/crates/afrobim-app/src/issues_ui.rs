@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 use afrobim_coordination::{export_bcf, group_clashes, import_bcf, values, BcfOptions, ClashGroup, ElementRef, GroupOptions, ImportOptions, Issue};
 use afrobim_kernel::{ElementId, SelectMode};
-use egui::{Color32, RichText};
+use egui::{RichText};
 
 use crate::app::AfroBimApp;
 use crate::coordination_glue as glue;

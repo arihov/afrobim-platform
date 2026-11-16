@@ -306,6 +306,7 @@ fn layer_list(ui: &mut Ui, salt: &str, rows: &mut Vec<LayerRow>) {
 
 /// What the "fill from MoWT class" button read, with where each figure is printed.
 #[derive(Clone)]
+#[allow(dead_code)] // the citation is shown by the row itself; the caller may want it too
 struct MowtFill {
     lane_width_m: f64,
     carriageway_width_m: f64,

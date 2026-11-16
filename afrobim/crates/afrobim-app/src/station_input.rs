@@ -8,7 +8,7 @@
 
 use afrobim_alignment::Alignment;
 use afrobim_kernel::{Document, ElementId};
-use egui::{Color32, RichText, Ui};
+use egui::{RichText, Ui};
 
 use crate::alignment_glue;
 

@@ -274,6 +274,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
 }
 
 /// The titles of the panels of a tab, for the workspaces to name them.
+#[allow(dead_code)] // used by the workspace tests
 pub fn panel_titles(tab: Tab) -> Vec<&'static str> {
     if tab == Tab::Signs {
         return vec!["Direction signs", "Map-type and temporary", "Catalogue", "Visibility", STANDARD.title, "Fabrication"];

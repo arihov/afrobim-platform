@@ -205,6 +205,7 @@ pub fn by_name(name: &str) -> &'static str {
 }
 
 /// Icons for the interface itself (menus, the footer, callouts), not for a command.
+#[allow(dead_code)]
 pub mod ui {
     use egui_phosphor::regular as ph;
     pub const INFO: &str = ph::INFO;

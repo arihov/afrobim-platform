@@ -209,6 +209,7 @@ impl Workspace {
     }
 
     /// Whether a panel of a tab shows in this workspace.
+    #[allow(dead_code)]
     pub fn shows_panel(&self, tab: Tab, title: &str) -> bool {
         self.visible_tabs().iter().find(|t| t.tab == tab).is_some_and(|t| t.allows(title))
     }
