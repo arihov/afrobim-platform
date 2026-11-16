@@ -273,6 +273,14 @@ fn panels(tab: Tab) -> &'static [Panel] {
     }
 }
 
+/// The titles of the panels of a tab, for the workspaces to name them.
+pub fn panel_titles(tab: Tab) -> Vec<&'static str> {
+    if tab == Tab::Signs {
+        return vec!["Direction signs", "Map-type and temporary", "Catalogue", "Visibility", STANDARD.title, "Fabrication"];
+    }
+    panels(tab).iter().map(|p| p.title).collect()
+}
+
 /// The tab with this name, ignoring case.
 pub fn tab_named(name: &str) -> Option<Tab> {
     TABS.iter().find(|(_, n)| n.eq_ignore_ascii_case(name)).map(|(t, _)| *t)
@@ -295,6 +303,7 @@ pub fn shortcut(action: Action) -> &'static str {
         Action::ToggleOrtho => "F8",
         Action::ToggleSnap => "F9",
         Action::ToggleOsnap => "F3",
+        Action::Palette => "Ctrl+K",
         _ => "",
     }
 }
@@ -473,19 +482,41 @@ fn items(ui: &mut Ui, list: &[Item], pick: &mut Option<Action>, is_on: &dyn Fn(A
     }
 }
 
-/// Draws the tab strip and the active tab's panels. `is_on` tells which toggles are active.
-/// Returns the action of the button that was clicked, if any.
-pub fn show(ui: &mut Ui, tab: &mut Tab, standard: &str, signs_ready: bool, is_on: &dyn Fn(Action) -> bool) -> Option<Action> {
+/// Draws the workspace switcher, the tab strip and the active tab's panels. `is_on` tells which
+/// toggles are active. Returns the action of the button that was clicked, if any; `workspace` is
+/// changed when another workspace is picked (the caller then applies its panel settings).
+pub fn show(ui: &mut Ui, tab: &mut Tab, standard: &str, signs_ready: bool, is_on: &dyn Fn(Action) -> bool, workspace: &mut usize) -> (Option<Action>, bool) {
     let mut pick = None;
+    let ws = &crate::workspace::WORKSPACES[(*workspace).min(crate::workspace::WORKSPACES.len() - 1)];
+    let visible = ws.visible_tabs();
+    if !visible.iter().any(|v| v.tab == *tab) {
+        *tab = Tab::Home;
+    }
+    let t = crate::theme::tokens_ui(ui);
+    let mut switched = false;
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 2.0;
-        for (t, name) in TABS {
-            if ui.selectable_label(*tab == t, RichText::new(name).size(12.5)).clicked() {
-                *tab = t;
+        ui.spacing_mut().item_spacing.x = 4.0;
+        switched = crate::workspace::switcher(ui, workspace);
+        ui.add_space(6.0);
+        for v in &visible {
+            let name = TABS.iter().find(|(x, _)| *x == v.tab).map(|(_, n)| *n).unwrap_or("");
+            let on = *tab == v.tab;
+            let r = ui.add(egui::Label::new(RichText::new(name).size(12.5).color(if on { t.accent_text } else { t.text })).selectable(false).sense(Sense::click()));
+            let r = r.on_hover_cursor(egui::CursorIcon::PointingHand);
+            let line = Rect::from_min_max(pos2(r.rect.left() - 4.0, r.rect.bottom() + 1.0), pos2(r.rect.right() + 4.0, r.rect.bottom() + 3.0));
+            if on {
+                ui.painter().rect_filled(line, 1.0, t.accent_text);
+            } else if r.hovered() {
+                ui.painter().rect_filled(line, 1.0, t.border);
             }
+            if r.clicked() {
+                *tab = v.tab;
+            }
+            ui.add_space(6.0);
         }
     });
-    ui.add_space(1.0);
+    ui.add_space(3.0);
+    let allowed = visible.iter().find(|v| v.tab == *tab).cloned();
     egui::ScrollArea::horizontal().id_salt("ribbon").auto_shrink([false, true]).max_height(BIG.y + 18.0).show(ui, |ui| {
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
@@ -507,13 +538,13 @@ pub fn show(ui: &mut Ui, tab: &mut Tab, standard: &str, signs_ready: bool, is_on
                 panel(ui, STANDARD.title, &mut pick, is_on, |ui, pick, on| items(ui, STANDARD.items, pick, on));
                 panel(ui, "Fabrication", &mut pick, is_on, |ui, pick, on| items(ui, &[Big(Icon::Quantities, "Quantities", "QUANTITIES"), Big(Icon::Sheets, "Fabrication sheets", "SHEETS")], pick, on));
             } else {
-                for p in panels(*tab) {
+                for p in panels(*tab).iter().filter(|p| allowed.as_ref().is_none_or(|a| a.allows(p.title))) {
                     panel(ui, p.title, &mut pick, is_on, |ui, pick, on| items(ui, p.items, pick, on));
                 }
             }
         });
     });
-    pick
+    (pick, switched)
 }
 
 #[cfg(test)]

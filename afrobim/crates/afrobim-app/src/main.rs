@@ -71,8 +71,11 @@ mod u2_units_tests;
 mod u2_ifc_tests;
 #[cfg(test)]
 mod u2_tests;
+mod menus;
+mod palette;
 mod ui_kit;
 mod underlay;
+mod workspace;
 mod view3d;
 mod visibility_ui;
 mod win;
@@ -194,6 +197,9 @@ pub struct Options {
     pub scale: Option<f32>,
     /// Workspace to start in, e.g. `"Road Design"`.
     pub workspace: Option<String>,
+    /// Screenshot aid: pointer actions at start-up, `x,y` to click and `x,yh` to hover, separated
+    /// by semicolons, in points (to open a menu or show a tooltip without a pointer).
+    pub click: Option<String>,
 }
 
 fn parse_args() -> Options {
@@ -258,6 +264,7 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--theme" => o.theme = args.next(),
             "--scale" => o.scale = args.next().and_then(|v| v.parse().ok()),
             "--workspace" => o.workspace = args.next(),
+            "--click" => o.click = args.next(),
             "--export-pack" => o.export_pack = args.next().map(PathBuf::from),
             "--sheet" => o.sheet = args.next().and_then(|v| v.parse().ok()),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),

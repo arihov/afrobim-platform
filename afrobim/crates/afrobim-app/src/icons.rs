@@ -377,3 +377,17 @@ pub fn palette_button(ui: &mut Ui, icon: Icon, label: &str, tip: &str) -> Respon
     );
     response.on_hover_text(tip)
 }
+
+/// An icon-font glyph + caption row button for the tool palette.
+pub fn palette_glyph(ui: &mut Ui, glyph: &str, label: &str, tip: &str) -> Response {
+    let width = ui.available_width();
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 26.0), Sense::click());
+    let visuals = ui.style().interact(&response);
+    if response.hovered() || response.is_pointer_button_down_on() {
+        ui.painter().rect_filled(rect, crate::theme::RADIUS_CONTROL as f32, visuals.bg_fill);
+    }
+    let colour = if ui.is_enabled() { ui.visuals().text_color() } else { ui.visuals().weak_text_color() };
+    ui.painter().text(pos2(rect.left() + 16.0, rect.center().y), egui::Align2::CENTER_CENTER, glyph, crate::theme::icon_font(16.0), colour);
+    ui.painter().text(pos2(rect.left() + 32.0, rect.center().y), egui::Align2::LEFT_CENTER, label, egui::FontId::proportional(13.0), colour);
+    response.on_hover_text(tip)
+}

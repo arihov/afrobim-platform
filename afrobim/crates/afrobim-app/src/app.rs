@@ -128,8 +128,13 @@ pub struct AfroBimApp {
     pub(crate) grid_spacing: f64,
     pub(crate) dark_canvas: bool,
     pub(crate) theme: crate::theme::Theme,
+    pub(crate) workspace: usize,
+    pub(crate) show_left: bool,
+    pub(crate) show_right: bool,
     pub(crate) appearance_open: bool,
     pub(crate) palette_open: bool,
+    hook_frames: u32,
+    pub(crate) palette: crate::palette::PaletteState,
     pub(crate) prefs: crate::prefs::Prefs,
     pub(crate) rep: Representation,
     pub(crate) show_labels: bool,
@@ -161,6 +166,7 @@ impl AfroBimApp {
             theme.scale = s.clamp(0.7, 2.0);
         }
         prefs.set_theme(&theme);
+        let ws_index = options.workspace.as_deref().and_then(crate::workspace::index_of).or_else(|| crate::workspace::index_of(&prefs.workspace)).unwrap_or(0);
         crate::win::load_positions(prefs.window_pos.clone());
         crate::theme::install_fonts(&cc.egui_ctx);
         crate::theme::apply(&cc.egui_ctx, &theme);
@@ -234,8 +240,13 @@ impl AfroBimApp {
             grid_spacing: 100.0,
             dark_canvas: theme.is_dark(),
             theme,
+            workspace: ws_index,
+            show_left: crate::workspace::WORKSPACES[ws_index].show_left,
+            show_right: crate::workspace::WORKSPACES[ws_index].show_right,
             appearance_open: false,
             palette_open: false,
+            hook_frames: 0,
+            palette: Default::default(),
             prefs,
             rep: Representation::Real,
             show_labels: true,
@@ -651,6 +662,29 @@ impl AfroBimApp {
         self.save_prefs();
     }
 
+    /// Switches workspace: the ribbon tabs and palettes it shows and its panel visibility.
+    pub(crate) fn set_workspace(&mut self, index: usize) {
+        let index = index.min(crate::workspace::WORKSPACES.len() - 1);
+        let ws = &crate::workspace::WORKSPACES[index];
+        self.workspace = index;
+        self.show_left = ws.show_left;
+        self.show_right = ws.show_right;
+        if !ws.shows_tab(self.ribbon_tab) {
+            self.ribbon_tab = crate::ribbon::Tab::Home;
+        }
+        self.prefs.workspace = ws.name.to_string();
+        self.save_prefs();
+        self.status = format!("Workspace: {}.", ws.name);
+    }
+
+    /// Puts a file at the top of the recent files.
+    fn remember_recent(&mut self, path: &std::path::Path) {
+        if self.options.screenshot.is_none() {
+            self.prefs.add_recent(&path.display().to_string());
+            self.save_prefs();
+        }
+    }
+
     /// Writes the preferences (never while taking a screenshot).
     pub(crate) fn save_prefs(&self) {
         if self.options.screenshot.is_none() {
@@ -749,6 +783,7 @@ impl AfroBimApp {
                 self.history.reset(self.doc.snapshot());
                 self.drops.saved = Some(crate::background::fingerprint(&self.doc));
                 self.status = format!("Opened {} ({} elements).", path.display(), self.doc.elements().len());
+                self.remember_recent(&path);
                 self.path = Some(path);
                 self.fitted = false;
             }
@@ -762,6 +797,7 @@ impl AfroBimApp {
             Ok(()) => {
                 self.status = format!("Saved {}.", path.display());
                 self.drops.saved = Some(crate::background::fingerprint(&self.doc));
+                self.remember_recent(&path);
                 self.path = Some(path);
             }
             Err(e) => self.status = format!("Could not save {}: {e}", path.display()),
@@ -1563,6 +1599,8 @@ impl AfroBimApp {
             (Modifiers::COMMAND, Key::O, Action::Open),
             (Modifiers::COMMAND | Modifiers::SHIFT, Key::S, Action::SaveAs),
             (Modifiers::COMMAND, Key::S, Action::Save),
+            (Modifiers::COMMAND, Key::K, Action::Palette),
+            (Modifiers::COMMAND | Modifiers::SHIFT, Key::P, Action::Palette),
             (Modifiers::COMMAND, Key::Y, Action::Redo),
             (Modifiers::NONE, Key::F7, Action::ToggleGrid),
             (Modifiers::NONE, Key::F8, Action::ToggleOrtho),
@@ -1617,205 +1655,6 @@ impl AfroBimApp {
 
     // ─── panels ──────────────────────────────────────────────────────────────
 
-    fn menu_bar(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("menu").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                let mut pick: Option<Action> = None;
-                let mut item = |ui: &mut egui::Ui, label: &str, shortcut: &str, a: Action| {
-                    if ui.add(egui::Button::new(label).shortcut_text(shortcut)).clicked() {
-                        pick = Some(a);
-                        ui.close_menu();
-                    }
-                };
-                ui.menu_button("File", |ui| {
-                    item(ui, "New", "Ctrl+N", Action::New);
-                    item(ui, "Open…", "Ctrl+O", Action::Open);
-                    item(ui, "Save", "Ctrl+S", Action::Save);
-                    item(ui, "Save as…", "Ctrl+Shift+S", Action::SaveAs);
-                    ui.separator();
-                    item(ui, "Import LandXML alignments…", "LANDXML", Action::ImportLandXml);
-                    ui.separator();
-                    item(ui, "Export DXF…", "DXFOUT", Action::ExportDxf);
-                    item(ui, "Export IFC 4.3…", "IFCOUT", Action::ExportIfc);
-                    item(ui, "Export quantities (BoQ)…", "QUANTITIES", Action::ExportQuantities);
-                    item(ui, "Export fabrication sheets…", "SHEETS", Action::ExportSheets);
-                    ui.separator();
-                    item(ui, "Quit", "", Action::Quit);
-                });
-                ui.menu_button("Edit", |ui| {
-                    item(ui, "Undo", "Ctrl+Z", Action::Undo);
-                    item(ui, "Redo", "Ctrl+Y", Action::Redo);
-                    ui.separator();
-                    item(ui, "Copy", "Ctrl+C", Action::CopyClip);
-                    item(ui, "Paste", "Ctrl+V", Action::PasteClip);
-                    item(ui, "Erase", "Del", Action::Erase);
-                    ui.separator();
-                    item(ui, "Select all", "Ctrl+A", Action::SelectAll);
-                });
-                ui.menu_button("View", |ui| {
-                    item(ui, "Zoom extents", "Z", Action::ZoomExtents);
-                    item(ui, "Zoom window", "ZW", Action::ZoomWindow);
-                    item(ui, "Zoom in", "", Action::ZoomIn);
-                    item(ui, "Zoom out", "", Action::ZoomOut);
-                    ui.separator();
-                    item(ui, "Grid", "F7", Action::ToggleGrid);
-                    item(ui, "Snap", "F9", Action::ToggleSnap);
-                    item(ui, "Ortho", "F8", Action::ToggleOrtho);
-                    ui.separator();
-                    item(ui, "2D model space / 3D view", "3D", Action::Toggle3d);
-                    ui.separator();
-                    item(ui, "Real (full colour)", "", Action::RepReal);
-                    item(ui, "Outlined", "", Action::RepOutlined);
-                    ui.separator();
-                    item(ui, "Dark / light model space", "", Action::ToggleCanvas);
-                    item(ui, "Dark / light theme", "", Action::ToggleTheme);
-                });
-                ui.menu_button("Insert", |ui| {
-                    for (i, t) in signs_glue::templates(&self.standard).iter().enumerate() {
-                        item(ui, t.label, t.command, Action::InsertSign(i as u8));
-                    }
-                    ui.separator();
-                    item(ui, "Standard signs…", "LIBRARY", Action::Library);
-                    ui.separator();
-                    item(ui, "Sign schedule from CSV…", "SIGNSCHEDULE", Action::SignSchedule);
-                    item(ui, "Export the sign schedule (CSV)…", "SIGNSCHEDULEOUT", Action::SignScheduleOut);
-                    item(ui, "Blank sign schedule template…", "SIGNSCHEDULETEMPLATE", Action::SignScheduleTemplate);
-                    ui.separator();
-                    item(ui, "Survey points (CSV)…", "SURVEY", Action::ImportSurvey);
-                    item(ui, "DXF underlay…", "UNDERLAY", Action::Underlay);
-                });
-                ui.menu_button("Annotate", |ui| {
-                    item(ui, "Show / hide element marks", "MARKS", Action::ToggleMarks);
-                    ui.separator();
-                    item(ui, "Text", "TEXT", Action::Anno(crate::anno_glue::Kind::Text));
-                    item(ui, "Multiline text", "MTEXT", Action::Anno(crate::anno_glue::Kind::MText));
-                    item(ui, "Edit text", "TEXTEDIT", Action::TextEdit);
-                    ui.separator();
-                    item(ui, "Dimension", "DIM", Action::Anno(crate::anno_glue::Kind::Dim));
-                    item(ui, "Linear", "DIMLINEAR", Action::Anno(crate::anno_glue::Kind::DimLinear));
-                    item(ui, "Aligned", "DIMALIGNED", Action::Anno(crate::anno_glue::Kind::DimAligned));
-                    item(ui, "Angular", "DIMANGULAR", Action::Anno(crate::anno_glue::Kind::DimAngular));
-                    item(ui, "Radius", "DIMRADIUS", Action::Anno(crate::anno_glue::Kind::DimRadius));
-                    item(ui, "Diameter", "DIMDIAMETER", Action::Anno(crate::anno_glue::Kind::DimDiameter));
-                    item(ui, "Arc length", "DIMARC", Action::Anno(crate::anno_glue::Kind::DimArc));
-                    item(ui, "Continue", "DIMCONTINUE", Action::Anno(crate::anno_glue::Kind::DimContinue));
-                    item(ui, "Baseline", "DIMBASELINE", Action::Anno(crate::anno_glue::Kind::DimBaseline));
-                    item(ui, "Station and offset", "DIMSTATION", Action::Anno(crate::anno_glue::Kind::DimStation));
-                    item(ui, "Level", "DIMLEVEL", Action::Anno(crate::anno_glue::Kind::DimLevel));
-                    ui.separator();
-                    item(ui, "Leader", "LEADER", Action::Anno(crate::anno_glue::Kind::Leader));
-                    item(ui, "Mark leader", "MLEADER", Action::Anno(crate::anno_glue::Kind::MLeader));
-                    ui.separator();
-                    item(ui, "Distance", "DIST", Action::Anno(crate::anno_glue::Kind::Dist));
-                    item(ui, "Angle", "MEASUREANGLE", Action::Anno(crate::anno_glue::Kind::MeasureAngle));
-                    item(ui, "Radius of three points", "MEASURERADIUS", Action::Anno(crate::anno_glue::Kind::MeasureRadius));
-                    item(ui, "Area", "AREA", Action::Anno(crate::anno_glue::Kind::Area));
-                    item(ui, "ID point", "ID", Action::Anno(crate::anno_glue::Kind::Id));
-                    item(ui, "Measure results…", "MEASURERESULTS", Action::MeasureResults);
-                    ui.separator();
-                    item(ui, "Text styles…", "STYLE", Action::TextStyles);
-                    item(ui, "Dimension styles…", "DIMSTYLE", Action::DimStyles);
-                    item(ui, "Object snap on / off", "OSNAP", Action::ToggleOsnap);
-                    item(ui, "Object snap settings…", "OSNAPSETTINGS", Action::OsnapSettings);
-                });
-                ui.menu_button("Format", |ui| {
-                    for (i, (id, label, _)) in signs_glue::STANDARDS.iter().enumerate() {
-                        let mark = if *id == self.standard { "● " } else { "   " };
-                        item(ui, &format!("{mark}{label}"), id, Action::Standard(i as u8));
-                    }
-                });
-                ui.menu_button("Modify", |ui| {
-                    item(ui, "Place the sign on an alignment…", "STATION", Action::PlaceOnAlignment);
-                    item(ui, "Add supports to the sign…", "SUPPORTS", Action::AddSupports);
-                    item(ui, "Design the sign's supports…", "DESIGN", Action::DesignSupports);
-                    item(ui, "Remove the sign's supports", "NOSUPPORTS", Action::RemoveSupports);
-                    ui.separator();
-                    item(ui, "Move", "M", Action::Move);
-                    item(ui, "Copy", "CO", Action::Copy);
-                    item(ui, "Erase", "E", Action::Erase);
-                    ui.separator();
-                    item(ui, "Arrange", "", Action::Arrange);
-                });
-                ui.menu_button("Manage", |ui| {
-                    for (i, (id, label, _)) in signs_glue::STANDARDS.iter().enumerate() {
-                        let mark = if *id == self.standard { "● " } else { "   " };
-                        item(ui, &format!("{mark}Design standard: {label}"), id, Action::Standard(i as u8));
-                    }
-                    ui.separator();
-                    item(ui, "Check the whole model…", "CHECKALL", Action::CheckAll);
-                    item(ui, "Rational method…", "RATIONAL", Action::Rational);
-                    ui.separator();
-                    item(ui, "Layer manager…", "LAYER", Action::Layers);
-                    item(ui, "Units…", "UNITS", Action::Units);
-                    item(ui, "Project settings…", "PROJECTSETTINGS", Action::ProjectSettings);
-                    ui.separator();
-                    item(ui, "Dark / light theme", "THEME", Action::ToggleTheme);
-                    item(ui, "Dark / light model space", "CANVAS", Action::ToggleCanvas);
-                });
-                ui.menu_button("Coordination", |ui| {
-                    item(ui, "Clash tests…", "CLASHTESTS", Action::ClashTests);
-                    item(ui, "Run the clash tests", "CLASH", Action::ClashRun);
-                    item(ui, "Clash results…", "CLASHES", Action::ClashResults);
-                    item(ui, "Show / hide clash markers", "CLASHMARKERS", Action::ClashMarkers);
-                    item(ui, "Export clashes (CSV)…", "CLASHCSV", Action::ClashCsv);
-                    ui.separator();
-                    item(ui, "Issues…", "ISSUES", Action::Issues);
-                    item(ui, "Export issues as BCF…", "BCFOUT", Action::BcfOut);
-                    item(ui, "Import issues from BCF…", "BCFIN", Action::BcfIn);
-                    ui.separator();
-                    item(ui, "IFC reference model…", "IFCREF", Action::IfcRef);
-                    item(ui, "Reference models…", "REFMODELS", Action::RefModels);
-                });
-                ui.menu_button("4D", |ui| {
-                    item(ui, "Activities and logic…", "PROGRAMME", Action::Programme);
-                    item(ui, "Calendar…", "CALENDAR", Action::Calendar);
-                    item(ui, "Schedule (critical path)", "SCHEDULE", Action::ScheduleRun);
-                    item(ui, "Gantt chart", "GANTT", Action::Gantt);
-                    ui.separator();
-                    item(ui, "Set baseline…", "BASELINE", Action::SetBaseline);
-                    item(ui, "Variance", "VARIANCE", Action::Variance);
-                    item(ui, "Progress and data date…", "PROGRESS", Action::Progress);
-                    ui.separator();
-                    item(ui, "Link elements to activities…", "LINK4D", Action::Link4d);
-                    item(ui, "Link report", "LINKREPORT", Action::LinkReport);
-                    item(ui, "4D date control", "FOURD", Action::FourD);
-                    ui.separator();
-                    item(ui, "Import MS Project XML…", "MSPIN", Action::MspIn);
-                    item(ui, "Export MS Project XML…", "MSPOUT", Action::MspOut);
-                    item(ui, "Export programme reports (CSV)…", "PROGCSV", Action::ProgCsv);
-                });
-                ui.menu_button("5D", |ui| {
-                    item(ui, "Bill and mapping rules…", "BILL", Action::Bill);
-                    item(ui, "Rate library…", "RATES", Action::Rates);
-                    item(ui, "Currency…", "CURRENCY", Action::Currency);
-                    item(ui, "Estimate…", "ESTIMATE", Action::Estimate);
-                    item(ui, "Cash flow…", "CASHFLOW", Action::CashFlow);
-                    item(ui, "Interim payment certificate…", "CERTIFICATE", Action::Certificate);
-                    ui.separator();
-                    item(ui, "Export cost reports (CSV)…", "COSTCSV", Action::CostCsv);
-                });
-                ui.menu_button("Construction", |ui| {
-                    item(ui, "Record site progress…", "SITEREC", Action::SiteRecord);
-                    item(ui, "Site records…", "SITELOG", Action::SiteLog);
-                    ui.separator();
-                    item(ui, "Roll up and update the programme…", "ROLLUP", Action::RollUp);
-                    item(ui, "Look-ahead and delays…", "LOOKAHEAD", Action::LookAhead);
-                    item(ui, "Earned value…", "EVM", Action::Evm);
-                    ui.separator();
-                    item(ui, "Colour the 3D view by recorded progress", "SITEVIEW", Action::SiteView);
-                    item(ui, "Export earned value tables (CSV)…", "EVMCSV", Action::EvmCsv);
-                });
-                ui.menu_button("Help", |ui| {
-                    item(ui, "Command list", "?", Action::Help);
-                    item(ui, "About AfroBIM", "", Action::About);
-                });
-                if let Some(a) = pick {
-                    self.run(ctx, a);
-                }
-            });
-        });
-    }
-
     /// The ribbon: every command as an icon button, grouped in tabs and panels.
     fn toolbar(&mut self, ctx: &egui::Context) {
         let (grid, snap, ortho, marks, three_d, real) = (self.grid_on, self.ctl.snap_on, self.ctl.ortho_on, self.show_labels, self.view_3d, self.rep == Representation::Real);
@@ -1842,12 +1681,17 @@ impl AfroBimApp {
         };
         let mut tab = self.ribbon_tab;
         let mut pick = None;
+        let mut workspace = self.workspace;
+        let mut switched = false;
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.add_space(2.0);
-            pick = crate::ribbon::show(ui, &mut tab, &self.standard, self.signs_ready, &is_on);
+            (pick, switched) = crate::ribbon::show(ui, &mut tab, &self.standard, self.signs_ready, &is_on, &mut workspace);
             ui.add_space(1.0);
         });
         self.ribbon_tab = tab;
+        if switched {
+            self.set_workspace(workspace);
+        }
         if let Some(a) = pick {
             self.run(ctx, a);
         }
@@ -1936,44 +1780,44 @@ impl AfroBimApp {
     }
 
     fn left_panel(&mut self, ctx: &egui::Context) {
+        if !self.show_left {
+            return;
+        }
+        let palettes = crate::workspace::WORKSPACES[self.workspace].palettes;
         egui::SidePanel::left("tools").resizable(true).default_width(220.0).min_width(180.0).show(ctx, |ui| {
             let mut pick = None;
             ui.add_space(4.0);
             ui.label(RichText::new("TOOL SETS").small().strong().weak());
             ui.separator();
-            ui.label(RichText::new("Traffic signs").small().weak());
-            ui.add_enabled_ui(self.signs_ready, |ui| {
-                for (i, t) in signs_glue::templates(&self.standard).iter().enumerate() {
-                    if icons::palette_button(ui, t.icon, t.label, t.tip).clicked() {
-                        pick = Some(Action::InsertSign(i as u8));
+            if palettes.signs {
+                ui.label(RichText::new("Traffic signs").small().weak());
+                ui.add_enabled_ui(self.signs_ready, |ui| {
+                    for (i, t) in signs_glue::templates(&self.standard).iter().enumerate() {
+                        if icons::palette_button(ui, t.icon, t.label, t.tip).clicked() {
+                            pick = Some(Action::InsertSign(i as u8));
+                        }
+                    }
+                });
+                ui.add_enabled_ui(self.signs_ready, |ui| {
+                    if icons::palette_glyph(ui, crate::glyphs::by_name("LIBRARY"), "Standard signs…", "Warning, regulatory, information and other catalogued signs").clicked() {
+                        pick = Some(Action::Library);
+                    }
+                });
+                ui.add_space(6.0);
+            }
+            if palettes.modify {
+                ui.label(RichText::new("Modify").small().weak());
+                for (label, tip, a) in [("Move", "MOVE (M)", Action::Move), ("Copy", "COPY (CO)", Action::Copy), ("Erase", "ERASE (E or Delete)", Action::Erase), ("Arrange", "Arrange every element in rows", Action::Arrange)] {
+                    if icons::palette_glyph(ui, crate::glyphs::glyph(a).unwrap_or(""), label, tip).clicked() {
+                        pick = Some(a);
                     }
                 }
-            });
-            ui.add_enabled_ui(self.signs_ready, |ui| {
-                if icons::palette_button(ui, Icon::Warning, "Standard signs…", "Warning, regulatory, information and other catalogued signs").clicked() {
-                    pick = Some(Action::Library);
-                }
-            });
-            ui.add_space(6.0);
-            ui.label(RichText::new("Modify").small().weak());
-            for (icon, label, tip, a) in [
-                (Icon::Move, "Move", "MOVE (M)", Action::Move),
-                (Icon::Copy, "Copy", "COPY (CO)", Action::Copy),
-                (Icon::Erase, "Erase", "ERASE (E or Delete)", Action::Erase),
-                (Icon::Arrange, "Arrange", "Arrange every element in rows", Action::Arrange),
-            ] {
-                if icons::palette_button(ui, icon, label, tip).clicked() {
-                    pick = Some(a);
-                }
-            }
-            ui.add_space(6.0);
-            ui.label(RichText::new("Zoom").small().weak());
-            for (icon, label, tip, a) in [
-                (Icon::ZoomExtents, "Extents", "Zoom extents (Z)", Action::ZoomExtents),
-                (Icon::ZoomWindow, "Window", "Zoom window (ZW)", Action::ZoomWindow),
-            ] {
-                if icons::palette_button(ui, icon, label, tip).clicked() {
-                    pick = Some(a);
+                ui.add_space(6.0);
+                ui.label(RichText::new("Zoom").small().weak());
+                for (label, tip, a) in [("Extents", "Zoom extents (Z)", Action::ZoomExtents), ("Window", "Zoom window (ZW)", Action::ZoomWindow)] {
+                    if icons::palette_glyph(ui, crate::glyphs::glyph(a).unwrap_or(""), label, tip).clicked() {
+                        pick = Some(a);
+                    }
                 }
             }
 
@@ -2004,6 +1848,9 @@ impl AfroBimApp {
     }
 
     fn right_panel(&mut self, ctx: &egui::Context) {
+        if !self.show_right {
+            return;
+        }
         egui::SidePanel::right("properties").resizable(true).default_width(330.0).min_width(260.0).show(ctx, |ui| {
             ui.add_space(4.0);
             ui.label(RichText::new("PROPERTIES").small().strong().weak());
@@ -2313,19 +2160,9 @@ impl AfroBimApp {
             if !was_busy {
                 let mut pick = None;
                 response.context_menu(|ui| {
-                    for (label, a) in [
-                        ("Move", Action::Move),
-                        ("Copy", Action::Copy),
-                        ("Erase", Action::Erase),
-                        ("Paste", Action::PasteClip),
-                        ("Select all", Action::SelectAll),
-                        ("Zoom extents", Action::ZoomExtents),
-                        ("Zoom window", Action::ZoomWindow),
-                    ] {
-                        if ui.button(label).clicked() {
-                            pick = Some(a);
-                            ui.close_menu();
-                        }
+                    pick = self.canvas_context_menu(ui);
+                    if pick.is_some() {
+                        ui.close_menu();
                     }
                 });
                 if let Some(a) = pick {
@@ -2348,6 +2185,7 @@ impl AfroBimApp {
         self.projset_window(ctx);
         self.survey_window(ctx);
         self.appearance_window(ctx);
+        self.palette_window(ctx);
         self.issues_windows(ctx);
         self.visibility_windows(ctx);
         self.photometry_windows(ctx);
@@ -3012,7 +2850,7 @@ impl AfroBimApp {
             return;
         }
         self.frames += 1;
-        if self.frames == 8 {
+        if self.frames == 8 + 4 * self.options.click.as_deref().map_or(0, |c| c.split(';').count() as u32) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
         }
         let shot = ctx.input(|i| {
@@ -3036,6 +2874,28 @@ impl eframe::App for AfroBimApp {
         // Opaque, whatever the translucency of the panels.
         let c = crate::theme::Tokens::of(&self.theme).surface;
         egui::Rgba::from(c).to_array()
+    }
+
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        // `--click`: pointer actions for screenshots, one every four frames from the fourth.
+        let Some(spec) = self.options.click.clone() else { return };
+        self.hook_frames += 1;
+        let f = self.hook_frames;
+        for (k, part) in spec.split(';').enumerate() {
+            let start = 4 + 4 * k as u32;
+            let hover = part.trim().ends_with('h');
+            let nums: Vec<f32> = part.trim().trim_end_matches('h').split(',').filter_map(|v| v.trim().parse().ok()).collect();
+            let [x, y] = nums[..] else { continue };
+            let pos = egui::pos2(x, y);
+            if f == start {
+                raw_input.events.push(egui::Event::PointerMoved(pos));
+                if !hover {
+                    raw_input.events.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() });
+                }
+            } else if f == start + 1 && !hover {
+                raw_input.events.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: Default::default() });
+            }
+        }
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {

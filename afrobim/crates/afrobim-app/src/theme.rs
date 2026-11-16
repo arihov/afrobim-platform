@@ -284,7 +284,9 @@ fn build_visuals(t: &Tokens) -> egui::Visuals {
     let mut v = if t.dark { egui::Visuals::dark() } else { egui::Visuals::light() };
     let cr = CornerRadius::same(RADIUS_CONTROL);
     v.panel_fill = t.panel;
-    v.window_fill = t.window;
+    // Menus, tooltips and pop-ups use this fill and sit over text, so it is opaque; the floating
+    // windows use `window_frame`, which is the translucent one.
+    v.window_fill = over(t.window, t.surface);
     v.window_stroke = Stroke::new(1.0, t.border);
     v.window_corner_radius = CornerRadius::same(RADIUS_WINDOW);
     v.menu_corner_radius = CornerRadius::same(RADIUS_MENU);
