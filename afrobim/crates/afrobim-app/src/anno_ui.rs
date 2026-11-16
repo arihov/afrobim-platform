@@ -537,33 +537,41 @@ impl AfroBimApp {
         }
         let mut open = true;
         let mut clear = false;
-        let dlg = crate::ui_kit::Dialog::titled("Measure results").subtitle("Distances, angles and areas measured in the drawing").width(560.0).show_body(ctx, |ui| {
+        let no_results = self.anno.results.is_empty();
+        let dlg = crate::ui_kit::Dialog::titled("Measure results").subtitle("Distances, angles and areas measured in the drawing").width(560.0).show(ctx, |ui| {
+            crate::ui_kit::heading(ui, &format!("Results ({})", self.anno.results.len()));
             if self.anno.results.is_empty() {
-                ui.label(RichText::new("Nothing measured yet. Use DIST, AREA, ID, MEASUREANGLE or MEASURERADIUS.").weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Nothing measured yet. Use DIST, AREA, ID, MEASUREANGLE or MEASURERADIUS.");
             }
-            egui::ScrollArea::vertical().max_height(260.0).stick_to_bottom(true).show(ui, |ui| {
+            egui::Grid::new("measure-results").num_columns(3).striped(true).spacing([12.0, 4.0]).show(ui, |ui| {
+                crate::ui_kit::th_num(ui, "No.");
+                crate::ui_kit::th(ui, "Result");
+                crate::ui_kit::th(ui, "");
+                ui.end_row();
                 for (i, r) in self.anno.results.iter().enumerate() {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(RichText::new(format!("{}.", i + 1)).weak());
-                        ui.label(RichText::new(r).monospace());
-                        if ui.small_button("Copy").clicked() {
-                            ui.ctx().copy_text(r.clone());
-                        }
-                    });
+                    crate::ui_kit::cell_num(ui, (i + 1).to_string());
+                    ui.label(RichText::new(r).monospace());
+                    if ui.small_button("Copy").clicked() {
+                        ui.ctx().copy_text(r.clone());
+                    }
+                    ui.end_row();
                 }
             });
-            ui.horizontal(|ui| {
-                if ui.button("Copy all").clicked() {
-                    ui.ctx().copy_text(self.anno.results.join("\n"));
-                }
-                if ui.button("Clear").clicked() {
-                    clear = true;
-                }
-            });
-            crate::ui_kit::note(ui, "Results use the document's units (UNITS). Stored values stay in millimetres.");
-        });
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Results use the document's units (UNITS). Stored values stay in millimetres.");
+        }, |ui| crate::ui_kit::Footer::new("Copy all").enabled(!no_results, "Nothing measured yet").secondary(&["Clear"]).cancel(Some("Close")).show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                ctx.copy_text(self.anno.results.join("\n"));
+            }
+            if out.secondary == Some(0) {
+                clear = true;
+            }
         }
         if clear {
             self.anno.results.clear();
@@ -577,21 +585,21 @@ impl AfroBimApp {
         }
         let mut open = true;
         let dlg = crate::ui_kit::Dialog::titled("Object snap settings").subtitle("Which points the cursor snaps to").width(560.0).show_body(ctx, |ui| {
-            ui.checkbox(&mut self.anno.osnap.on, "Object snap on (F3)");
+            crate::ui_kit::heading(ui, "Object snap");
+            crate::ui_kit::toggle(ui, &mut self.anno.osnap.on, "Object snap on (F3)");
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Used by the text, dimension, leader and measure commands, when dragging an annotation grip, by the base point and second point of MOVE and COPY, when dragging a grip of an element, and when placing a sign hung from the cursor (its centre lands on the point). Pick a mode to see which elements provide it.");
-            ui.add_space(4.0);
+            crate::ui_kit::heading(ui, "Snap modes");
             crate::ui_kit::grid(ui, "osnap-modes", |ui| {
                 for m in SnapMode::ALL {
                     let mut on = self.anno.osnap.has(m);
-                    if ui.checkbox(&mut on, m.label()).changed() {
+                    if crate::ui_kit::toggle(ui, &mut on, m.label()).changed() {
                         self.anno.osnap.set(m, on);
                     }
                     ui.label(RichText::new(m.provided_by()).small().weak());
                     ui.end_row();
                 }
             });
-            ui.add_space(4.0);
-            ui.label(RichText::new("Limits: an element other than an alignment, an annotation or an underlay gives snaps from the lines, arcs and circles of its drawing (the first 2000 of them, and 400 line segments for intersections over all elements); the shapes and lettering of a sign or marking are not snapped to, and an element with no line or arc in its drawing gives the corners, edge middles and centre of its bounding rectangle. Nothing snaps on a hidden layer. A press-and-drag move of the selection snaps to the grid only. The element being moved never snaps to itself.").small());
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "Limits: an element other than an alignment, an annotation or an underlay gives snaps from the lines, arcs and circles of its drawing (the first 2000 of them, and 400 line segments for intersections over all elements); the shapes and lettering of a sign or marking are not snapped to, and an element with no line or arc in its drawing gives the corners, edge middles and centre of its bounding rectangle. Nothing snaps on a hidden layer. A press-and-drag move of the selection snaps to the grid only. The element being moved never snaps to itself.");
         });
         if dlg.closed {
             open = false;
@@ -849,7 +857,8 @@ impl AfroBimApp {
         let mut st = ann::settings::load(&self.doc);
         let before = st.clone();
         let mut apply = false;
-        let dlg = crate::ui_kit::Dialog::titled("Text styles").subtitle("Fonts and heights for text and dimensions").width(520.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Text styles").subtitle("Fonts and heights for text and dimensions").width(520.0).show(ctx, |ui| {
+            crate::ui_kit::heading(ui, "Style");
             self.anno.text_sel = self.anno.text_sel.min(st.text_styles.len().saturating_sub(1));
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("text-style-pick").selected_text(st.text_styles[self.anno.text_sel].name.clone()).show_ui(ui, |ui| {
@@ -875,49 +884,42 @@ impl AfroBimApp {
             let s: &mut TextStyle = &mut st.text_styles[self.anno.text_sel];
             let is_current = s.name == current_name;
             let mut make_current = false;
-            crate::ui_kit::grid(ui, "text-style-grid", |ui| {
-                ui.label("Name");
-                ui.add(egui::TextEdit::singleline(&mut s.name).desired_width(160.0));
-                ui.end_row();
-                ui.label("Height (paper mm)");
-                ui.horizontal(|ui| {
-                    ui.add(egui::DragValue::new(&mut s.height_paper_mm).speed(0.1).range(0.1..=50.0));
-                    crate::ui_kit::note(ui, "a default, not a standard");
+            crate::ui_kit::form(ui, "text-style-grid", |f| {
+                f.row("Name", |ui| ui.add(egui::TextEdit::singleline(&mut s.name).desired_width(160.0)));
+                f.row_note("Height", "A default, not a standard", |ui| crate::ui_kit::f64_field(ui, &mut s.height_paper_mm, "mm on paper", 0.1..=50.0, 0.1));
+                f.row("Bold", |ui| crate::ui_kit::toggle(ui, &mut s.bold, "Bold lettering"));
+                f.row("Font name", |ui| ui.add(egui::TextEdit::singleline(&mut s.font).desired_width(160.0)));
+            });
+            crate::ui_kit::advanced(ui, "text-style-adv", |ui| {
+                crate::ui_kit::form(ui, "text-style-adv-form", |f| {
+                    f.row("Width factor", |ui| crate::ui_kit::f64_field(ui, &mut s.width_factor, "", 0.2..=5.0, 0.01));
+                    f.row("Line spacing", |ui| crate::ui_kit::f64_field(ui, &mut s.line_spacing, "x height", 1.0..=4.0, 0.05));
                 });
-                ui.end_row();
-                ui.label("Width factor");
-                ui.add(egui::DragValue::new(&mut s.width_factor).speed(0.01).range(0.2..=5.0));
-                ui.end_row();
-                ui.label("Line spacing (x height)");
-                ui.add(egui::DragValue::new(&mut s.line_spacing).speed(0.05).range(1.0..=4.0));
-                ui.end_row();
-                ui.label("Bold");
-                ui.checkbox(&mut s.bold, "");
-                ui.end_row();
-                ui.label("Font name");
-                ui.add(egui::TextEdit::singleline(&mut s.font).desired_width(160.0));
-                ui.end_row();
             });
             if !is_current && ui.button("Make current").clicked() {
                 make_current = true;
             }
             if is_current {
-                ui.label(RichText::new("This is the current style.").small());
+                crate::ui_kit::note(ui, "This is the current style.");
             }
             if make_current {
                 st.current_text_style = st.text_styles[self.anno.text_sel].name.clone();
             }
-            ui.add_space(4.0);
-            if ui.button("Apply to existing text").on_hover_text("Text keeps the style it was made with until you apply a changed style").clicked() {
-                apply = true;
-            }
-            crate::ui_kit::note(ui, format!("Annotation scale 1:{}: a paper height of {:.1} mm is {:.0} mm in the model. Sizes are paper millimetres, multiplied by the annotation scale. Every size here is an editable default and no drafting standard is claimed. Layout uses Helvetica widths whatever font is named.", st.annotation_scale, st.text_styles[self.anno.text_sel].height_paper_mm, st.text_styles[self.anno.text_sel].height_paper_mm * st.annotation_scale));
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, format!("Annotation scale 1:{}: a paper height of {:.1} mm is {:.0} mm in the model. Sizes are paper millimetres, multiplied by the annotation scale. Every size here is an editable default and no drafting standard is claimed. Layout uses Helvetica widths whatever font is named.", st.annotation_scale, st.text_styles[self.anno.text_sel].height_paper_mm, st.text_styles[self.anno.text_sel].height_paper_mm * st.annotation_scale));
             if !self.anno.style_note.is_empty() {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &self.anno.style_note);
             }
-        });
+        }, |ui| crate::ui_kit::Footer::new("Apply to existing text").cancel(Some("Close")).note("Text keeps the style it was made with until you apply a changed style").show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                apply = true;
+            }
         }
         if st != before {
             ann::settings::store(&mut self.doc, &st);
@@ -940,7 +942,8 @@ impl AfroBimApp {
         let mut st = ann::settings::load(&self.doc);
         let before = st.clone();
         let mut apply = false;
-        let dlg = crate::ui_kit::Dialog::titled("Dimension styles").subtitle("How dimensions are drawn and read").width(560.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Dimension styles").subtitle("How dimensions are drawn and read").width(560.0).show(ctx, |ui| {
+            crate::ui_kit::heading(ui, "Style");
             self.anno.dim_sel = self.anno.dim_sel.min(st.dim_styles.len().saturating_sub(1));
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("dim-style-pick").selected_text(st.dim_styles[self.anno.dim_sel].name.clone()).show_ui(ui, |ui| {
@@ -968,7 +971,7 @@ impl AfroBimApp {
             let s: &mut DimStyle = &mut st.dim_styles[self.anno.dim_sel];
             let is_current = s.name == current_name;
             let mut make_current = false;
-            egui::ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
+            {
                 crate::ui_kit::heading(ui, "Sizes (paper millimetres, defaults to edit; the annotation scale multiplies them)");
                 crate::ui_kit::grid(ui, "dim-style-sizes", |ui| {
                     ui.label("Name");
@@ -984,22 +987,14 @@ impl AfroBimApp {
                         ("Centre mark size (0 for none)", &mut s.centre_mark_mm),
                     ] {
                         ui.label(label);
-                        ui.add(egui::DragValue::new(v).speed(0.05).range(0.0..=50.0));
+                        crate::ui_kit::f64_field(ui, v, "mm on paper", 0.0..=50.0, 0.05);
                         ui.end_row();
                     }
                     ui.label("Terminator");
-                    egui::ComboBox::from_id_salt("dim-term").selected_text(format!("{:?}", s.terminator)).show_ui(ui, |ui| {
-                        for t in [ann::Terminator::Arrow, ann::Terminator::Tick, ann::Terminator::Dot, ann::Terminator::None] {
-                            ui.selectable_value(&mut s.terminator, t, format!("{t:?}"));
-                        }
-                    });
+                    crate::ui_kit::segmented_of(ui, &mut s.terminator, &[(ann::Terminator::Arrow, "Arrow"), (ann::Terminator::Tick, "Tick"), (ann::Terminator::Dot, "Dot"), (ann::Terminator::None, "None")]);
                     ui.end_row();
                     ui.label("Text placement");
-                    egui::ComboBox::from_id_salt("dim-place").selected_text(format!("{:?}", s.text_placement)).show_ui(ui, |ui| {
-                        for t in [ann::TextPlacement::Above, ann::TextPlacement::Centred] {
-                            ui.selectable_value(&mut s.text_placement, t, format!("{t:?}"));
-                        }
-                    });
+                    crate::ui_kit::segmented_of(ui, &mut s.text_placement, &[(ann::TextPlacement::Above, "Above"), (ann::TextPlacement::Centred, "Centred")]);
                     ui.end_row();
                     ui.label("Text style");
                     egui::ComboBox::from_id_salt("dim-textstyle").selected_text(s.text_style.clone()).show_ui(ui, |ui| {
@@ -1012,17 +1007,13 @@ impl AfroBimApp {
                     ui.add(egui::DragValue::new(&mut s.width_factor).speed(0.01).range(0.2..=5.0));
                     ui.end_row();
                     ui.label("Bold");
-                    ui.checkbox(&mut s.bold, "");
+                    crate::ui_kit::toggle(ui, &mut s.bold, "Bold lettering");
                     ui.end_row();
                 });
-                ui.add_space(6.0);
                 crate::ui_kit::heading(ui, "Value text");
                 crate::ui_kit::grid(ui, "dim-style-text", |ui| {
                     ui.label("Length unit");
-                    ui.horizontal(|ui| {
-                        ui.radio_value(&mut s.length_unit, ann::LengthUnit::Millimetre, "mm");
-                        ui.radio_value(&mut s.length_unit, ann::LengthUnit::Metre, "m");
-                    });
+                    crate::ui_kit::segmented_of(ui, &mut s.length_unit, &[(ann::LengthUnit::Millimetre, "mm"), (ann::LengthUnit::Metre, "m")]);
                     ui.end_row();
                     ui.label("Length decimals");
                     ui.add(egui::DragValue::new(&mut s.length_decimals).range(0..=6));
@@ -1036,16 +1027,12 @@ impl AfroBimApp {
                         ui.add(egui::TextEdit::singleline(&mut s.suffix).desired_width(60.0));
                     });
                     ui.end_row();
-                    ui.label("Strip trailing zeros");
-                    ui.checkbox(&mut s.strip_trailing_zeros, "");
+                    ui.label("Trailing zeros");
+                    crate::ui_kit::toggle(ui, &mut s.strip_trailing_zeros, "Strip trailing zeros");
                     ui.end_row();
                     ui.label("Angle format and decimals");
                     ui.horizontal(|ui| {
-                        egui::ComboBox::from_id_salt("dim-angle").selected_text(angle_label(s.angle_format)).show_ui(ui, |ui| {
-                            for f in [ann::AngleFormat::Decimal, ann::AngleFormat::Dms] {
-                                ui.selectable_value(&mut s.angle_format, f, angle_label(f));
-                            }
-                        });
+                        crate::ui_kit::segmented_of(ui, &mut s.angle_format, &[(ann::AngleFormat::Decimal, angle_label(ann::AngleFormat::Decimal)), (ann::AngleFormat::Dms, angle_label(ann::AngleFormat::Dms))]);
                         ui.add(egui::DragValue::new(&mut s.angle_decimals).range(0..=6));
                     });
                     ui.end_row();
@@ -1061,28 +1048,32 @@ impl AfroBimApp {
                     });
                     ui.end_row();
                 });
-            });
+            }
             if !is_current && ui.button("Make current").clicked() {
                 make_current = true;
             }
             if is_current {
-                ui.label(RichText::new("This is the current style.").small());
+                crate::ui_kit::note(ui, "This is the current style.");
             }
             if make_current {
                 st.current_dim_style = st.dim_styles[self.anno.dim_sel].name.clone();
-            }
-            ui.add_space(4.0);
-            if ui.button("Apply to existing dimensions and leaders").on_hover_text("Dimensions keep the style they were made with until you apply a changed style").clicked() {
-                apply = true;
             }
             crate::ui_kit::note(ui, format!("A preview at 1:{scale}: a dimension line with text {:.0} mm high and arrows {:.0} mm long in the model.", st.dim_styles[self.anno.dim_sel].text_height_mm * scale, st.dim_styles[self.anno.dim_sel].arrow_size_mm * scale));
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Every size is an editable default; none is taken from a drafting standard. Text override of one dimension is in its Properties and keeps the measured value shown.");
             if !self.anno.style_note.is_empty() {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &self.anno.style_note);
             }
-        });
+        }, |ui| crate::ui_kit::Footer::new("Apply to existing dimensions and leaders").cancel(Some("Close")).note("Dimensions keep the style they were made with until you apply a changed style").show(ui));
         if dlg.closed {
             open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                apply = true;
+            }
         }
         if st != before {
             ann::settings::store(&mut self.doc, &st);
