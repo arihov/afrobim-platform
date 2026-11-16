@@ -160,10 +160,10 @@ the kernel knows by that code, or as named-only. `afrobim-corridor` no longer ha
 * **Datum shifts** exist only as the explicit operation described under "Reprojection" below. Nothing
   in `ProjectCrs`, `CrsCheck` or the model changes a coordinate. `CrsCheck` still only reports.
 * **Geographic systems** (EPSG:4326, 4210, 4209, 4201, 4222, 4148) are first class in the transform
-  pipeline, but a `ProjectCrs` for one keeps `CrsKind::NamedOnly` (as `ProjectCrs::parse("EPSG:4326")`
-  has always returned), because the application matches on `CrsKind` and a new variant would change
-  what it must handle. `ProjectCrs::geographic_epsg()` and the plan functions know them by code.
-  A `CrsKind::Geographic` would be the honest label; that is a change for the application to decide.
+  pipeline and are `CrsKind::Geographic` since round 6 (`ProjectCrs::geographic(code)`,
+  `ProjectCrs::geographic_systems()`; `ProjectCrs::parse("EPSG:4326")` returns one). A document that stored
+  such a system as `NamedOnly` (an older version) still reads as `NamedOnly`; both take part in plans by code.
+  They have no projection, so `to_geographic` and the area-of-use warnings of a projected system do not apply.
 * **Named only:** every other code or WKT. National grids and other East African datums not listed
   (see "Left out" below). A system is added only after its definition is fetched.
 * **Heights.** The vertical datum is a label. Heights are never converted. See "Heights" below.

@@ -47,8 +47,8 @@ It covers:
 - It does not structurally design gantries or lighting columns. That is excluded by decision (round 4 plan).
 - It does not import every format. XML schedules are not read; IFC is read only as reference models; BCF 3.0 is not supported; DWG is refused (convert to DXF first).
 - It has no cost rates, exchange rates, percentages or standard bill structure. The user enters them.
-- It does not reproject coordinates or shift datums between coordinate systems. Arc 1960 and WGS 84 are different datums, and no shift is applied between them (chapter 4).
-- Round 5 did not build pipe networks, grading objects, intersections and roundabout wizards, point clouds, data shortcuts or reprojection between systems (round 5 plan). Round 6 builds pipe networks, grading and intersections with roundabouts (sections 6.9 to 6.11) and the defaults system (section 6.12).
+- It reprojects coordinates only when you run `TRANSFORM` (or choose it at import), with the plan, its stated accuracy and a log entry (section 6.13). Arc 1960 and WGS 84 are different datums; the registry shifts that are recorded are accurate to metres, not to survey accuracy (chapter 4).
+- Round 5 did not build pipe networks, grading objects, intersections and roundabout wizards, point clouds, data shortcuts or reprojection between systems (round 5 plan). Round 6 builds pipe networks, grading and intersections with roundabouts (sections 6.9 to 6.11), the defaults system (section 6.12), reprojection (6.13), the survey database (6.14), point clouds (6.15) and data shortcuts (6.16).
 - Two further interfaces exist outside the desktop app: a Python package (`afrobim/python`) and an MCP server (`afrobim-mcp`). Their READMEs are in `afrobim/python` and `afrobim/crates/afrobim-mcp/README.md`. This manual does not cover them.
 
 ### The eight BIM workflow stages
@@ -350,7 +350,7 @@ Numbers typed for lengths and angles follow the display units. Stations can be t
 
 ## 4. Coordinate systems
 
-AfroBIM handles coordinates the way Civil 3D handles a drawing. A document has one **project coordinate system**. Every object keeps the coordinates of its source. Nothing is reprojected, shifted or re-based when a file is imported, when the system is set, or when it is changed. A file in another system is reported, and the report says what to do about it.
+AfroBIM handles coordinates the way Civil 3D handles a drawing. A document has one **project coordinate system**. Every object keeps the coordinates of its source. Nothing is reprojected, shifted or re-based when a file is imported, when the system is set, or when it is changed, unless you run the `TRANSFORM` command (section 6.13) or choose to transform an incoming dataset in its import dialog. A file in another system is reported, and the report says what to do about it.
 
 ### 4.1 What the project coordinate system is
 
@@ -373,7 +373,7 @@ The dialog shows the system's kind, its area of use and where it came from (type
 - **Civil objects.** A civil object keeps the coordinates it was given. Nothing is moved to suit the drawing.
 - **Imports come in at the file's coordinates.** A LandXML file, a survey file or an IFC reference model comes in at its own numbers, and the check described in section 4.5 says whether those numbers agree with the project. The import never shifts them to fit.
 
-Setting a coordinate system on a document with objects does not make the objects line up with a survey taken in another system. The application has no datum shift and no reprojection between systems. Converting a dataset is done in a survey tool, and then the converted file is imported.
+Setting a coordinate system on a document with objects does not make the objects line up with a survey taken in another system. Moving objects to another system is done by `TRANSFORM` (section 6.13), which shows the transformation, its EPSG code and its stated accuracy first, or in a survey tool, and then the converted file is imported.
 
 ### 4.3 The kinds of system
 
@@ -391,7 +391,7 @@ The projection maths is a third-order Krüger series in both directions, after K
 
 ### 4.4 Latitude, longitude and the datum
 
-Arc 1960 and WGS 84 are different datums. **No datum shift is applied between them.** Latitude and longitude from the application are on the datum of the system they came from. The status bar says so: "Latitude and longitude are on the datum of the system. No datum shift to WGS 84 is applied." An Arc 1960 system gives Arc 1960 latitude and longitude, not WGS 84.
+Arc 1960 and WGS 84 are different datums. **Nothing shifts between them unless you ask.** Latitude and longitude from the application are on the datum of the system they came from: an Arc 1960 system gives Arc 1960 latitude and longitude as the primary reading. Where the registry has a transformation to WGS 84, a second reading follows, labelled with the EPSG transformation code and its stated accuracy (metres, not survey accuracy).
 
 Hover over the latitude and longitude in the status bar to see the point scale factor and the grid convergence, where the system has maths. Grid convergence is the angle from grid north to true north, counted positive counterclockwise.
 
@@ -440,7 +440,7 @@ The IFC 4.3 attribute order was checked against the IFC4X3_ADD2 schema in IfcOpe
 
 ### 4.8 Limits, stated plainly
 
-- No datum shift between any two systems, and no reprojection of any object. Arc 1960 and WGS 84 are different datums.
+- Datum transformations are only the ones recorded from the EPSG registry (section 6.13 lists them and their limits), applied only by `TRANSFORM`. Arc 1960 and WGS 84 are different datums.
 - Named-only systems have no maths. Local site grids have no geodetic meaning.
 - Only the systems listed in section 4.3 have projection maths. A system is added only after its definition is fetched.
 - The area-of-use test is a prompt to look, not proof.
@@ -812,6 +812,115 @@ Until round 6 every dimension in a dialog was an empty required input. The proje
 - Not held by the pack (those fields stay empty inputs): connector road cross-sections, the VRS set-back, verge or berm widths the figures show as "Varies", signal-controlled junction geometry, the stagger distance table, mini-roundabout tables, the minimum carrier pipe diameter, minimum pipe cover, maximum pipe velocity, chamber spacing, gully spacing, earthworks side slope angle (DMRB gives none) and surface tolerance, survey and setting-out tolerances, pavement design values (CD 226) and lighting values.
 - Cross-section widths in CD 127 were read from figures (images), so they were read visually and are the entries most worth a second look.
 - Tables are looked up exactly; interpolation happens only where the document allows it, and a result that was interpolated is flagged.
+
+### 6.13 Reprojection
+
+Objects sit at the coordinates of their source. A document changes coordinate system only when you run **`TRANSFORM`**, see the plan, accept its stated accuracy, and it is written to the document's transform log. Setting the project coordinate system (`CRS`) never moves anything.
+
+**`TRANSFORM`.** Choose what to transform (the whole document, or the selected objects), the target system, and the plan. Every candidate plan is listed, best coverage and accuracy first, with its steps (the inverse projection, the datum transformation with its EPSG code, the parameters and the area of use, the forward projection), the stated accuracy in metres, and a warning where the data leaves the area of use of a transformation. The bearing and scale change at the centre of the data is shown, and the height treatment: heights are never converted (the application has no geoid model); the height of each position is used as given for the ellipsoidal height in the datum step, or zero if you choose that. The button stays off until you have picked a plan and ticked the acknowledgement of its stated accuracy.
+
+The work is done by one function that knows how each element category carries coordinates: the coordinates in the data of points, surfaces, parcels, feature lines, pipe networks, intersections, roundabouts, figures and clouds; the start point, heading, length and curvature of every alignment element (the start point exactly, the others from the local bearing and scale of the transformation); the insertion points of profile views and section views; and the position of each placed element. If the document holds a category the function has not been taught, or a referenced object (section 6.16), the whole-document transform is **refused** and says which: the document is never left half in each system. A transform of the selection moves only the selected objects and says so in the log, because the document then holds objects in two systems. Everything is computed on a copy and committed only if every position transforms; **Undo restores every coordinate exactly** (the undo history holds the elements as they were).
+
+A point cloud keeps its points in its file. A transform records the plan on the cloud, and the points are drawn through it; the footprint, clip and slices move with the document.
+
+**The transform log.** Project settings, "Transform log" tab: every transform with its time, source and target, steps with EPSG codes and parameters, stated accuracy and its basis, warnings (including how alignment joints changed), the height treatment, and how many positions moved. Site calibrations are listed beneath. The Prospector's "Reprojection" node opens it.
+
+**At import.** When a file declares a system that differs from the project's and a path exists, the import dialog (LandXML, points, surfaces, point clouds; the pipes of a LandXML file come in with it) offers three choices: keep the source coordinates (the default), transform to the project system (with the same plan chooser), or cancel. Nothing is transformed unless you choose it.
+
+**`CALIBRATE`.** A site calibration relates a local site grid to a projected system by a similarity transformation (scale, rotation and two shifts) fitted by least squares to control point pairs you type or pick. The residual table is the quality of the fit; two pairs fit exactly and say so. The calibration is stored in the document under a name, and can also be applied to the whole document (logged and undoable). It is two-dimensional.
+
+**Status bar and `ID`.** The cursor reading in the datum of the project system stays the primary reading. When the registry has a transformation from that datum to WGS 84, a second reading follows it, labelled with the EPSG transformation code and its stated accuracy. The tooltip says that this is not survey accuracy.
+
+**The chooser** offers a "Geographic" kind of system (latitude and longitude on a datum: WGS 84, Arc 1960, Arc 1950, Adindan, Cape, Hartebeesthoek94) as the source of an incoming dataset. A document whose model is drawn in metres should keep a projected system.
+
+**Limits.**
+
+- The datum transformations are the ones recorded from the EPSG registry (Arc 1960, Arc 1950, Adindan and Cape to WGS 84, each a three-parameter shift with a stated accuracy of 6 m to 44 m). **Arc 1960 to WGS 84 by published parameters is accurate to metres, as the registry states, not to survey accuracy.** The registry has no Arc 1960 transformation named for Uganda or Rwanda: the Kenya and Tanzania ones appear as candidates by area only, and the plan shows the area text. For better, use a site calibration from control points; a national grid file is not read.
+- Hartebeesthoek94 has no recorded transformation to WGS 84, so a Lo system has no path to another datum. Other systems are named only.
+- Heights are not converted. The effect of the assumed height on the horizontal result is small (a height error of 1000 m moves it by at most 0.058 m for the largest recorded translation) but not zero.
+- An alignment's element lengths and curvatures follow the local scale of the transformation, so a joint can open by the difference between neighbouring elements; the log reports the largest gap before and after. The stationing is not rescaled.
+- A surface with a pasted TIN, and any category not listed above, makes the whole-document transform refuse.
+- Lines of text, dimensions and other annotation in the model have no transform yet: a document that holds them is refused.
+- A site calibration is a similarity transformation: it cannot model a distortion of the control, and it is valid among and near the control points.
+
+### 6.14 The survey database
+
+A **survey database** is a file beside the project (`.afrosurvey`, JSON) whose path is stored in the document, relative to the project file when it is inside its folder. It holds the networks of a survey: control points, setups with their observations, level runs, GNSS baselines, figures, the import events, the equipment and a change log. It is shown in the **Survey** tab of the toolspace, beside Prospector and Settings. The engine is `afrobim-survey`; the database is written after every change, through a temporary file and a rename.
+
+**Commands.**
+
+- `SURVEYNEW` and `SURVEYOPEN` make and open the file. `SURVEYSETTINGS`: the angle unit, the direction of horizontal angles, the vertical angle type, the coordinate system of the database (free text and an EPSG code), the **corrections** (prism constant, atmospheric ppm, curvature and refraction, sea level reduction, grid scale factor: each is ticked on and given its numbers) and the **equipment** standard errors. Every correction value and every standard error is your input: nothing has a default.
+- `SURVEYIMPORT` reads field data: the AfroBIM field book, a subset of the Civil 3D field book (FBK), Leica GSI, Topcon GTS-7 (structure only) and a delimited table with a column mapping you set by header name or index. The preview shows what would be added; every error carries its line number. **Strict** stops at the first error; **lenient** leaves out each bad line and lists them all. The import is recorded as an event with the SHA-256 of the file, the time, the format and options, and what was added.
+- `SURVEYEVENTS` lists the events; an event can be **removed** (exactly what it added goes) or **reprocessed** from its stored source text.
+- `SURVEYOBS`: the readings of a setup in a table (target, face, direction or angle, zenith, slope, horizontal and vertical distance, target height, description, a switch to leave a reading out), with the **face 1 and face 2 reduction spreads**: the range and the sample standard deviation of the rows, the face difference and the index error.
+- `SURVEYTRAVERSE`: choose the stations in order, the closure, and see the courses, the angular and linear misclosure and the compass (Bowditch) or transit adjustment, with a saved report. The least squares adjustment of the same observations is the network adjustment.
+- `SURVEYADJUST`: least squares adjustment of a network, **2D** (directions, distances, azimuths, baselines, weighted control) or **levelling**. The options (most iterations, convergence criterion, confidence level of the ellipses, significance level of the global test, blunder threshold, scaling by the a posteriori factor, centring errors, equipment where a setup has none, observations to leave out, data snooping and how many removals) are inputs; the blunder threshold can be computed from the significance level. It runs in the background, with Cancel in the progress window. The results: adjusted coordinates with their standard errors and error ellipses; the residuals with redundancy numbers, **standardised residuals** and flags; the variance factor and the **global test**; the ellipses drawn in the plan at a scale you type (a temporary overlay); the **relative precision between two points** (distance, azimuth, ratio, relative ellipse); and the text report, which can be saved.
+- `SURVEYAPPLY` writes the adjusted coordinates into the points that were not fixed, and records it in the change log.
+- `SURVEYFIGURES`: figures from the linework codes of the point descriptions (B begins, C continues, E ends, CLS closes), with a figure prefix table giving each its style, layer and whether it is a breakline. They are drawn in the plan (category `civil-figures`), and the breaklines can be added to a surface definition (the surface is then rebuilt from its definition). Curves through three points are flattened to chords within a tolerance you give.
+- `SURVEYINSERT` adds the points of a network to the drawing as a COGO point set that keeps a **link** to the database and the network. `SURVEYUPDATE` compares each linked set with the database and, when the database changed, moves the points whose coordinates changed, adds new ones and removes the ones that are gone.
+
+The civil demonstration holds a **synthetic** database (labelled so, with example geometry and example equipment values) and the result of an adjustment made with example options.
+
+**Limits.**
+
+- The database holds a plane grid: no datum, projection, grid convergence or geoid. Azimuths are grid azimuths.
+- **There is no 3D network adjustment**, no trigonometric heights from total stations in the adjustment, no free network adjustment with minimal or inner constraints (a network without enough fixed components is reported as singular), no correlated observations, and no minimal detectable biases.
+- Corrections are first order; the horizontal angle is not corrected for refraction or the deflection of the vertical.
+- Radiation depends on the order of processing: stations computed from earlier setups are not recomputed after later averaging. Adjust for a consistent solution.
+- The FBK reader is for simple field books checked against the examples in the Civil 3D help; Autodesk publishes no specification of the format. The Topcon reader was written from the field list alone. Trimble JobXML, Sokkia SDR and other raw formats are not read. A GSI file does not say which target is the backsight: the import option chooses the rule.
+- The reading of a file holds its whole text in memory.
+- There is no file locking: two people editing one database file at once are not coordinated.
+
+### 6.15 Point clouds
+
+A **point cloud** is an element (category `civil-pointcloud`, under Point Clouds in the Prospector) that holds a *reference*: the path of the file, its SHA-256, the header facts, the file's coordinate system, the display settings and a class filter. **No point is stored in the document.** The points stay in their file (LAS, LAZ, E57, or text) and in a cache file `<name>.afrocloud` beside it, which holds the index so that the next opening does not sort again. The engine is `afrobim-pointcloud`.
+
+**Commands.**
+
+- `CLOUDATTACH`: choose the file. The header facts are shown without loading points: format and version, point format, the point count, the bounds, the attributes, the software, an estimate of the memory the index will take, and the coordinate system the file states (a WKT or EPSG code; for E57 the coordinate metadata text). The file's system is compared with the project's by the same check as for other imports (same system, different system, outside the area of use, easting and northing swapped, millimetres, feet), and when it differs and a path exists you choose to keep, transform or cancel. A **text file** shows a preview of its first rows with a column mapping you confirm: delimiter, lines to skip, a role for every column, the intensity scale and offset, and the largest colour value (an input: it cannot be known from a few rows). **Indexing runs in the background**, with its stage in the progress window and Cancel.
+- `CLOUDPROPS`: colour by RGB, elevation (range, from the data's own until you change it), intensity or class, or one colour; the **class filter** with the names of the LAS specification table that the file's point format uses; the point size; and the **point budget** for the level of detail. The facts tab shows the index (points held, memory, the cache file), and checks the file against the stored hash.
+- **Drawing.** In plan, the cloud is a raster of the level-of-detail query for the current view: at most the budget of points, spread evenly over the view, rebuilt when the view has settled and otherwise kept (it moves with a pan). In 3D, a budgeted sample of the whole cloud. Drawing positions are `f32` relative to a local origin that is returned with them, so a millimetre survives at UTM magnitudes.
+- `CLOUDCLIP`: clip to a polygon (typed or picked in the plan) or to a swath along an alignment (half width and centreline step are inputs). The clip hides the points outside from the drawing and keeps them out of surface making, comparison and export.
+- `CLOUDSLICE`: cut the cloud at a **thickness you type** and show the points within half of it of each sample line in the **section views** of a group, or of the alignment in a **profile view**.
+- `CLOUDSURFACE`: make a ground surface. The ground comes from the classes the file has, or from a ground filter whose parameters are all inputs: the progressive morphological filter (Zhang et al. 2003, as the PDAL documentation describes it; the paper itself was not read) or the grid minimum and slope filter (this engine's own method). The ground points are thinned to a grid (lowest, mean or median) and by a tolerance, then triangulated. The **fit report** gives the difference between all the input ground points and the surface (mean, RMS, largest, lowest, highest, how many fall outside). The result is a normal surface whose source record names the cloud and its hash.
+- `CLOUDCOMPARE`: each point's level minus the surface level, for as-built checks: the **banded colours** (the band breaks are yours), a histogram and the statistics, with a switch that colours the cloud by the bands in the plan and in 3D.
+- `CLOUDEXPORT`: the points that pass the class filter and the clip, to LAS 1.2 or 1.4 or LAZ, with the source's own scale and offset (every coordinate written back exactly) or a scale you type, with the largest rounding error reported.
+
+The civil demonstration holds a small **synthetic** cloud, generated on the fly at the project's coordinates and labelled as synthetic.
+
+**Limits.**
+
+- **The point cloud index is held in memory**: about 36 bytes per point plus colour and time, so 10 million points are about 360 MB (the build peaks higher). There is no on-disk spatial index: a file larger than memory can be streamed for statistics and export, or indexed from a systematic sample, but not queried whole.
+- Index order is Morton order; the file's order is not kept. The cache beside the source is the size of the index.
+- LAS 1.0 to 1.4 are read; only formats 0 to 3 (1.2) and 6, 7 (1.4) are written. LAS flags, scan angle, NIR, waveforms and extra bytes are not carried. E57 is read for Cartesian points, intensity, colour and the scan pose; it keeps neither class nor returns. COPC files read as plain LAZ. Text: decimal point only.
+- The coordinate system of a file is read as data (a code or WKT, not checked against a registry) and never interpreted by the engine. A file that states none is compared on its extent only.
+- The ground filters are small implementations tested on built scenes only, not against any benchmark; judge them on your data. The tolerance decimation is slow for very many points, so thin to a grid first. A surface from cell minima does not reach the outer cells.
+- Slices and the surface take the points as they are in the file: after a TRANSFORM of the document they are in the file's coordinates, not the moved ones (the surface says so).
+- A changed file (a different SHA-256) is refused until a new reference is made.
+
+### 6.16 Data shortcuts
+
+A team can split a road project into several AfroBIM documents (survey and existing ground; alignments and profiles; corridor; drainage) that share named objects, as Civil 3D data shortcuts do. A **shortcut project** is a folder with one small manifest file `afrobim-shortcuts.json`; the documents can be in it, under it, or elsewhere. The working folder of a document is stored in the document. The **Shortcuts** node of the Prospector and the `SHORTCUTS` manager show the project; the engine is `afrobim-shortcuts`.
+
+**Publishing.** `SHORTCUTPUBLISH` puts objects of this document into the manifest with a status label (work in progress, shared, published, superseded, archived: plain labels, nothing changes behaviour with them) and a note. The shortcut points at the **saved** file, which is saved when you publish; its content hash is taken at that moment and its revision goes up only when the content changed. Publishing with dependencies publishes what the objects' fields name (a profile's alignment and surface, a corridor's ground, a pipe profile's network, a roundabout's arm alignments and the other round 6 categories), shown before you confirm.
+
+**References.** `SHORTCUTREF` copies a published object into the document: an ordinary element of the source's own category, at the source's own coordinates, with the source's data. The **dependency closure** is shown first, saying which of the objects it needs are published; a required dependency that is not published refuses the reference and names it. The copy is drawn like any object with a small link marker, is on a layer `REF-<source layer>`, and works without the source file. A referenced surface can be the ground of a corridor, and a referenced alignment the baseline of a profile view.
+
+**Read-only.** A reference is locked. `Move`, `Copy` and `Erase` refuse it, the Properties panel shows it read-only, and the commit that every edit passes through (`check_editable` of the engine) puts back any reference that was changed or erased, so no command can modify one. To change it, **promote** it (`SHORTCUTPROMOTE`): it becomes an independent element that is no longer updated. Remove a reference from this document in the manager.
+
+**State.** Each reference carries a badge in the Prospector: **up to date**; **out of date** (the shortcut was published again); **source missing**; **removed** (the shortcut is gone from the manifest; the copy stays); and **coordinate system differs** (the source declares another system than this document; nothing is transformed, the sentence from the coordinate system check is shown). A cheap check (the manifest alone) runs when the document is opened and when its references change; the manager's refresh runs the full check, which opens the source files, and also says when a source holds edits that were never published. **Synchronise** (`SHORTCUTSYNC`) refreshes one reference or all and shows what changed, field by field, with the new bounding box, a rename and any new dependency that was not brought in. A reference follows the published state, not the source file: unpublished edits are not picked up.
+
+**Maintenance.** `SHORTCUTREPAIR` repoints a moved source file; it says when the content differs from what was published. `SHORTCUTVALIDATE` checks every shortcut's file, element, category and hash, and duplicate keys and names. `SHORTCUTUNDERLAY` attaches a **whole document** as an underlay reference (optionally some layers): it is drawn as outlines (alignments as centrelines, other elements as their extents) at its own coordinates, never copied into the document or modified, and its state is checked like a reference's.
+
+**Limits.**
+
+- **There is no file locking.** Two people publishing at once, or a publish while another program writes the source, are not coordinated. The last publisher wins, and two writers of the manifest at once can overwrite each other.
+- There is no merge: a reference is replaced as a whole on synchronise; promote to edit. No network or cloud store: a project is a folder on a disk or a share the machine can read. Nothing watches the files: the check runs on open and on a refresh.
+- **No transformation**: a reference in another coordinate system is reported and left where it is. TRANSFORM refuses a document that holds references until they are promoted or removed.
+- Dependencies are followed through the fields of the dependency table only. A grading names its feature lines by the name a line has in its site, which is not the name of an element, so its footprint lines are referenced as well. A new dependency added to a source after a reference was made is reported, not added.
+- An element is located in its source by id and category: if a source is rebuilt with new ids, repair is manual (publish again).
+- A whole-document status hashes the document when its file stamp changed, so a very large file is read in full then; a copy that restores an old modified time with the same size is not noticed by the stamp test.
+- Copying a reference with the clipboard is refused; a hosted element (a post on a sign) loses its host link.
 
 ## 7. First hour walkthrough: signs and roads
 
@@ -1339,9 +1448,9 @@ The Civil tab, and the toolspace that goes with it, are described in section 6 (
 
 ## 9. Command reference
 
-This is every command in `crates/afrobim-app/src/commands.rs`: **222 commands**, the same count as the table in that file. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
+This is every command in `crates/afrobim-app/src/commands.rs`: **252 commands**, the same count as the table in that file. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
 
-The counts by group are: Home 22, Edit 3, Insert 7, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 47, Design 10, Structures 4, Coordination 8, 4D 19, 5D 7, Construction 7, Output 13, Manage 10, View 6 and Help 3. Those add to 222. The palette and the command line reach every command.
+The counts by group are: Home 22, Edit 3, Insert 7, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 77, Design 10, Structures 4, Coordination 8, 4D 19, 5D 7, Construction 7, Output 13, Manage 10, View 6 and Help 3. Those add to 252. The palette and the command line reach every command.
 
 ### Home: 22 commands
 
@@ -1466,15 +1575,23 @@ The counts by group are: Home 22, Edit 3, Insert 7, Annotate 27, Modify 1, Signs
 | `RATIONAL` | `RUNOFF` | - | Peak flow by the rational method from the catchment areas, runoff coefficients and intensity you enter; keep it on the selected drain or culvert |
 | `SECTIONS` | `XSECTIONS` | - | Show the cross-sections of the selected corridor, station by station |
 
-### Civil: 47 commands
+### Civil: 77 commands
 
 | Command | Aliases | Also on | Help text |
 |---|---|---|---|
 | `ACQUISITION` | `PARCELSCHEDULE`, `LANDSCHEDULE` | - | Land acquisition schedule and parcel area table, with CSV export |
 | `ALIGNDESIGN` | `NEWALIGNMENT`, `DESIGNALIGNMENT` | Design | Design an alignment from PIs picked on the plan or typed as coordinates: name, start station; curves start with no radius |
 | `ASSEMBLY` | `ASSEMBLIES`, `SUBASSEMBLY` | - | Assembly editor: build a typical section from the subassembly library with a live preview |
+| `CALIBRATE` | `SITECALIBRATION`, `LOCALIZATION` | - | Site calibration: fit a local grid to a projected system from control point pairs, see the residuals, and store it as a named local-to-grid relation |
 | `CIVILDEMO` | `DEMOCIVIL` | - | Build a small set of demonstration civil data at UTM-sized coordinates (example values, not a design) |
 | `CIVILXML` | `LANDXMLALL`, `LANDXMLCIVIL` | - | Write everything civil that the document holds to a LandXML file, with the project coordinate system |
+| `CLOUDATTACH` | `ATTACHCLOUD`, `POINTCLOUD` | - | Attach a point cloud (LAS, LAZ, E57 or text with a column mapping preview): header facts, the file's coordinate system against the project, indexing in the background with a cache file |
+| `CLOUDCLIP` | `CLIPCLOUD` | - | Clip a point cloud to a polygon or to a corridor swath along an alignment |
+| `CLOUDCOMPARE` | `ASBUILTCHECK` | - | Compare a point cloud with a surface for as-built checks: banded colours, histogram and statistics |
+| `CLOUDEXPORT` | `EXPORTCLOUD` | - | Export the points of a cloud that pass the class filter and the clip to a LAS or LAZ file |
+| `CLOUDPROPS` | `CLOUDDISPLAY` | - | Point cloud properties and display: colour by RGB, elevation, intensity or class, class filter, point size and the level-of-detail budget |
+| `CLOUDSLICE` | `CLOUDSECTION` | - | Cut slices of a point cloud at an input thickness and show them in section views or a profile view |
+| `CLOUDSURFACE` | `SURFACEFROMCLOUD` | - | Make a ground surface from a point cloud: ground from classes or a ground filter, thinning, a fit report, the cloud as the surface's source |
 | `COGO` | `INVERSE`, `COGOTOOLS` | - | COGO tools: inverse, bearing and distance, intersections, station and offset to an alignment |
 | `CORRIDORMODEL` | `NEWCORRIDOR`, `CORRIDOR2` | - | Corridor from a baseline, regions with an assembly each, a frequency and a ground surface (the older CORRIDOR keeps working on old documents) |
 | `DEFAULTS` | `DEFAULTSBASIS`, `STANDARDVALUES` | - | Browse the engineering defaults of the project's basis (DMRB today): every value with its document, version, clause and status, and the statement that the values were not reviewed by an engineer |
@@ -1511,10 +1628,32 @@ The counts by group are: Home 22, Edit 3, Insert 7, Annotate 27, Modify 1, Signs
 | `ROUNDABOUTDESIGN` | `RBDESIGN`, `CIVILROUNDABOUT` | - | Roundabout design (ROUNDABOUT inserts the map sign): arms on alignments: inscribed circle, entry and exit geometry, entry angle and entry path radius against the basis limits |
 | `SAMPLELINES` | `SAMPLELINEGROUP`, `SL` | - | Sample line group: stations, swath widths and the surfaces cut at each line |
 | `SECTIONVIEWS` | `SECVIEWS` | - | Draw the section views of a sample line group as an array in the model |
+| `SHORTCUTFOLDER` | `SHORTCUTPROJECT` | - | Set the working shortcut project folder of this document (or make a shortcut project in a folder) |
+| `SHORTCUTPROMOTE` | `PROMOTE` | - | Promote a selected reference to an independent, editable copy |
+| `SHORTCUTPUBLISH` | `PUBLISH` | - | Publish objects of this document as shortcuts, with a status label, a note and the objects they depend on |
+| `SHORTCUTREF` | `REFERENCE`, `SHORTCUTREFERENCE` | - | Create a read-only reference to a published object of another document, with its dependency closure shown first |
+| `SHORTCUTREPAIR` | `REPAIRPATHS` | - | Repair the path of a moved source document in the shortcut project |
+| `SHORTCUTS` | `DATASHORTCUTS`, `SHORTCUTMANAGER` | - | Data shortcuts: the working project folder, the published objects, and a refresh of the state of every reference (opens the sources) |
+| `SHORTCUTSYNC` | `SYNCREFERENCES` | - | Synchronise one or all references with their published sources and show the change summary |
+| `SHORTCUTUNDERLAY` | `ATTACHDOCUMENT`, `DOCUMENTUNDERLAY` | - | Attach a whole AfroBIM document as an underlay reference, drawn at its own coordinates |
+| `SHORTCUTVALIDATE` | `VALIDATESHORTCUTS` | - | Validate the shortcut project: files, elements and hashes |
 | `SPOT` | `SPOTELEVATION`, `SPOTELEV` | - | Read the elevation of a surface at an easting and northing |
 | `SURFACEDEF` | `SURFACEDEFINITION`, `DEFINITION` | - | Edit the definition of a surface: operations, order, rebuild and the build report |
 | `SURFACENEW` | `CREATESURFACE`, `NEWSURFACE` | - | Create a surface from a definition: a name, a role and operations |
 | `SURFACESTYLE` | `CONTOURS`, `SURFSTYLE` | - | Surface style: triangles, border, contours, elevation and slope bands, slope arrows |
+| `SURVEYADJUST` | `NETADJUST`, `LSADJUST` | - | Least squares network adjustment (2D and levelling) with residuals, standardised residuals, global test, error ellipses, relative precision and a report |
+| `SURVEYAPPLY` | `APPLYADJUSTED` | - | Apply the adjusted coordinates of the last adjustment to the survey database |
+| `SURVEYEVENTS` | `IMPORTEVENTS` | - | Import events of the survey database: what each import added, remove it or reprocess it |
+| `SURVEYFIGURES` | `FIGURES`, `LINEWORK` | - | Survey figures from linework codes: draw them in the plan and offer breaklines to a surface definition |
+| `SURVEYIMPORT` | `FIELDDATA`, `IMPORTFIELDBOOK` | - | Import field data (AfroBIM field book, FBK subset, Leica GSI, Topcon GTS-7, CSV with column mapping): preview, line-numbered errors, strict or lenient |
+| `SURVEYINSERT` | `INSERTSURVEYPOINTS` | - | Insert the points of a survey network into the drawing as a COGO point set linked back to the database |
+| `SURVEYNEW` | `NEWSURVEYDB` | - | Make a new survey database: a file beside the project, its path stored in the document |
+| `SURVEYOBS` | `OBSERVATIONS`, `OBSEDIT` | - | Observation editor: the readings of a setup in a table, with the face 1 and face 2 reduction spreads |
+| `SURVEYOPEN` | `OPENSURVEYDB` | - | Open a survey database file and show it in the Survey tab of the toolspace |
+| `SURVEYSETTINGS` | `SURVEYDBSETTINGS` | - | Survey database settings: units, the corrections and their inputs, and the equipment standard errors (all inputs) |
+| `SURVEYTRAVERSE` | `TRAVERSEANALYSIS` | - | Traverse analysis from the setups of the survey database: closure, Bowditch or transit adjustment, report |
+| `SURVEYUPDATE` | `UPDATESURVEYPOINTS` | - | Update linked point sets when the survey database has changed |
+| `TRANSFORM` | `REPROJECT`, `DATUMSHIFT` | - | Transform coordinates between systems: the whole document or the selection, with every plan the registry offers, its EPSG codes, stated accuracy and warnings, an acknowledgement, a log entry in the project settings, and an exact undo |
 | `TRAVERSE` | `TRAV` | - | Enter a traverse and adjust it (compass or transit rule) with a misclosure report |
 | `VOLUMES` | `VOLUMEDASHBOARD`, `CUTFILL` | - | Volumes between two surfaces or against a level, bounded by an optional polygon, with a stage-storage table |
 

@@ -546,3 +546,65 @@ fn write_shortcut_screenshot_documents() {
 fn set_project_setting_for_test(host: &mut Document) {
     afrobim_kernel::set_project_setting(host, crate::shortcuts_ui::FOLDER_KEY, serde_json::Value::String(".".into()));
 }
+
+// ─── the commands of this work package ──────────────────────────────────
+
+#[test]
+fn every_a2_command_is_registered_with_a_glyph_and_the_dialog_test_opens_it() {
+    use crate::civil_cmds::Cv;
+    let new = [
+        Cv::Transform, Cv::Calibrate, Cv::SurveyNew, Cv::SurveyOpen, Cv::SurveySettings, Cv::SurveyImport, Cv::SurveyObs, Cv::SurveyTraverse, Cv::SurveyAdjust, Cv::SurveyApply, Cv::SurveyFigures, Cv::SurveyInsert, Cv::SurveyUpdate, Cv::SurveyEvents, Cv::CloudAttach, Cv::CloudProps, Cv::CloudClip, Cv::CloudSlice, Cv::CloudSurface, Cv::CloudCompare, Cv::CloudExport, Cv::ShortcutsManager, Cv::ShortcutFolder, Cv::ShortcutPublish, Cv::ShortcutReference, Cv::ShortcutSync, Cv::ShortcutPromote, Cv::ShortcutRepair, Cv::ShortcutValidate, Cv::ShortcutUnderlay,
+    ];
+    assert_eq!(new.len(), 30);
+    for cv in new {
+        let c = crate::commands::COMMANDS.iter().find(|c| c.action == crate::commands::Action::Civil(cv)).unwrap_or_else(|| panic!("{cv:?} is not in the command table"));
+        assert!(crate::glyphs::glyph(c.action).is_some(), "{} has no glyph", c.name);
+        assert!(!c.help.contains('\u{2014}') && !c.help.contains('\u{2013}'), "{}: no dashes of that kind in text", c.name);
+        // Each command is also in the toolspace Prospector tree or its Survey tab, the ribbon and a menu (the ribbon test lists every command's button).
+        assert!(crate::ribbon::all_commands().iter().any(|n| *n == c.name), "{} has no ribbon button", c.name);
+    }
+}
+
+#[test]
+fn a_cloud_a_figure_set_and_a_linked_point_set_round_trip_in_the_document() {
+    let (_ctx, app) = crate::u4_dialogs_test::app_for("dark-glass", true);
+    let json = app.doc.to_json();
+    let back = Document::from_json(&json).unwrap();
+    for cat in [crate::civil::POINTCLOUD, crate::civil::FIGURES] {
+        let a: Vec<_> = app.doc.elements().iter().filter(|e| e.category == cat).collect();
+        let b: Vec<_> = back.elements().iter().filter(|e| e.category == cat).collect();
+        assert!(!a.is_empty() && a.len() == b.len(), "{cat}");
+        for (x, y) in a.iter().zip(&b) {
+            assert_eq!((&x.data, &x.properties, x.origin), (&y.data, &y.properties, y.origin), "{cat}");
+        }
+    }
+    assert!(!crate::survey_db::linked_sets(&back, None).is_empty(), "the link of the survey points survives a save");
+}
+
+/// The owner's private LandXML export (Arc 1960 / UTM zone 36S) is used only when
+/// `AFROBIM_PRIVATE_LANDXML` names it. Nothing from it is written anywhere.
+#[test]
+fn a_real_civil_3d_export_is_reprojected_by_the_plan_it_declares() {
+    let Ok(path) = std::env::var("AFROBIM_PRIVATE_LANDXML") else { return };
+    let path = std::path::PathBuf::from(path);
+    let file = afrobim_alignment::read_landxml_file(&path).expect("the file reads");
+    let file_crs = file.coordinate_system.as_ref().and_then(crate::crs_ui::from_landxml).expect("the file declares a system");
+    assert_eq!(file_crs.epsg, Some(21036));
+    let project = ProjectCrs::from_epsg(32736).unwrap();
+    assert!(crate::transform_ui::differs(Some(&file_crs), Some(&project)));
+    let mut doc = Document::default();
+    set_project_crs(&mut doc, &file_crs);
+    let imp = afrobim_alignment::read_landxml(&path).unwrap();
+    for al in &imp.alignments {
+        crate::alignment_glue::add(&mut doc, al);
+    }
+    assert!(!doc.elements().is_empty());
+    let ext = td::extent_of(&doc, None).unwrap();
+    let plans = plan_transform(&file_crs, &project, Some(DataExtent::new(ext.0, ext.1))).expect("a path exists");
+    let plan = plans.into_iter().next().unwrap();
+    let before = doc.snapshot();
+    let entry = td::apply_plan(&mut doc, None, &plan, &project, "private file", "t".into()).expect("the alignments transform");
+    assert!(entry.positions > 0 && project_crs(&doc).unwrap().epsg == Some(32736));
+    doc.restore(before.clone());
+    assert_eq!(doc.snapshot(), before);
+}

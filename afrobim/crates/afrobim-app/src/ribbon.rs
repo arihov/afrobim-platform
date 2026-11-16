@@ -296,6 +296,22 @@ fn panels(tab: Tab) -> &'static [Panel] {
 
 /// The titles of the panels of a tab, for the workspaces to name them.
 #[allow(dead_code)] // used by the workspace tests
+/// The names of every command that has a button on some tab (for the tests).
+#[cfg(test)]
+pub fn all_commands() -> Vec<&'static str> {
+    let mut out = Vec::new();
+    for (tab, _) in TABS {
+        for p in panels(tab) {
+            for i in p.items {
+                if let Big(_, _, c) | Small(_, _, c) = i {
+                    out.push(*c);
+                }
+            }
+        }
+    }
+    out
+}
+
 pub fn panel_titles(tab: Tab) -> Vec<&'static str> {
     if tab == Tab::Signs {
         return vec!["Direction signs", "Map-type and temporary", "Catalogue", "Visibility", STANDARD.title, "Fabrication"];
