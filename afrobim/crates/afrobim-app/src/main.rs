@@ -5,11 +5,14 @@ mod civil;
 mod civil_build;
 mod civil_build2;
 mod civil_cache;
+#[cfg(test)]
+mod u3_tests;
 mod civil_assembly;
 mod civil_cmds;
 mod civil_corridor;
 mod civil_demo;
 mod civil_dlg;
+mod civil_export;
 mod civil_ifc;
 mod civil_landxml;
 mod civil_parcels;

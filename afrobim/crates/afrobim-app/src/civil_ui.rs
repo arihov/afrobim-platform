@@ -32,6 +32,7 @@ impl AfroBimApp {
     pub(crate) fn civil_run(&mut self, _ctx: &egui::Context, cv: Cv) {
         match cv {
             Cv::Toolspace => self.show_left = !self.show_left,
+            Cv::CivilLandXml => self.civil_landxml_out(),
             Cv::CivilDemo => self.civil_demo(),
             Cv::ParcelPick | Cv::ParcelDeed | Cv::ParcelProps | Cv::ParcelTopology | Cv::ParcelSplit | Cv::ParcelSchedule => self.civil_parcel_cmd(cv),
             Cv::Earthworks => self.civil_quantities_cmd(),

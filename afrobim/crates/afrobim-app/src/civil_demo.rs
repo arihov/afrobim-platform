@@ -149,6 +149,11 @@ pub fn build(doc: &mut Document) -> Vec<String> {
             crate::civil_landxml::add_parcel(doc, &p, SOURCE);
         }
     }
+    // The road reserve (example: 15 m each side) splits the parcels: take and remainder pieces, and the schedule.
+    match crate::civil_parcels::split_by_reserve(doc, &al, 15.0, 15.0, 0.01, 0.005) {
+        Ok(_) => {}
+        Err(e) => notes.push(format!("Road reserve split: {e}")),
+    }
     let _ = pts_id;
     let _: Option<ElementId> = None;
     notes

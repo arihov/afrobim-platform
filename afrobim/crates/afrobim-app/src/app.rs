@@ -887,13 +887,18 @@ impl AfroBimApp {
     /// Elements not placed on site stand upright as on the sheet (see the afrobim-ifc README).
     pub(crate) fn export_ifc(&mut self, path: PathBuf) {
         self.sync_generated();
-        let inputs: Vec<afrobim_ifc::IfcElementInput> = self
+        // Civil surfaces are written as terrain through the existing surface exporter; the other
+        // civil objects are not mapped (see `civil_ifc`).
+        let synth = self.civil_terrain_inputs();
+        let unmapped = self.civil_unmapped_note();
+        let mut inputs: Vec<afrobim_ifc::IfcElementInput> = self
             .doc
             .elements()
             .iter()
-            .filter(|e| e.category != crate::reference_models::CATEGORY)
+            .filter(|e| e.category != crate::reference_models::CATEGORY && !crate::civil::is_civil(&e.category))
             .map(|e| afrobim_ifc::IfcElementInput { element: e, generated: self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()) })
             .collect();
+        inputs.extend(synth.iter().map(|(e, g)| afrobim_ifc::IfcElementInput { element: e, generated: g.as_ref() }));
         // The project name scopes the GlobalIds, so use the document's file name: re-exporting
         // the same saved document keeps every element's identity.
         let project = self.ifc_project_name();
@@ -911,6 +916,9 @@ impl AfroBimApp {
                 self.status = format!("Exported {} element(s) to {}.", inputs.len(), path.display());
                 for note in export.notes.iter().take(5) {
                     self.log(format!("IFC: {note}"));
+                }
+                if let Some(n) = unmapped {
+                    self.log(format!("IFC: {n}"));
                 }
                 if !export.notes.is_empty() {
                     self.status.push_str(&format!(" {} note(s) in the command history.", export.notes.len()));

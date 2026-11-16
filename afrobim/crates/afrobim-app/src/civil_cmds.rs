@@ -45,6 +45,40 @@ pub enum Cv {
 }
 
 
+/// Every civil command (a test checks each one is in the command table).
+pub const ALL: [Cv; 30] = [
+    Cv::Toolspace,
+    Cv::Points,
+    Cv::PointCreate,
+    Cv::PointTable,
+    Cv::PointGroups,
+    Cv::DescKeys,
+    Cv::PointExport,
+    Cv::Cogo,
+    Cv::Traverse,
+    Cv::SurfaceNew,
+    Cv::SurfaceDef,
+    Cv::SurfaceStyle,
+    Cv::SpotElev,
+    Cv::FlowPath,
+    Cv::Volumes,
+    Cv::GroundProfile,
+    Cv::ProfileView,
+    Cv::Assembly,
+    Cv::CorridorModel,
+    Cv::SampleLines,
+    Cv::SectionViews,
+    Cv::Earthworks,
+    Cv::ParcelPick,
+    Cv::ParcelDeed,
+    Cv::ParcelProps,
+    Cv::ParcelTopology,
+    Cv::ParcelSplit,
+    Cv::ParcelSchedule,
+    Cv::CivilLandXml,
+    Cv::CivilDemo,
+];
+
 pub fn glyph(c: Cv) -> &'static str {
     match c {
         Cv::Toolspace => ph::TREE_VIEW,

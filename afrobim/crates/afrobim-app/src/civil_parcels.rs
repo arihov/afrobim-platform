@@ -584,63 +584,13 @@ impl AfroBimApp {
         }
         if out.inner.as_ref().is_some_and(|(_, fo)| fo.primary) {
             if let (Some(al), (Some(l), Some(r), Some(snap), Some(arc))) = (f.alignment.and_then(|id| crate::alignment_glue::alignment_of(&self.doc, id)), vals) {
-                let centre: Vec<Xy> = al.polyline(0.05).iter().map(|p| Xy::new(p.0, p.1)).collect();
-                // 4 is the mitre limit: a numerical guard on how far a sharp corner of the offset line may run out.
-                match (afrobim_cogo::offset_polyline(&centre, l, 4.0), afrobim_cogo::offset_polyline(&centre, -r, 4.0)) {
-                    (Ok(left_edge), Ok(right_edge)) => {
-                        let o = SplitOptions { snap_tol_m: snap, arc_tol_m: arc };
-                        let (mut made, mut hidden) = (0, 0);
-                        let mut number = self.next_parcel_number();
-                        for (id, p) in self.parcels_all() {
-                            // The band is right of the left edge and left of the right edge.
-                            let first = match split_parcel(&p, &left_edge, Side::Right, &o) {
-                                Ok(s) => s,
-                                Err(_) => continue,
-                            };
-                            if first.take_pieces.is_empty() {
-                                continue;
-                            }
-                            let mut take: Vec<Vec<Xy>> = Vec::new();
-                            let mut rest: Vec<Vec<Xy>> = first.remainder_pieces.iter().map(|x| x.ring.clone()).collect();
-                            for piece in &first.take_pieces {
-                                let tmp = piece_parcel(&p, &piece.ring, p.name.clone(), 0, ParcelStatus::Existing, "");
-                                match tmp.and_then(|t| split_parcel(&t, &right_edge, Side::Left, &o).ok()) {
-                                    Some(second) => {
-                                        take.extend(second.take_pieces.iter().map(|x| x.ring.clone()));
-                                        rest.extend(second.remainder_pieces.iter().map(|x| x.ring.clone()));
-                                    }
-                                    None => take.push(piece.ring.clone()),
-                                }
-                            }
-                            if take.is_empty() {
-                                continue;
-                            }
-                            for (i, ring) in take.iter().enumerate() {
-                                if let Some(np) = piece_parcel(&p, ring, format!("{} take {}", p.name, i + 1), number, ParcelStatus::ToBeAcquired, "take") {
-                                    number += 1;
-                                    if self.add_parcel_element(&np, "Split by road reserve").is_some() {
-                                        made += 1;
-                                    }
-                                }
-                            }
-                            for (i, ring) in rest.iter().enumerate() {
-                                if let Some(np) = piece_parcel(&p, ring, format!("{} remainder {}", p.name, i + 1), number, p.status.clone(), "remainder") {
-                                    number += 1;
-                                    if self.add_parcel_element(&np, "Split by road reserve").is_some() {
-                                        made += 1;
-                                    }
-                                }
-                            }
-                            if let Some(e) = self.doc.find_mut(id) {
-                                e.properties.insert(civil::PROP_HIDDEN.into(), "1".into());
-                            }
-                            hidden += 1;
-                        }
+                match split_by_reserve(&mut self.doc, &al, l, r, snap, arc) {
+                    Ok((hidden, made)) => {
                         f.message = format!("Split {hidden} parcel(s) into {made} new parcel(s). The originals are hidden, not deleted.");
                         self.status = f.message.clone();
                         self.schedule_commit_now();
                     }
-                    (Err(e), _) | (_, Err(e)) => f.message = format!("The reserve edges cannot be offset: {e}"),
+                    Err(e) => f.message = e,
                 }
             }
         }
@@ -754,3 +704,61 @@ impl AfroBimApp {
 
 #[allow(dead_code)]
 fn _unused(_: Bounds) {}
+
+/// Splits every parcel the road reserve crosses: the band from `left` m to the left of the
+/// alignment to `right` m to its right. Returns the number of parcels split and of new parcels
+/// made. The new parcels say which parcel they came from; the originals are hidden, not deleted.
+pub fn split_by_reserve(doc: &mut afrobim_kernel::Document, al: &afrobim_alignment::Alignment, left: f64, right: f64, snap: f64, arc: f64) -> Result<(usize, usize), String> {
+    // Curves become chords of 1 m: the reserve edge is then within 1 mm of the true offset on a radius of 125 m or more (the engine's offset takes straight segments).
+    let mut centre: Vec<Xy> = al.polyline(1.0).iter().map(|p| Xy::new(p.0, p.1)).collect();
+    // The joins of elements repeat a point: a zero-length segment has no direction to offset.
+    centre.dedup_by(|a, b| a.dist(*b) < 1e-6);
+    // 4 is the mitre limit: a numerical guard on how far a sharp corner of the offset line may run out.
+    let left_edge = afrobim_cogo::offset_polyline(&centre, left, 4.0).map_err(|e| format!("The reserve edges cannot be offset: {e}"))?;
+    let right_edge = afrobim_cogo::offset_polyline(&centre, -right, 4.0).map_err(|e| format!("The reserve edges cannot be offset: {e}"))?;
+    let o = SplitOptions { snap_tol_m: snap, arc_tol_m: arc };
+    let parcels: Vec<(ElementId, Parcel)> = doc.elements().iter().filter(|e| e.category == PARCEL && !civil::hidden(e)).filter_map(|e| serde_json::from_value::<Parcel>(e.data.clone()).ok().map(|p| (e.id, p))).collect();
+    let mut number = doc.elements().iter().filter_map(|e| serde_json::from_value::<Parcel>(e.data.clone()).ok().filter(|_| e.category == PARCEL)).map(|p| p.number).max().unwrap_or(0) + 1;
+    let (mut made, mut hidden) = (0, 0);
+    for (id, p) in parcels {
+        // The band is right of the left edge and left of the right edge.
+        let Ok(first) = split_parcel(&p, &left_edge, Side::Right, &o) else { continue };
+        if first.take_pieces.is_empty() {
+            continue;
+        }
+        let mut take: Vec<Vec<Xy>> = Vec::new();
+        let mut rest: Vec<Vec<Xy>> = first.remainder_pieces.iter().map(|x| x.ring.clone()).collect();
+        for piece in &first.take_pieces {
+            let tmp = piece_parcel(&p, &piece.ring, p.name.clone(), 0, ParcelStatus::Existing, "");
+            match tmp.and_then(|t| split_parcel(&t, &right_edge, Side::Left, &o).ok()) {
+                Some(second) => {
+                    take.extend(second.take_pieces.iter().map(|x| x.ring.clone()));
+                    rest.extend(second.remainder_pieces.iter().map(|x| x.ring.clone()));
+                }
+                None => take.push(piece.ring.clone()),
+            }
+        }
+        if take.is_empty() {
+            continue;
+        }
+        let mut add = |doc: &mut afrobim_kernel::Document, ring: &Vec<Xy>, name: String, status: ParcelStatus, note: &str| {
+            if let Some(np) = piece_parcel(&p, ring, name, number, status, note) {
+                number += 1;
+                if crate::civil_landxml::add_parcel(doc, &np, "Split by road reserve").is_some() {
+                    made += 1;
+                }
+            }
+        };
+        for (i, ring) in take.iter().enumerate() {
+            add(doc, ring, format!("{} take {}", p.name, i + 1), ParcelStatus::ToBeAcquired, "take");
+        }
+        for (i, ring) in rest.iter().enumerate() {
+            add(doc, ring, format!("{} remainder {}", p.name, i + 1), p.status.clone(), "remainder");
+        }
+        if let Some(e) = doc.find_mut(id) {
+            e.properties.insert(civil::PROP_HIDDEN.into(), "1".into());
+        }
+        hidden += 1;
+    }
+    Ok((hidden, made))
+}
