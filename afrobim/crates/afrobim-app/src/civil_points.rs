@@ -640,7 +640,7 @@ impl AfroBimApp {
                                 } else {
                                     let text = TableState::cell(&p, c);
                                     let sel = t.selected == Some(number);
-                                    let r = ui.add_sized([*w, 20.0], egui::SelectableLabel::new(sel, RichText::new(text.clone()).monospace()));
+                                    let r = table_cell(ui, *w, &text, sel);
                                     if r.clicked() {
                                         t.selected = Some(number);
                                         if c == 6 {
@@ -1375,3 +1375,13 @@ impl AfroBimApp {
 
 #[allow(dead_code)]
 fn _unused(_: NumRule) {}
+
+/// A table cell: the text left-aligned in a fixed width, highlighted when selected.
+fn table_cell(ui: &mut Ui, width: f32, text: &str, selected: bool) -> egui::Response {
+    let (rect, r) = ui.allocate_exact_size(egui::vec2(width, 20.0), egui::Sense::click());
+    if selected || r.hovered() {
+        ui.painter().rect_filled(rect, 3.0, if selected { ui.visuals().selection.bg_fill } else { ui.visuals().widgets.hovered.weak_bg_fill });
+    }
+    ui.painter().with_clip_rect(rect).text(rect.left_center() + egui::vec2(3.0, 0.0), egui::Align2::LEFT_CENTER, text, egui::FontId::monospace(12.0), ui.visuals().text_color());
+    r
+}

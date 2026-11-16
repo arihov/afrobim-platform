@@ -4,7 +4,7 @@
 //!
 //! Text sizes are in pixels on screen (so a label never grows with the zoom), or in model
 //! millimetres where the text belongs to a drawing (a profile view's grid labels); a text in
-//! model millimetres is drawn only when it would be between 5 and 48 pixels high.
+//! model millimetres is drawn only when it would be between 4 and 48 pixels high.
 
 use afrobim_draw::Mesh3;
 use afrobim_kernel::{Pt, ViewTransform};
@@ -125,7 +125,7 @@ impl Scene {
             }
             let size = if t.height_mm > 0.0 {
                 let px = (t.height_mm * view.scale) as f32;
-                if !(5.0..=48.0).contains(&px) {
+                if !(4.0..=48.0).contains(&px) {
                     continue;
                 }
                 px

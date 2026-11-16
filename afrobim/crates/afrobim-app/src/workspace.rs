@@ -75,7 +75,8 @@ pub const WORKSPACES: &[Workspace] = &[
         glyph: ph::TREE_VIEW,
         blurb: "Points, surfaces, alignments, profiles, sections, corridors, parcels and quantities",
         tabs: &[WsTab::all(Tab::Civil), WsTab::all(Tab::Insert)],
-        palettes: BOTH,
+        // The toolspace tree gets the whole left panel.
+        palettes: Palettes { signs: false, modify: false },
         show_left: true,
         show_right: true,
         everything: false,

@@ -542,11 +542,17 @@ impl AfroBimApp {
         if e.category == afrobim_kernel::PROJECT_SETTINGS_CATEGORY || e.category == afrobim_annotate::SETTINGS_CATEGORY {
             return Vec::new();
         }
+        // An assembly or a ground profile has no place in the plan: it sits at the origin and must not widen the framing.
+        if crate::civil::is_civil(&e.category) && !crate::civil::has_plan_position(&e.category) {
+            return Vec::new();
+        }
         let Some(frame) = self.frame_of(e, site_mode) else { return Vec::new() };
         if is_site_solid(&e.category) {
             // The corners of the solids themselves, so that levels well above zero are framed.
             match self.mesh_bounds(e, frame) {
                 Some((lo, hi)) => vec![lo, hi],
+                // A civil object with no solid (points, parcels, sections) is at no level in 3D: it must not stretch the framing down to zero.
+                None if crate::civil::is_civil(&e.category) => Vec::new(),
                 None => vec![frame.at(0.0, 0.0, 0.0), frame.at(e.width, e.height, 0.0)],
             }
         } else if crate::supports_glue::is_support(&e.category) {

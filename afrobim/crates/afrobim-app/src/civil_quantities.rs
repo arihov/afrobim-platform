@@ -108,11 +108,11 @@ impl AfroBimApp {
                             if t.unmeasured_length_m > 0.0 {
                                 ui_kit::callout(ui, Level::Warning, format!("{:.1} m of the corridor could not be measured (a section is missing a figure the method needs).", t.unmeasured_length_m));
                             }
+                            mass_diagram(ui, t);
                             let rows: Vec<Vec<String>> = t.rows.iter().map(|r| vec![r.label.clone(), r.cut_area_m2.map(|v| fmt(v, 2)).unwrap_or_default(), r.fill_area_m2.map(|v| fmt(v, 2)).unwrap_or_default(), r.cut_volume_m3.map(|v| fmt(v, 1)).unwrap_or_default(), r.fill_volume_m3.map(|v| fmt(v, 1)).unwrap_or_default(), fmt(r.mass_ordinate_m3, 1)]).collect();
-                            egui::ScrollArea::vertical().id_salt("eq-rows").max_height(180.0).show(ui, |ui| {
+                            egui::ScrollArea::vertical().id_salt("eq-rows").max_height(130.0).show(ui, |ui| {
                                 ui_kit::results_table(ui, "eq-rows", &["Station", "Cut area", "Fill area", "Cut m3", "Fill m3", "Mass ordinate"], &[Col::Text, Col::Num, Col::Num, Col::Num, Col::Num, Col::Num], &rows);
                             });
-                            mass_diagram(ui, t);
                         }
                         Err(e) => {
                             ui_kit::callout(ui, Level::Error, e.clone());

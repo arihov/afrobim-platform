@@ -392,7 +392,8 @@ fn build_profile_view(e: &Element, ctx: &Ctx) -> Result<Built, String> {
     let mut sc = Scene::default();
     let (x0, x1, y0, y1) = (px(s0), px(s1), py(datum), py(ztop));
     sc.lines.push(SLine::new(vec![[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]], C_GRID, 1.4));
-    let text_h = (zstep * ex * 1000.0 * 0.25).max(1.0);
+    // Text 2.5 m high at the drawing's true horizontal scale (5 mm at 1:500); it shows when it would be 4 px or more on screen.
+    let text_h = 2500.0;
     let mut z = datum;
     while z <= ztop + 1e-9 {
         sc.lines.push(SLine::new(vec![[x0, py(z)], [x1, py(z)]], C_GRID, 0.5));
@@ -442,7 +443,7 @@ fn build_profile_view(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         for (i, l) in labels.iter().enumerate() {
             let yb = y0 - row * (i + 1) as f64;
             sc.lines.push(SLine::new(vec![[x0, yb], [x1, yb]], C_GRID, 0.5));
-            sc.texts.push(SText { at: [x0 - row * 0.2, yb + row / 2.0], text: l.to_string(), rgb: C_TEXT, height_mm: row * 0.45, px: 0.0, anchor: 2 });
+            sc.texts.push(SText { at: [x0 - row * 0.2, yb + row / 2.0], text: l.to_string(), rgb: C_TEXT, height_mm: row * 0.6, px: 0.0, anchor: 2 });
         }
         let ground_at = |s: f64| grounds.first().and_then(|g| nearest(&g.1, s));
         for s in &stations {
@@ -457,7 +458,7 @@ fn build_profile_view(e: &Element, ctx: &Ctx) -> Result<Built, String> {
             ];
             for (i, t) in cells.iter().enumerate() {
                 let yb = y0 - row * (i + 1) as f64;
-                sc.texts.push(SText { at: [px(*s), yb + row / 2.0], text: t.clone(), rgb: C_TEXT, height_mm: row * 0.45, px: 0.0, anchor: 0 });
+                sc.texts.push(SText { at: [px(*s), yb + row / 2.0], text: t.clone(), rgb: C_TEXT, height_mm: row * 0.6, px: 0.0, anchor: 0 });
             }
         }
         sc.lines.push(SLine::new(vec![[x0, y0 - row * 4.0], [x1, y0 - row * 4.0]], C_GRID, 1.0));

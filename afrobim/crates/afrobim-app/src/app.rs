@@ -1864,8 +1864,10 @@ impl AfroBimApp {
         egui::SidePanel::left("tools").resizable(true).default_width(250.0).min_width(180.0).max_width(420.0).show(ctx, |ui| {
             let mut pick = None;
             ui.add_space(4.0);
-            ui.label(RichText::new("TOOL SETS").small().strong().weak());
-            ui.separator();
+            if palettes.signs || palettes.modify {
+                ui.label(RichText::new("TOOL SETS").small().strong().weak());
+                ui.separator();
+            }
             if palettes.signs {
                 ui.label(RichText::new("Traffic signs").small().weak());
                 ui.add_enabled_ui(self.signs_ready, |ui| {
