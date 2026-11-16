@@ -120,7 +120,7 @@ impl Dialog {
                 }
                 ui.add_space(theme::SP_XS);
                 // A window wider than the work area scrolls sideways as well, so that nothing is out of reach.
-                let scroll = if self.width > work.width() - 8.0 { egui::ScrollArea::both() } else { egui::ScrollArea::vertical() };
+                let scroll = if self.width > crate::win::area_rect(ctx).width() - 8.0 { egui::ScrollArea::both() } else { egui::ScrollArea::vertical() };
                 let r = scroll.id_salt("kit-body").max_height(body_cap).auto_shrink([false, true]).show(ui, |ui| egui::Frame::NONE.inner_margin(egui::Margin { left: 0, right: 12, top: 0, bottom: 0 }).show(ui, |ui| body(ui)).inner).inner;
                 ui.add_space(theme::SP_SM);
                 let f = footer(ui);

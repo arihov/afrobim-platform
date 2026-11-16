@@ -2304,59 +2304,63 @@ impl AfroBimApp {
         self.sheets_windows(ctx);
         self.design_windows(ctx);
         let mut help = self.show_help;
-        let dlg = crate::ui_kit::Dialog::titled("Commands").subtitle("Every command, its aliases and what it does").width(520.0).show_body(ctx, |ui| {
-            egui::Grid::new("cmds").num_columns(3).striped(true).spacing([14.0, 4.0]).show(ui, |ui| {
-                for c in COMMANDS {
-                    ui.label(RichText::new(c.name).monospace().strong());
-                    ui.label(RichText::new(c.aliases.join(" ")).monospace().weak());
-                    ui.label(c.help);
-                    ui.end_row();
-                }
+        if help {
+            let dlg = crate::ui_kit::Dialog::titled("Commands").subtitle("Every command, its aliases and what it does").width(520.0).show_body(ctx, |ui| {
+                egui::Grid::new("cmds").num_columns(3).striped(true).spacing([14.0, 4.0]).show(ui, |ui| {
+                    for c in COMMANDS {
+                        ui.label(RichText::new(c.name).monospace().strong());
+                        ui.label(RichText::new(c.aliases.join(" ")).monospace().weak());
+                        ui.label(c.help);
+                        ui.end_row();
+                    }
+                });
+                ui.add_space(6.0);
+                ui.label(RichText::new("Points: x,y absolute  ·  @dx,dy relative  ·  @distance<angle polar. MOVE, COPY and the signs commands take millimetres; the annotation, dimension and measure commands take the document units (UNITS).").weak());
             });
-            ui.add_space(6.0);
-            ui.label(RichText::new("Points: x,y absolute  ·  @dx,dy relative  ·  @distance<angle polar. MOVE, COPY and the signs commands take millimetres; the annotation, dimension and measure commands take the document units (UNITS).").weak());
-        });
-        if dlg.closed {
-            help = false;
+            if dlg.closed {
+                help = false;
+            }
         }
         self.show_help = help;
 
         let mut library_open = self.show_library;
         let mut insert: Option<(String, serde_json::Value)> = None;
-        let dlg = crate::ui_kit::Dialog::titled("Standard signs").subtitle("The sign library of the loaded standard").width(420.0).show_body(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Find");
-                ui.add(egui::TextEdit::singleline(&mut self.library_filter).hint_text("key or name").desired_width(f32::INFINITY));
-            });
-            ui.separator();
-            let filter = self.library_filter.trim().to_lowercase();
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                let mut classes: Vec<&str> = self.library.iter().map(|i| i.class.as_str()).collect();
-                classes.dedup();
-                classes.sort();
-                classes.dedup();
-                for class in classes {
-                    let items: Vec<&signs_glue::LibraryItem> = self
-                        .library
-                        .iter()
-                        .filter(|i| i.class == class)
-                        .filter(|i| filter.is_empty() || i.key.to_lowercase().contains(&filter) || i.name.to_lowercase().contains(&filter))
-                        .collect();
-                    if items.is_empty() {
-                        continue;
-                    }
-                    egui::CollapsingHeader::new(format!("{class} ({})", items.len())).default_open(true).show(ui, |ui| {
-                        for item in items {
-                            if ui.selectable_label(false, format!("{}   {}", item.key, item.name)).on_hover_text("Click to insert, then click in the model to place").clicked() {
-                                insert = Some((item.key.clone(), item.data.clone()));
-                            }
+        if library_open {
+            let dlg = crate::ui_kit::Dialog::titled("Standard signs").subtitle("The sign library of the loaded standard").width(420.0).show_body(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Find");
+                    ui.add(egui::TextEdit::singleline(&mut self.library_filter).hint_text("key or name").desired_width(f32::INFINITY));
+                });
+                ui.separator();
+                let filter = self.library_filter.trim().to_lowercase();
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                    let mut classes: Vec<&str> = self.library.iter().map(|i| i.class.as_str()).collect();
+                    classes.dedup();
+                    classes.sort();
+                    classes.dedup();
+                    for class in classes {
+                        let items: Vec<&signs_glue::LibraryItem> = self
+                            .library
+                            .iter()
+                            .filter(|i| i.class == class)
+                            .filter(|i| filter.is_empty() || i.key.to_lowercase().contains(&filter) || i.name.to_lowercase().contains(&filter))
+                            .collect();
+                        if items.is_empty() {
+                            continue;
                         }
-                    });
-                }
+                        egui::CollapsingHeader::new(format!("{class} ({})", items.len())).default_open(true).show(ui, |ui| {
+                            for item in items {
+                                if ui.selectable_label(false, format!("{}   {}", item.key, item.name)).on_hover_text("Click to insert, then click in the model to place").clicked() {
+                                    insert = Some((item.key.clone(), item.data.clone()));
+                                }
+                            }
+                        });
+                    }
+                });
             });
-        });
-        if dlg.closed {
-            library_open = false;
+            if dlg.closed {
+                library_open = false;
+            }
         }
         self.show_library = library_open;
         if let Some((key, data)) = insert {
@@ -2913,17 +2917,19 @@ impl AfroBimApp {
         }
 
         let mut about = self.show_about;
-        let dlg = crate::ui_kit::Dialog::titled("About AfroBIM").subtitle("Version and licence of this build").resizable(false).show_body(ctx, |ui| {
-            ui.heading("AfroBIM");
-            ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
-            ui.add_space(6.0);
-            ui.label("Building information modelling for roads and infrastructure.");
-            ui.label("Traffic signs module: UK Traffic Signs Manual Chapter 7.");
-            ui.add_space(6.0);
-            ui.label(RichText::new(&self.module_status).weak());
-        });
-        if dlg.closed {
-            about = false;
+        if about {
+            let dlg = crate::ui_kit::Dialog::titled("About AfroBIM").subtitle("Version and licence of this build").resizable(false).show_body(ctx, |ui| {
+                ui.heading("AfroBIM");
+                ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
+                ui.add_space(6.0);
+                ui.label("Building information modelling for roads and infrastructure.");
+                ui.label("Traffic signs module: UK Traffic Signs Manual Chapter 7.");
+                ui.add_space(6.0);
+                ui.label(RichText::new(&self.module_status).weak());
+            });
+            if dlg.closed {
+                about = false;
+            }
         }
         self.show_about = about;
     }
@@ -3007,7 +3013,7 @@ impl eframe::App for AfroBimApp {
         // `--run COMMAND`: runs a command once at start-up (on the element named by `--focus`, when
         // given), to look at a dialog or window without a pointer.
         self.update_frames = self.update_frames.saturating_add(1);
-        if self.options.run.is_some() && self.update_frames < 3 {
+        if self.options.run.is_some() && (self.update_frames < 3 || self.bg.busy()) {
             ctx.request_repaint();
         } else if let Some(command) = self.options.run.take() {
             if let Some(mark) = self.options.focus.clone() {

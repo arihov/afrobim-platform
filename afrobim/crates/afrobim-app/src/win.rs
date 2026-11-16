@@ -17,6 +17,15 @@ pub fn work_rect(ctx: &Context) -> Rect {
     ctx.data(|d| d.get_temp::<Rect>(Id::new(WORK_RECT))).unwrap_or_else(|| ctx.screen_rect())
 }
 
+/// The area a window may be moved and sized in: the height of the central area (below the menu,
+/// ribbon and toolbar, above the status bar) and the width of the whole screen, so that a dialog
+/// wider than the central area (the side panels take a lot of a small screen) can lie over the panels.
+pub fn area_rect(ctx: &Context) -> Rect {
+    let work = work_rect(ctx);
+    let screen = ctx.screen_rect();
+    Rect::from_min_max(Pos2::new(screen.min.x.min(work.min.x), work.min.y), Pos2::new(screen.max.x.max(work.max.x), work.max.y))
+}
+
 /// Where a new window opens: the top left of the central area, a little in from its edges.
 pub fn first_position(work: Rect) -> Pos2 {
     work.min + vec2(16.0, 12.0)
@@ -160,12 +169,13 @@ pub fn plain<'a>(ctx: &Context, title: &str) -> egui::Window<'a> {
 
 fn place<'a>(ctx: &Context, win: egui::Window<'a>, title: &str) -> egui::Window<'a> {
     let work = work_rect(ctx);
+    let area = area_rect(ctx);
     SEEN.with(|s| s.borrow_mut().push(title.to_string()));
     let id = Id::new(title);
-    let win = win.id(id).constrain_to(work).max_size(work.size() - vec2(8.0, 8.0)).frame(crate::theme::window_frame(ctx));
+    let win = win.id(id).constrain_to(area).max_size(area.size() - vec2(8.0, 8.0)).frame(crate::theme::window_frame(ctx));
     // A saved position applies only on the very first frame of the window; after that the window is its own.
     match saved_position(title) {
-        Some(p) if ctx.memory(|m| m.area_rect(id)).is_none() => win.current_pos(clamp_to(work, p)),
+        Some(p) if ctx.memory(|m| m.area_rect(id)).is_none() => win.current_pos(clamp_to(area, p)),
         _ => win.default_pos(first_position(work)),
     }
 }
