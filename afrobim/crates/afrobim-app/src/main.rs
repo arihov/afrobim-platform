@@ -1,6 +1,14 @@
 //! AfroBIM desktop application.
 
 mod aids;
+mod civil;
+mod civil_build;
+mod civil_build2;
+mod civil_cache;
+mod civil_cmds;
+mod civil_scene;
+mod civil_tree;
+mod civil_ui;
 mod alignment_glue;
 mod anno_glue;
 mod anno_ui;

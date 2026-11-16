@@ -169,6 +169,8 @@ pub enum Action {
     Appearance,
     /// The searchable command palette.
     Palette,
+    /// A civil object command (see `civil_cmds`).
+    Civil(crate::civil_cmds::Cv),
 }
 
 pub struct CommandInfo {
@@ -356,6 +358,36 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "HELP", aliases: &["?"], help: "List every command", action: Action::Help },
     CommandInfo { name: "ABOUT", aliases: &[], help: "About AfroBIM", action: Action::About },
     CommandInfo { name: "QUIT", aliases: &["EXIT"], help: "Close AfroBIM", action: Action::Quit },
+    CommandInfo { name: "TOOLSPACE", aliases: &["PROSPECTOR"], help: "Show or hide the toolspace: the Prospector tree of the civil objects and the Settings tab", action: Action::Civil(crate::civil_cmds::Cv::Toolspace) },
+    CommandInfo { name: "POINTS", aliases: &["IMPORTPOINTS", "COGOPOINTS"], help: "Import COGO points from a point file: the format is detected and previewed, the coordinate system is checked, and the duplicate policy is yours", action: Action::Civil(crate::civil_cmds::Cv::Points) },
+    CommandInfo { name: "POINTCREATE", aliases: &["CREATEPOINT", "PT"], help: "Create a COGO point by typed easting, northing and elevation, or by picking in the model", action: Action::Civil(crate::civil_cmds::Cv::PointCreate) },
+    CommandInfo { name: "POINTTABLE", aliases: &["PTTABLE"], help: "Edit the points of a point set in a table: sort, filter and edit any cell", action: Action::Civil(crate::civil_cmds::Cv::PointTable) },
+    CommandInfo { name: "POINTGROUPS", aliases: &["PTGROUPS"], help: "Point groups: include and exclude rules, surface points, order", action: Action::Civil(crate::civil_cmds::Cv::PointGroups) },
+    CommandInfo { name: "DESCKEYS", aliases: &["DESCRIPTIONKEYS"], help: "Edit the description keys that turn field codes into full descriptions, styles and layers", action: Action::Civil(crate::civil_cmds::Cv::DescKeys) },
+    CommandInfo { name: "POINTEXPORT", aliases: &["EXPORTPOINTS"], help: "Export the points of a point set or group to a point file", action: Action::Civil(crate::civil_cmds::Cv::PointExport) },
+    CommandInfo { name: "COGO", aliases: &["INVERSE", "COGOTOOLS"], help: "COGO tools: inverse, bearing and distance, intersections, station and offset to an alignment", action: Action::Civil(crate::civil_cmds::Cv::Cogo) },
+    CommandInfo { name: "TRAVERSE", aliases: &["TRAV"], help: "Enter a traverse and adjust it (compass or transit rule) with a misclosure report", action: Action::Civil(crate::civil_cmds::Cv::Traverse) },
+    CommandInfo { name: "SURFACENEW", aliases: &["CREATESURFACE", "NEWSURFACE"], help: "Create a surface from a definition: a name, a role and operations", action: Action::Civil(crate::civil_cmds::Cv::SurfaceNew) },
+    CommandInfo { name: "SURFACEDEF", aliases: &["SURFACEDEFINITION", "DEFINITION"], help: "Edit the definition of a surface: operations, order, rebuild and the build report", action: Action::Civil(crate::civil_cmds::Cv::SurfaceDef) },
+    CommandInfo { name: "SURFACESTYLE", aliases: &["CONTOURS", "SURFSTYLE"], help: "Surface style: triangles, border, contours, elevation and slope bands, slope arrows", action: Action::Civil(crate::civil_cmds::Cv::SurfaceStyle) },
+    CommandInfo { name: "SPOT", aliases: &["SPOTELEVATION", "SPOTELEV"], help: "Read the elevation of a surface at an easting and northing", action: Action::Civil(crate::civil_cmds::Cv::SpotElev) },
+    CommandInfo { name: "FLOWPATH", aliases: &["WATERDROP"], help: "Trace the steepest-descent path of water from an easting and northing over a surface", action: Action::Civil(crate::civil_cmds::Cv::FlowPath) },
+    CommandInfo { name: "VOLUMES", aliases: &["VOLUMEDASHBOARD", "CUTFILL"], help: "Volumes between two surfaces or against a level, bounded by an optional polygon, with a stage-storage table", action: Action::Civil(crate::civil_cmds::Cv::Volumes) },
+    CommandInfo { name: "GROUNDPROFILE", aliases: &["EXISTINGPROFILE", "SAMPLEPROFILE"], help: "Sample an existing ground profile from a surface along an alignment", action: Action::Civil(crate::civil_cmds::Cv::GroundProfile) },
+    CommandInfo { name: "PROFILEVIEW", aliases: &["PVIEW"], help: "Draw a profile view in the model: grid, ground and design lines and bands", action: Action::Civil(crate::civil_cmds::Cv::ProfileView) },
+    CommandInfo { name: "ASSEMBLY", aliases: &["ASSEMBLIES", "SUBASSEMBLY"], help: "Assembly editor: build a typical section from the subassembly library with a live preview", action: Action::Civil(crate::civil_cmds::Cv::Assembly) },
+    CommandInfo { name: "CORRIDORMODEL", aliases: &["NEWCORRIDOR", "CORRIDOR2"], help: "Corridor from a baseline, regions with an assembly each, a frequency and a ground surface (the older CORRIDOR keeps working on old documents)", action: Action::Civil(crate::civil_cmds::Cv::CorridorModel) },
+    CommandInfo { name: "SAMPLELINES", aliases: &["SAMPLELINEGROUP", "SL"], help: "Sample line group: stations, swath widths and the surfaces cut at each line", action: Action::Civil(crate::civil_cmds::Cv::SampleLines) },
+    CommandInfo { name: "SECTIONVIEWS", aliases: &["SECVIEWS"], help: "Draw the section views of a sample line group as an array in the model", action: Action::Civil(crate::civil_cmds::Cv::SectionViews) },
+    CommandInfo { name: "EARTHWORKS", aliases: &["CIVILQUANTITIES", "MASSHAUL"], help: "Earthworks table, material volumes by shape code and the mass haul diagram, with CSV export and a send to the bill", action: Action::Civil(crate::civil_cmds::Cv::Earthworks) },
+    CommandInfo { name: "PARCELPICK", aliases: &["PARCEL", "CREATEPARCEL"], help: "Create a parcel from typed or picked corner points", action: Action::Civil(crate::civil_cmds::Cv::ParcelPick) },
+    CommandInfo { name: "PARCELDEED", aliases: &["DEED"], help: "Create a parcel from the courses of a deed (bearing and distance) with a closure report", action: Action::Civil(crate::civil_cmds::Cv::ParcelDeed) },
+    CommandInfo { name: "PARCELPROPS", aliases: &["PARCELPROPERTIES"], help: "Parcel properties: owner, land reference, land use, status", action: Action::Civil(crate::civil_cmds::Cv::ParcelProps) },
+    CommandInfo { name: "PARCELTOPOLOGY", aliases: &["TOPOLOGY"], help: "Check the parcels of the site for gaps and overlaps", action: Action::Civil(crate::civil_cmds::Cv::ParcelTopology) },
+    CommandInfo { name: "PARCELSPLIT", aliases: &["RESERVE", "ROADRESERVE"], help: "Split the parcels by an alignment offset (road reserve): take and remainder parcels", action: Action::Civil(crate::civil_cmds::Cv::ParcelSplit) },
+    CommandInfo { name: "ACQUISITION", aliases: &["PARCELSCHEDULE", "LANDSCHEDULE"], help: "Land acquisition schedule and parcel area table, with CSV export", action: Action::Civil(crate::civil_cmds::Cv::ParcelSchedule) },
+    CommandInfo { name: "CIVILXML", aliases: &["LANDXMLALL", "LANDXMLCIVIL"], help: "Write everything civil that the document holds to a LandXML file, with the project coordinate system", action: Action::Civil(crate::civil_cmds::Cv::CivilLandXml) },
+    CommandInfo { name: "CIVILDEMO", aliases: &["DEMOCIVIL"], help: "Build a small set of demonstration civil data at UTM-sized coordinates (example values, not a design)", action: Action::Civil(crate::civil_cmds::Cv::CivilDemo) },
 ];
 
 /// Resolves typed text to a command by name or alias, case-insensitively.

@@ -69,6 +69,12 @@ pub struct AfroBimApp {
     pub(crate) signsched: crate::signsched::SignSchedUi,
     pub(crate) projset: crate::projset::ProjSetUi,
     pub(crate) survey: crate::survey_ui::SurveyUi,
+    /// The civil objects: built scenes, the toolspace tree and the dialogs of the civil commands.
+    pub(crate) civil: crate::civil_cache::CivilState,
+    pub(crate) civil_ui: crate::civil_ui::CivilUi,
+    /// A civil command or an action a toolspace row asked for, run at the start of the next frame.
+    pub(crate) civil_run_pending: Option<crate::civil_cmds::Cv>,
+    pub(crate) pending_action: Option<Action>,
     pub(crate) landxml: crate::landxml_ui::LandXmlUi,
     /// The name of the last IFC file exported, which BCF topics name as their model.
     pub(crate) last_ifc_name: Option<String>,
@@ -207,6 +213,10 @@ impl AfroBimApp {
             signsched: Default::default(),
             projset: Default::default(),
             survey: Default::default(),
+            civil: Default::default(),
+            civil_ui: Default::default(),
+            civil_run_pending: None,
+            pending_action: None,
             landxml: Default::default(),
             last_ifc_name: None,
             signs_ready,
@@ -619,12 +629,14 @@ impl AfroBimApp {
         any |= self.cache.len() != before;
         for id in ids {
             let Some(e) = self.doc.find(id) else { continue };
-            let fresh = self.cache.get(&id).is_some_and(|c| c.key.0 == e.name && c.key.1 == e.data);
+            // A civil element's data can be huge (100 000 points): its revision stands for it.
+            let key_data = if crate::civil::is_civil(&e.category) { serde_json::Value::String(crate::civil::rev_of(e)) } else { e.data.clone() };
+            let fresh = self.cache.get(&id).is_some_and(|c| c.key.0 == e.name && c.key.1 == key_data);
             if fresh {
                 continue;
             }
             let generated = self.modules.generate(e);
-            let key = (e.name.clone(), e.data.clone());
+            let key = (e.name.clone(), key_data);
             let mesh = generated.as_ref().map(|g| ElementMesh::build(&g.drawing)).unwrap_or_default();
             if let Ok(g) = &generated {
                 let (w, h) = (g.drawing.extents.width(), g.drawing.extents.height());
@@ -1452,6 +1464,7 @@ impl AfroBimApp {
                 self.projset.tab = crate::projset::UNITS_TAB;
             }
             Action::CoordSystem => self.open_crs_tab(),
+            Action::Civil(cv) => self.civil_run(ctx, cv),
             Action::ProjectSettings => {
                 self.projset.open = true;
                 self.projset.tab = 0;
@@ -1875,40 +1888,9 @@ impl AfroBimApp {
             }
 
             ui.add_space(10.0);
-            ui.label(RichText::new("MODEL").small().strong().weak());
+            ui.label(RichText::new("TOOLSPACE").small().strong().weak());
             ui.separator();
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                let categories: Vec<(String, String)> = self.modules.categories().map(|(c, n)| (c.to_string(), n.to_string())).collect();
-                let mut select = None;
-                let mut zoom_to = None;
-                for (category, title) in categories {
-                    let count = self.doc.elements().iter().filter(|e| e.category == category).count();
-                    egui::CollapsingHeader::new(format!("{title} ({count})")).default_open(true).show(ui, |ui| {
-                        for e in self.doc.elements().iter().filter(|e| e.category == category) {
-                            let row = ui.selectable_label(self.doc.is_selected(e.id), &e.name);
-                            if row.clicked() {
-                                select = Some(e.id);
-                            }
-                            if row.double_clicked() {
-                                zoom_to = Some(e.id);
-                            }
-                            row.context_menu(|ui| {
-                                if ui.button("Zoom to object").clicked() {
-                                    select = Some(e.id);
-                                    zoom_to = Some(e.id);
-                                    ui.close_menu();
-                                }
-                            });
-                        }
-                    });
-                }
-                if let Some(id) = select {
-                    self.doc.select(&[id], SelectMode::Replace);
-                }
-                if let Some(id) = zoom_to {
-                    self.zoom_to_element(id);
-                }
-            });
+            self.toolspace(ui);
             if let Some(a) = pick {
                 self.run(ctx, a);
             }
@@ -2032,7 +2014,7 @@ impl AfroBimApp {
                 let mut remove = None;
                 egui::Grid::new("pset").num_columns(3).spacing([8.0, 4.0]).show(ui, |ui| {
                     // The entries the check dialogs and the construction windows keep are theirs.
-                    for (k, v) in e.properties.iter_mut().filter(|(k, _)| !crate::check_inputs::is_check_key(k) && !k.starts_with("construction.")) {
+                    for (k, v) in e.properties.iter_mut().filter(|(k, _)| !crate::check_inputs::is_check_key(k) && !k.starts_with("construction.") && !k.starts_with("civil.")) {
                         ui.label(k);
                         changed |= ui.text_edit_singleline(v).changed();
                         if ui.small_button("x").on_hover_text("Remove this property").clicked() {
@@ -2272,6 +2254,7 @@ impl AfroBimApp {
         self.signsched_windows(ctx);
         self.projset_window(ctx);
         self.survey_window(ctx);
+        self.civil_windows(ctx);
         self.landxml_window(ctx);
         self.appearance_window(ctx);
         self.palette_window(ctx);
@@ -3009,6 +2992,13 @@ impl eframe::App for AfroBimApp {
             }
         }
 
+        if let Some(a) = self.pending_action.take() {
+            self.run(ctx, a);
+        }
+        if let Some(cv) = self.civil_run_pending.take() {
+            self.run(ctx, Action::Civil(cv));
+        }
+        self.civil_sync();
         self.drop_tick(ctx);
         self.sched_tick(ctx);
         self.under.sync(&mut self.doc, self.view.scale);

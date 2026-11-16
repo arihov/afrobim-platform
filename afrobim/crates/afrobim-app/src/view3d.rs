@@ -311,7 +311,7 @@ impl Frame {
 /// ground surfaces. A corridor has no solids of its own: its surfaces are built from the
 /// corridor and cached by the app (`AfroBimApp::corridor_cache`).
 pub(crate) fn is_site_solid(category: &str) -> bool {
-    category == crate::markings_glue::CATEGORY || category == crate::ext_markings_glue::CATEGORY_EXT || crate::modules_glue::owns(category) || crate::modules_glue::is_surface(category)
+    category == crate::markings_glue::CATEGORY || category == crate::ext_markings_glue::CATEGORY_EXT || crate::modules_glue::owns(category) || crate::modules_glue::is_surface(category) || crate::civil::is_civil(category)
 }
 
 /// The alignment's centreline as site points in millimetres, at the profile's level where the
@@ -420,6 +420,9 @@ impl AfroBimApp {
 
     /// The solids of an element by id: its generated solids, or for a corridor the built surfaces.
     pub(crate) fn meshes_by_id(&self, id: afrobim_kernel::ElementId) -> Option<&[afrobim_draw::Mesh3]> {
+        if self.doc.find(id).is_some_and(|e| crate::civil::is_civil(&e.category)) {
+            return self.civil.built.get(&id).map(|(_, b)| b.scene.meshes.as_slice());
+        }
         if self.doc.find(id).is_some_and(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY) {
             return self.corridor_cache.get(&id)?.solids.as_ref().ok().map(|s| s.meshes.as_slice());
         }

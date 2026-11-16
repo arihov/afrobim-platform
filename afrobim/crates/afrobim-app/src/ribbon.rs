@@ -20,6 +20,7 @@ pub enum Tab {
     Modify,
     Signs,
     Roads,
+    Civil,
     Design,
     Structures,
     Coordination,
@@ -32,7 +33,7 @@ pub enum Tab {
     Help,
 }
 
-pub const TABS: [(Tab, &str); 17] = [
+pub const TABS: [(Tab, &str); 18] = [
     (Tab::Home, "Home"),
     (Tab::Edit, "Edit"),
     (Tab::Insert, "Insert"),
@@ -40,6 +41,7 @@ pub const TABS: [(Tab, &str); 17] = [
     (Tab::Modify, "Modify"),
     (Tab::Signs, "Signs"),
     (Tab::Roads, "Roads"),
+    (Tab::Civil, "Civil"),
     (Tab::Design, "Design"),
     (Tab::Structures, "Structures"),
     (Tab::Coordination, "Coordination"),
@@ -173,6 +175,16 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Pavement", items: &[Big(Icon::Pavement, "Pavement", "PAVEMENT"), Big(Icon::Design, "Pavement design", "PAVEDESIGN")] },
         Panel { title: "Earthworks", items: &[Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Surface, "Survey points", "SURVEY"), Big(Icon::Corridor, "Corridor", "CORRIDOR"), Big(Icon::Section, "Sections", "SECTIONS")] },
     ];
+    const CIVIL: &[Panel] = &[
+        Panel { title: "Points", items: &[Big(Icon::Surface, "Import", "POINTS"), Big(Icon::Surface, "Create", "POINTCREATE"), Big(Icon::ResultsList, "Table", "POINTTABLE"), Big(Icon::Layers, "Groups", "POINTGROUPS"), Small(Icon::Options, "Keys", "DESCKEYS"), Small(Icon::Csv, "Export", "POINTEXPORT"), Small(Icon::Measure, "COGO", "COGO"), Small(Icon::AlignDesign, "Traverse", "TRAVERSE")] },
+        Panel { title: "Surfaces", items: &[Big(Icon::Surface, "New", "SURFACENEW"), Big(Icon::Options, "Definition", "SURFACEDEF"), Big(Icon::Surface, "Style", "SURFACESTYLE"), Small(Icon::IdPoint, "Spot", "SPOT"), Small(Icon::Drainage, "Flow", "FLOWPATH"), Big(Icon::Estimate, "Volumes", "VOLUMES")] },
+        Panel { title: "Alignments", items: &[Big(Icon::AlignDesign, "New", "ALIGNDESIGN"), Big(Icon::Alignment, "Import", "LANDXML"), Big(Icon::AlignEdit, "Edit", "ALIGNEDIT")] },
+        Panel { title: "Profiles", items: &[Big(Icon::ProfileDesign, "Ground", "GROUNDPROFILE"), Big(Icon::ProfileDesign, "Profile view", "PROFILEVIEW"), Big(Icon::ProfileDesign, "Design", "PROFILEDESIGN")] },
+        Panel { title: "Sections", items: &[Big(Icon::Section, "Sample lines", "SAMPLELINES"), Big(Icon::Section, "Section views", "SECTIONVIEWS")] },
+        Panel { title: "Corridors", items: &[Big(Icon::Pavement, "Assembly", "ASSEMBLY"), Big(Icon::Corridor, "Corridor", "CORRIDORMODEL")] },
+        Panel { title: "Parcels", items: &[Big(Icon::Area, "Create", "PARCELPICK"), Big(Icon::Measure, "Deed", "PARCELDEED"), Small(Icon::Project, "Properties", "PARCELPROPS"), Small(Icon::CheckAll, "Topology", "PARCELTOPOLOGY"), Small(Icon::Design, "Split", "PARCELSPLIT"), Small(Icon::Schedule, "Schedule", "ACQUISITION")] },
+        Panel { title: "Quantities", items: &[Big(Icon::Quantities, "Earthworks", "EARTHWORKS"), Big(Icon::LandXmlOut, "LandXML", "CIVILXML"), Big(Icon::Help, "Demo", "CIVILDEMO")] },
+    ];
     const DESIGN: &[Panel] = &[
         Panel { title: "Alignment", items: &[Big(Icon::AlignDesign, "New alignment", "ALIGNDESIGN"), Big(Icon::AlignEdit, "Edit in plan", "ALIGNEDIT"), Big(Icon::PiTable, "PI table", "PITABLE"), Big(Icon::Labels, "Curve labels", "ALIGNLABELS")] },
         Panel { title: "Profile", items: &[Big(Icon::ProfileDesign, "Profile editor", "PROFILEDESIGN")] },
@@ -247,7 +259,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
     ];
     const VIEW: &[Panel] = &[
         Panel { title: "Zoom", items: &[Big(Icon::ZoomExtents, "Extents", "ZOOM"), Big(Icon::ZoomWindow, "Window", "ZOOMWINDOW"), Big(Icon::ZoomSelection, "Selection", "ZS"), Big(Icon::ZoomPrevious, "Previous", "ZP"), Big(Icon::ZoomIn, "In", "ZOOMIN"), Big(Icon::ZoomOut, "Out", "ZOOMOUT")] },
-        Panel { title: "Views", items: &[Big(Icon::View3d, "2D / 3D", "3D")] },
+        Panel { title: "Views", items: &[Big(Icon::View3d, "2D / 3D", "3D"), Big(Icon::RefList, "Toolspace", "TOOLSPACE")] },
         Panel { title: "Display", items: &[Big(Icon::Real, "Real", "REAL"), Big(Icon::Outlined, "Outlined", "OUTLINED"), Big(Icon::Marks, "Element marks", "MARKS")] },
         DRAFTING,
         Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS"), Big(Icon::Theme, "Look and scale", "APPEARANCE")] },
@@ -261,6 +273,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Tab::Modify => MODIFY_TAB,
         Tab::Signs => &[], // built from the active standard's templates, see `show`
         Tab::Roads => ROADS,
+        Tab::Civil => CIVIL,
         Tab::Design => DESIGN,
         Tab::Structures => STRUCTURES,
         Tab::Coordination => COORDINATION,

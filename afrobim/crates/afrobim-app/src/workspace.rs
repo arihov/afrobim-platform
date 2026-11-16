@@ -71,6 +71,16 @@ pub const WORKSPACES: &[Workspace] = &[
         everything: true,
     },
     Workspace {
+        name: "Civil",
+        glyph: ph::TREE_VIEW,
+        blurb: "Points, surfaces, alignments, profiles, sections, corridors, parcels and quantities",
+        tabs: &[WsTab::all(Tab::Civil), WsTab::all(Tab::Insert)],
+        palettes: BOTH,
+        show_left: true,
+        show_right: true,
+        everything: false,
+    },
+    Workspace {
         name: "Survey and Terrain",
         glyph: ph::MOUNTAINS,
         blurb: "Survey points, ground surfaces, reference drawings",

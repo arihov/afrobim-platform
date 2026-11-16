@@ -250,6 +250,42 @@ impl AfroBimApp {
                     a(ui, &mut pick, Action::Underlay, "DXF underlay…");
                     a(ui, &mut pick, Action::IfcRef, "IFC reference model…");
                 });
+                ui.menu_button("Civil", |ui| {
+                    ui.set_min_width(280.0);
+                    use crate::civil_cmds::Cv::*;
+                    let c = Action::Civil;
+                    a(ui, &mut pick, c(Toolspace), "Toolspace");
+                    sep(ui);
+                    submenu(ui, egui_phosphor::regular::DOTS_NINE, "Points", |ui| {
+                        for (cv, l) in [(Points, "Import points…"), (PointCreate, "Create point…"), (PointTable, "Point table…"), (PointGroups, "Point groups…"), (DescKeys, "Description keys…"), (PointExport, "Export points…"), (Cogo, "COGO tools…"), (Traverse, "Traverse…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::MOUNTAINS, "Surfaces", |ui| {
+                        for (cv, l) in [(SurfaceNew, "Create surface…"), (SurfaceDef, "Surface definition…"), (SurfaceStyle, "Surface style…"), (SpotElev, "Spot elevation…"), (FlowPath, "Flow path…"), (Volumes, "Volumes…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::CHART_LINE, "Profiles", |ui| {
+                        for (cv, l) in [(GroundProfile, "Existing ground profile…"), (ProfileView, "Profile view…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::ROAD_HORIZON, "Corridors and sections", |ui| {
+                        for (cv, l) in [(Assembly, "Assembly editor…"), (CorridorModel, "Corridor…"), (SampleLines, "Sample lines…"), (SectionViews, "Section views…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::POLYGON, "Parcels", |ui| {
+                        for (cv, l) in [(ParcelPick, "Create parcel…"), (ParcelDeed, "From deed…"), (ParcelProps, "Parcel properties…"), (ParcelTopology, "Topology check…"), (ParcelSplit, "Split by road reserve…"), (ParcelSchedule, "Acquisition schedule…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    a(ui, &mut pick, c(Earthworks), "Earthworks and mass haul…");
+                    sep(ui);
+                    a(ui, &mut pick, c(CivilLandXml), "Export civil data as LandXML…");
+                    a(ui, &mut pick, c(CivilDemo), "Demonstration data");
+                });
                 ui.menu_button("Modify", |ui| {
                     ui.set_min_width(300.0);
                     a(ui, &mut pick, Action::Move, "Move");

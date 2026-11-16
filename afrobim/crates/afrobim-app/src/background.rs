@@ -135,6 +135,8 @@ pub struct Background {
     pub check_all: Option<Job<crate::check_all::Report>>,
     /// A sheet set composed for the preview or an export.
     pub sheets: Option<Job<crate::sheets_ui::ComposeOut>>,
+    /// The scenes of civil objects (points, surfaces, profiles, corridors, parcels).
+    pub civil: Option<Job<crate::civil_cache::CivilOut>>,
 }
 
 /// The kinds of job, in the order the progress window lists them.
@@ -148,11 +150,12 @@ pub enum Kind {
     Sections,
     CheckAll,
     Sheets,
+    Civil,
 }
 
 impl Background {
     pub fn busy(&self) -> bool {
-        self.clash.is_some() || self.pack.is_some() || self.vis.is_some() || self.photo.is_some() || self.corridors.is_some() || self.sections.is_some() || self.check_all.is_some() || self.sheets.is_some()
+        self.clash.is_some() || self.pack.is_some() || self.vis.is_some() || self.photo.is_some() || self.corridors.is_some() || self.sections.is_some() || self.check_all.is_some() || self.sheets.is_some() || self.civil.is_some()
     }
 
     /// The running jobs: kind, label and seconds so far.
@@ -160,7 +163,7 @@ impl Background {
         fn row<T: Send + 'static>(kind: Kind, job: &Option<Job<T>>) -> Option<(Kind, String, f64)> {
             job.as_ref().map(|j| (kind, j.label.clone(), j.elapsed_s()))
         }
-        [row(Kind::Clash, &self.clash), row(Kind::Pack, &self.pack), row(Kind::Vis, &self.vis), row(Kind::Photo, &self.photo), row(Kind::Corridors, &self.corridors), row(Kind::Sections, &self.sections), row(Kind::CheckAll, &self.check_all), row(Kind::Sheets, &self.sheets)].into_iter().flatten().collect()
+        [row(Kind::Clash, &self.clash), row(Kind::Pack, &self.pack), row(Kind::Vis, &self.vis), row(Kind::Photo, &self.photo), row(Kind::Corridors, &self.corridors), row(Kind::Sections, &self.sections), row(Kind::CheckAll, &self.check_all), row(Kind::Sheets, &self.sheets), row(Kind::Civil, &self.civil)].into_iter().flatten().collect()
     }
 
     pub fn cancel(&self, kind: Kind) {
@@ -178,6 +181,7 @@ impl Background {
             Kind::Sections => go(&self.sections),
             Kind::CheckAll => go(&self.check_all),
             Kind::Sheets => go(&self.sheets),
+            Kind::Civil => go(&self.civil),
         }
     }
 }
@@ -261,12 +265,14 @@ impl crate::app::AfroBimApp {
                 other => self.status = discard_message("Sheet set composition", &other),
             }
         }
+        self.civil_tick();
         // A corridor edited since its surfaces were last built, or cancelled or discarded
         // above, is built again once nothing else of the kind is running.
         if self.view_3d {
             self.sync_corridor_surfaces_bg();
         }
-        let running = self.bg.running();
+        // A civil build shorter than a moment is not worth a progress window.
+        let running: Vec<_> = self.bg.running().into_iter().filter(|(k, _, t)| *k != Kind::Civil || *t > 0.6).collect();
         if running.is_empty() {
             return;
         }
@@ -304,6 +310,7 @@ pub fn worker_registry() -> ModuleRegistry {
     let mut modules = ModuleRegistry::default();
     crate::supports_glue::register(&mut modules);
     crate::alignment_glue::register(&mut modules);
+    crate::civil::register(&mut modules);
     crate::markings_glue::register(&mut modules);
     crate::modules_glue::register(&mut modules);
     crate::coordination_glue::register(&mut modules);

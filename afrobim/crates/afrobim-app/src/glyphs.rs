@@ -194,6 +194,7 @@ pub fn glyph(action: Action) -> Option<&'static str> {
         A::Quit => ph::SIGN_OUT,
         A::Appearance => ph::PALETTE,
         A::Palette => ph::COMMAND,
+        A::Civil(c) => crate::civil_cmds::glyph(c),
     })
 }
 
