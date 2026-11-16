@@ -314,6 +314,29 @@ impl AfroBimApp {
                     self.row_ui(ui, r, acts, &[("Volumes and balance...", Cv::GradeGroup), ("New grading...", Cv::GradeCreate), ("Pad, pond, ditch...", Cv::GradeHelpers)]);
                 }
             });
+            // Intersections and roundabouts, with the alignments each one made under it.
+            let ints = self.rows(INTERSECTION);
+            let rbs = self.rows(ROUNDABOUT);
+            self.node(ui, "ts-ints", ph::ARROWS_SPLIT, "Intersections", ints.len() + rbs.len(), Some(("Intersection...", Cv::Intersection)), &mut acts, |ui, acts| {
+                for (rows, is_int) in [(&ints, true), (&rbs, false)] {
+                    for r in rows {
+                        self.row_ui(ui, r, acts, &[if is_int { ("Edit intersection...", Cv::Intersection) } else { ("Edit roundabout...", Cv::Roundabout) }]);
+                        let made: Vec<u64> = if is_int { civil::get::<crate::civil_junction::IntersectionData>(&self.doc, r.id, INTERSECTION).map(|d| d.created).unwrap_or_default() } else { civil::get::<crate::civil_junction::RoundaboutData>(&self.doc, r.id, ROUNDABOUT).map(|d| d.created).unwrap_or_default() };
+                        ui.indent(("int-made", r.id.0), |ui| {
+                            egui::CollapsingHeader::new(crate::theme::icon_text(ph::PATH, &format!("Alignments and profiles ({})", made.len()), 12.0, ui.visuals().text_color())).id_salt(("int-al", r.id.0)).default_open(false).show(ui, |ui| {
+                                for id in made {
+                                    if let Some(e) = self.doc.find(ElementId(id)) {
+                                        let resp = ui.selectable_label(false, crate::theme::icon_text(ph::PATH, &e.name, 12.0, ui.visuals().text_color()));
+                                        if resp.clicked() || resp.double_clicked() {
+                                            acts.push(Act::Zoom(e.id));
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                    }
+                }
+            });
             // Pipe networks, with their structures and pipes under each, and the profiles of runs.
             let nets = self.rows(PIPENET);
             let pprofiles = self.rows(PIPEPROFILE);

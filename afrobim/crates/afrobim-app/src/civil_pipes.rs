@@ -197,7 +197,9 @@ pub fn build_pipenet(e: &Element, _ctx: &Ctx) -> Result<Built, String> {
     }
     // Findings of the structure of the network that make the drawing misleading.
     for f in net.topology_findings() {
-        s.notes.push(f.message.clone());
+        if f.severity != afrobim_pipes::Severity::Info {
+            s.notes.push(f.message.clone());
+        }
     }
     let topo = net.topology();
     let total: f64 = net.pipes().map(|p| net.plan_length_m(p.id).unwrap_or(0.0)).sum();
@@ -319,6 +321,7 @@ pub fn build_pipe_profile(e: &Element, ctx: &Ctx) -> Result<Built, String> {
     for st in &view.structures {
         levels.push(st.rim_level_m);
     }
+    let mut report: Vec<String> = Vec::new();
     let grade = pp.tailwater_m.map(|t| d.network.grade_lines(t, &d.settings()));
     if let Some(g) = &grade {
         levels.extend(g.pipes.iter().flat_map(|p| [p.hgl_start_m, p.hgl_end_m, p.egl_start_m, p.egl_end_m]));
@@ -388,13 +391,17 @@ pub fn build_pipe_profile(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         }
         s.derived.push(("Grade lines".into(), format!("tailwater {:.2} m{}", g.tailwater_level_m, if g.friction_only { ", friction only (no structure losses entered)" } else { "" })));
         for f in &g.findings {
-            s.notes.push(f.message.clone());
+            if f.severity == afrobim_pipes::Severity::Info {
+                report.push(f.message.clone());
+            } else {
+                s.notes.push(f.message.clone());
+            }
         }
     }
     s.derived.push(("Pipes in the run".into(), view.pipes.len().to_string()));
     s.derived.push(("Vertical exaggeration".into(), format!("{ex}")));
     s.derived.push(("Datum (m)".into(), format!("{datum:.2}")));
-    Ok(Built { scene: s, ..Default::default() })
+    Ok(Built { scene: s, report, ..Default::default() })
 }
 
 /// The structure and pipe ids of a network by name, for the findings' zoom.

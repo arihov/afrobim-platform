@@ -124,7 +124,10 @@ fn landxml_out_carries_everything_and_reads_back() {
     let (text, notes) = crate::civil_export::landxml_text(&doc, &ctx);
     assert!(text.contains("EPSG") || text.contains("32736"), "the project coordinate system is written");
     let file = afrobim_alignment::parse_landxml_file(&text).expect("the file reads back");
-    assert_eq!(file.alignments.len(), 1);
+    // The demonstration road, the side road, the roundabout arms and everything the junctions made.
+    assert_eq!(file.alignments.len(), doc.elements().iter().filter(|e| e.category == afrobim_alignment::CATEGORY).count());
+    assert!(file.alignments.iter().any(|a| a.name.starts_with("Demo road")));
+    assert!(text.contains("<PipeNetworks"), "the pipe network is written");
     assert_eq!(file.cg_points.iter().map(|g| g.all_points().len()).sum::<usize>(), 256);
     // The hidden originals of the split are not written; their pieces are.
     assert_eq!(file.parcels.len(), doc.elements().iter().filter(|e| e.category == PARCEL && !hidden(e)).count());

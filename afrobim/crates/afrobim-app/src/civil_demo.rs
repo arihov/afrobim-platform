@@ -156,8 +156,64 @@ pub fn build(doc: &mut Document) -> Vec<String> {
     }
     notes.extend(pipe_demo(doc, surf_id, &al));
     notes.extend(grading_demo(doc, surf_id));
+    notes.extend(junction_demo(doc, surf_id, &al));
     let _ = pts_id;
     let _: Option<ElementId> = None;
+    notes
+}
+
+/// A T junction on the demonstration road (a side road ending on it) and a small roundabout with two
+/// arms, with example values. The side road and the roundabout arms are alignments of their own.
+fn junction_demo(doc: &mut Document, surf_id: ElementId, al: &Alignment) -> Vec<String> {
+    use afrobim_junction::*;
+    let mut notes = Vec::new();
+    let Some(first) = al.elements.first() else { return notes };
+    let (h0, s_cross) = (first.heading_rad, 45.0);
+    let p = al.point_at(s_cross).map(|p| (p.x, p.y)).unwrap_or((first.x, first.y));
+    let z = al.profile.as_ref().and_then(|pr| pr.elevation_at(s_cross).ok()).unwrap_or(1150.0);
+    // The side road starts on the road's centreline and runs away to the north-west (the left of the road).
+    let (sx, sy) = p;
+    let mut side = Alignment::from_elements("Demo side road (example)", 0.0, vec![AlignmentElement::line(sx, sy, h0 + std::f64::consts::FRAC_PI_2, 70.0)]).expect("a straight alignment");
+    side.profile = Profile::new("Demo side road profile (example values)", vec![Pvi::point(0.0, z), Pvi::point(70.0, z + 1.4)]).ok();
+    if crate::alignment_glue::add(doc, &side).is_none() {
+        notes.push("The demonstration side road could not be added.".into());
+        return notes;
+    }
+    let simple = |q: Quadrant| ReturnSpec { quadrant: q, kind: ReturnKind::Simple { radius_m: 8.0 } };
+    let inputs = IntersectionInputs {
+        name: "Demo T junction (example values)".into(),
+        primary: al.name.clone(),
+        secondary: side.name.clone(),
+        crossing_index: 0,
+        extend_m: 0.0,
+        corridor_type: CorridorType::PrimaryCrownMaintained,
+        primary_edges: RoadEdges::symmetric(3.5),
+        secondary_edges: RoadEdges::symmetric(3.0),
+        extents: JunctionExtents { primary_behind_m: 35.0, primary_ahead_m: 60.0, secondary_behind_m: 0.0, secondary_ahead_m: 50.0 },
+        returns: vec![simple(Quadrant { primary_arm: Arm::Ahead, secondary_arm: Arm::Ahead }), simple(Quadrant { primary_arm: Arm::Behind, secondary_arm: Arm::Ahead })],
+        islands: vec![],
+        vertical: Some(VerticalInputs { primary_crossfall: CrossfallInput::Fixed { left_pct: -2.0, right_pct: -2.0 }, secondary_crossfall: CrossfallInput::Fixed { left_pct: -2.0, right_pct: -2.0 }, tie_in_length_m: 15.0, lock_sample_spacing_m: None, edge_profile_spacing_m: 5.0, return_profile_spacing_m: 2.0 }),
+        corridor: None,
+    };
+    if let Err(e) = crate::civil_junction::make_intersection(doc, None, "Demo T junction (example values)", inputs, Some(surf_id.0), true, SOURCE) {
+        notes.push(format!("T junction: {e}"));
+    }
+    // A roundabout of two arms, east of the road.
+    let c = (E0 + 235.0, N0 + 165.0);
+    let mut arm_ids = Vec::new();
+    for (name, (x, y, h)) in [("Demo roundabout west arm (example)", (c.0 - 80.0, c.1, 0.0)), ("Demo roundabout south arm (example)", (c.0, c.1 - 80.0, std::f64::consts::FRAC_PI_2))] {
+        if let Ok(a) = Alignment::from_elements(name, 0.0, vec![AlignmentElement::line(x, y, h, 80.0)]) {
+            crate::alignment_glue::add(doc, &a);
+            arm_ids.push(a.name);
+        }
+    }
+    let arm = |n: &str, a: &str| ArmInput { name: n.into(), alignment: a.into(), approach_half_width_m: 3.5, flare_length_m: 20.0, entry_width_m: 7.0, entry_radius_m: 1.5, exit_width_m: 7.0, exit_radius_m: 1.5, departure_half_width_m: 3.5, splitter: SplitterInput { points: vec![SplitterPoint { distance_m: 0.0, half_width_m: 1.0 }, SplitterPoint { distance_m: 12.0, half_width_m: 0.0 }], nose_radius_m: 0.3 }, path_offsets: Some(PathOffsets { from_entry_kerb_m: 2.0, from_splitter_m: 2.0, from_central_island_m: 2.0 }) };
+    if arm_ids.len() == 2 {
+        let ri = RoundaboutInputs { name: "Demo roundabout (example values)".into(), centre: c, inscribed_diameter_m: 50.0, circulatory_width_m: 7.0, apron_width_m: 1.0, circulation: Circulation::Anticlockwise, arms: vec![arm("West", &arm_ids[0]), arm("South", &arm_ids[1])] };
+        if let Err(e) = crate::civil_junction::make_roundabout(doc, None, "Demo roundabout (example values)", ri, true, SOURCE) {
+            notes.push(format!("Roundabout: {e}"));
+        }
+    }
     notes
 }
 

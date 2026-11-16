@@ -403,7 +403,7 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "GRADINGGROUP", aliases: &["GRADINGGROUPS","GRADEVOLUME"], help: "Grading groups: the surface they build, cut, fill and net volumes, raise and lower, auto-balance with its iterations", action: Action::Civil(crate::civil_cmds::Cv::GradeGroup) },
     CommandInfo { name: "GRADEHELPERS", aliases: &["PAD","POND","DITCH"], help: "Grading helpers: building pad, pond with its stage-storage table, ditch or berm along a line", action: Action::Civil(crate::civil_cmds::Cv::GradeHelpers) },
     CommandInfo { name: "INTERSECTION", aliases: &["INTERSECT","TJUNCTION"], help: "Intersection of two alignments: crossings, corridor type, edge offsets, widening and kerb returns with a live plan preview, creating real alignments, profiles and a corridor", action: Action::Civil(crate::civil_cmds::Cv::Intersection) },
-    CommandInfo { name: "ROUNDABOUT", aliases: &["ROUNDABOUTS"], help: "Roundabout on an alignment: inscribed circle, entry and exit geometry, entry angle and entry path radius against the basis limits", action: Action::Civil(crate::civil_cmds::Cv::Roundabout) },
+    CommandInfo { name: "ROUNDABOUTDESIGN", aliases: &["RBDESIGN", "CIVILROUNDABOUT"], help: "Roundabout design (ROUNDABOUT inserts the map sign): arms on alignments: inscribed circle, entry and exit geometry, entry angle and entry path radius against the basis limits", action: Action::Civil(crate::civil_cmds::Cv::Roundabout) },
     CommandInfo { name: "CIVILDEMO", aliases: &["DEMOCIVIL"], help: "Build a small set of demonstration civil data at UTM-sized coordinates (example values, not a design)", action: Action::Civil(crate::civil_cmds::Cv::CivilDemo) },
 ];
 

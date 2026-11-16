@@ -87,6 +87,8 @@ pub fn build(e: &Element, ctx: &Ctx) -> Built {
         PIPENET => crate::civil_pipes::build_pipenet(e, ctx),
         FEATURELINE => crate::civil_grading::build_featureline(e),
         GRADING => crate::civil_grading::build_grading(e, ctx),
+        INTERSECTION => crate::civil_junction::build_intersection_scene(e, ctx),
+        ROUNDABOUT => crate::civil_junction::build_roundabout_scene(e),
         PIPEPROFILE => crate::civil_pipes::build_pipe_profile(e, ctx),
         _ => Ok(Built::default()),
     };
