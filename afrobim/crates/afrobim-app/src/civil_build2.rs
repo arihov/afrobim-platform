@@ -40,11 +40,13 @@ fn shape_colour(code: &str) -> [u8; 3] {
     palette[(h % palette.len() as u32) as usize]
 }
 
+/// The most triangles of shape solids the 3D view keeps per baseline: a long corridor stays light there.
+pub(crate) const VIEW_TRIANGLE_CAP: usize = 80_000;
+
 /// The shapes of the assembly swept along the baseline: between two consecutive sections each
 /// shape that appears in both with the same corners becomes a prism (side faces and the two end
 /// faces), one mesh per shape code. Capped so that a long corridor stays light.
-fn shape_solids(b: &afrobim_corridor::BaselineResult, origin_m: (f64, f64)) -> Vec<afrobim_draw::Mesh3> {
-    const TRIANGLE_CAP: usize = 80_000;
+pub(crate) fn shape_solids(b: &afrobim_corridor::BaselineResult, origin_m: (f64, f64), triangle_cap: usize) -> Vec<afrobim_draw::Mesh3> {
     let mut meshes: Vec<afrobim_draw::Mesh3> = Vec::new();
     let mut total = 0usize;
     let at = |m: &afrobim_corridor::ModelSection, (o, z): (f64, f64)| {
@@ -56,14 +58,18 @@ fn shape_solids(b: &afrobim_corridor::BaselineResult, origin_m: (f64, f64)) -> V
         if m1.section.station_m <= m0.section.station_m {
             continue;
         }
+        // Each shape of the first section is paired with one not yet used of the next: same code, side,
+        // source and number of corners (two layers of one source may carry the same code).
+        let mut used = vec![false; m1.design.shapes.len()];
         for sh in &m0.design.shapes {
             let n = sh.polygon.len();
             if n < 3 {
                 continue;
             }
-            // The same shape at the next section: same code, side, source and number of corners.
-            let Some(next) = m1.design.shapes.iter().find(|x| x.code == sh.code && x.side == sh.side && x.subassembly == sh.subassembly && x.polygon.len() == n) else { continue };
-            if total + n * 2 + 2 * (n - 2) > TRIANGLE_CAP {
+            let Some(j) = m1.design.shapes.iter().enumerate().position(|(j, x)| !used[j] && x.code == sh.code && x.side == sh.side && x.subassembly == sh.subassembly && x.polygon.len() == n) else { continue };
+            used[j] = true;
+            let next = &m1.design.shapes[j];
+            if total + n * 2 + 2 * (n - 2) > triangle_cap {
                 return meshes;
             }
             let idx = match meshes.iter().position(|m| m.name == sh.code) {
@@ -73,28 +79,62 @@ fn shape_solids(b: &afrobim_corridor::BaselineResult, origin_m: (f64, f64)) -> V
                     meshes.len() - 1
                 }
             };
-            let mesh = &mut meshes[idx];
-            let base = mesh.vertices.len() as u32;
-            for p in &sh.polygon {
-                mesh.vertices.push(at(m0, *p));
-            }
-            for p in &next.polygon {
-                mesh.vertices.push(at(m1, *p));
-            }
-            let (a, c) = (base, base + n as u32);
-            for i in 0..n as u32 {
-                let j = (i + 1) % n as u32;
-                mesh.triangles.push([a + i, a + j, c + j]);
-                mesh.triangles.push([a + i, c + j, c + i]);
-            }
-            for i in 1..n as u32 - 1 {
-                mesh.triangles.push([a, a + i, a + i + 1]);
-                mesh.triangles.push([c, c + i + 1, c + i]);
-            }
+            let a: Vec<[f64; 3]> = sh.polygon.iter().map(|p| at(m0, *p)).collect();
+            let b: Vec<[f64; 3]> = next.polygon.iter().map(|p| at(m1, *p)).collect();
+            add_prism(&mut meshes[idx], &a, &b);
             total += n * 2 + 2 * (n - 2);
         }
     }
     meshes
+}
+
+/// A closed prism between two polygons with the same number of corners, as triangles of `mesh`. Each
+/// face is turned outward, away from the centre of the prism (the cross sections of a corridor are
+/// convex, so that is the outside), so the solid is consistent whichever way the polygons wind and
+/// whichever side of the baseline it is on.
+pub(crate) fn add_prism(mesh: &mut afrobim_draw::Mesh3, a: &[[f64; 3]], b: &[[f64; 3]]) {
+    let n = a.len() as u32;
+    let base = mesh.vertices.len() as u32;
+    mesh.vertices.extend_from_slice(a);
+    mesh.vertices.extend_from_slice(b);
+    let (p, q) = (base, base + n);
+    let first = mesh.triangles.len();
+    for i in 0..n {
+        let j = (i + 1) % n;
+        mesh.triangles.push([p + i, p + j, q + j]);
+        mesh.triangles.push([p + i, q + j, q + i]);
+    }
+    for i in 1..n - 1 {
+        mesh.triangles.push([p, p + i, p + i + 1]);
+        mesh.triangles.push([q, q + i + 1, q + i]);
+    }
+    let count = (2 * n) as f64;
+    let mut c = [0.0; 3];
+    for v in a.iter().chain(b) {
+        for k in 0..3 {
+            c[k] += v[k] / count;
+        }
+    }
+    for t in &mut mesh.triangles[first..] {
+        let (v0, v1, v2) = (mesh.vertices[t[0] as usize], mesh.vertices[t[1] as usize], mesh.vertices[t[2] as usize]);
+        let (u, w) = ([v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]], [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]]);
+        let normal = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+        let mid = [(v0[0] + v1[0] + v2[0]) / 3.0 - c[0], (v0[1] + v1[1] + v2[1]) / 3.0 - c[1], (v0[2] + v1[2] + v2[2]) / 3.0 - c[2]];
+        if normal[0] * mid[0] + normal[1] * mid[1] + normal[2] * mid[2] < 0.0 {
+            t.swap(1, 2);
+        }
+    }
+}
+
+/// The signed volume of the triangles from `first` on, in the units of the vertices cubed.
+pub(crate) fn signed_volume(mesh: &afrobim_draw::Mesh3, first: usize) -> f64 {
+    mesh.triangles[first..]
+        .iter()
+        .map(|t| {
+            let (a, b, c) = (mesh.vertices[t[0] as usize], mesh.vertices[t[1] as usize], mesh.vertices[t[2] as usize]);
+            (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6.0
+        })
+        .sum()
 }
 
 pub fn build_corridor(e: &Element, ctx: &Ctx) -> Result<Built, String> {
@@ -146,7 +186,7 @@ pub fn build_corridor(e: &Element, ctx: &Ctx) -> Result<Built, String> {
                 }
             }
         }
-        out.scene.meshes.extend(shape_solids(b, origin));
+        out.scene.meshes.extend(shape_solids(b, origin, VIEW_TRIANGLE_CAP));
         for (name, codes) in [("Top", vec!["Top"]), ("Datum", vec!["Datum"])] {
             match corridor_surface(b, &codes, SurfaceBoundary::None) {
                 Ok(tin) => {

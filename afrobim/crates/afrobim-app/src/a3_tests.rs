@@ -397,3 +397,116 @@ fn private_the_design_check_runs_on_every_imported_alignment() {
     eprintln!("DESIGNCHECK {with_report} alignment(s) at {speed} km/h: {items} item(s), {failed} failing");
     assert_eq!(with_report, 17);
 }
+
+// ─── IFC packages ───────────────────────────────────────────────────────────────────────────
+
+fn mesh_volume_m3(m: &afrobim_draw::Mesh3) -> f64 {
+    m.triangles
+        .iter()
+        .map(|t| {
+            let (a, b, c) = (m.vertices[t[0] as usize], m.vertices[t[1] as usize], m.vertices[t[2] as usize]);
+            (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6.0
+        })
+        .sum::<f64>()
+        / 1.0e9
+}
+
+#[test]
+fn the_corridor_package_solids_hold_the_volume_they_report() {
+    let doc = crate::a1_tests::demo_doc();
+    let ctx = ctx_of(&doc);
+    let e = doc.elements().iter().find(|e| e.category == civil::CORRIDOR).unwrap();
+    let p = crate::civil_ifc_pkg::corridor_package(e, &ctx).expect("the demonstration corridor builds");
+    let package: afrobim_ifc::CivilPackage = serde_json::from_value(p.element.data.clone()).unwrap();
+    assert!(package.parts.iter().any(|x| x.entity == "IFCCOURSE") && package.parts.iter().any(|x| x.entity == "IFCEARTHWORKSCUT"));
+    // The engine's own earthwork totals, by average end area over the sections.
+    let d: civil::CorridorData = serde_json::from_value(e.data.clone()).unwrap();
+    let built = afrobim_corridor::build_model(&d.model, &ctx.alignments(), &ctx.tin(d.ground).unwrap()).unwrap();
+    let b = &built.baselines[0];
+    let tot = |f: &dyn Fn(&afrobim_corridor::Section) -> f64| b.sections.windows(2).map(|w| (f(&w[0].section) + f(&w[1].section)) / 2.0 * (w[1].section.station_m - w[0].section.station_m)).sum::<f64>();
+    let (cut_engine, fill_engine) = (tot(&|s| s.cut_area_m2.unwrap_or(0.0)), tot(&|s| s.fill_area_m2.unwrap_or(0.0)));
+    for part in &package.parts {
+        assert!(afrobim_ifc::entity_ok(&part.entity, &part.predefined), "{} {}", part.entity, part.predefined);
+        let mesh = &p.generated.solids[part.mesh.unwrap()];
+        let stated = part.psets[0].items.iter().find(|(k, _)| k == "VolumeM3").map(|(_, v)| match v { afrobim_ifc::CivilValue::Real(r) => *r, _ => f64::NAN }).unwrap();
+        let got = mesh_volume_m3(mesh);
+        eprintln!("PKGVOL {} {}: solid {got:.3} m3, stated {stated:.3} m3 (engine cut {cut_engine:.1}, fill {fill_engine:.1})", part.entity, part.name);
+        assert!(got > 0.0, "{}: the solid faces outward", part.name);
+        match part.entity.as_str() {
+            "IFCCOURSE" => assert!((got - stated).abs() < 0.01 * stated, "{}: solid {got:.3} stated {stated:.3}", part.name),
+            "IFCEARTHWORKSCUT" => assert!((stated - cut_engine).abs() < 0.15 * cut_engine.max(1.0) && (got - stated).abs() < 0.02 * stated.max(1.0), "cut {got:.1} {stated:.1} engine {cut_engine:.1}"),
+            "IFCEARTHWORKSFILL" => assert!((stated - fill_engine).abs() < 0.15 * fill_engine.max(1.0) && (got - stated).abs() < 0.02 * stated.max(1.0), "fill {got:.1} {stated:.1} engine {fill_engine:.1}"),
+            _ => {}
+        }
+    }
+}
+
+fn python_with_ifcopenshell() -> Option<String> {
+    for p in ["python3", "python"] {
+        if std::process::Command::new(p).args(["-I", "-c", "import ifcopenshell, ifcopenshell.validate, ifcopenshell.geom"]).output().is_ok_and(|o| o.status.success()) {
+            return Some(p.to_string());
+        }
+    }
+    None
+}
+
+/// Runs the independent IfcOpenShell check of the civil export on a file: whether it passed, and what it said.
+fn check_civil_file(path: &std::path::Path) -> Option<(bool, String)> {
+    let Some(python) = python_with_ifcopenshell() else {
+        assert!(std::env::var_os("AFROBIM_REQUIRE_IFCOPENSHELL").is_none(), "IfcOpenShell is required and not installed");
+        eprintln!("IfcOpenShell is not available: the read-back check is skipped");
+        return None;
+    };
+    let script = concat!(env!("CARGO_MANIFEST_DIR"), "/../afrobim-ifc/tests/check_civil_ifc.py");
+    let out = std::process::Command::new(python).arg(script).arg(path).output().expect("python runs");
+    Some((out.status.success(), String::from_utf8_lossy(&out.stdout).to_string() + &String::from_utf8_lossy(&out.stderr)))
+}
+
+#[test]
+fn the_civil_demonstration_exports_ifc_that_ifcopenshell_reads_back() {
+    let (_ctx, mut app) = crate::u4_dialogs_test::app_for("dark-glass", true);
+    let dir = std::env::temp_dir().join("afrobim-a3-ifc");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("civil-demo.ifc");
+    crate::ifc_options::set_mode(&mut app.doc, afrobim_ifc::AlignmentExport::Geometry);
+    app.export_ifc(path.clone());
+    let text = std::fs::read_to_string(&path).expect("the file was written");
+    for entity in ["IFCCOURSE(", "IFCPAVEMENT(", "IFCEARTHWORKSCUT(", "IFCEARTHWORKSFILL(", "IFCPIPESEGMENT(", "IFCDISTRIBUTIONCHAMBERELEMENT(", "IFCDISTRIBUTIONSYSTEM(", "IFCROADPART(", "IFCGEOGRAPHICELEMENT(", "IFCALIGNMENT("] {
+        assert!(text.contains(entity), "{entity} is in the civil demonstration's export");
+    }
+    // Pipes and courses carry their numbers.
+    assert!(text.contains("StartInvertM") && text.contains("InnerDiameterMm") && text.contains("Qto_CourseBaseQuantities"));
+    if let Some((ok, said)) = check_civil_file(&path) {
+        assert!(ok, "{said}");
+    }
+}
+
+#[test]
+fn the_export_dialog_lists_what_is_written_and_what_is_not() {
+    let doc = crate::a1_tests::demo_doc();
+    let rows = crate::civil_ifc::export_rows(&doc);
+    let find = |l: &str| rows.iter().find(|r| r.label == l).unwrap_or_else(|| panic!("{l}"));
+    assert!(find("Corridors").written.contains("IfcCourse") && find("Corridors").written.contains("IfcEarthworksCut"));
+    assert!(find("Pipe networks").written.contains("IfcDistributionSystem"));
+    assert!(find("Parcels").written.is_empty() && !find("Parcels").not_mapped.is_empty(), "a parcel is reported as not mapped, with the reason");
+    assert!(rows.iter().all(|r| !r.written.contains('\u{2014}') && !r.not_mapped.contains('\u{2014}')));
+}
+
+#[test]
+fn private_the_whole_project_exports_as_ifc_that_ifcopenshell_reads_back() {
+    let Some(path) = private_path() else { return };
+    let (_c, mut app) = imported(&path);
+    crate::ifc_options::set_mode(&mut app.doc, afrobim_ifc::AlignmentExport::Geometry);
+    let out = std::env::temp_dir().join("afrobim-a3-private.ifc");
+    app.export_ifc(out.clone());
+    let text = std::fs::read_to_string(&out).expect("the file was written");
+    let count = |k: &str| text.matches(k).count();
+    eprintln!("IFCEXPORT {} bytes; IFCALIGNMENT {} IFCGEOGRAPHICELEMENT {} IFCCURVESEGMENT {} IFCTRIANGULATEDFACESET {} IFCMAPCONVERSION {}", text.len(), count("IFCALIGNMENT("), count("IFCGEOGRAPHICELEMENT("), count("IFCCURVESEGMENT("), count("IFCTRIANGULATEDFACESET("), count("IFCMAPCONVERSION("));
+    assert_eq!(count("IFCALIGNMENT("), 17);
+    assert_eq!(count("IFCGEOGRAPHICELEMENT("), 4);
+    assert!(count("IFCMAPCONVERSION(") == 1 && count("IFCPROJECTEDCRS(") == 1);
+    if let Some((ok, said)) = check_civil_file(&out) {
+        eprintln!("IFCCHECK {}", said.lines().filter(|l| l.contains("validate") || l.contains("geometry iterator") || l.starts_with("OK") || l.starts_with("FAILED") || l.contains("civil entities")).collect::<Vec<_>>().join(" | "));
+        assert!(ok, "{said}");
+    }
+}

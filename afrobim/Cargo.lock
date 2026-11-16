@@ -263,6 +263,7 @@ dependencies = [
  "afrobim-restraint",
  "afrobim-supports",
  "lyon_tessellation",
+ "serde",
  "serde_json",
 ]
 

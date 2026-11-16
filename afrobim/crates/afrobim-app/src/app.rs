@@ -933,6 +933,7 @@ impl AfroBimApp {
         // Civil surfaces are written as terrain through the existing surface exporter; the other
         // civil objects are not mapped (see `civil_ifc`).
         let synth = self.civil_terrain_inputs();
+        let (packages, package_notes) = self.civil_packages();
         let unmapped = self.civil_unmapped_note();
         let mut inputs: Vec<afrobim_ifc::IfcElementInput> = self
             .doc
@@ -942,6 +943,7 @@ impl AfroBimApp {
             .map(|e| afrobim_ifc::IfcElementInput { element: e, generated: self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()) })
             .collect();
         inputs.extend(synth.iter().map(|(e, g)| afrobim_ifc::IfcElementInput { element: e, generated: g.as_ref() }));
+        inputs.extend(packages.iter().map(|p| afrobim_ifc::IfcElementInput { element: &p.element, generated: Some(&p.generated) }));
         // The project name scopes the GlobalIds, so use the document's file name: re-exporting
         // the same saved document keeps every element's identity.
         let project = self.ifc_project_name();
@@ -959,6 +961,9 @@ impl AfroBimApp {
                 self.status = format!("Exported {} element(s) to {}.", inputs.len(), path.display());
                 for note in export.notes.iter().take(5) {
                     self.log(format!("IFC: {note}"));
+                }
+                for n in &package_notes {
+                    self.log(format!("IFC: {n}"));
                 }
                 if let Some(n) = unmapped {
                     self.log(format!("IFC: {n}"));

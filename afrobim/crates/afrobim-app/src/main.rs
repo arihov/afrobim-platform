@@ -19,6 +19,7 @@ mod civil_demo;
 mod civil_dlg;
 mod civil_export;
 mod civil_ifc;
+mod civil_ifc_pkg;
 mod civil_landxml;
 mod civil_parcels;
 mod civil_points;

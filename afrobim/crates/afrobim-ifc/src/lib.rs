@@ -50,7 +50,7 @@ use afrobim_kernel::{Document, Element, ElementId, Generated};
 
 pub use guid::{global_id, name_uuid};
 pub use model::{
-    ext_feature_type, FeatureType, MARKING_EXT_CATEGORY, export_ifc_model, write_ifc_model, ALIGNMENT_CATEGORY, ALIGNMENT_CHORD_M, CORRIDOR_CATEGORY, CULVERT_CATEGORY, DRAIN_CATEGORY, FOUNDATION_CATEGORY, GANTRY_CATEGORY, LIGHTING_CATEGORY,
+    entity_ok, CivilGroup, CivilPackage, CivilPart, CivilSet, CivilValue, GroupKind, CIVIL_CATEGORY, ENTITIES, QUANTITY_SETS, SYSTEM_TYPES, ext_feature_type, FeatureType, MARKING_EXT_CATEGORY, export_ifc_model, write_ifc_model, ALIGNMENT_CATEGORY, ALIGNMENT_CHORD_M, CORRIDOR_CATEGORY, CULVERT_CATEGORY, DRAIN_CATEGORY, FOUNDATION_CATEGORY, GANTRY_CATEGORY, LIGHTING_CATEGORY,
     MARKING_CATEGORY, PAVEMENT_CATEGORY, POST_CATEGORY, PROP_DESIGN_BASIS, RESTRAINT_CATEGORY, SURFACE_CATEGORY,
 };
 pub use mesh::{tessellate_artwork, Artwork, ArtworkMesh, ARC_BAND_WIDTH_MM};
