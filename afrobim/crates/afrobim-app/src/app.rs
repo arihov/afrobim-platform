@@ -133,6 +133,8 @@ pub struct AfroBimApp {
     station_dialog: Option<(ElementId, Option<ElementId>, f64, f64, bool, usize)>,
     new_prop_key: String,
     pub(crate) align_tab: usize,
+    /// The 3D centreline of each alignment, with the key it was made for (see `centreline_3d`).
+    pub(crate) centre_cache: std::cell::RefCell<std::collections::HashMap<ElementId, (String, std::rc::Rc<Vec<[f64; 3]>>)>>,
     /// Zoom to the extents once the viewport is known and the builds are done (after an import).
     pub(crate) zoom_extents_pending: bool,
     /// Update times in milliseconds, kept when AFROBIM_FRAME_STATS is set (performance checks).
@@ -269,6 +271,7 @@ impl AfroBimApp {
             station_dialog: None,
             new_prop_key: String::new(),
             align_tab: 0,
+            centre_cache: Default::default(),
             zoom_extents_pending: false,
             frame_ms: Vec::new(),
             grid_on: true,
@@ -3112,6 +3115,14 @@ impl AfroBimApp {
             self.zoom_extents_pending = false;
             self.zoom_extents_visible();
             self.fitted_3d = false;
+            if let Some(spec) = self.options.view.take() {
+                let n: Vec<f64> = spec.split(',').filter_map(|v| v.trim().parse().ok()).collect();
+                if let [e, nn, w] = n[..] {
+                    let (l, t, vw, vh) = self.ctl.viewport;
+                    let half_h = w / 2.0 * (vh as f64 / (vw as f64).max(1.0));
+                    self.view.fit(&afrobim_kernel::BBox::new((e - w / 2.0) * 1000.0, (nn - half_h) * 1000.0, (e + w / 2.0) * 1000.0, (nn + half_h) * 1000.0), l, t, vw, vh, 0.0);
+                }
+            }
         }
         if let Some(a) = self.pending_action.take() {
             self.run(ctx, a);

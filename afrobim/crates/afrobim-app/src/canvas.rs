@@ -129,7 +129,11 @@ impl AfroBimApp {
                 continue;
             }
             match self.cache.get(&e.id) {
-                Some(c) if c.generated.is_ok() => painter.extend(c.mesh.shapes_w(&self.view, e.origin, rep, ink, 1.0, width)),
+                Some(c) if c.generated.is_ok() => {
+                    // A ground surface is a backdrop: its triangle edges are drawn faint, so that the alignments, labels and sections over it stay readable.
+                    let alpha = if e.category == afrobim_corridor::SURFACE_CATEGORY { 0.28 } else { 1.0 };
+                    painter.extend(c.mesh.shapes_w(&self.view, e.origin, rep, ink, alpha, width))
+                }
                 _ => {
                     // No geometry (module missing or the definition is invalid): keep it visible and pickable.
                     dashed(painter, r, Stroke::new(1.0_f32, label));

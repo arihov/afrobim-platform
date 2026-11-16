@@ -112,7 +112,9 @@ impl crate::app::AfroBimApp {
         if e.category != afrobim_corridor::SURFACE_CATEGORY {
             return None;
         }
-        let size = e.data.to_string().len();
+        // The size of the encoded TIN stands for its identity: reading it costs nothing, where
+        // serialising the whole surface every call cost milliseconds a frame.
+        let size = e.data.get("tin").map_or(0, |t| ["points", "triangles"].iter().map(|k| t.get(k).and_then(|v| v.as_str()).map_or(0, str::len)).sum());
         if let Some((n, t)) = self.civil.imported.get(&id) {
             if *n == size {
                 return Some(t.clone());

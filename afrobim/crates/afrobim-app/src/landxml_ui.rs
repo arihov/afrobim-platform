@@ -159,7 +159,19 @@ impl AfroBimApp {
         let form = LandXmlForm::new(path.to_path_buf(), false);
         let read = t0.elapsed();
         self.landxml_apply(None, &form);
+        if self.options.landxml_compare {
+            let ids: Vec<afrobim_kernel::ElementId> = self.doc.elements().iter().filter(|e| e.category == crate::civil::SAMPLES).map(|e| e.id).collect();
+            for id in ids {
+                if let Some(mut d) = crate::civil::get::<crate::civil::SampleData>(&self.doc, id, crate::civil::SAMPLES) {
+                    d.compare = true;
+                    crate::civil::set(&mut self.doc, id, serde_json::to_value(&d).unwrap_or_default(), None);
+                }
+            }
+        }
         if std::env::var_os("AFROBIM_FRAME_STATS").is_some() {
+            for e in self.doc.elements().iter().filter(|e| e.category == crate::civil::SAMPLES || e.category == crate::civil::PROFILE_VIEW).take(40) {
+                eprintln!("PLACE {} {} at E {:.0} N {:.0}", e.category, e.id.0, e.origin.x / 1000.0, e.origin.y / 1000.0);
+            }
             eprintln!("IMPORTSTATS read={:.0}ms total={:.0}ms elements={}", read.as_secs_f64() * 1000.0, t0.elapsed().as_secs_f64() * 1000.0, self.doc.elements().len());
         }
         self.status.clone()
@@ -583,12 +595,36 @@ impl AfroBimApp {
             }
         }
         notes.extend(crate::civil_sections::assign_profile_surfaces(&mut self.doc, &profile_ids).into_iter().map(|n| format!("LandXML: {n}")));
+        // A profile view for each alignment that has a ground profile, stacked south of the project,
+        // showing the alignment's own design profile where the file gave one.
+        if !profile_ids.is_empty() {
+            let ext = project_extent(&self.doc);
+            let (x0, y0) = ext.map(|e| (e.0, e.1 - 400.0)).unwrap_or((0.0, 0.0));
+            let mut row = 0.0;
+            let mut by_alignment: Vec<(String, Vec<u64>)> = Vec::new();
+            for id in &profile_ids {
+                if let Some(d) = crate::civil::get::<crate::civil::ProfileData>(&self.doc, *id, crate::civil::PROFILE) {
+                    match by_alignment.iter_mut().find(|(a, _)| *a == d.alignment) {
+                        Some((_, v)) => v.push(id.0),
+                        None => by_alignment.push((d.alignment.clone(), vec![id.0])),
+                    }
+                }
+            }
+            for (al, ids) in by_alignment {
+                let design = names.iter().find(|(f, _)| *f == al).and_then(|(_, n)| crate::alignment_glue::alignment_by_name(&self.doc, n)).is_some_and(|a| a.profile.is_some());
+                let data = crate::civil::ProfileViewData { alignment: al.clone(), profiles: ids, show_design: design, vertical_exaggeration: 5.0, datum: None, insertion: [x0, y0 - row], show_bands: false, band_height_m: 3.0, cloud: vec![] };
+                let name = self.doc.unique_name(&format!("Profile view {al}"));
+                crate::civil::add(&mut self.doc, crate::civil::PROFILE_VIEW, &name, serde_json::to_value(&data).unwrap_or_default(), Some(crate::civil::Bounds::point(x0, y0 - row)), &source);
+                added += 1;
+                row += 300.0;
+            }
+        }
         // The cross-sections, as sample line groups on the alignments that came in, laid out in an
         // array east of everything the file holds.
         let wanted: Vec<(String, String)> = form.section_alignments.iter().zip(&form.take_sections).filter(|(_, t)| **t).filter_map(|((n, _), _)| names.iter().find(|(f, _)| f == n).cloned()).collect();
         if !wanted.is_empty() {
-            let ext = file.summary.overall_extent();
-            let origin = ext.map(|e| (e.max_easting + 500.0, e.min_northing)).unwrap_or((0.0, 0.0));
+            let ext = project_extent(&self.doc);
+            let origin = ext.map(|e| (e.2 + 500.0, e.1)).unwrap_or((0.0, 0.0));
             let r = crate::civil_sections::import_sections(&mut self.doc, file, &wanted, &source, origin);
             added += r.groups.len();
             notes.push(format!("LandXML: {} section line(s) in {} group(s), each with the file's own section surfaces.", r.lines, r.groups.len()));
@@ -635,4 +671,15 @@ fn sections_tab(ui: &mut egui::Ui, form: &mut LandXmlForm) {
         }
     });
     ui_kit::note(ui, "Each section line keeps the file's named section surfaces and draws them in the section view array and the section sheets. A surface of the document with the name of a section surface can be compared with them: tick Compare with AfroBIM's own cut in the group's Properties.");
+}
+
+/// The plan extent in metres (least easting, least northing, greatest easting, greatest northing)
+/// of the alignments and surfaces of a document: where the sections and profile views are laid out
+/// beside them. Read from the elements, so a stray source point of a file does not stretch it.
+fn project_extent(doc: &afrobim_kernel::Document) -> Option<(f64, f64, f64, f64)> {
+    doc.elements()
+        .iter()
+        .filter(|e| e.category == afrobim_alignment::CATEGORY || e.category == afrobim_corridor::SURFACE_CATEGORY || e.category == crate::civil::SURFACE)
+        .map(|e| (e.origin.x / 1000.0, e.origin.y / 1000.0, (e.origin.x + e.width) / 1000.0, (e.origin.y + e.height) / 1000.0))
+        .reduce(|a, b| (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3)))
 }

@@ -267,3 +267,35 @@ fn private_the_3d_view_frames_the_project() {
     assert!(lo[0] > 1.0e8 && lo[1] > 1.0e9, "a point near the origin stretches the framing: {lo:?}");
     assert!(hi[0] - lo[0] < 2.0e7 && hi[1] - lo[1] < 2.0e7, "the framing spans {:?}", [hi[0] - lo[0], hi[1] - lo[1]]);
 }
+
+#[test]
+fn private_the_whole_imported_project_exports_as_landxml_and_reads_back() {
+    let Some(path) = private_path() else { return };
+    let (_c, mut app) = imported(&path);
+    let ctx = app.civil_ctx();
+    let (text, notes) = crate::civil_export::landxml_text(&app.doc, &ctx);
+    let back = afrobim_alignment::parse_landxml_file(&text).expect("the export reads back");
+    let orig = afrobim_alignment::read_landxml_file(&path).unwrap();
+    eprintln!("EXPORT {} bytes; alignments {} surfaces {} sections {} ground profiles {}; notes {}", text.len(), back.alignments.len(), back.surfaces.len(), back.cross_sections.len(), back.ground_profiles.len(), notes.len());
+    assert_eq!(back.alignments.len(), orig.alignments.len());
+    assert_eq!(back.surfaces.len(), orig.surfaces.len());
+    assert_eq!(back.cross_sections.len(), orig.cross_sections.len());
+    assert_eq!(back.ground_profiles.len(), orig.ground_profiles.len());
+    assert_eq!(back.coordinate_system.as_ref().and_then(|c| c.epsg_code.clone()).as_deref(), Some("21036"));
+    // The geometry survives: every alignment starts where it did.
+    for a in &orig.alignments {
+        let b = back.alignments.iter().find(|x| x.name == a.name).expect("alignment written");
+        assert!((a.elements[0].x - b.elements[0].x).abs() < 1e-3 && (a.length() - b.length()).abs() < 1e-3, "{}", a.name);
+    }
+}
+
+#[test]
+fn private_zoom_extents_has_nothing_at_the_origin() {
+    let Some(path) = private_path() else { return };
+    let (_c, app) = imported(&path);
+    for e in app.doc.elements() {
+        if app.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY && crate::civil::has_plan_position(&e.category) {
+            assert!(e.origin.x > 1.0e8 && e.origin.y > 1.0e9, "{} ({}) is at {:?} with size {} x {}", e.name, e.category, e.origin, e.width, e.height);
+        }
+    }
+}

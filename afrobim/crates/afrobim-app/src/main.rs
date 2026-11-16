@@ -262,6 +262,10 @@ pub struct Options {
     pub landxml_dialog: Option<PathBuf>,
     /// Import everything a LandXML file holds, with its coordinate system and without the dialog.
     pub landxml_all: Option<PathBuf>,
+    /// With `--landxml-all`: switch every imported section group to comparison mode.
+    pub landxml_compare: bool,
+    /// `--view E,N,WIDTH`: frame the plan on this easting and northing (metres), WIDTH metres wide.
+    pub view: Option<String>,
     /// Open the survey points dialog on this file at start-up.
     pub survey_dialog: Option<PathBuf>,
 }
@@ -336,6 +340,8 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--scale" => o.scale = args.next().and_then(|v| v.parse().ok()),
             "--workspace" => o.workspace = args.next(),
             "--click" => o.click = args.next(),
+            "--landxml-compare" => o.landxml_compare = true,
+            "--view" => o.view = args.next(),
             "--landxml-all" => o.landxml_all = args.next().map(PathBuf::from),
             "--landxml-dialog" => o.landxml_dialog = args.next().map(PathBuf::from),
             "--survey-dialog" => o.survey_dialog = args.next().map(PathBuf::from),

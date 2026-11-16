@@ -92,7 +92,13 @@ pub fn build_file(doc: &Document, ctx: &Ctx) -> (LandXmlFile, Vec<String>) {
             }
             SAMPLES => {
                 if let Some(d) = get::<SampleData>(doc, e.id, SAMPLES) {
-                    if let Some(al) = ctx.alignment_named(&d.group.alignment) {
+                    if !d.imported.is_empty() {
+                        // Sections that came from a file go back as the file's own lines, under their own names.
+                        for sec in &d.imported {
+                            let surfaces = sec.surfaces.iter().map(|s| LandXmlCrossSectSurf { name: s.name.clone(), desc: None, state: None, point_lists: s.runs.clone() }).collect();
+                            file.cross_sections.push(LandXmlCrossSection { alignment: d.group.alignment.clone(), station_m: sec.station_m, name: Some(sec.line.clone()), desc: None, surfaces, design_surfaces: vec![] });
+                        }
+                    } else if let Some(al) = ctx.alignment_named(&d.group.alignment) {
                         let tins: Vec<(String, std::sync::Arc<afrobim_corridor::Tin>)> = d.surfaces.iter().filter_map(|id| ctx.element(*id).and_then(|el| ctx.tin(*id).map(|t| (el.name.clone(), t)))).collect();
                         let refs: Vec<(&str, &afrobim_corridor::Tin)> = tins.iter().map(|(n, t)| (n.as_str(), t.as_ref())).collect();
                         match afrobim_corridor::section_views(&d.group, &al, &refs, None) {
