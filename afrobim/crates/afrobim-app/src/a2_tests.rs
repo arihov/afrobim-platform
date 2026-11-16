@@ -313,3 +313,236 @@ fn the_database_is_saved_and_opened_as_a_file() {
     assert!(sd::load_file(&path).unwrap_err().contains("format tag"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ─── data shortcuts ─────────────────────────────────────────────────────
+
+mod shortcuts {
+    use super::*;
+    use afrobim_shortcuts::*;
+
+    fn temp(tag: &str) -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(format!("afrobim-sc-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// A source document (the demonstration), a manifest in a folder, and a host document.
+    fn setup(tag: &str) -> (std::path::PathBuf, ShortcutProject, Document, std::path::PathBuf) {
+        let dir = temp(tag);
+        let src_path = dir.join("source.afrobim");
+        let src = demo_doc();
+        src.save(&src_path).unwrap();
+        let mut p = ShortcutProject::create(&dir, "Test project").unwrap();
+        let id = src.elements().iter().find(|e| e.category == crate::civil::SURFACE).unwrap().id;
+        p.publish(&PublishRequest::new(&src_path, id, "tester", "t0")).unwrap();
+        (dir, p, Document::default(), src_path)
+    }
+
+    #[test]
+    fn a_reference_is_a_normal_element_at_source_coordinates_and_refuses_edits() {
+        let (dir, p, mut host, src_path) = setup("ref");
+        let key = p.list()[0].key.clone();
+        let rep = create_reference(&mut host, &p, &key, &ReferenceOptions::default()).expect("a reference");
+        let e = host.find(rep.root).unwrap().clone();
+        assert_eq!(e.category, crate::civil::SURFACE);
+        assert!(is_reference(&e) && e.layer.starts_with("REF-"));
+        // At the source's coordinates, bit for bit.
+        let src = Document::load(&src_path).unwrap();
+        let s = src.elements().iter().find(|x| x.category == crate::civil::SURFACE).unwrap();
+        assert_eq!((e.origin, &e.data), (s.origin, &s.data));
+        // It is a surface the corridor machinery can use as ground.
+        assert!(crate::civil::surface_choices(&host).iter().any(|c| c.0 == e.id));
+        // check_editable refuses; the guard puts a changed reference back at the commit.
+        assert!(check_editable(&host, e.id).is_err());
+        assert!(crate::shortcuts_ui::refuse_if_referenced(&host, &[e.id]).is_some());
+        let committed = host.snapshot();
+        host.find_mut(e.id).unwrap().origin.x += 5000.0;
+        let notes = crate::shortcuts_ui::guard(&mut host, &committed);
+        assert_eq!(notes.len(), 1, "{notes:?}");
+        assert_eq!(host.find(e.id).unwrap().origin, e.origin, "the move was undone");
+        // An erase is put back too.
+        host.remove(e.id);
+        assert_eq!(crate::shortcuts_ui::guard(&mut host, &committed).len(), 1);
+        assert!(host.find(e.id).is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn publishing_again_makes_a_reference_out_of_date_and_synchronise_reports_the_change() {
+        let (dir, mut p, mut host, src_path) = setup("sync");
+        let key = p.list()[0].key.clone();
+        create_reference(&mut host, &p, &key, &ReferenceOptions::default()).unwrap();
+        let cheap = status(&host, &p, &StatusOptions { check_sources: false });
+        assert!(matches!(cheap[0].state, RefState::UpToDate));
+        // The source changes and is published again.
+        let mut src = Document::load(&src_path).unwrap();
+        let id = src.elements().iter().find(|e| e.category == crate::civil::SURFACE).unwrap().id;
+        let mut sd: crate::civil::SurfaceData = crate::civil::get(&src, id, crate::civil::SURFACE).unwrap();
+        sd.style.minor_interval = Some(0.25);
+        crate::civil::set(&mut src, id, serde_json::to_value(&sd).unwrap(), None);
+        src.save(&src_path).unwrap();
+        p.publish(&PublishRequest::new(&src_path, id, "tester", "t1")).unwrap();
+        let st = status(&host, &p, &StatusOptions { check_sources: false });
+        assert!(matches!(st[0].state, RefState::OutOfDate { .. }), "{:?}", st[0].state);
+        assert_eq!(crate::shortcuts_ui::badge(&st[0]).0, "out of date");
+        let rep = synchronise(&mut host, &p, &SyncTarget::All, &ReferenceOptions::default());
+        assert_eq!(rep.changed_elements().len(), 1);
+        let SyncOutcome::Refreshed { changes, .. } = &rep.items[0].outcome else { panic!("refreshed") };
+        assert!(changes.fields.iter().any(|f| f.path.contains("minor_interval")), "{:?}", changes.fields);
+        // Promote: an editable independent element.
+        let rid = rep.items[0].element;
+        promote(&mut host, rid, "tester", "t2").unwrap();
+        assert!(check_editable(&host, rid).is_ok());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_source_that_moved_is_reported_missing_and_repaired_and_the_project_validates() {
+        let (dir, mut p, mut host, src_path) = setup("repair");
+        let key = p.list()[0].key.clone();
+        create_reference(&mut host, &p, &key, &ReferenceOptions::default()).unwrap();
+        let moved = dir.join("moved.afrobim");
+        std::fs::rename(&src_path, &moved).unwrap();
+        let st = status(&host, &p, &StatusOptions { check_sources: true });
+        assert!(matches!(st[0].state, RefState::SourceMissing { .. }));
+        assert_eq!(crate::shortcuts_ui::badge(&st[0]).0, "source missing");
+        assert!(!p.validate().is_empty());
+        let r = p.repair_source_path("source.afrobim", &moved).unwrap();
+        assert_eq!(r.repaired.len(), 1);
+        assert!(p.validate().is_empty());
+        assert!(matches!(status(&host, &p, &StatusOptions { check_sources: true })[0].state, RefState::UpToDate));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_round_6_categories_bring_what_their_fields_name() {
+        let t = DependencyTable::civil();
+        for (cat, field) in [("civil-pipenet", "surface"), ("civil-pipeprofile", "network"), ("civil-grading", "ground"), ("civil-intersection", "inputs.primary"), ("civil-intersection", "corridor"), ("civil-roundabout", "inputs.arms[].alignment")] {
+            assert!(t.rules_for(cat).any(|r| r.path == field), "{cat} {field}");
+        }
+        // A pipe profile of the demonstration depends on its network: the closure holds both.
+        let doc = demo_doc();
+        let prof = doc.elements().iter().find(|e| e.category == crate::civil::PIPEPROFILE);
+        if let Some(pp) = prof {
+            let names: Vec<_> = local_closure(&doc, pp.id, &t).into_iter().filter_map(|i| doc.find(i)).map(|e| e.category.clone()).collect();
+            assert!(names.contains(&crate::civil::PIPENET.to_string()), "{names:?}");
+        }
+        // A roundabout needs its arms' alignments.
+        let rb = doc.elements().iter().find(|e| e.category == crate::civil::ROUNDABOUT).unwrap();
+        let cats: Vec<_> = local_closure(&doc, rb.id, &t).into_iter().filter_map(|i| doc.find(i)).map(|e| e.category.clone()).collect();
+        assert!(cats.contains(&"alignment".to_string()), "{cats:?}");
+    }
+
+    #[test]
+    fn a_whole_document_is_attached_as_an_underlay_and_never_modified() {
+        let (dir, _p, mut host, src_path) = setup("under");
+        let before = std::fs::read(&src_path).unwrap();
+        let r = attach_document(&mut host, &dir, "Source", &src_path, &[], true, "tester", "t").unwrap();
+        assert!(r.element_count > 10);
+        let u = load_underlay(&dir, &document_references(&host)[0]).unwrap();
+        assert!(u.elements().iter().any(|e| e.category == crate::civil::SURFACE));
+        assert_eq!(std::fs::read(&src_path).unwrap(), before, "the source is untouched");
+        let st = document_status(&host, &dir, true);
+        assert!(matches!(st[0].state, DocState::UpToDate));
+        let back = Document::from_json(&host.to_json()).unwrap();
+        assert_eq!(document_references(&back).len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_referenced_document_refuses_the_whole_document_transform_until_it_is_promoted() {
+        let (dir, p, mut host, _) = setup("tr");
+        let key = p.list()[0].key.clone();
+        let rep = create_reference(&mut host, &p, &key, &ReferenceOptions::default()).unwrap();
+        set_project_crs(&mut host, &ProjectCrs::from_epsg(21036).unwrap());
+        let plan = plan_for(&host, None);
+        let to = ProjectCrs::from_epsg(32736).unwrap();
+        let err = crate::transform_doc::apply_plan(&mut host, None, &plan, &to, "x", "t".into()).unwrap_err();
+        assert!(err.contains("referenced objects"), "{err}");
+        promote(&mut host, rep.root, "t", "t").unwrap();
+        assert!(crate::transform_doc::apply_plan(&mut host, None, &plan, &to, "x", "t".into()).is_ok());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_application_guard_stops_a_move_command_on_a_reference() {
+        let (dir, p, _, _) = setup("app");
+        let key = p.list()[0].key.clone();
+        let (ctx, mut app) = crate::u4_dialogs_test::app_for("dark-glass", false);
+        crate::u4_dialogs_test::frame(&ctx, &mut app, 2);
+        let rep = create_reference(&mut app.doc, &p, &key, &ReferenceOptions::default()).unwrap();
+        app.civil_ui.shortcuts.bypass = true;
+        app.flush_commit();
+        let before = app.doc.find(rep.root).unwrap().origin;
+        app.doc.select(&[rep.root], afrobim_kernel::SelectMode::Replace);
+        app.run(&ctx, crate::commands::Action::Erase);
+        assert!(app.status.contains("read-only") || app.status.to_lowercase().contains("reference"), "{}", app.status);
+        // Whatever reaches the document directly is undone at the commit.
+        app.doc.find_mut(rep.root).unwrap().origin.y += 1000.0;
+        app.flush_commit();
+        assert_eq!(app.doc.find(rep.root).unwrap().origin, before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_roundabout_and_a_pipe_profile_are_published_with_their_dependencies_and_referenced_whole() {
+        let dir = temp("r6");
+        let src_path = dir.join("source.afrobim");
+        let src = demo_doc();
+        src.save(&src_path).unwrap();
+        let mut p = ShortcutProject::create(&dir, "R6").unwrap();
+        let table = DependencyTable::civil();
+        let rb = src.elements().iter().find(|e| e.category == crate::civil::ROUNDABOUT).unwrap().id;
+        let outs = p.publish_closure(&PublishRequest::new(&src_path, rb, "t", "t0"), &table).unwrap();
+        assert!(outs.len() >= 2, "the roundabout and its alignments: {outs:?}");
+        let key = p.list().iter().find(|s| s.category == crate::civil::ROUNDABOUT).unwrap().key.clone();
+        let mut host = Document::default();
+        let rep = create_reference(&mut host, &p, &key, &ReferenceOptions::default()).expect("a roundabout reference");
+        assert!(rep.items.len() >= 2 && host.elements().iter().any(|e| e.category == "alignment" && is_reference(e)));
+        // The references draw: the host builds the roundabout scene without the source.
+        let r = host.find(rep.root).unwrap();
+        assert!(crate::civil_junction::roundabout_data_ok(r));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// Writes a host document with two references and a source that has moved on, for a screenshot
+/// (`cargo test -p afrobim-app write_shortcut_screenshot_documents -- --ignored`, folder in `AFROBIM_SC_DIR`).
+#[test]
+#[ignore]
+fn write_shortcut_screenshot_documents() {
+    use afrobim_shortcuts::*;
+    let Ok(dir) = std::env::var("AFROBIM_SC_DIR") else { return };
+    let dir = std::path::PathBuf::from(dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let src_path = dir.join("survey-and-roads.afrobim");
+    let src = demo_doc();
+    src.save(&src_path).unwrap();
+    let mut p = ShortcutProject::create(&dir, "Demonstration project").unwrap();
+    let table = DependencyTable::civil();
+    let rb = src.elements().iter().find(|e| e.category == crate::civil::ROUNDABOUT).unwrap().id;
+    p.publish_closure(&PublishRequest::new(&src_path, rb, "demo", "2026-11-16T08:00:00Z"), &table).unwrap();
+    let sid = src.elements().iter().find(|e| e.category == crate::civil::SURFACE).unwrap().id;
+    p.publish(&PublishRequest::new(&src_path, sid, "demo", "2026-11-16T08:00:00Z")).unwrap();
+    let mut host = Document::default();
+    set_project_crs(&mut host, &ProjectCrs::from_epsg(32736).unwrap());
+    for k in p.list().iter().map(|s| s.key.clone()).collect::<Vec<_>>() {
+        if k.starts_with("civil-roundabout") || k.starts_with("civil-surface") {
+            create_reference(&mut host, &p, &k, &ReferenceOptions::default()).unwrap();
+        }
+    }
+    // The source moves on and publishes the surface again.
+    let mut s2 = Document::load(&src_path).unwrap();
+    let mut sd: crate::civil::SurfaceData = crate::civil::get(&s2, sid, crate::civil::SURFACE).unwrap();
+    sd.style.minor_interval = Some(0.25);
+    crate::civil::set(&mut s2, sid, serde_json::to_value(&sd).unwrap(), None);
+    s2.save(&src_path).unwrap();
+    p.publish(&PublishRequest::new(&src_path, sid, "demo", "2026-11-16T09:00:00Z")).unwrap();
+    set_project_setting_for_test(&mut host);
+    host.save(&dir.join("host.afrobim")).unwrap();
+}
+
+fn set_project_setting_for_test(host: &mut Document) {
+    afrobim_kernel::set_project_setting(host, crate::shortcuts_ui::FOLDER_KEY, serde_json::Value::String(".".into()));
+}

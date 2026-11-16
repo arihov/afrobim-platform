@@ -76,6 +76,23 @@ impl DependencyTable {
     /// | `civil-samples` | `surfaces[]` | id | `civil-surface`, `surface` |
     /// | `corridor` | `alignment` | id | `alignment` |
     /// | `corridor` | `surface` | id | `surface` |
+    /// | `civil-pipenet` | `surface` | id | `civil-surface`, `surface` (optional) |
+    /// | `civil-pipenet` | `partners[]` | id | `civil-pipenet` (optional) |
+    /// | `civil-pipeprofile` | `network` | id | `civil-pipenet` |
+    /// | `civil-pipeprofile` | `surface` | id | `civil-surface`, `surface` (optional) |
+    /// | `civil-pipeprofile` | `alignment` | name | `alignment` (optional) |
+    /// | `civil-grading` | `ground`, `base` | id | `civil-surface`, `surface` (optional) |
+    /// | `civil-grading` | `group.gradings[].footprint` | name | `civil-featureline` (optional) |
+    /// | `civil-intersection` | `inputs.primary`, `inputs.secondary` | name | `alignment` |
+    /// | `civil-intersection` | `created[]` | id | `alignment` (optional) |
+    /// | `civil-intersection` | `corridor` | id | `civil-corridor` (optional) |
+    /// | `civil-intersection` | `ground` | id | `civil-surface`, `surface` (optional) |
+    /// | `civil-roundabout` | `inputs.arms[].alignment` | name | `alignment` |
+    /// | `civil-roundabout` | `created[]` | id | `alignment` (optional) |
+    ///
+    /// `civil-featureline`, `civil-points`, `civil-surface`, `civil-figures` and `civil-pointcloud`
+    /// name no other element (a point cloud names a file; a grading names the feature lines of its
+    /// footprint by the name the line has in its site).
     pub fn civil() -> DependencyTable {
         use TargetBy::{Id, Name};
         let surf = ["civil-surface", "surface"];
@@ -93,6 +110,22 @@ impl DependencyTable {
                 DependencyRule::new("civil-samples", "surfaces[]", Id, &surf, true),
                 DependencyRule::new("corridor", "alignment", Id, &["alignment"], true),
                 DependencyRule::new("corridor", "surface", Id, &["surface"], true),
+                // Round 6 categories. The fields were read from the application's data types.
+                DependencyRule::new("civil-pipenet", "surface", Id, &surf, false),
+                DependencyRule::new("civil-pipenet", "partners[]", Id, &["civil-pipenet"], false),
+                DependencyRule::new("civil-pipeprofile", "network", Id, &["civil-pipenet"], true),
+                DependencyRule::new("civil-pipeprofile", "surface", Id, &surf, false),
+                DependencyRule::new("civil-pipeprofile", "alignment", Name, &["alignment"], false),
+                DependencyRule::new("civil-grading", "ground", Id, &surf, false),
+                DependencyRule::new("civil-grading", "base", Id, &surf, false),
+                DependencyRule::new("civil-grading", "group.gradings[].footprint", Name, &["civil-featureline"], false),
+                DependencyRule::new("civil-intersection", "inputs.primary", Name, &["alignment"], true),
+                DependencyRule::new("civil-intersection", "inputs.secondary", Name, &["alignment"], true),
+                DependencyRule::new("civil-intersection", "created[]", Id, &["alignment"], false),
+                DependencyRule::new("civil-intersection", "corridor", Id, &["civil-corridor"], false),
+                DependencyRule::new("civil-intersection", "ground", Id, &surf, false),
+                DependencyRule::new("civil-roundabout", "inputs.arms[].alignment", Name, &["alignment"], true),
+                DependencyRule::new("civil-roundabout", "created[]", Id, &["alignment"], false),
             ],
         }
     }

@@ -296,6 +296,11 @@ impl AfroBimApp {
                             a(ui, &mut pick, c(cv), l);
                         }
                     });
+                    submenu(ui, egui_phosphor::regular::LINK_SIMPLE, "Data shortcuts", |ui| {
+                        for (cv, l) in [(ShortcutsManager, "Shortcuts manager…"), (ShortcutFolder, "Working project folder…"), (ShortcutPublish, "Publish objects…"), (ShortcutReference, "Create a reference…"), (ShortcutSync, "Synchronise references…"), (ShortcutPromote, "Promote to an editable copy…"), (ShortcutRepair, "Repair paths…"), (ShortcutValidate, "Validate the project…"), (ShortcutUnderlay, "Attach a document as an underlay…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
                     submenu(ui, egui_phosphor::regular::CLOUD, "Point clouds", |ui| {
                         for (cv, l) in [(CloudAttach, "Attach a point cloud…"), (CloudProps, "Properties and display…"), (CloudClip, "Clip…"), (CloudSlice, "Slices in sections and profiles…"), (CloudSurface, "Surface from the cloud…"), (CloudCompare, "Compare with a surface…"), (CloudExport, "Export a subset…")] {
                             a(ui, &mut pick, c(cv), l);

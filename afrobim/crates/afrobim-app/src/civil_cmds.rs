@@ -87,13 +87,23 @@ pub enum Cv {
     CloudSurface,
     CloudCompare,
     CloudExport,
+    // Data shortcuts
+    ShortcutsManager,
+    ShortcutFolder,
+    ShortcutPublish,
+    ShortcutReference,
+    ShortcutSync,
+    ShortcutPromote,
+    ShortcutRepair,
+    ShortcutValidate,
+    ShortcutUnderlay,
 }
 
 
 
 /// Every civil command (a test checks each one is in the command table).
 #[cfg(test)]
-pub const ALL: [Cv; 68] = [
+pub const ALL: [Cv; 77] = [
     Cv::Toolspace,
     Cv::Points,
     Cv::PointCreate,
@@ -162,6 +172,15 @@ pub const ALL: [Cv; 68] = [
     Cv::CloudSurface,
     Cv::CloudCompare,
     Cv::CloudExport,
+    Cv::ShortcutsManager,
+    Cv::ShortcutFolder,
+    Cv::ShortcutPublish,
+    Cv::ShortcutReference,
+    Cv::ShortcutSync,
+    Cv::ShortcutPromote,
+    Cv::ShortcutRepair,
+    Cv::ShortcutValidate,
+    Cv::ShortcutUnderlay,
 ];
 
 pub fn glyph(c: Cv) -> &'static str {
@@ -234,6 +253,16 @@ pub fn glyph(c: Cv) -> &'static str {
         Cv::CloudSurface => ph::MOUNTAINS,
         Cv::CloudCompare => ph::CHART_BAR,
         Cv::CloudExport => ph::EXPORT,
+        Cv::ShortcutsManager => ph::LINK_SIMPLE,
+        Cv::ShortcutFolder => ph::FOLDER_SIMPLE,
+        Cv::ShortcutPublish => ph::UPLOAD_SIMPLE,
+        Cv::ShortcutReference => ph::LINK,
+        Cv::ShortcutSync => ph::ARROWS_CLOCKWISE,
+        Cv::ShortcutPromote => ph::LOCK_SIMPLE_OPEN,
+        Cv::ShortcutRepair => ph::WRENCH,
+        Cv::ShortcutValidate => ph::SEAL_CHECK,
+        Cv::ShortcutUnderlay => ph::STACK,
+
 
 
     }

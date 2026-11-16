@@ -19,6 +19,7 @@ pub struct CivilUi {
     pub transform: crate::transform_ui::TransformUi,
     pub sdb: crate::sdb_ui::SdbUi,
     pub cloud: crate::cloud_ui::CloudUi,
+    pub shortcuts: crate::shortcuts_ui::ShortcutsUi,
     /// Positions picked in the model for the dialog that asked (easting, northing).
     pub queue: Vec<(f64, f64)>,
     /// Keep picking after each click (until the dialog closes).
@@ -58,6 +59,7 @@ impl AfroBimApp {
             Cv::FeatureLine | Cv::FeatureLineEdit | Cv::GradeSite | Cv::GradeCreate | Cv::GradeGroup | Cv::GradeHelpers => self.grading_cmd(cv),
             Cv::Intersection | Cv::Roundabout => self.junction_cmd(cv),
             Cv::CloudAttach | Cv::CloudProps | Cv::CloudClip | Cv::CloudSlice | Cv::CloudSurface | Cv::CloudCompare | Cv::CloudExport => self.cloud_cmd(cv),
+            Cv::ShortcutsManager | Cv::ShortcutFolder | Cv::ShortcutPublish | Cv::ShortcutReference | Cv::ShortcutSync | Cv::ShortcutPromote | Cv::ShortcutRepair | Cv::ShortcutValidate | Cv::ShortcutUnderlay => self.shortcuts_cmd(cv),
             Cv::Transform => self.transform_cmd(),
             Cv::Calibrate => self.calibrate_cmd(),
             Cv::SurveyNew | Cv::SurveyOpen | Cv::SurveySettings | Cv::SurveyImport | Cv::SurveyObs | Cv::SurveyTraverse | Cv::SurveyAdjust | Cv::SurveyApply | Cv::SurveyFigures | Cv::SurveyInsert | Cv::SurveyUpdate | Cv::SurveyEvents => self.sdb_cmd(cv),
@@ -85,5 +87,6 @@ impl AfroBimApp {
         self.transform_windows(ctx);
         self.sdb_windows(ctx);
         self.cloud_windows(ctx);
+        self.shortcuts_windows(ctx);
     }
 }

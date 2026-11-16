@@ -237,7 +237,7 @@ impl AfroBimApp {
         let Some(mut f) = self.civil_ui.transform.form.take() else { return };
         let selected: Option<Vec<ElementId>> = (f.scope == 1).then(|| self.doc.selection().to_vec());
         let rows = td::survey(&self.doc, selected.as_deref());
-        let refused: Vec<String> = rows.iter().filter(|r| r.how == td::How::Unsupported).map(|r| format!("{} ({})", r.category, r.count)).collect();
+        let refused: Vec<String> = td::unsupported(&self.doc, selected.as_deref()).iter().map(|r| format!("{} ({})", r.category, r.count)).collect();
         let extent = td::extent_of(&self.doc, selected.as_deref());
         let project = project_crs(&self.doc);
         // The source is the project system: that is what the document's numbers mean.

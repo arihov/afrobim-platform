@@ -99,6 +99,23 @@ an array. The built-in `DependencyTable::civil()`:
 | `civil-samples` | `surfaces[]` | id | `civil-surface`, `surface` | yes |
 | `corridor` | `alignment` | id | `alignment` | yes |
 | `corridor` | `surface` | id | `surface` | yes |
+| `civil-pipenet` | `surface` | id | `civil-surface`, `surface` | no |
+| `civil-pipenet` | `partners[]` | id | `civil-pipenet` | no |
+| `civil-pipeprofile` | `network` | id | `civil-pipenet` | yes |
+| `civil-pipeprofile` | `surface` | id | `civil-surface`, `surface` | no |
+| `civil-pipeprofile` | `alignment` | name | `alignment` | no |
+| `civil-grading` | `ground`, `base` | id | `civil-surface`, `surface` | no |
+| `civil-grading` | `group.gradings[].footprint` | name | `civil-featureline` | no |
+| `civil-intersection` | `inputs.primary`, `inputs.secondary` | name | `alignment` | yes |
+| `civil-intersection` | `created[]` | id | `alignment` | no |
+| `civil-intersection` | `corridor` | id | `civil-corridor` | no |
+| `civil-intersection` | `ground` | id | `civil-surface`, `surface` | no |
+| `civil-roundabout` | `inputs.arms[].alignment` | name | `alignment` | yes |
+| `civil-roundabout` | `created[]` | id | `alignment` | no |
+
+Added in round 6 from the fields of the application's data types. `civil-featureline`, `civil-points`,
+`civil-surface`, `civil-figures` and `civil-pointcloud` name no other element: a point cloud names a
+file, and a grading names the feature lines of its footprint by the name a line has in its site.
 
 A field that names an element is followed to the shortcut that publishes it. A dependency that is
 itself a reference in the source document is followed to its original shortcut. A required

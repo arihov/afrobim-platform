@@ -41,6 +41,7 @@ mod sdb_ui;
 mod sdb_ui2;
 mod cloud;
 mod cloud_ui;
+mod shortcuts_ui;
 mod defaults_glue;
 #[cfg(test)]
 mod a1_tests;

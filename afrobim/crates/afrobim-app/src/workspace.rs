@@ -89,7 +89,7 @@ pub const WORKSPACES: &[Workspace] = &[
         name: "Survey, Clouds and Data",
         glyph: ph::CHART_SCATTER,
         blurb: "Survey database, adjustment, point clouds, data shortcuts and reprojection",
-        tabs: &[WsTab::only(Tab::Civil, &["Points", "Surfaces", "Survey database", "Point clouds", "Reprojection"]), WsTab::all(Tab::Insert)],
+        tabs: &[WsTab::only(Tab::Civil, &["Points", "Surfaces", "Survey database", "Point clouds", "Shortcuts", "Reprojection"]), WsTab::all(Tab::Insert)],
         palettes: Palettes { signs: false, modify: false },
         show_left: true,
         show_right: true,

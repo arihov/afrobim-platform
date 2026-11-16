@@ -101,6 +101,12 @@ impl AfroBimApp {
             if resp.double_clicked() {
                 acts.push(Act::Zoom(r.id));
             }
+            // The state badge of a referenced object.
+            if let Some(e) = self.doc.find(r.id).filter(|e| afrobim_shortcuts::is_reference(e)) {
+                let st = self.civil_ui.shortcuts.statuses.get(&r.id);
+                let (text, colour) = st.map(crate::shortcuts_ui::badge).unwrap_or(("reference", ui.visuals().weak_text_color()));
+                ui.label(RichText::new(format!("{} {text}", ph::LINK_SIMPLE)).small().color(colour)).on_hover_text(crate::shortcuts_ui::reference_line(e, st).unwrap_or_default());
+            }
             let tip = format!("{}{}{}", r.name, if r.status.is_empty() { String::new() } else { format!("\nStatus: {}", r.status) }, if r.detail.is_empty() { String::new() } else { format!("\n{}", r.detail) });
             let resp = resp.on_hover_text(tip);
             resp.context_menu(|ui| {
@@ -202,6 +208,26 @@ impl AfroBimApp {
                     self.civil_ui.tree.renaming = Some((id, text));
                 }
             }
+            let sc_list: Vec<(String, String, u64)> = self.civil_ui.shortcuts.project.as_ref().map(|p| p.list().iter().map(|s| (s.key.clone(), s.status.label().to_string(), s.revision)).collect()).unwrap_or_default();
+            let sc_refs = self.civil_ui.shortcuts.statuses.len();
+            let sc_stale = self.civil_ui.shortcuts.statuses.values().filter(|s| !matches!(s.state, afrobim_shortcuts::RefState::UpToDate) || s.crs_differs).count();
+            let sc_root = self.civil_ui.shortcuts.root.as_ref().map(|r| r.display().to_string());
+            self.node(ui, "ts-shortcuts", ph::LINK_SIMPLE, "Shortcuts", sc_list.len(), Some(("Shortcuts manager...", Cv::ShortcutsManager)), &mut acts, |ui, acts| {
+                crate::ui_kit::note(ui, sc_root.clone().unwrap_or_else(|| "No working project folder is set.".into()));
+                if sc_refs > 0 {
+                    ui.label(RichText::new(format!("{sc_refs} reference(s) in this document; {sc_stale} need attention")).small().color(if sc_stale > 0 { crate::theme::warn() } else { ui.visuals().weak_text_color() }));
+                }
+                for (key, status, rev) in &sc_list {
+                    ui.label(crate::theme::icon_text(ph::LINK_SIMPLE, &format!("{key}  (rev {rev}, {status})"), 12.0, ui.visuals().text_color()));
+                }
+                ui.horizontal_wrapped(|ui| {
+                    for (cv, l) in [(Cv::ShortcutFolder, "Folder..."), (Cv::ShortcutPublish, "Publish..."), (Cv::ShortcutReference, "Reference..."), (Cv::ShortcutSync, "Synchronise..."), (Cv::ShortcutPromote, "Promote..."), (Cv::ShortcutRepair, "Repair..."), (Cv::ShortcutValidate, "Validate..."), (Cv::ShortcutUnderlay, "Underlay...")] {
+                        if ui.small_button(l).clicked() {
+                            acts.push(Act::Run(cv, None));
+                        }
+                    }
+                });
+            });
             let log_n = crate::transform_doc::log_of(&self.doc).len();
             let cals = crate::transform_doc::calibrations_of(&self.doc);
             self.node(ui, "ts-reproject", ph::GLOBE_HEMISPHERE_WEST, "Reprojection", log_n + cals.len(), Some(("Transform coordinates...", Cv::Transform)), &mut acts, |ui, acts| {
@@ -550,6 +576,11 @@ pub fn edit_command(category: &str) -> Option<Cv> {
 pub fn civil_panel(ui: &mut Ui, e: &mut afrobim_kernel::Element) -> (bool, Option<Cv>) {
     let mut changed = false;
     let mut open = None;
+    // A referenced object is read-only here: its editor is that of its source document.
+    if let Some(line) = crate::shortcuts_ui::reference_line(e, None) {
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, format!("{line}. Read-only: promote it to an editable copy (SHORTCUTPROMOTE) to change it."));
+        return (false, None);
+    }
     crate::ui_kit::grid(ui, "civil-props", |ui| {
         ui.label("Status");
         let cur = e.properties.get(PROP_STATUS).cloned().unwrap_or_else(|| STATUSES[0].into());

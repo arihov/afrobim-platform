@@ -111,7 +111,7 @@ fn every_civil_command_is_in_the_table_with_an_icon() {
     // The Civil workspace shows the Civil tab, whose panels are the plan's eight, then pipe networks, grading and intersections.
     let ws = crate::workspace::WORKSPACES.iter().find(|w| w.name == "Civil").expect("a Civil workspace");
     assert!(ws.visible_tabs().iter().any(|t| t.tab == crate::ribbon::Tab::Civil));
-    assert_eq!(crate::ribbon::panel_titles(crate::ribbon::Tab::Civil), vec!["Points", "Surfaces", "Alignments", "Profiles", "Sections", "Corridors", "Parcels", "Pipe networks", "Grading", "Intersections", "Survey database", "Point clouds", "Reprojection", "Quantities"]);
+    assert_eq!(crate::ribbon::panel_titles(crate::ribbon::Tab::Civil), vec!["Points", "Surfaces", "Alignments", "Profiles", "Sections", "Corridors", "Parcels", "Pipe networks", "Grading", "Intersections", "Survey database", "Point clouds", "Shortcuts", "Reprojection", "Quantities"]);
 }
 
 #[test]

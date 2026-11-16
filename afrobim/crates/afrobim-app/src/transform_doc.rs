@@ -349,7 +349,14 @@ pub fn survey(doc: &Document, ids: Option<&[ElementId]>) -> Vec<CategoryRow> {
 
 /// The categories in scope that cannot be transformed.
 pub fn unsupported(doc: &Document, ids: Option<&[ElementId]>) -> Vec<CategoryRow> {
-    survey(doc, ids).into_iter().filter(|r| r.how == How::Unsupported).collect()
+    let mut rows: Vec<CategoryRow> = survey(doc, ids).into_iter().filter(|r| r.how == How::Unsupported).collect();
+    // A referenced object belongs to another document: it is read-only here and would be replaced
+    // by the next synchronise, so moving it would leave the document half in each system.
+    let refs = scope_ids(doc, ids).into_iter().filter(|id| doc.find(*id).is_some_and(afrobim_shortcuts::is_reference)).count();
+    if refs > 0 {
+        rows.push(CategoryRow { category: "referenced objects (promote or remove them first)".into(), count: refs, how: How::Unsupported });
+    }
+    rows
 }
 
 /// The elements a transform would touch: the whole document or the selection (settings excluded).

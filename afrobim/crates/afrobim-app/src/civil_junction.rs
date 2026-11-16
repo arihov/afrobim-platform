@@ -288,3 +288,9 @@ pub fn build_roundabout_scene(e: &Element) -> Result<Built, String> {
     let _ = C_TEXT;
     Ok(Built { scene: s, ..Default::default() })
 }
+
+/// Whether an element's roundabout data reads (for the tests of references).
+#[cfg(test)]
+pub fn roundabout_data_ok(e: &afrobim_kernel::Element) -> bool {
+    serde_json::from_value::<RoundaboutData>(e.data.clone()).is_ok()
+}

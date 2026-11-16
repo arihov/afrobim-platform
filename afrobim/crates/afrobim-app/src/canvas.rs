@@ -93,6 +93,8 @@ impl AfroBimApp {
         self.under.paint(&self.doc, painter, &self.view, rect, ink);
 
         let label = if dark { Color32::from_rgb(0xA8, 0xB0, 0xBA) } else { Color32::from_rgb(0x50, 0x55, 0x5C) };
+        // Referenced documents and the reference markers (drawn over the objects below).
+        self.shortcuts_paint(painter, rect);
         // Point clouds: a raster of the level-of-detail query for the view, under the civil objects.
         self.cloud_paint_plan(painter, rect);
         // The civil objects: scenes built off the UI thread, painted culled to the view.

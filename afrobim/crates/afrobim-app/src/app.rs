@@ -746,6 +746,16 @@ impl AfroBimApp {
 
     pub(crate) fn flush_commit(&mut self) {
         self.commit_due = None;
+        // A referenced object is read-only: whatever edit reached it is undone here, at the one
+        // place every edit passes through (unless a synchronise or a promote just changed it).
+        if std::mem::take(&mut self.civil_ui.shortcuts.bypass) {
+            // The operation that set this is the one change that may touch references.
+        } else {
+            let notes = crate::shortcuts_ui::guard(&mut self.doc, self.history.current());
+            if let Some(first) = notes.first() {
+                self.status = first.clone();
+            }
+        }
         self.sync_generated();
         self.history.commit(self.doc.snapshot());
     }
@@ -1128,6 +1138,9 @@ impl AfroBimApp {
                     self.doc.select(&made, SelectMode::Replace);
                     self.schedule_commit(ctx);
                 }
+            }
+            Action::Move | Action::Copy | Action::Erase if crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).is_some() => {
+                self.status = crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).unwrap_or_default();
             }
             Action::Move => self.ctl.start_move(&mut self.doc),
             Action::Copy => self.ctl.start_copy(&mut self.doc),
