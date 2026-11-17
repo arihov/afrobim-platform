@@ -33,7 +33,7 @@ pub fn classify(path: &Path) -> DropKind {
     match path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).as_deref() {
         Some("afrobim") => DropKind::Document,
         Some("xml") => DropKind::LandXml,
-        Some("dxf") => DropKind::Underlay,
+        Some("dxf") | Some("dwg") => DropKind::Underlay,
         Some("ifc") => DropKind::Reference,
         _ => DropKind::Unsupported,
     }
@@ -58,9 +58,9 @@ pub fn describe(kind: DropKind, path: &Path, unsaved: bool) -> (String, String, 
             (format!("Open {name}?"), format!("Open this AfroBIM document in place of the one now open.{warn}"), "Open")
         }
         DropKind::LandXml => (format!("Import {name}?"), "Read the horizontal alignments in this LandXML file and add them to the open document.".into(), "Import alignments"),
-        DropKind::Underlay => (format!("Attach {name}?"), "Attach this DXF drawing as a read-only underlay. It is read from its file in the background; the document keeps its path and hash, not a copy.".into(), "Attach underlay"),
+        DropKind::Underlay => (format!("Attach {name}?"), "Attach this drawing as a read-only underlay. It is read from its file in the background (a DWG is first converted to DXF with ODA File Converter); the document keeps its path and hash, not a copy.".into(), "Attach underlay"),
         DropKind::Reference => (format!("Import {name}?"), "Import this IFC file as a reference model, shown in the 3D view and checked for clashes. The model itself is not changed.".into(), "Import reference model"),
-        DropKind::Unsupported => (format!("{name} cannot be used"), "AfroBIM opens .afrobim documents and imports .xml (LandXML), .dxf (underlay) and .ifc (reference model) files.".into(), "OK"),
+        DropKind::Unsupported => (format!("{name} cannot be used"), "AfroBIM opens .afrobim documents and imports .xml (LandXML), .dxf and .dwg (underlay) and .ifc (reference model) files.".into(), "OK"),
     }
 }
 
@@ -153,13 +153,15 @@ mod tests {
         assert_eq!(kind("ROAD.AFROBIM"), DropKind::Document);
         assert_eq!(kind("corridor.xml"), DropKind::LandXml);
         assert_eq!(kind("C:\\x\\Plan.DXF"), DropKind::Underlay);
+        assert_eq!(kind("KK1-Corridor.dwg"), DropKind::Underlay);
+        assert_eq!(kind("TOPO.DWG"), DropKind::Underlay);
         assert_eq!(kind("bridge.ifc"), DropKind::Reference);
         assert_eq!(kind("bridge.IFC"), DropKind::Reference);
     }
 
     #[test]
     fn other_files_and_files_without_an_extension_are_unsupported() {
-        for p in ["notes.txt", "photo.png", "archive.afrobim.zip", "README", "dwg.dwg", ".afrobim", "ifc"] {
+        for p in ["notes.txt", "photo.png", "archive.afrobim.zip", "README", "drawing.dwl2", ".afrobim", "ifc"] {
             assert_eq!(kind(p), DropKind::Unsupported, "{p}");
         }
     }
