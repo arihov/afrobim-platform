@@ -1055,29 +1055,27 @@ impl AfroBimApp {
         let exaggeration = self.vis.exaggeration.trim().parse::<f64>().ok().filter(|v| *v > 0.0);
         let drawings = self.vis.analysis().map(|a| drawings_of(a, self.vis.scene.as_ref(), exaggeration.unwrap_or(5.0)));
         let mark = self.vis.analysis().map(|a| a.mark.clone()).unwrap_or_default();
-        let dlg = crate::ui_kit::Dialog::titled(format!("Visibility drawings: {mark}")).width(900.0).show_body(ctx, |ui| {
-            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "The plan shows the eye positions along the approach coloured by what they see, the sight lines at the limit and the obstruction. The profile is the limiting sight line over the road and ground. Add either to a drawing sheet as a Detail sheet in SHEETSET (kinds 'Sign visibility, plan envelope' and 'Sign visibility, sight-line profile').");
-            ui.horizontal(|ui| {
-                ui.label("Profile vertical exaggeration");
-                ui.add(egui::TextEdit::singleline(&mut self.vis.exaggeration).desired_width(50.0));
-                if exaggeration.is_none() {
-                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, "enter a number above zero");
-                }
+        let tab_id = egui::Id::new("vis-drawings-tab");
+        let dlg = crate::ui_kit::Dialog::titled(if mark.is_empty() { "Visibility drawings".to_string() } else { format!("Visibility drawings: {mark}") }).id_title(format!("Visibility drawings: {mark}")).width(900.0).help("The plan shows the eye positions along the approach coloured by what they see, the sight lines at the limit and the obstruction. The profile is the limiting sight line over the road and ground. Add either to a drawing sheet as a Detail sheet in SHEETSET (kinds 'Sign visibility, plan envelope' and 'Sign visibility, sight-line profile').").show_body(ctx, |ui| {
+            crate::ui_kit::section(ui, "Drawing", |ui| {
+                crate::ui_kit::form(ui, "vis-dr", |fm| {
+                    fm.row_note("Profile vertical exaggeration", "The plan is drawn to scale; only the profile is exaggerated", |ui| {
+                        crate::ui_kit::num_field(ui, &mut self.vis.exaggeration, ": 1", &crate::ui_kit::NumRule::required().above(0.0));
+                    });
+                });
             });
             let Some((plan, profile)) = &drawings else {
-                ui.label(RichText::new("Select a sign in the results first.").weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Select a sign in the results first.");
                 return;
             };
-            egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-                for (title, d) in [("Plan envelope", plan), ("Sight-line profile", profile)] {
-                    ui.label(RichText::new(title).strong());
-                    match d {
-                        Some(d) => paint_drawing(ui, d, 780.0),
-                        None => {
-                            ui.label(RichText::new("This sign has no sweep (inputs missing or not placed), so there is no drawing.").weak());
-                        }
-                    }
-                    ui.add_space(8.0);
+            let mut tab: usize = ui.data(|d| d.get_temp(tab_id)).unwrap_or(0);
+            crate::ui_kit::tabs(ui, &mut tab, &["Plan envelope", "Sight-line profile"]);
+            ui.data_mut(|d| d.insert_temp(tab_id, tab));
+            let d = if tab == 0 { plan } else { profile };
+            crate::ui_kit::scroll_x(ui, "vis-dr-x", |ui| match d {
+                Some(d) => paint_drawing(ui, d, 780.0),
+                None => {
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "This sign has no sweep (inputs missing or not placed), so there is no drawing.");
                 }
             });
         });

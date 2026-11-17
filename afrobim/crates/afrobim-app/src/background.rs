@@ -141,6 +141,14 @@ pub struct Background {
     pub volumes: Option<Job<crate::civil_surface::VolOut>>,
     /// The earthworks of a corridor.
     pub quantities: Option<Job<crate::civil_quantities::QtyOut>>,
+    /// The checks of a pipe network.
+    pub pipecheck: Option<Job<crate::pipes_ui::PipeCheckOut>>,
+    /// Grading volumes and the auto-balance of a grading group.
+    pub grade: Option<Job<crate::grading_ui::GradeJob>>,
+    /// A survey network adjustment.
+    pub survey: Option<Job<Result<(String, crate::survey_db::AdjOut), String>>>,
+    /// A point cloud job: attach or open (indexing), surface, comparison, export.
+    pub cloud: Option<Job<crate::cloud_ui::CloudJob>>,
 }
 
 /// The kinds of job, in the order the progress window lists them.
@@ -157,11 +165,15 @@ pub enum Kind {
     Civil,
     Volumes,
     Quantities,
+    PipeCheck,
+    Grade,
+    Survey,
+    Cloud,
 }
 
 impl Background {
     pub fn busy(&self) -> bool {
-        self.clash.is_some() || self.pack.is_some() || self.vis.is_some() || self.photo.is_some() || self.corridors.is_some() || self.sections.is_some() || self.check_all.is_some() || self.sheets.is_some() || self.civil.is_some() || self.volumes.is_some() || self.quantities.is_some()
+        self.clash.is_some() || self.pack.is_some() || self.vis.is_some() || self.photo.is_some() || self.corridors.is_some() || self.sections.is_some() || self.check_all.is_some() || self.sheets.is_some() || self.civil.is_some() || self.volumes.is_some() || self.quantities.is_some() || self.pipecheck.is_some() || self.grade.is_some() || self.survey.is_some() || self.cloud.is_some()
     }
 
     /// The running jobs: kind, label and seconds so far.
@@ -169,7 +181,7 @@ impl Background {
         fn row<T: Send + 'static>(kind: Kind, job: &Option<Job<T>>) -> Option<(Kind, String, f64)> {
             job.as_ref().map(|j| (kind, j.label.clone(), j.elapsed_s()))
         }
-        [row(Kind::Clash, &self.clash), row(Kind::Pack, &self.pack), row(Kind::Vis, &self.vis), row(Kind::Photo, &self.photo), row(Kind::Corridors, &self.corridors), row(Kind::Sections, &self.sections), row(Kind::CheckAll, &self.check_all), row(Kind::Sheets, &self.sheets), row(Kind::Civil, &self.civil), row(Kind::Volumes, &self.volumes), row(Kind::Quantities, &self.quantities)].into_iter().flatten().collect()
+        [row(Kind::Clash, &self.clash), row(Kind::Pack, &self.pack), row(Kind::Vis, &self.vis), row(Kind::Photo, &self.photo), row(Kind::Corridors, &self.corridors), row(Kind::Sections, &self.sections), row(Kind::CheckAll, &self.check_all), row(Kind::Sheets, &self.sheets), row(Kind::Civil, &self.civil), row(Kind::Volumes, &self.volumes), row(Kind::Quantities, &self.quantities), row(Kind::PipeCheck, &self.pipecheck), row(Kind::Grade, &self.grade), row(Kind::Survey, &self.survey), row(Kind::Cloud, &self.cloud)].into_iter().flatten().collect()
     }
 
     pub fn cancel(&self, kind: Kind) {
@@ -190,6 +202,10 @@ impl Background {
             Kind::Civil => go(&self.civil),
             Kind::Volumes => go(&self.volumes),
             Kind::Quantities => go(&self.quantities),
+            Kind::PipeCheck => go(&self.pipecheck),
+            Kind::Grade => go(&self.grade),
+            Kind::Survey => go(&self.survey),
+            Kind::Cloud => go(&self.cloud),
         }
     }
 }
@@ -319,7 +335,7 @@ impl crate::app::AfroBimApp {
 }
 
 /// What the status line says when a result was thrown away.
-fn discard_message<T>(what: &str, poll: &Poll<T>) -> String {
+pub(crate) fn discard_message<T>(what: &str, poll: &Poll<T>) -> String {
     match poll {
         Poll::Cancelled => format!("{what} cancelled: the result was discarded."),
         Poll::Stale => format!("{what} discarded: the document changed while it ran. Run it again."),

@@ -19,4 +19,5 @@ afrobim-restraint = { path = "../afrobim-restraint" }
 afrobim-pavement = { path = "../afrobim-pavement" }
 afrobim-corridor = { path = "../afrobim-corridor" }
 lyon_tessellation = "1"
+serde.workspace = true
 serde_json.workspace = true

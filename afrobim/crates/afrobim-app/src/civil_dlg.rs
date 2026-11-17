@@ -44,6 +44,11 @@ pub fn pick_from(ui: &mut Ui, id: &str, items: &[(ElementId, String)], sel: &mut
     changed
 }
 
+/// A number edited as a drag value with a typed entry, no rule (a range end that is a plain input).
+pub fn f64_edit(ui: &mut Ui, v: &mut f64) {
+    ui.add(egui::DragValue::new(v).speed(0.1).max_decimals(4));
+}
+
 pub fn fmt(v: f64, decimals: usize) -> String {
     format!("{v:.decimals$}")
 }

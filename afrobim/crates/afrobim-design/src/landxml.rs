@@ -33,23 +33,46 @@
 //!   TIN or a grid as it was read) and `SourceData` (`DataPoints`, `Breaklines`, `Contours`,
 //!   `Boundaries`); [`surface_from_tin`] makes a surface from a corridor `Tin`;
 //! - `Profile/ProfSurf` (existing ground, `PntList2D` of station and elevation) next to `ProfAlign`;
-//! - `CrossSects/CrossSect` with `CrossSectSurf` and `DesignCrossSectSurf/CrossSectPnt`;
-//! - `Superelevation`, for what the reader reads: the six critical stations, `FullSuperelev` and
-//!   `AdverseSE`. LandXML gives one rate, so a section is written only when its full-super stations
-//!   hold one rate with opposite signs on the two sides and the horizontal curve tells the inside;
-//!   anything else is left out with a warning.
+//! - `CrossSects/CrossSect` with `CrossSectSurf` and `DesignCrossSectSurf/CrossSectPnt`, with the
+//!   attributes of `CrossSects` (`calcMethod`, `swellFactor`, ...) and of `CrossSect` (`angleSkew`,
+//!   `areaCut`, `volumeFill`, `sectType`, ...);
+//! - `Superelevation`: the records of the file as they were read (`staStart`, `staEnd`, every
+//!   critical station, every `FullSuperelev` with its sign, every `AdverseSE`), while the engine
+//!   superelevation of the alignment is still the one derived from them. When it was changed since,
+//!   one element per engine section that states a rate: LandXML gives one rate, so such a section is
+//!   written only when its full-super stations hold one rate with opposite signs on the two sides
+//!   and the horizontal curve tells the inside; anything else is left out with a warning;
+//! - `Feature` elements (with `Property`, `DocFileRef`, nested `Feature`) on the alignment, its
+//!   profiles and cross-sections, surfaces, plan features and the coordinate system, `FieldNote` of
+//!   the coordinate system, `SourceData/PointFiles`, and the statistics of `Surface/Definition`.
 //!
-//! Not written: the `Application`s of a source file (the output was not made by them), `Feature`
-//! elements and anything else the reader skips, `Surface/Watersheds`, `SurfVolumes`, and a unit
-//! other than metres. The `Spiral` of a parcel or plan feature that was read without a `PI` is
-//! written without one, which the schema does not allow (a warning says so).
+//! **The geometry as the file stated it.** An alignment read by `parse_landxml_file` is written from
+//! the points the file gave (`LandXmlAlignmentInfo::coord_geoms`: every `Start`, `Center`, `PI`,
+//! `End`), not recomputed from the engine elements, so a file that is read and written comes back
+//! with the same coordinates bit for bit. That is done only while the engine alignment is the one
+//! built from them (compared by element count, length, start and end); an alignment that was
+//! edited is written from its engine elements, with a warning. The same goes for the design
+//! profile (written from the entries of the file, including a vertical step that the engine
+//! profile cannot hold, while the engine profile is still the one derived from them).
+//!
+//! Not written: the `Application`s of a source file (the output was not made by them),
+//! `LandXML@readOnly`, `Alignments@name`, `Surface/Watersheds`, `SurfVolumes`, and a unit other than
+//! metres. What the reader does not read does not come back: the redundant attributes of `Line`,
+//! `Curve` and `Spiral` (`dir`, `length` of a line, `chord`, `delta`, `dirStart`, `theta`, `totalX`,
+//! ...) and the neighbour lists `F@n`; consumers recompute them from the points. A `Feature` that
+//! hangs on any object the writer does not write one for, a `FieldNote` anywhere but in the
+//! coordinate system, is counted in a warning. A `Spiral` of a parcel or plan feature that was read
+//! without a `PI` is written without one, which the schema does not allow (a warning says so).
 //!
 //! **Direction and `staStart` of each element** are left out; consumers recompute them from the
 //! points, as the `afrobim-alignment` importer does.
 
+use std::collections::HashSet;
+
 use afrobim_alignment::{
-    Alignment, AlignmentElement, CriticalStation, ElementKind, LandXmlCgPointGroup, LandXmlCoordGeom, LandXmlCrossSection, LandXmlFile, LandXmlGeomElement, LandXmlParcel,
-    LandXmlPlanFeature, LandXmlPoint, LandXmlProfSurf, LandXmlSurfFace, LandXmlSurfPoint, LandXmlSurface, StationDirection, VerticalCurve,
+    critical_station_element, Alignment, AlignmentElement, CriticalStation, ElementKind, LandXmlCgPointGroup, LandXmlCoordGeom, LandXmlCrossSectDetail, LandXmlCrossSection, LandXmlDesignProfile,
+    LandXmlFeature, LandXmlFile, LandXmlGeomElement, LandXmlGeometryFingerprint, LandXmlParcel, LandXmlPlanFeature, LandXmlPoint, LandXmlProfEntryKind, LandXmlProfSurf, LandXmlSurfFace,
+    LandXmlSurfPoint, LandXmlSurface, StationDirection, VerticalCurve,
 };
 use afrobim_corridor::Tin;
 
@@ -288,12 +311,19 @@ fn write_parcel(o: &mut String, ind: &str, p: &LandXmlParcel, warnings: &mut Vec
     o.push_str(&format!("{ind}</Parcel>\n"));
 }
 
-fn write_surface(o: &mut String, s: &LandXmlSurface, warnings: &mut Vec<String>) {
-    o.push_str(&format!("    <Surface name=\"{}\"{}{}>\n", esc(&s.name), at("desc", s.desc.as_deref()), at("state", s.state.as_deref())));
+fn write_surface(o: &mut String, s: &LandXmlSurface, ctx: &mut Ctx, warnings: &mut Vec<String>) {
+    o.push_str(&format!("    <Surface name=\"{}\"{}{}{}>\n", esc(&s.name), at("desc", s.desc.as_deref()), at("OID", s.oid.as_deref()), at("state", s.state.as_deref())));
     let what = format!("Surface '{}'", s.name);
     let src = &s.source_data;
     if !src.is_empty() {
         o.push_str("      <SourceData>\n");
+        if !src.point_files.is_empty() {
+            o.push_str("        <PointFiles>\n");
+            for f in &src.point_files {
+                o.push_str(&format!("          <PointFile fileName=\"{}\" fileType=\"{}\" fileFormat=\"{}\"/>\n", esc(&f.file_name), esc(&f.file_type), esc(&f.file_format)));
+            }
+            o.push_str("        </PointFiles>\n");
+        }
         if !src.data_points.is_empty() {
             for d in &src.data_points {
                 let list: Vec<String> = d.points.iter().filter_map(|p| p.z.map(|z| lx_pt(p.x, p.y, Some(z)))).collect();
@@ -364,7 +394,16 @@ fn write_surface(o: &mut String, s: &LandXmlSurface, warnings: &mut Vec<String>)
             warnings.push(format!("{what}: its Definition needs at least three points and one face; it was left out."));
         } else {
             let kind = s.surf_type.as_deref().unwrap_or("TIN");
-            o.push_str(&format!("      <Definition surfType=\"{}\">\n        <Pnts>\n", esc(kind)));
+            let stat = |name: &str, v: Option<f64>| v.map_or(String::new(), |v| format!(" {name}=\"{}\"", n(v)));
+            let st = s.stated.unwrap_or_default();
+            o.push_str(&format!(
+                "      <Definition surfType=\"{}\"{}{}{}{}>\n        <Pnts>\n",
+                esc(kind),
+                stat("area2DSurf", st.area_2d_m2),
+                stat("area3DSurf", st.area_3d_m2),
+                stat("elevMax", st.elev_max_m),
+                stat("elevMin", st.elev_min_m)
+            ));
             for p in &s.points {
                 o.push_str(&format!("          <P id=\"{}\">{}</P>\n", p.id, lx_pt(p.easting_m, p.northing_m, Some(p.elevation_m))));
             }
@@ -376,14 +415,131 @@ fn write_surface(o: &mut String, s: &LandXmlSurface, warnings: &mut Vec<String>)
             o.push_str("        </Faces>\n      </Definition>\n");
         }
     }
+    ctx.features(o, "      ", "Surface", None, Some(&s.name), None);
     o.push_str("    </Surface>\n");
 }
 
-/// `Superelevation` elements, one per section that states a rate. See `afrobim-alignment`'s
-/// reader for what a LandXML superelevation does and does not say: it gives one rate, so only a
-/// section whose full-super stations hold the same rate on both sides with opposite signs can be
-/// written back, and only where the horizontal curve tells which side is the inside.
-fn write_superelevation(o: &mut String, alignment: &Alignment, warnings: &mut Vec<String>) {
+/// Writing state: the file being written and which `Feature` owners were written.
+struct Ctx<'a> {
+    file: &'a LandXmlFile,
+    written_features: HashSet<usize>,
+}
+
+fn write_feature(o: &mut String, ind: &str, f: &LandXmlFeature) {
+    o.push_str(&format!("{ind}<Feature{}{}{}>\n", at("name", f.name.as_deref()), at("code", f.code.as_deref()), at("source", f.source.as_deref())));
+    for p in &f.properties {
+        o.push_str(&format!("{ind}  <Property label=\"{}\" value=\"{}\"/>\n", esc(&p.label), esc(&p.value)));
+    }
+    for d in &f.doc_file_refs {
+        let attrs: String = d.iter().map(|(k, v)| format!(" {k}=\"{}\"", esc(v))).collect();
+        o.push_str(&format!("{ind}  <DocFileRef{attrs}/>\n"));
+    }
+    for sub in &f.features {
+        write_feature(o, &format!("{ind}  "), sub);
+    }
+    o.push_str(&format!("{ind}</Feature>\n"));
+}
+
+impl Ctx<'_> {
+    /// Writes the `Feature` elements that hang on the object of that kind. `alignment` is the name
+    /// of the enclosing alignment, `name` the object's own name, `station` a `CrossSect`'s station.
+    fn features(&mut self, o: &mut String, ind: &str, kind: &str, alignment: Option<&str>, name: Option<&str>, station: Option<f64>) {
+        self.features_at(o, ind, kind, alignment, name, station, None);
+    }
+
+    /// As [`Ctx::features`], and `ordinal` (the object's place among the elements of its kind) must match when given.
+    #[allow(clippy::too_many_arguments)]
+    fn features_at(&mut self, o: &mut String, ind: &str, kind: &str, alignment: Option<&str>, name: Option<&str>, station: Option<f64>, ordinal: Option<usize>) {
+        for (i, group) in self.file.object_features.iter().enumerate() {
+            let w = &group.owner;
+            let same_station = match (w.station_m, station) {
+                (Some(a), Some(b)) => a.to_bits() == b.to_bits(),
+                (None, None) => true,
+                _ => false,
+            };
+            if w.kind == kind && ordinal.map_or(true, |k| k == w.ordinal) && (alignment.is_none() || w.alignment.as_deref() == alignment) && same_station && (name.is_none() && w.name.is_none() || w.name.as_deref() == name) {
+                if self.written_features.insert(i) {
+                    for f in &group.features {
+                        write_feature(o, ind, f);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn write_alignment_geometry_from_engine(o: &mut String, alignment: &Alignment) {
+    o.push_str("      <CoordGeom>\n");
+    for e in &alignment.elements {
+        let (x1, y1, h1) = e.end();
+        let start = (e.x, e.y);
+        let end = (x1, y1);
+        match e.kind() {
+            ElementKind::Line => {
+                o.push_str(&format!("        <Line length=\"{}\">\n          <Start>{}</Start>\n          <End>{}</End>\n        </Line>\n", e.length, pt(start), pt(end)));
+            }
+            ElementKind::Arc => {
+                let k = e.curvature_start;
+                let r = 1.0 / k.abs();
+                let centre = (e.x - e.heading_rad.sin() / k, e.y + e.heading_rad.cos() / k);
+                let rot = if k > 0.0 { "ccw" } else { "cw" };
+                let delta = (h1 - e.heading_rad).abs();
+                let pi = tangent_intersection(e);
+                o.push_str(&format!(
+                    "        <Curve rot=\"{rot}\" radius=\"{r}\" length=\"{}\" delta=\"{delta}\">\n          <Start>{}</Start>\n          <Center>{}</Center>\n          <End>{}</End>\n          <PI>{}</PI>\n        </Curve>\n",
+                    e.length,
+                    pt(start),
+                    pt(centre),
+                    pt(end),
+                    pt(pi)
+                ));
+            }
+            ElementKind::Spiral => {
+                let rad = |k: f64| if k == 0.0 { "INF".to_string() } else { format!("{}", 1.0 / k.abs()) };
+                let sum = e.curvature_start + e.curvature_end;
+                let rot = if sum > 0.0 { "ccw" } else { "cw" };
+                o.push_str(&format!(
+                    "        <Spiral length=\"{}\" radiusStart=\"{}\" radiusEnd=\"{}\" rot=\"{rot}\" spiType=\"clothoid\">\n          <Start>{}</Start>\n          <PI>{}</PI>\n          <End>{}</End>\n        </Spiral>\n",
+                    e.length,
+                    rad(e.curvature_start),
+                    rad(e.curvature_end),
+                    pt(start),
+                    pt(tangent_intersection(e)),
+                    pt(end)
+                ));
+            }
+        }
+    }
+    o.push_str("      </CoordGeom>\n");
+}
+
+/// `Superelevation` elements. When the file was read, the records are written as they were read
+/// (every station, every rate, with the sign it had), provided the alignment's engine superelevation
+/// is still the one derived from them. Otherwise one element per engine section that states a rate:
+/// LandXML gives one rate, so a section is written only when its full-super stations hold one rate
+/// with opposite signs on the two sides and the horizontal curve tells the inside; anything else is
+/// left out with a warning.
+fn write_superelevation(o: &mut String, file: &LandXmlFile, alignment: &Alignment, warnings: &mut Vec<String>) {
+    if let Some(table) = file.superelevation_table(&alignment.name) {
+        if table.derived == alignment.superelevation {
+            for r in &table.records {
+                o.push_str(&format!("      <Superelevation{}{}>\n", at("staStart", r.sta_start_m.map(n).as_deref()), at("staEnd", r.sta_end_m.map(n).as_deref())));
+                for s in &r.stations {
+                    let name = critical_station_element(s.kind);
+                    o.push_str(&format!("        <{name}>{}</{name}>\n", n(s.station_m)));
+                }
+                for rate in &r.full_super_rates_pct {
+                    o.push_str(&format!("        <FullSuperelev>{}</FullSuperelev>\n", n(*rate)));
+                }
+                for a in &r.adverse {
+                    o.push_str(&format!("        <AdverseSE>{}</AdverseSE>\n", esc(a)));
+                }
+                o.push_str("      </Superelevation>\n");
+            }
+            return;
+        }
+        warnings.push(format!("Alignment '{}': its superelevation was changed since the file was read; the {} records of the file were replaced by what the engine superelevation can say.", alignment.name, table.records.len()));
+    }
     let Some(se) = &alignment.superelevation else { return };
     const NAMES: [(CriticalStation, &str); 6] = [
         (CriticalStation::BeginRunout, "BeginRunoutSta"),
@@ -432,56 +588,47 @@ fn write_superelevation(o: &mut String, alignment: &Alignment, warnings: &mut Ve
     }
 }
 
-fn write_alignment(
-    o: &mut String,
-    alignment: &Alignment,
-    ground: &[&LandXmlProfSurf],
-    sections: &[&LandXmlCrossSection],
-    warnings: &mut Vec<String>,
-) {
-    o.push_str(&format!("    <Alignment name=\"{}\" length=\"{}\" staStart=\"{}\">\n", esc(&alignment.name), alignment.length(), alignment.start_station_m));
-    o.push_str("      <CoordGeom>\n");
-    for e in &alignment.elements {
-        let (x1, y1, h1) = e.end();
-        let start = (e.x, e.y);
-        let end = (x1, y1);
-        match e.kind() {
-            ElementKind::Line => {
-                o.push_str(&format!("        <Line length=\"{}\">\n          <Start>{}</Start>\n          <End>{}</End>\n        </Line>\n", e.length, pt(start), pt(end)));
-            }
-            ElementKind::Arc => {
-                let k = e.curvature_start;
-                let r = 1.0 / k.abs();
-                let centre = (e.x - e.heading_rad.sin() / k, e.y + e.heading_rad.cos() / k);
-                let rot = if k > 0.0 { "ccw" } else { "cw" };
-                let delta = (h1 - e.heading_rad).abs();
-                let pi = tangent_intersection(e);
-                o.push_str(&format!(
-                    "        <Curve rot=\"{rot}\" radius=\"{r}\" length=\"{}\" delta=\"{delta}\">\n          <Start>{}</Start>\n          <Center>{}</Center>\n          <End>{}</End>\n          <PI>{}</PI>\n        </Curve>\n",
-                    e.length,
-                    pt(start),
-                    pt(centre),
-                    pt(end),
-                    pt(pi)
-                ));
-            }
-            ElementKind::Spiral => {
-                let rad = |k: f64| if k == 0.0 { "INF".to_string() } else { format!("{}", 1.0 / k.abs()) };
-                let sum = e.curvature_start + e.curvature_end;
-                let rot = if sum > 0.0 { "ccw" } else { "cw" };
-                o.push_str(&format!(
-                    "        <Spiral length=\"{}\" radiusStart=\"{}\" radiusEnd=\"{}\" rot=\"{rot}\" spiType=\"clothoid\">\n          <Start>{}</Start>\n          <PI>{}</PI>\n          <End>{}</End>\n        </Spiral>\n",
-                    e.length,
-                    rad(e.curvature_start),
-                    rad(e.curvature_end),
-                    pt(start),
-                    pt(tangent_intersection(e)),
-                    pt(end)
-                ));
+fn prof_entry_text(e: &afrobim_alignment::LandXmlProfEntry) -> String {
+    let text = format!("{} {}", n(e.station_m), n(e.elevation_m));
+    let desc = at("desc", e.desc.as_deref());
+    let num = |name: &str, v: Option<f64>| v.map_or(String::new(), |v| format!(" {name}=\"{}\"", n(v)));
+    match e.kind {
+        LandXmlProfEntryKind::Pvi => format!("<PVI{desc}>{text}</PVI>"),
+        LandXmlProfEntryKind::ParaCurve => format!("<ParaCurve{}{desc}>{text}</ParaCurve>", num("length", e.length_m)),
+        LandXmlProfEntryKind::UnsymParaCurve => format!("<UnsymParaCurve{}{}{desc}>{text}</UnsymParaCurve>", num("lengthIn", e.length_in_m), num("lengthOut", e.length_out_m)),
+        LandXmlProfEntryKind::CircCurve => format!("<CircCurve{}{}{desc}>{text}</CircCurve>", num("length", e.length_m), num("radius", e.radius_m)),
+    }
+}
+
+fn write_alignment(o: &mut String, ctx: &mut Ctx, alignment: &Alignment, warnings: &mut Vec<String>) {
+    let file = ctx.file;
+    let ground: Vec<&LandXmlProfSurf> = file.ground_profiles.iter().filter(|g| g.alignment == alignment.name).collect();
+    let sections: Vec<&LandXmlCrossSection> = file.cross_sections.iter().filter(|c| c.alignment == alignment.name).collect();
+    let info = file.alignment_info(&alignment.name);
+    // The stated geometry is written when the engine alignment is still the one built from it.
+    let fresh = info.filter(|i| i.imported && !i.coord_geoms.is_empty() && i.fingerprint.is_some() && i.fingerprint == LandXmlGeometryFingerprint::of(alignment));
+    if info.is_some() && fresh.is_none() && info.is_some_and(|i| i.imported) {
+        warnings.push(format!("Alignment '{}': its geometry was changed since the file was read; it is written from the engine alignment, not from the points the file stated.", alignment.name));
+    }
+    let length = fresh.and_then(|i| i.declared_length_m).unwrap_or_else(|| alignment.length());
+    let sta_start = fresh.and_then(|i| i.sta_start_m).unwrap_or(alignment.start_station_m);
+    o.push_str(&format!(
+        "    <Alignment name=\"{}\" length=\"{}\" staStart=\"{}\"{}{}{}>\n",
+        esc(&alignment.name),
+        length,
+        sta_start,
+        at("desc", info.and_then(|i| i.desc.as_deref())),
+        at("state", info.and_then(|i| i.state.as_deref())),
+        at("oID", info.and_then(|i| i.oid.as_deref()))
+    ));
+    match fresh {
+        Some(i) => {
+            for g in &i.coord_geoms {
+                write_coord_geom(o, "      ", g, warnings, &format!("Alignment '{}'", alignment.name));
             }
         }
+        None => write_alignment_geometry_from_engine(o, alignment),
     }
-    o.push_str("      </CoordGeom>\n");
     for q in &alignment.station_equations.equations {
         let dir = match q.direction {
             StationDirection::Increasing => "increasing",
@@ -490,21 +637,42 @@ fn write_alignment(
         let back = q.back_m.map_or(String::new(), |b| format!(" staBack=\"{b}\""));
         o.push_str(&format!("      <StaEquation staAhead=\"{}\"{back} staInternal=\"{}\" staIncrement=\"{dir}\"/>\n", q.ahead_m, q.internal_m));
     }
-    // Profiles: the design profile (ProfAlign) goes with the first group of existing-ground
-    // profiles (ProfSurf), or alone in a Profile of its own name.
+
+    // Profiles. The design profiles as the file wrote them go back as they were while the engine
+    // profile is still the one derived from the first of them; otherwise the engine profile is
+    // written, with the first group of existing-ground profiles or alone in a Profile of its own name.
+    let raws: Vec<&LandXmlDesignProfile> = file.design_profiles.iter().filter(|d| d.alignment == alignment.name).collect();
+    let raws_current = !raws.is_empty() && raws[0].to_profile().ok() == alignment.profile;
+    if !raws.is_empty() && !raws_current {
+        warnings.push(format!("Alignment '{}': its profile was changed since the file was read; the engine profile is written and the design profiles of the file are not.", alignment.name));
+    }
     let mut groups: Vec<Option<&str>> = Vec::new();
-    for g in ground {
+    for g in &ground {
         if !groups.contains(&g.profile.as_deref()) {
             groups.push(g.profile.as_deref());
         }
     }
-    if groups.is_empty() && alignment.profile.is_some() {
+    if raws_current {
+        for r in &raws {
+            if !groups.contains(&r.profile.as_deref()) {
+                groups.push(r.profile.as_deref());
+            }
+        }
+    } else if groups.is_empty() && alignment.profile.is_some() {
         groups.push(None);
     }
     for (gi, group) in groups.iter().enumerate() {
-        let design = if gi == 0 { alignment.profile.as_ref() } else { None };
-        let name = group.map(str::to_string).or_else(|| design.map(|p| p.name.clone()));
-        o.push_str(&format!("      <Profile{}>\n", at("name", name.as_deref())));
+        let designs: Vec<&LandXmlDesignProfile> = if raws_current { raws.iter().copied().filter(|r| r.profile.as_deref() == *group).collect() } else { Vec::new() };
+        let engine = if !raws_current && gi == 0 { alignment.profile.as_ref() } else { None };
+        let name = group.map(str::to_string).or_else(|| engine.map(|p| p.name.clone()));
+        let first = designs.first();
+        o.push_str(&format!(
+            "      <Profile{}{}{}{}>\n",
+            at("name", name.as_deref()),
+            at("desc", first.and_then(|d| d.profile_desc.as_deref())),
+            at("state", first.and_then(|d| d.profile_state.as_deref())),
+            at("staStart", first.and_then(|d| d.profile_sta_start_m).map(n).as_deref())
+        ));
         for s in ground.iter().filter(|g| g.profile.as_deref() == *group) {
             if s.point_lists.is_empty() {
                 warnings.push(format!("Alignment '{}': ground profile '{}' has no points; it was left out.", alignment.name, s.name));
@@ -514,9 +682,18 @@ fn write_alignment(
             for l in &s.point_lists {
                 o.push_str(&format!("          <PntList2D>{}</PntList2D>\n", pair_list(l)));
             }
+            ctx.features(o, "          ", "ProfSurf", Some(&alignment.name), Some(&s.name), None);
             o.push_str("        </ProfSurf>\n");
         }
-        if let Some(p) = design {
+        for d in &designs {
+            o.push_str(&format!("        <ProfAlign name=\"{}\"{}{}>\n", esc(&d.name), at("desc", d.desc.as_deref()), at("state", d.state.as_deref())));
+            for e in &d.entries {
+                o.push_str(&format!("          {}\n", prof_entry_text(e)));
+            }
+            ctx.features(o, "          ", "ProfAlign", Some(&alignment.name), Some(&d.name), None);
+            o.push_str("        </ProfAlign>\n");
+        }
+        if let Some(p) = engine {
             o.push_str(&format!("        <ProfAlign name=\"{}\">\n", esc(&p.name)));
             for (i, v) in p.pvis.iter().enumerate() {
                 let text = format!("{} {}", v.station_m, v.elevation_m);
@@ -537,44 +714,86 @@ fn write_alignment(
             }
             o.push_str("        </ProfAlign>\n");
         }
+        ctx.features(o, "        ", "Profile", Some(&alignment.name), group.as_deref().or(name.as_deref()), None);
         o.push_str("      </Profile>\n");
     }
-    write_superelevation(o, alignment, warnings);
+    write_superelevation(o, file, alignment, warnings);
+
     if !sections.is_empty() {
-        o.push_str("      <CrossSects>\n");
-        for cs in sections {
-            o.push_str(&format!("        <CrossSect sta=\"{}\"{}{}>\n", n(cs.station_m), at("name", cs.name.as_deref()), at("desc", cs.desc.as_deref())));
-            for s in &cs.surfaces {
-                if s.point_lists.is_empty() {
-                    warnings.push(format!("Alignment '{}', station {}: cross-section surface '{}' has no points; it was left out.", alignment.name, n(cs.station_m), s.name));
-                    continue;
-                }
-                o.push_str(&format!("          <CrossSectSurf name=\"{}\"{}{}>\n", esc(&s.name), at("desc", s.desc.as_deref()), at("state", s.state.as_deref())));
-                for l in &s.point_lists {
-                    o.push_str(&format!("            <PntList2D>{}</PntList2D>\n", pair_list(l)));
-                }
-                o.push_str("          </CrossSectSurf>\n");
+        // The CrossSects elements as they were read (their attributes), the sections in the one
+        // each came from; a file built in memory has one group.
+        let group_attrs: Vec<&afrobim_alignment::LandXmlCrossSectGroup> = file.cross_sect_groups.iter().filter(|g| g.alignment == alignment.name).collect();
+        let details: Vec<&LandXmlCrossSectDetail> = file.cross_sect_details.iter().filter(|d| d.alignment == alignment.name).collect();
+        let detail_of = |c: &LandXmlCrossSection| details.iter().copied().find(|d| d.station_m.to_bits() == c.station_m.to_bits() && d.name == c.name);
+        let group_count = group_attrs.len().max(1);
+        for gi in 0..group_count {
+            let members: Vec<&LandXmlCrossSection> = sections.iter().copied().filter(|c| detail_of(c).map_or(0, |d| d.group).min(group_count - 1) == gi).collect();
+            if members.is_empty() {
+                continue;
             }
-            for d in &cs.design_surfaces {
-                let closed = d.closed_area.map(|b| b.to_string());
+            let g = group_attrs.get(gi);
+            let num = |name: &str, v: Option<f64>| v.map_or(String::new(), |v| format!(" {name}=\"{}\"", n(v)));
+            o.push_str(&format!(
+                "      <CrossSects{}{}{}{}{}{}{}>\n",
+                at("desc", g.and_then(|g| g.desc.as_deref())),
+                at("name", g.and_then(|g| g.name.as_deref())),
+                at("state", g.and_then(|g| g.state.as_deref())),
+                at("calcMethod", g.and_then(|g| g.calc_method.as_deref())),
+                at("curveCorrection", g.and_then(|g| g.curve_correction).map(|b| b.to_string()).as_deref()),
+                num("swellFactor", g.and_then(|g| g.swell_factor)),
+                num("shrinkFactor", g.and_then(|g| g.shrink_factor))
+            ));
+            for cs in members {
+                let d = detail_of(cs);
                 o.push_str(&format!(
-                    "          <DesignCrossSectSurf{}{}{}{}{}{}>\n",
-                    at("name", d.name.as_deref()),
-                    at("desc", d.desc.as_deref()),
-                    at("state", d.state.as_deref()),
-                    at("side", d.side.as_deref()),
-                    at("material", d.material.as_deref()),
-                    at("closedArea", closed.as_deref())
+                    "        <CrossSect sta=\"{}\"{}{}{}{}{}{}{}{}{}{}>\n",
+                    n(cs.station_m),
+                    at("name", cs.name.as_deref()),
+                    at("desc", cs.desc.as_deref()),
+                    num("angleSkew", d.and_then(|d| d.angle_skew)),
+                    num("areaCut", d.and_then(|d| d.area_cut)),
+                    num("areaFill", d.and_then(|d| d.area_fill)),
+                    num("centroidCut", d.and_then(|d| d.centroid_cut)),
+                    num("centroidFill", d.and_then(|d| d.centroid_fill)),
+                    at("sectType", d.and_then(|d| d.sect_type.as_deref())),
+                    num("volumeCut", d.and_then(|d| d.volume_cut)),
+                    num("volumeFill", d.and_then(|d| d.volume_fill)),
                 ));
-                for p in &d.points {
-                    o.push_str(&format!("            <CrossSectPnt>{} {}</CrossSectPnt>\n", n(p.offset_m), n(p.elevation_m)));
+                for s in &cs.surfaces {
+                    if s.point_lists.is_empty() {
+                        warnings.push(format!("Alignment '{}', station {}: cross-section surface '{}' has no points; it was left out.", alignment.name, n(cs.station_m), s.name));
+                        continue;
+                    }
+                    o.push_str(&format!("          <CrossSectSurf name=\"{}\"{}{}>\n", esc(&s.name), at("desc", s.desc.as_deref()), at("state", s.state.as_deref())));
+                    for l in &s.point_lists {
+                        o.push_str(&format!("            <PntList2D>{}</PntList2D>\n", pair_list(l)));
+                    }
+                    o.push_str("          </CrossSectSurf>\n");
                 }
-                o.push_str("          </DesignCrossSectSurf>\n");
+                for d in &cs.design_surfaces {
+                    let closed = d.closed_area.map(|b| b.to_string());
+                    o.push_str(&format!(
+                        "          <DesignCrossSectSurf{}{}{}{}{}{}>\n",
+                        at("name", d.name.as_deref()),
+                        at("desc", d.desc.as_deref()),
+                        at("state", d.state.as_deref()),
+                        at("side", d.side.as_deref()),
+                        at("material", d.material.as_deref()),
+                        at("closedArea", closed.as_deref())
+                    ));
+                    for p in &d.points {
+                        o.push_str(&format!("            <CrossSectPnt>{} {}</CrossSectPnt>\n", n(p.offset_m), n(p.elevation_m)));
+                    }
+                    o.push_str("          </DesignCrossSectSurf>\n");
+                }
+                ctx.features(o, "          ", "CrossSect", Some(&alignment.name), cs.name.as_deref(), Some(cs.station_m));
+                o.push_str("        </CrossSect>\n");
             }
-            o.push_str("        </CrossSect>\n");
+            ctx.features(o, "        ", "CrossSects", Some(&alignment.name), g.and_then(|g| g.name.as_deref()), None);
+            o.push_str("      </CrossSects>\n");
         }
-        o.push_str("      </CrossSects>\n");
     }
+    ctx.features(o, "      ", "Alignment", Some(&alignment.name), Some(&alignment.name), None);
     o.push_str("    </Alignment>\n");
 }
 
@@ -597,6 +816,7 @@ fn write_alignment(
 /// read, or build a [`LandXmlFile`] in metres.
 pub fn write_landxml_file(file: &LandXmlFile, options: &LandXmlOptions) -> LandXmlOutput {
     let mut warnings: Vec<String> = Vec::new();
+    let mut ctx = Ctx { file, written_features: HashSet::new() };
     let mut o = String::new();
     o.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     o.push_str(&format!(
@@ -614,7 +834,7 @@ pub fn write_landxml_file(file: &LandXmlFile, options: &LandXmlOptions) -> LandX
     if let Some(c) = &file.coordinate_system {
         let rot = c.rotation_angle.map(n);
         o.push_str(&format!(
-            "  <CoordinateSystem{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}/>\n",
+            "  <CoordinateSystem{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}>\n",
             at("desc", c.desc.as_deref()),
             at("name", c.name.as_deref()),
             at("epsgCode", c.epsg_code.as_deref()),
@@ -634,6 +854,11 @@ pub fn write_landxml_file(file: &LandXmlFile, options: &LandXmlOptions) -> LandX
             at("projectedCoordinateSystemName", c.projected_coordinate_system_name.as_deref()),
             at("verticalCoordinateSystemName", c.vertical_coordinate_system_name.as_deref())
         ));
+        for note in file.field_notes.iter().filter(|f| f.owner.kind == "CoordinateSystem") {
+            o.push_str(&format!("    <FieldNote>{}</FieldNote>\n", esc(&note.text)));
+        }
+        ctx.features(&mut o, "    ", "CoordinateSystem", None, c.name.as_deref(), None);
+        o.push_str("  </CoordinateSystem>\n");
     }
     match (&file.project, options.project.is_empty()) {
         (Some(p), _) => o.push_str(&format!("  <Project name=\"{}\"{}{}/>\n", esc(&p.name), at("desc", p.desc.as_deref()), at("state", p.state.as_deref()))),
@@ -649,9 +874,7 @@ pub fn write_landxml_file(file: &LandXmlFile, options: &LandXmlOptions) -> LandX
     if !file.alignments.is_empty() {
         o.push_str("  <Alignments>\n");
         for a in &file.alignments {
-            let ground: Vec<&LandXmlProfSurf> = file.ground_profiles.iter().filter(|g| g.alignment == a.name).collect();
-            let sections: Vec<&LandXmlCrossSection> = file.cross_sections.iter().filter(|c| c.alignment == a.name).collect();
-            write_alignment(&mut o, a, &ground, &sections, &mut warnings);
+            write_alignment(&mut o, &mut ctx, a, &mut warnings);
         }
         o.push_str("  </Alignments>\n");
     }
@@ -686,25 +909,39 @@ pub fn write_landxml_file(file: &LandXmlFile, options: &LandXmlOptions) -> LandX
             None => groups.push((f.group.as_deref(), vec![f])),
         }
     }
-    for (group, features) in groups {
+    for (gi, (group, features)) in groups.into_iter().enumerate() {
         o.push_str(&format!("  <PlanFeatures{}>\n", at("name", group)));
         for f in features {
             o.push_str(&format!("    <PlanFeature{}{}{}>\n", at("desc", f.desc.as_deref()), at("name", f.name.as_deref()), at("state", f.state.as_deref())));
             for g in &f.coord_geoms {
                 write_coord_geom(&mut o, "      ", g, &mut warnings, &format!("PlanFeature '{}'", f.name.as_deref().unwrap_or("")));
             }
+            let ordinal = file.plan_features.iter().position(|p| std::ptr::eq(p, f));
+            ctx.features_at(&mut o, "      ", "PlanFeature", None, f.name.as_deref(), None, ordinal);
             o.push_str("    </PlanFeature>\n");
         }
+        ctx.features_at(&mut o, "    ", "PlanFeatures", None, group, None, Some(gi));
         o.push_str("  </PlanFeatures>\n");
     }
 
     if !file.surfaces.is_empty() {
         o.push_str("  <Surfaces>\n");
         for s in &file.surfaces {
-            write_surface(&mut o, s, &mut warnings);
+            write_surface(&mut o, s, &mut ctx, &mut warnings);
         }
         o.push_str("  </Surfaces>\n");
     }
     o.push_str("</LandXML>\n");
+    let unwritten: usize = file.object_features.iter().enumerate().filter(|(i, _)| !ctx.written_features.contains(i)).map(|(_, g)| g.features.len()).sum();
+    if unwritten > 0 {
+        let mut kinds: Vec<String> = file.object_features.iter().enumerate().filter(|(i, _)| !ctx.written_features.contains(i)).map(|(_, g)| g.owner.kind.clone()).collect();
+        kinds.sort();
+        kinds.dedup();
+        warnings.push(format!("{unwritten} Feature element(s) hang on objects the writer does not write them for ({}), or on objects that are not in the file; they were left out.", kinds.join(", ")));
+    }
+    let dropped_notes = file.field_notes.iter().filter(|f| f.owner.kind != "CoordinateSystem" || file.coordinate_system.is_none()).count();
+    if dropped_notes > 0 {
+        warnings.push(format!("{dropped_notes} FieldNote element(s) hang on objects other than the coordinate system; they were left out."));
+    }
     LandXmlOutput { text: o, warnings }
 }

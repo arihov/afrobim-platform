@@ -28,19 +28,32 @@
 //!   they leave a hole or a notch in the surface. A `Definition` may hold several `Faces`; all
 //!   are read.
 //!
-//! Not read: `F@n` (neighbours) and `F@b` (breakline sides), `SourceData/Chain` and `PointFiles`,
-//! `Watersheds`, `SurfVolumes`, and the `area2DSurf`, `elevMin` … attributes of `Definition`.
+//! Also read: the `SourceData/PointFiles` (named, as [`LandXmlSourceData::point_files`]; the files are
+//! not opened) and the statistics `Definition` states (`area2DSurf`, `area3DSurf`, `elevMin`,
+//! `elevMax`) as [`ImportedSurface::stated`]. Civil 3D computes the areas from the visible faces: the
+//! plan area of the TIN read here equals `area2DSurf` (checked on a real file, to 1e-3 m2), which is
+//! the check that skipping the invisible faces is right.
+//!
+//! Points that lie far from the rest (a stray or untransformed survey point; 100 times the median
+//! distance from the middle of the surface) are kept as written, listed in
+//! [`ImportedSurface::outlier_points`] and named in the notes, because they make the plan extent of
+//! the TIN much larger than the surface.
+//!
+//! Not read: `F@n` (neighbours) and `F@b` (breakline sides; derivable from the faces),
+//! `SourceData/Chain`, `Watersheds`, `SurfVolumes`.
 //!
 //! Faces that cannot be used are dropped and counted in a note: a face that does not have
 //! exactly three ids (four for a grid), names a point that is not in `Pnts`, or has no area in plan. A surface left
 //! with no usable face is not imported, with a note.
 //!
-//! None of this has been tested against a file exported by Civil 3D.
+//! Tested against hand-made files and a synthetic file with the structure Civil 3D writes
+//! (`afrobim-alignment/tests/landxml/civil3d_like.xml`), and, when `AFROBIM_PRIVATE_LANDXML` names it,
+//! a real Civil 3D 2025 export of four TIN surfaces (about 20 000 points and 41 000 faces).
 
 use std::collections::HashMap;
 use std::path::Path;
 
-use afrobim_alignment::{read_surface_source_data, LandXmlSourceData};
+use afrobim_alignment::{area_scale, plan_outliers, read_surface_source_data, read_surface_stats, LandXmlSourceData, LandXmlSurfaceStats, OUTLIER_FACTOR};
 
 use crate::tin::Tin;
 
@@ -69,6 +82,13 @@ pub struct ImportedSurface {
     pub source_data: LandXmlSourceData,
     /// Faces left out because the file marks them invisible (`i="1"`).
     pub invisible_faces: usize,
+    /// What `Definition` states (`area2DSurf`, `area3DSurf`, `elevMin`, `elevMax`), in metres and
+    /// square metres. Civil 3D computes the areas from the visible faces, so the plan area of the
+    /// triangles read here (invisible faces skipped) matches `area_2d_m2`.
+    pub stated: Option<LandXmlSurfaceStats>,
+    /// Indices into the TIN's points of the points that lie [`OUTLIER_FACTOR`] times the median
+    /// distance or more from the middle of the surface. They are in the TIN as the file gives them.
+    pub outlier_points: Vec<usize>,
 }
 
 /// The surfaces read from a file, and what the reader has to say about it: surfaces left out and
@@ -136,6 +156,11 @@ pub fn parse_landxml_surfaces_with(text: &str, options: &SurfaceReadOptions) -> 
         Some("mile") => 1609.344,
         Some(other) => return Err(SurfaceXmlError::Unit(other.to_string())),
     };
+
+    let square_metres = named(root, "Units")
+        .flat_map(|u| u.children().filter(|n| n.is_element() && matches!(n.tag_name().name(), "Metric" | "Imperial")))
+        .find_map(|n| n.attribute("areaUnit"))
+        .and_then(area_scale);
 
     // Named points that a P may refer to with pntRef. Only looked for when a P needs one.
     let mut cg_points: Option<HashMap<&str, [f64; 3]>> = None;
@@ -256,6 +281,15 @@ pub fn parse_landxml_surfaces_with(text: &str, options: &SurfaceReadOptions) -> 
         match Tin::new(points, triangles) {
             Ok(tin) => {
                 let source_data = read_surface_source_data(surface, scale, &mut import.notes);
+                let stated = read_surface_stats(surface, scale, square_metres);
+                let outlier_points = plan_outliers(tin.points().iter().map(|p| (p[0], p[1]))).map(|o| o.indices).unwrap_or_default();
+                if !outlier_points.is_empty() {
+                    import.notes.push(format!(
+                        "Surface '{name}': {} of {} points lie more than {OUTLIER_FACTOR:.0} times the median distance from the middle of the surface; they are kept as written (see ImportedSurface::outlier_points) and make the plan extent of the TIN much larger than the rest of it.",
+                        outlier_points.len(),
+                        tin.points().len()
+                    ));
+                }
                 import.surfaces.push(ImportedSurface {
                     name,
                     description: surface.attribute("desc").map(str::to_string),
@@ -264,6 +298,8 @@ pub fn parse_landxml_surfaces_with(text: &str, options: &SurfaceReadOptions) -> 
                     tin,
                     source_data,
                     invisible_faces: invisible,
+                    stated,
+                    outlier_points,
                 })
             }
             Err(why) => import.notes.push(format!("Surface '{name}' was not imported: {why}.")),

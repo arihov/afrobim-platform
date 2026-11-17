@@ -26,6 +26,7 @@
 
 mod geometry;
 mod landxml;
+mod landxml_civil;
 mod landxml_ext;
 mod module;
 mod placement;
@@ -39,10 +40,15 @@ pub use geometry::{
 };
 pub use landxml::{parse_landxml, read_landxml, LandXmlError, LandXmlImport};
 pub use landxml_ext::{
-    parse_landxml_file, read_landxml_file, read_surface_source_data, LandXmlApplication, LandXmlBoundary, LandXmlBreakline, LandXmlCgPoint, LandXmlCgPointGroup,
+    parse_landxml_file, read_landxml_file, read_surface_source_data, read_surface_stats, LandXmlApplication, LandXmlBoundary, LandXmlBreakline, LandXmlCgPoint, LandXmlCgPointGroup,
     LandXmlClassSummary, LandXmlContour, LandXmlCoordGeom, LandXmlCoordinateSystem, LandXmlCrossSectPoint, LandXmlCrossSectSurf, LandXmlCrossSection, LandXmlDataPoints,
     LandXmlDesignCrossSectSurf, LandXmlExtent, LandXmlFile, LandXmlGeomElement, LandXmlHeader, LandXmlParcel, LandXmlPlanFeature, LandXmlPoint, LandXmlProfSurf,
-    LandXmlProject, LandXmlSourceData, LandXmlSummary, LandXmlSurfFace, LandXmlSurfPoint, LandXmlSurface, LandXmlUnits,
+    LandXmlPointFile, LandXmlProject, LandXmlSourceData, LandXmlSummary, LandXmlSurfFace, LandXmlSurfPoint, LandXmlSurface, LandXmlSurfaceStats, LandXmlUnits, PlanOutliers, plan_outliers, area_scale, OUTLIER_FACTOR,
+};
+pub use landxml_civil::{
+    critical_station_element, LandXmlAlignmentInfo, LandXmlAlignmentView, LandXmlCrossSectDetail, LandXmlCrossSectGroup, LandXmlDesignProfile, LandXmlFeature, LandXmlFieldNote,
+    LandXmlGeometryFingerprint, LandXmlObjectFeatures, LandXmlOwner, LandXmlProfEntry, LandXmlProfEntryKind, LandXmlProperty, LandXmlSuperStation, LandXmlSuperelevationRecord,
+    LandXmlSuperelevationRow, LandXmlSuperelevationTable,
 };
 pub use module::{plan_drawing, AlignmentModule, PlanDrawing, CATEGORY};
 pub use placement::{

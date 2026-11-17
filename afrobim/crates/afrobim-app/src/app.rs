@@ -73,6 +73,7 @@ pub struct AfroBimApp {
     /// The civil objects: built scenes, the toolspace tree and the dialogs of the civil commands.
     pub(crate) civil: crate::civil_cache::CivilState,
     pub(crate) civil_ui: crate::civil_ui::CivilUi,
+    pub(crate) defaults_ui: crate::defaults_glue::DefaultsUi,
     /// A civil command or an action a toolspace row asked for, run at the start of the next frame.
     pub(crate) civil_run_pending: Option<crate::civil_cmds::Cv>,
     pub(crate) pending_action: Option<Action>,
@@ -131,6 +132,13 @@ pub struct AfroBimApp {
     /// typed (0 = not stated, else the region number counted from 1).
     station_dialog: Option<(ElementId, Option<ElementId>, f64, f64, bool, usize)>,
     new_prop_key: String,
+    pub(crate) align_tab: usize,
+    /// The 3D centreline of each alignment, with the key it was made for (see `centreline_3d`).
+    pub(crate) centre_cache: std::cell::RefCell<std::collections::HashMap<ElementId, (String, std::rc::Rc<Vec<[f64; 3]>>)>>,
+    /// Zoom to the extents once the viewport is known and the builds are done (after an import).
+    pub(crate) zoom_extents_pending: bool,
+    /// Update times in milliseconds, kept when AFROBIM_FRAME_STATS is set (performance checks).
+    frame_ms: Vec<f64>,
 
     pub(crate) grid_on: bool,
     pub(crate) grid_spacing: f64,
@@ -224,6 +232,7 @@ impl AfroBimApp {
             survey: Default::default(),
             civil: Default::default(),
             civil_ui: Default::default(),
+            defaults_ui: Default::default(),
             civil_run_pending: None,
             pending_action: None,
             landxml: Default::default(),
@@ -261,6 +270,10 @@ impl AfroBimApp {
             corridors_held: false,
             station_dialog: None,
             new_prop_key: String::new(),
+            align_tab: 0,
+            centre_cache: Default::default(),
+            zoom_extents_pending: false,
+            frame_ms: Vec::new(),
             grid_on: true,
             grid_spacing: 100.0,
             dark_canvas: theme.is_dark(),
@@ -291,6 +304,7 @@ impl AfroBimApp {
             frames: 0,
         };
 
+        app.civil_ui.tree.tab = crate::workspace::WORKSPACES[app.workspace.min(crate::workspace::WORKSPACES.len() - 1)].toolspace_tab;
         if app.options.civil_demo {
             app.civil_demo();
         }
@@ -599,6 +613,9 @@ impl AfroBimApp {
         if let Some(path) = app.options.landxml_dialog.clone() {
             app.landxml_open(path, false);
         }
+        if let Some(path) = app.options.landxml_all.clone() {
+            app.landxml_import_all(&path);
+        }
         if let Some(path) = app.options.survey_dialog.clone() {
             app.survey_open(path);
         }
@@ -707,6 +724,7 @@ impl AfroBimApp {
         let ws = &crate::workspace::WORKSPACES[index];
         self.workspace = index;
         self.show_left = ws.show_left;
+        self.civil_ui.tree.tab = ws.toolspace_tab;
         self.show_right = ws.show_right;
         if !ws.shows_tab(self.ribbon_tab) {
             self.ribbon_tab = crate::ribbon::Tab::Home;
@@ -742,11 +760,21 @@ impl AfroBimApp {
 
     pub(crate) fn flush_commit(&mut self) {
         self.commit_due = None;
+        // A referenced object is read-only: whatever edit reached it is undone here, at the one
+        // place every edit passes through (unless a synchronise or a promote just changed it).
+        if std::mem::take(&mut self.civil_ui.shortcuts.bypass) {
+            // The operation that set this is the one change that may touch references.
+        } else {
+            let notes = crate::shortcuts_ui::guard(&mut self.doc, self.history.current());
+            if let Some(first) = notes.first() {
+                self.status = first.clone();
+            }
+        }
         self.sync_generated();
         self.history.commit(self.doc.snapshot());
     }
 
-    fn undo(&mut self) {
+    pub(crate) fn undo(&mut self) {
         self.flush_commit();
         match self.history.undo().cloned() {
             Some(state) => {
@@ -768,6 +796,11 @@ impl AfroBimApp {
             }
             None => self.status = "Nothing to redo.".into(),
         }
+    }
+
+    /// The file the document was opened from or saved to, if it has one.
+    pub(crate) fn doc_path(&self) -> Option<&std::path::Path> {
+        self.path.as_deref()
     }
 
     pub(crate) fn log(&mut self, line: impl Into<String>) {
@@ -900,6 +933,7 @@ impl AfroBimApp {
         // Civil surfaces are written as terrain through the existing surface exporter; the other
         // civil objects are not mapped (see `civil_ifc`).
         let synth = self.civil_terrain_inputs();
+        let (packages, package_notes) = self.civil_packages();
         let unmapped = self.civil_unmapped_note();
         let mut inputs: Vec<afrobim_ifc::IfcElementInput> = self
             .doc
@@ -909,6 +943,7 @@ impl AfroBimApp {
             .map(|e| afrobim_ifc::IfcElementInput { element: e, generated: self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()) })
             .collect();
         inputs.extend(synth.iter().map(|(e, g)| afrobim_ifc::IfcElementInput { element: e, generated: g.as_ref() }));
+        inputs.extend(packages.iter().map(|p| afrobim_ifc::IfcElementInput { element: &p.element, generated: Some(&p.generated) }));
         // The project name scopes the GlobalIds, so use the document's file name: re-exporting
         // the same saved document keeps every element's identity.
         let project = self.ifc_project_name();
@@ -926,6 +961,9 @@ impl AfroBimApp {
                 self.status = format!("Exported {} element(s) to {}.", inputs.len(), path.display());
                 for note in export.notes.iter().take(5) {
                     self.log(format!("IFC: {note}"));
+                }
+                for n in &package_notes {
+                    self.log(format!("IFC: {n}"));
                 }
                 if let Some(n) = unmapped {
                     self.log(format!("IFC: {n}"));
@@ -1100,6 +1138,9 @@ impl AfroBimApp {
             }
             Action::Undo => self.undo(),
             Action::Redo => self.redo(),
+            Action::CopyClip if crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).is_some() => {
+                self.status = crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).unwrap_or_default();
+            }
             Action::CopyClip => {
                 self.clipboard = self.doc.selection().iter().filter_map(|id| self.doc.find(*id).cloned()).collect();
                 self.paste_count = 0;
@@ -1119,6 +1160,9 @@ impl AfroBimApp {
                     self.doc.select(&made, SelectMode::Replace);
                     self.schedule_commit(ctx);
                 }
+            }
+            Action::Move | Action::Copy | Action::Erase if crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).is_some() => {
+                self.status = crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).unwrap_or_default();
             }
             Action::Move => self.ctl.start_move(&mut self.doc),
             Action::Copy => self.ctl.start_copy(&mut self.doc),
@@ -1800,6 +1844,7 @@ impl AfroBimApp {
                 let zoom_text = crate::zoom_cmds::pixel_size_text(self.view.scale);
                 let crs_text = crs.as_ref().map(|c| c.label()).unwrap_or_else(|| "No coordinate system".to_string());
                 let latlon_text = crs.as_ref().and_then(|c| crate::crs_ui::lat_lon_text(w, c));
+                let wgs_text = crs.as_ref().and_then(|c| crate::crs_ui::wgs84_text(w, c));
                 let standard_text = self.module_status.clone();
                 let body = egui::TextStyle::Body.resolve(ui.style());
                 let mono = egui::TextStyle::Monospace.resolve(ui.style());
@@ -1813,6 +1858,7 @@ impl AfroBimApp {
                 ]
                 .into_iter()
                 .chain(latlon_text.as_ref().map(|t| (Segment::LatLon, text_w(ui, t, &mono) + gap)))
+                .chain(wgs_text.as_ref().map(|t| (Segment::Wgs84, text_w(ui, t, &mono) + gap)))
                 .collect::<Vec<_>>();
                 let plan = layout(ui.available_width(), &widths);
                 let msg_w = plan.message_w;
@@ -1848,12 +1894,18 @@ impl AfroBimApp {
                         }
                         ui.separator();
                     }
+                    if plan.shown.contains(&Segment::Wgs84) {
+                        if let Some(t) = &wgs_text {
+                            ui.label(RichText::new(t).monospace().weak()).on_hover_text("A second reading through the registry transformation named, to its stated accuracy (not survey accuracy). The datum's own latitude and longitude are the primary reading.");
+                            ui.separator();
+                        }
+                    }
                     if plan.shown.contains(&Segment::LatLon) {
                         if let (Some(t), Some(c)) = (&latlon_text, &crs) {
                             let r = ui.label(RichText::new(t).monospace().weak());
                             // Grid convergence and point scale factor, on hover.
                             if let Some(extra) = crate::crs_ui::convergence_text(w, c) {
-                                r.on_hover_text(format!("{extra}\nOn the datum of the system: no datum shift to WGS 84 is applied."));
+                                r.on_hover_text(format!("{extra}\nOn the datum of the system. A WGS 84 reading, where the registry has a transformation, is the second reading."));
                             }
                             ui.separator();
                         }
@@ -1993,6 +2045,8 @@ impl AfroBimApp {
                     let (c, open) = crate::civil_tree::civil_panel(ui, e);
                     changed |= c;
                     civil_open = civil_open.or(open);
+                } else if e.category == alignment_glue::CATEGORY {
+                    changed |= crate::civil_super::alignment_tabs(ui, e, &mut self.align_tab);
                 } else if e.category == signs_glue::CATEGORY {
                     changed |= signs_glue::edit_ui(ui, &mut e.data);
                 } else if afrobim_annotate::is_annotation(e) {
@@ -2287,6 +2341,7 @@ impl AfroBimApp {
         self.underlay_window(ctx);
         self.signsched_windows(ctx);
         self.projset_window(ctx);
+        self.defaults_window(ctx);
         self.survey_window(ctx);
         self.civil_windows(ctx);
         self.landxml_window(ctx);
@@ -2972,7 +3027,7 @@ impl AfroBimApp {
             return;
         }
         self.frames += 1;
-        if self.frames == 8 + 4 * self.options.click.as_deref().map_or(0, |c| c.split(';').count() as u32) {
+        if self.frames == std::env::var("AFROBIM_FRAMES").ok().and_then(|v| v.parse::<u32>().ok()).unwrap_or(8) + 4 * self.options.click.as_deref().map_or(0, |c| c.split(';').count() as u32) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
         }
         let shot = ctx.input(|i| {
@@ -3022,6 +3077,22 @@ impl eframe::App for AfroBimApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let started = std::time::Instant::now();
+        self.update_inner(ctx);
+        if std::env::var_os("AFROBIM_FRAME_STATS").is_some() {
+            self.frame_ms.push(started.elapsed().as_secs_f64() * 1000.0);
+            if self.quit {
+                let mut v: Vec<f64> = self.frame_ms.iter().skip(self.frame_ms.len().saturating_sub(40)).copied().collect();
+                v.sort_by(f64::total_cmp);
+                let rss = std::fs::read_to_string("/proc/self/status").ok().map(|t| t.lines().filter(|l| l.starts_with("VmRSS") || l.starts_with("VmHWM")).map(|l| l.split_whitespace().collect::<Vec<_>>().join(" ")).collect::<Vec<_>>().join("; ")).unwrap_or_default();
+                eprintln!("FRAMESTATS frames={} last40 median={:.1}ms p95={:.1}ms max={:.1}ms slowest_ever={:.1}ms {rss}", self.frame_ms.len(), v.get(v.len() / 2).copied().unwrap_or(0.0), v.get(v.len() * 95 / 100).copied().unwrap_or(0.0), v.last().copied().unwrap_or(0.0), self.frame_ms.iter().cloned().fold(0.0, f64::max));
+            }
+        }
+    }
+}
+
+impl AfroBimApp {
+    fn update_inner(&mut self, ctx: &egui::Context) {
         crate::theme::paint_backdrop(ctx);
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.title()));
         self.shortcuts(ctx);
@@ -3045,13 +3116,29 @@ impl eframe::App for AfroBimApp {
             }
         }
 
+        if self.zoom_extents_pending && self.update_frames >= 3 && !self.bg.busy() {
+            self.zoom_extents_pending = false;
+            self.zoom_extents_visible();
+            self.fitted_3d = false;
+            if let Some(spec) = self.options.view.take() {
+                let n: Vec<f64> = spec.split(',').filter_map(|v| v.trim().parse().ok()).collect();
+                if let [e, nn, w] = n[..] {
+                    let (l, t, vw, vh) = self.ctl.viewport;
+                    let half_h = w / 2.0 * (vh as f64 / (vw as f64).max(1.0));
+                    self.view.fit(&afrobim_kernel::BBox::new((e - w / 2.0) * 1000.0, (nn - half_h) * 1000.0, (e + w / 2.0) * 1000.0, (nn + half_h) * 1000.0), l, t, vw, vh, 0.0);
+                }
+            }
+        }
         if let Some(a) = self.pending_action.take() {
             self.run(ctx, a);
         }
         if let Some(cv) = self.civil_run_pending.take() {
             self.run(ctx, Action::Civil(cv));
         }
+        let mut lap = Lap::new();
+        crate::defaults_glue::sync(&self.doc, false);
         self.civil_sync();
+        lap.mark("sync");
         self.drop_tick(ctx);
         self.sched_tick(ctx);
         self.under.sync(&mut self.doc, self.view.scale);
@@ -3061,15 +3148,22 @@ impl eframe::App for AfroBimApp {
         if self.under.busy() {
             ctx.request_repaint_after(std::time::Duration::from_millis(60));
         }
+        lap.mark("ticks");
         self.menu_bar(ctx);
         self.toolbar(ctx);
         self.status_bar(ctx);
+        lap.mark("bars");
         self.left_panel(ctx);
+        lap.mark("left");
         self.right_panel(ctx);
+        lap.mark("right");
         self.command_line(ctx);
         self.canvas(ctx);
+        lap.mark("canvas");
         self.windows(ctx);
+        lap.mark("windows");
         crate::win::end_frame(ctx);
+        lap.print(self.update_frames);
         if !ctx.input(|i| i.pointer.any_down()) {
             if let Some(map) = crate::win::take_changed_positions() {
                 self.prefs.window_pos = map;
@@ -3087,6 +3181,32 @@ impl eframe::App for AfroBimApp {
         self.screenshot_mode(ctx);
         if self.quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+    }
+}
+
+/// Times the parts of a frame when AFROBIM_FRAME_STATS is set, to find what is slow.
+struct Lap {
+    on: bool,
+    at: std::time::Instant,
+    parts: Vec<(&'static str, f64)>,
+}
+
+impl Lap {
+    fn new() -> Lap {
+        Lap { on: std::env::var_os("AFROBIM_FRAME_STATS").is_some(), at: std::time::Instant::now(), parts: Vec::new() }
+    }
+
+    fn mark(&mut self, name: &'static str) {
+        if self.on {
+            self.parts.push((name, self.at.elapsed().as_secs_f64() * 1000.0));
+            self.at = std::time::Instant::now();
+        }
+    }
+
+    fn print(&self, frame: u32) {
+        if self.on && self.parts.iter().map(|p| p.1).sum::<f64>() > 20.0 {
+            eprintln!("FRAMEPARTS #{frame} {}", self.parts.iter().map(|(n, ms)| format!("{n}={ms:.0}")).collect::<Vec<_>>().join(" "));
         }
     }
 }

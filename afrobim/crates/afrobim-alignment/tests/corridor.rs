@@ -189,7 +189,10 @@ fn respects_the_file_units_and_reports_what_it_could_not_use() {
     assert_close(b.displayed_station(300.0 * ft).unwrap().station_m, 500.0 * ft, 1e-9, "400 + (300 − 200) ft");
     assert!(b.profile.is_none());
     assert_eq!(note("profile 'Bad'"), "Alignment 'Faulty': profile 'Bad' was not imported: PVI 0 is the first point of the profile and cannot carry a vertical curve");
-    assert_eq!(note("superelevation 1 was not"), "Alignment 'Faulty': superelevation 1 was not imported: its stations are not in order (RunoffSta is not after FullSuperSta).");
+    assert_eq!(
+        note("superelevation 1 was not"),
+        "Alignment 'Faulty': superelevation 1 was not applied as cross-fall: its stations are not in order (RunoffSta is not after FullSuperSta); the element is kept as written in the superelevation table of parse_landxml_file."
+    );
     assert!(note("'Faulty': superelevation 2").contains("its FullSuperelev is negative (-2 %) and the schema does not say what a sign means"));
     let s = b.superelevation.as_ref().unwrap();
     assert_eq!(s.sections.len(), 1);

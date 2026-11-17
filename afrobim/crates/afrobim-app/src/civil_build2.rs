@@ -40,11 +40,13 @@ fn shape_colour(code: &str) -> [u8; 3] {
     palette[(h % palette.len() as u32) as usize]
 }
 
+/// The most triangles of shape solids the 3D view keeps per baseline: a long corridor stays light there.
+pub(crate) const VIEW_TRIANGLE_CAP: usize = 80_000;
+
 /// The shapes of the assembly swept along the baseline: between two consecutive sections each
 /// shape that appears in both with the same corners becomes a prism (side faces and the two end
 /// faces), one mesh per shape code. Capped so that a long corridor stays light.
-fn shape_solids(b: &afrobim_corridor::BaselineResult, origin_m: (f64, f64)) -> Vec<afrobim_draw::Mesh3> {
-    const TRIANGLE_CAP: usize = 80_000;
+pub(crate) fn shape_solids(b: &afrobim_corridor::BaselineResult, origin_m: (f64, f64), triangle_cap: usize) -> Vec<afrobim_draw::Mesh3> {
     let mut meshes: Vec<afrobim_draw::Mesh3> = Vec::new();
     let mut total = 0usize;
     let at = |m: &afrobim_corridor::ModelSection, (o, z): (f64, f64)| {
@@ -56,14 +58,18 @@ fn shape_solids(b: &afrobim_corridor::BaselineResult, origin_m: (f64, f64)) -> V
         if m1.section.station_m <= m0.section.station_m {
             continue;
         }
+        // Each shape of the first section is paired with one not yet used of the next: same code, side,
+        // source and number of corners (two layers of one source may carry the same code).
+        let mut used = vec![false; m1.design.shapes.len()];
         for sh in &m0.design.shapes {
             let n = sh.polygon.len();
             if n < 3 {
                 continue;
             }
-            // The same shape at the next section: same code, side, source and number of corners.
-            let Some(next) = m1.design.shapes.iter().find(|x| x.code == sh.code && x.side == sh.side && x.subassembly == sh.subassembly && x.polygon.len() == n) else { continue };
-            if total + n * 2 + 2 * (n - 2) > TRIANGLE_CAP {
+            let Some(j) = m1.design.shapes.iter().enumerate().position(|(j, x)| !used[j] && x.code == sh.code && x.side == sh.side && x.subassembly == sh.subassembly && x.polygon.len() == n) else { continue };
+            used[j] = true;
+            let next = &m1.design.shapes[j];
+            if total + n * 2 + 2 * (n - 2) > triangle_cap {
                 return meshes;
             }
             let idx = match meshes.iter().position(|m| m.name == sh.code) {
@@ -73,28 +79,62 @@ fn shape_solids(b: &afrobim_corridor::BaselineResult, origin_m: (f64, f64)) -> V
                     meshes.len() - 1
                 }
             };
-            let mesh = &mut meshes[idx];
-            let base = mesh.vertices.len() as u32;
-            for p in &sh.polygon {
-                mesh.vertices.push(at(m0, *p));
-            }
-            for p in &next.polygon {
-                mesh.vertices.push(at(m1, *p));
-            }
-            let (a, c) = (base, base + n as u32);
-            for i in 0..n as u32 {
-                let j = (i + 1) % n as u32;
-                mesh.triangles.push([a + i, a + j, c + j]);
-                mesh.triangles.push([a + i, c + j, c + i]);
-            }
-            for i in 1..n as u32 - 1 {
-                mesh.triangles.push([a, a + i, a + i + 1]);
-                mesh.triangles.push([c, c + i + 1, c + i]);
-            }
+            let a: Vec<[f64; 3]> = sh.polygon.iter().map(|p| at(m0, *p)).collect();
+            let b: Vec<[f64; 3]> = next.polygon.iter().map(|p| at(m1, *p)).collect();
+            add_prism(&mut meshes[idx], &a, &b);
             total += n * 2 + 2 * (n - 2);
         }
     }
     meshes
+}
+
+/// A closed prism between two polygons with the same number of corners, as triangles of `mesh`. Each
+/// face is turned outward, away from the centre of the prism (the cross sections of a corridor are
+/// convex, so that is the outside), so the solid is consistent whichever way the polygons wind and
+/// whichever side of the baseline it is on.
+pub(crate) fn add_prism(mesh: &mut afrobim_draw::Mesh3, a: &[[f64; 3]], b: &[[f64; 3]]) {
+    let n = a.len() as u32;
+    let base = mesh.vertices.len() as u32;
+    mesh.vertices.extend_from_slice(a);
+    mesh.vertices.extend_from_slice(b);
+    let (p, q) = (base, base + n);
+    let first = mesh.triangles.len();
+    for i in 0..n {
+        let j = (i + 1) % n;
+        mesh.triangles.push([p + i, p + j, q + j]);
+        mesh.triangles.push([p + i, q + j, q + i]);
+    }
+    for i in 1..n - 1 {
+        mesh.triangles.push([p, p + i, p + i + 1]);
+        mesh.triangles.push([q, q + i + 1, q + i]);
+    }
+    let count = (2 * n) as f64;
+    let mut c = [0.0; 3];
+    for v in a.iter().chain(b) {
+        for k in 0..3 {
+            c[k] += v[k] / count;
+        }
+    }
+    for t in &mut mesh.triangles[first..] {
+        let (v0, v1, v2) = (mesh.vertices[t[0] as usize], mesh.vertices[t[1] as usize], mesh.vertices[t[2] as usize]);
+        let (u, w) = ([v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]], [v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]]);
+        let normal = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+        let mid = [(v0[0] + v1[0] + v2[0]) / 3.0 - c[0], (v0[1] + v1[1] + v2[1]) / 3.0 - c[1], (v0[2] + v1[2] + v2[2]) / 3.0 - c[2]];
+        if normal[0] * mid[0] + normal[1] * mid[1] + normal[2] * mid[2] < 0.0 {
+            t.swap(1, 2);
+        }
+    }
+}
+
+/// The signed volume of the triangles from `first` on, in the units of the vertices cubed.
+pub(crate) fn signed_volume(mesh: &afrobim_draw::Mesh3, first: usize) -> f64 {
+    mesh.triangles[first..]
+        .iter()
+        .map(|t| {
+            let (a, b, c) = (mesh.vertices[t[0] as usize], mesh.vertices[t[1] as usize], mesh.vertices[t[2] as usize]);
+            (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6.0
+        })
+        .sum()
 }
 
 pub fn build_corridor(e: &Element, ctx: &Ctx) -> Result<Built, String> {
@@ -146,7 +186,7 @@ pub fn build_corridor(e: &Element, ctx: &Ctx) -> Result<Built, String> {
                 }
             }
         }
-        out.scene.meshes.extend(shape_solids(b, origin));
+        out.scene.meshes.extend(shape_solids(b, origin, VIEW_TRIANGLE_CAP));
         for (name, codes) in [("Top", vec!["Top"]), ("Datum", vec!["Datum"])] {
             match corridor_surface(b, &codes, SurfaceBoundary::None) {
                 Ok(tin) => {
@@ -171,7 +211,11 @@ pub fn build_corridor(e: &Element, ctx: &Ctx) -> Result<Built, String> {
 /// chosen, that corridor's design. Used by the scene of the group and by the section sheets.
 pub fn sample_views(d: &SampleData, ctx: &Ctx) -> Result<Vec<afrobim_corridor::SectionView>, String> {
     let al = ctx.alignment_named(&d.group.alignment).ok_or_else(|| format!("The alignment '{}' of this sample line group is missing.", d.group.alignment))?;
-    let tins: Vec<(String, Arc<Tin>)> = d.surfaces.iter().filter_map(|id| ctx.element(*id).and_then(|el| ctx.tin(*id).map(|t| (el.name.clone(), t)))).collect();
+    // A group of imported sections shows the file's lines; AfroBIM's own cut of the surfaces is
+    // made only in comparison mode, and is named so that the two can be told apart.
+    let imported = !d.imported.is_empty();
+    let cut_own = !imported || d.compare;
+    let tins: Vec<(String, Arc<Tin>)> = if cut_own { d.surfaces.iter().filter_map(|id| ctx.element(*id).and_then(|el| ctx.tin(*id).map(|t| (if imported { format!("{}{}", el.name, crate::civil_sections::OWN_TAG) } else { el.name.clone() }, t)))).collect() } else { Vec::new() };
     let refs: Vec<(&str, &Tin)> = tins.iter().map(|(n, t)| (n.as_str(), t.as_ref())).collect();
     // The corridor's baseline for the design, when one is chosen.
     let corridor_data = d.corridor.and_then(|id| ctx.element(id)).and_then(|el| serde_json::from_value::<CorridorData>(el.data.clone()).ok());
@@ -181,7 +225,23 @@ pub fn sample_views(d: &SampleData, ctx: &Ctx) -> Result<Vec<afrobim_corridor::S
         (Some(b), Some(g)) => Some(CorridorSampling { baseline: b, ground: g }),
         _ => None,
     };
-    section_views(&d.group, &al, &refs, sampling).map_err(|x| format!("The sections cannot be cut: {x}"))
+    let mut views = section_views(&d.group, &al, &refs, sampling).map_err(|x| format!("The sections cannot be cut: {x}"))?;
+    if imported {
+        // The file's own lines, one ground line per named section surface, in file order.
+        let by_line: std::collections::HashMap<&str, &crate::civil::ImportedSection> = d.imported.iter().map(|s| (s.line.as_str(), s)).collect();
+        for v in &mut views {
+            if let Some(sec) = by_line.get(v.line.name.as_str()) {
+                let mut file_lines: Vec<afrobim_corridor::SurfaceLine> = sec
+                    .surfaces
+                    .iter()
+                    .map(|s| afrobim_corridor::SurfaceLine { surface: format!("{}{}", s.name, crate::civil_sections::FILE_TAG), runs: s.runs.iter().map(|r| r.iter().map(|p| (p[0], p[1])).collect()).collect() })
+                    .collect();
+                file_lines.append(&mut v.ground_lines);
+                v.ground_lines = file_lines;
+            }
+        }
+    }
+    Ok(views)
 }
 
 pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
@@ -201,7 +261,28 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
     let cols = d.columns.max(1);
     let ex = if d.vertical_exaggeration.is_finite() && d.vertical_exaggeration > 0.0 { d.vertical_exaggeration } else { 1.0 };
     let swath_w = views.iter().map(|v| v.line.left_swath_m + v.line.right_swath_m).fold(0.0, f64::max);
+    // Pipes of the networks of the document that cross each section line (cut by the line at its
+    // station, within the swath), drawn in the section view.
+    let nets: Vec<afrobim_pipes::PipeNetwork> = ctx.elements.iter().filter(|x| x.category == crate::civil::PIPENET).filter_map(|x| serde_json::from_value::<crate::civil_pipes::PipeNetData>(x.data.clone()).ok().map(|n| n.network)).collect();
+    let align = ctx.alignment_named(&d.group.alignment);
+    let pipe_secs: Vec<Vec<afrobim_pipes::SectionView>> = views.iter().map(|v| nets.iter().filter_map(|n| align.as_ref().and_then(|a| n.section_at_station(a, v.line.station_m, v.line.left_swath_m.max(v.line.right_swath_m), None).ok())).collect()).collect();
     let (mut zlo, mut zhi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for secs in &pipe_secs {
+        for sec in secs {
+            for c in &sec.crossings {
+                zlo = zlo.min(c.outer_bottom_m);
+                zhi = zhi.max(c.outer_top_m);
+            }
+        }
+    }
+    for set in &d.slices {
+        for l in &set.lines {
+            for p in &l.points {
+                zlo = zlo.min(p[1]);
+                zhi = zhi.max(p[1]);
+            }
+        }
+    }
     for v in &views {
         for gl in &v.ground_lines {
             for run in &gl.runs {
@@ -224,6 +305,12 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         sc.notes.push("There are no section views to draw: add sample lines and a surface.".into());
         return Ok(Built { scene: sc, ..Default::default() });
     }
+    let diffs = if d.compare { crate::civil_sections::compare_views(&views) } else { Vec::new() };
+    if d.compare {
+        for line in crate::civil_sections::summary(&diffs) {
+            sc.derived.push(("Comparison".into(), line));
+        }
+    }
     let (cell_w, cell_h) = (swath_w + 8.0, (zhi - zlo) * ex + 6.0);
     let step = nice_step((zhi - zlo).max(1e-3) / 3.0);
     for (k, v) in views.iter().enumerate() {
@@ -242,9 +329,24 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
             z += step;
         }
         for gl in &v.ground_lines {
+            // The file's lines are drawn in the ground colour, AfroBIM's own cut over them in the
+            // comparison colour; the design lines of a file (Top, Datum) are warmer.
+            let rgb = if gl.surface.ends_with(crate::civil_sections::OWN_TAG) { [0xE0, 0x4F, 0xC0] } else if gl.surface.ends_with(crate::civil_sections::FILE_TAG) && !gl.surface.to_ascii_lowercase().contains("ogl") && !gl.surface.to_ascii_lowercase().contains("ground") { [0xC9, 0x8A, 0x2B] } else { C_GROUND };
+            let w = if gl.surface.ends_with(crate::civil_sections::OWN_TAG) { 1.0 } else { 1.6 };
             for run in &gl.runs {
                 if run.len() >= 2 {
-                    sc.lines.push(SLine::new(run.iter().map(|p| [px(p.0), py(p.1)]).collect(), C_GROUND, 1.6));
+                    sc.lines.push(SLine::new(run.iter().map(|p| [px(p.0), py(p.1)]).collect(), rgb, w));
+                }
+            }
+        }
+        if let Some(d) = diffs.iter().find(|x| x.station_m == v.line.station_m) {
+            sc.texts.push(SText { at: [(x0 + cell_w - 1.5) * 1000.0, (y0 + cell_h - 1.2) * 1000.0], text: format!("max {:.1} mm", d.max_diff_m * 1000.0), rgb: [0xE0, 0x4F, 0xC0], height_mm: 0.0, px: 9.5, anchor: 2, prio: 4, halo: false });
+        }
+        // Point cloud slices: the points within half the thickness of the sample line.
+        for set in &d.slices {
+            if let Some(l) = set.lines.iter().find(|l| l.name == v.line.name) {
+                for p in &l.points {
+                    sc.points.push(crate::civil_scene::PMark { at: [px(p[0]), py(p[1])], number: 0, z: None, desc: String::new() });
                 }
             }
         }
@@ -260,6 +362,22 @@ pub fn build_samples(e: &Element, ctx: &Ctx) -> Result<Built, String> {
                     pts.push(pts[0]);
                     sc.lines.push(SLine::new(pts, colour_of(&sh.code), 0.8));
                 }
+            }
+        }
+        // Pipe crossings: the outside of the barrel at the section, as an ellipse (the cut of a
+        // round pipe by a plane square to the alignment is a circle; the view's exaggeration
+        // stretches it), and a label.
+        for sec in &pipe_secs[k] {
+            for c in &sec.crossings {
+                let (cz, rz, rx) = ((c.outer_bottom_m + c.outer_top_m) / 2.0, (c.outer_top_m - c.outer_bottom_m) / 2.0, (c.inside_width_m + (c.outer_top_m - c.outer_bottom_m - c.inside_height_m)) / 2.0);
+                let ring: Vec<[f64; 2]> = (0..=24).map(|i| { let a = std::f64::consts::TAU * i as f64 / 24.0; [px(c.offset_m + rx * a.cos()), py(cz + rz * a.sin())] }).collect();
+                sc.lines.push(SLine::new(ring, [0x4D, 0xA3, 0xFF], 1.6));
+                sc.texts.push(SText { at: [px(c.offset_m), py(c.outer_top_m)], text: format!("{} {}", c.name, c.size_label), rgb: [0x4D, 0xA3, 0xFF], height_mm: 0.0, px: 8.5, anchor: 3, prio: 3, halo: true });
+            }
+            for st in &sec.structures {
+                let (x, bottom) = (st.offset_m, st.sump_level_m.unwrap_or(st.rim_level_m - 1.0));
+                let q = vec![[px(x - st.outer_radius_m), py(bottom)], [px(x + st.outer_radius_m), py(bottom)], [px(x + st.outer_radius_m), py(st.rim_level_m)], [px(x - st.outer_radius_m), py(st.rim_level_m)], [px(x - st.outer_radius_m), py(bottom)]];
+                sc.lines.push(SLine::new(q, [0xE0, 0xB0, 0x40], 1.2));
             }
         }
     }

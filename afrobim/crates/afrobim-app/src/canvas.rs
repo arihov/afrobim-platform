@@ -93,6 +93,10 @@ impl AfroBimApp {
         self.under.paint(&self.doc, painter, &self.view, rect, ink);
 
         let label = if dark { Color32::from_rgb(0xA8, 0xB0, 0xBA) } else { Color32::from_rgb(0x50, 0x55, 0x5C) };
+        // Referenced documents and the reference markers (drawn over the objects below).
+        self.shortcuts_paint(painter, rect);
+        // Point clouds: a raster of the level-of-detail query for the view, under the civil objects.
+        self.cloud_paint_plan(painter, rect);
         // The civil objects: scenes built off the UI thread, painted culled to the view.
         let mut labels = crate::civil_scene::Labels::default();
         for e in self.doc.elements() {
@@ -125,7 +129,11 @@ impl AfroBimApp {
                 continue;
             }
             match self.cache.get(&e.id) {
-                Some(c) if c.generated.is_ok() => painter.extend(c.mesh.shapes_w(&self.view, e.origin, rep, ink, 1.0, width)),
+                Some(c) if c.generated.is_ok() => {
+                    // A ground surface is a backdrop: its triangle edges are drawn faint, so that the alignments, labels and sections over it stay readable.
+                    let alpha = if e.category == afrobim_corridor::SURFACE_CATEGORY { 0.28 } else { 1.0 };
+                    painter.extend(c.mesh.shapes_w(&self.view, e.origin, rep, ink, alpha, width))
+                }
                 _ => {
                     // No geometry (module missing or the definition is invalid): keep it visible and pickable.
                     dashed(painter, r, Stroke::new(1.0_f32, label));

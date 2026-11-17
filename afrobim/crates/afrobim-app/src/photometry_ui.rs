@@ -882,34 +882,24 @@ impl AfroBimApp {
             }
             _ => None,
         };
-        let dlg = crate::ui_kit::Dialog::titled(format!("Photometry results: {mark}")).width(920.0).show_body(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled(format!("Photometry results: {mark}")).width(920.0).help("The results are the lux values of the luminaire files you loaded on the grid you set, maintained by your maintenance factor. The class check uses the primary area. Contour levels are yours; blank gives round numbers.").show_body(ctx, |ui| {
             crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, LIMITS);
             let Some(run) = &self.photo.run else {
                 ui.label(RichText::new("No run yet.").weak());
                 return;
             };
-            ui.label(RichText::new(format!("{}; {} luminaire(s); maintenance factor {}; contribution distance {} m; plane level {:.2} m. Values are maintained (initial times the maintenance factor).", run.file_name, run.result.luminaire_count, run.result.maintenance_factor, run.result.contribution_distance_m, run.result.plane_level_m)).small());
+            crate::ui_kit::note(ui, format!("{}; {} luminaire(s); maintenance factor {}; contribution distance {} m; plane level {:.2} m. Values are maintained (initial times the maintenance factor).", run.file_name, run.result.luminaire_count, run.result.maintenance_factor, run.result.contribution_distance_m, run.result.plane_level_m));
             for w in &run.warnings {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("Warning: {w}"));
             }
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                egui::Grid::new("photo-areas").num_columns(8).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
-                    for h in ["Area", "Points", "Average (lx)", "Minimum (lx)", "Maximum (lx)", "U_o (min/avg)", "min/max", "Class use"] {
-                        crate::ui_kit::th(ui, &h);
-                    }
-                    ui.end_row();
-                    for a in &run.result.areas {
-                        ui.label(&a.name);
-                        ui.label(format!("{} x {}", a.n_along, a.n_across));
-                        ui.label(format!("{:.2}", a.e_h.average));
-                        ui.label(format!("{:.2}", a.e_h.minimum));
-                        ui.label(format!("{:.2}", a.e_h.maximum));
-                        ui.label(format!("{:.3}", a.e_h.uniformity_min_avg));
-                        ui.label(format!("{:.3}", a.e_h.uniformity_min_max));
-                        ui.label(if a.name == self.photo.area { "primary for the class" } else { "" });
-                        ui.end_row();
-                    }
+            let area_name = self.photo.area.clone();
+            crate::ui_kit::section(ui, "Areas", |ui| {
+                let rows: Vec<Vec<String>> = run.result.areas.iter().map(|a| vec![a.name.clone(), format!("{} x {}", a.n_along, a.n_across), format!("{:.2}", a.e_h.average), format!("{:.2}", a.e_h.minimum), format!("{:.2}", a.e_h.maximum), format!("{:.3}", a.e_h.uniformity_min_avg), format!("{:.3}", a.e_h.uniformity_min_max), if a.name == area_name { "primary for the class".into() } else { String::new() }]).collect();
+                crate::ui_kit::scroll_x(ui, "photo-areas-x", |ui| {
+                    crate::ui_kit::results_table(ui, "photo-areas", &["Area", "Points", "Average (lx)", "Minimum (lx)", "Maximum (lx)", "U_o (min/avg)", "min/max", "Class use"], &[crate::ui_kit::Col::Text, crate::ui_kit::Col::Text, crate::ui_kit::Col::Num, crate::ui_kit::Col::Num, crate::ui_kit::Col::Num, crate::ui_kit::Col::Num, crate::ui_kit::Col::Num, crate::ui_kit::Col::Text], &rows);
                 });
+            });
+            egui::ScrollArea::vertical().auto_shrink([false, true]).show(ui, |ui| {
                 for a in &run.result.areas {
                     for d in &a.vertical {
                         ui.label(RichText::new(format!("{}: {} E_v min {:.2} lx, avg {:.2} lx; E_sc min {:.2} lx, avg {:.2} lx", a.name, d.label, d.ev.minimum, d.ev.average, d.esc.minimum, d.esc.average)).small());
@@ -923,28 +913,34 @@ impl AfroBimApp {
                 }
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Not computed: threshold increment TI, longitudinal uniformity U_l, wet overall uniformity. Luminance appears only with your r-table and observer.");
                 ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.label("Area for the drawings and the class");
-                    egui::ComboBox::from_id_salt("photo-area-pick").selected_text(self.photo.area.clone()).show_ui(ui, |ui| {
-                        for a in &run.result.areas {
-                            if ui.selectable_value(&mut self.photo.area, a.name.clone(), &a.name).clicked() {
+                crate::ui_kit::section(ui, "Drawings and the class check", |ui| {
+                    crate::ui_kit::form(ui, "photo-res", |fm| {
+                        fm.row("Area for the drawings and the class", |ui| {
+                            egui::ComboBox::from_id_salt("photo-area-pick").selected_text(self.photo.area.clone()).show_ui(ui, |ui| {
+                                for a in &run.result.areas {
+                                    if ui.selectable_value(&mut self.photo.area, a.name.clone(), &a.name).clicked() {
+                                        area_changed = true;
+                                    }
+                                }
+                            });
+                        });
+                        fm.row_note("Contour levels", "Illuminance in lx, comma separated; blank: round numbers", |ui| {
+                            if crate::ui_kit::text_field(ui, &mut self.photo.levels, "e.g. 5, 10, 20").changed() {
                                 area_changed = true;
                             }
+                        });
+                        fm.row("Site view", |ui| {
+                            crate::ui_kit::toggle(ui, &mut self.photo.overlay_on, "Contours in the site view (plan overlay)");
+                        });
+                    });
+                    ui.horizontal(|ui| {
+                        if ui.button("Export grid CSV").clicked() {
+                            csv = true;
+                        }
+                        if ui.button(format!("Use these results in the class check ({})", if class.is_empty() { "no class entered" } else { &class })).clicked() {
+                            use_it = true;
                         }
                     });
-                    ui.label("Contour levels (lx)");
-                    if ui.add(egui::TextEdit::singleline(&mut self.photo.levels).desired_width(160.0).hint_text("blank: round numbers")).changed() {
-                        area_changed = true;
-                    }
-                });
-                ui.horizontal(|ui| {
-                    if ui.button("Export grid CSV").clicked() {
-                        csv = true;
-                    }
-                    if ui.button(format!("Use these results in the class check ({})", if class.is_empty() { "no class entered" } else { &class })).clicked() {
-                        use_it = true;
-                    }
-                    ui.checkbox(&mut self.photo.overlay_on, "Contours in the site view (plan overlay)");
                 });
                 if let Some(((contours, values), levels)) = &drawings {
                     crate::ui_kit::heading(ui, &format!("Contours of horizontal illuminance, levels {} lx (a sheet detail feed: add a Detail sheet 'Lighting, iso-illuminance contours' in SHEETSET)", levels.iter().map(|l| format!("{l}")).collect::<Vec<_>>().join(", ")));

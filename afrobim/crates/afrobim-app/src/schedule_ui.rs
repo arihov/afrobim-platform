@@ -993,47 +993,33 @@ impl AfroBimApp {
                 }
                 Some(Ok(sch)) => {
                     crate::ui_kit::heading(ui, "Programme dates");
-                    crate::ui_kit::form(ui, "sched-summary", |f| {
-                        f.row("Start", |ui| ui.label(sch.project_start.to_string()));
-                        f.row("Finish", |ui| ui.label(sch.project_finish.to_string()));
+                    ui.horizontal_wrapped(|ui| {
+                        let pair = |ui: &mut Ui, k: &str, v: String| {
+                            ui.label(RichText::new(k).color(crate::theme::tokens_ui(ui).text_muted));
+                            ui.label(RichText::new(v).strong());
+                            ui.add_space(14.0);
+                        };
+                        pair(ui, "Start", sch.project_start.to_string());
+                        pair(ui, "Finish", sch.project_finish.to_string());
                         if let Some(d) = sch.data_date {
-                            f.row("Data date", |ui| ui.label(d.to_string()));
+                            pair(ui, "Data date", d.to_string());
                         }
-                        f.row("Activities", |ui| ui.label(format!("{}, of which {} critical", sch.rows.len(), sch.critical().count())));
-                        f.row("Critical by", |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(if s.ext.critical == afrobim_schedule::CriticalBasis::TotalFloat { "total float" } else { "the longest path" });
-                                if ui.small_button("Change").on_hover_text("CRITICAL: choose the basis").clicked() {
-                                    open_critical = true;
-                                }
-                            });
-                        });
+                        pair(ui, "Activities", format!("{}, of which {} critical", sch.rows.len(), sch.critical().count()));
+                        pair(ui, "Critical by", (if s.ext.critical == afrobim_schedule::CriticalBasis::TotalFloat { "total float" } else { "the longest path" }).to_string());
+                        if ui.small_button("Change").on_hover_text("CRITICAL: choose the basis").clicked() {
+                            open_critical = true;
+                        }
                     });
                     crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, format!("Dates are whole days. Float is in working days of each activity's calendar. Critical: {}", if s.ext.critical == afrobim_schedule::CriticalBasis::TotalFloat { "total float of zero or less and not complete." } else { "on the longest path (the chain of driving relationships that ends at the project finish)." }));
                     crate::ui_kit::heading(ui, "Activities");
-                    egui::ScrollArea::both().id_salt("sched-rows").max_height(280.0).auto_shrink([false, false]).show(ui, |ui| {
-                        egui::Grid::new("sched-grid").num_columns(12).striped(true).spacing([10.0, 3.0]).show(ui, |ui| {
-                            for (k, h) in ["Id", "Name", "Days", "Early start", "Early finish", "Late start", "Late finish", "Total float (d)", "Free float (d)", "Critical", "Status", "Done (%)"].iter().enumerate() {
-                                if matches!(k, 2 | 7 | 8 | 11) { crate::ui_kit::th_num(ui, h) } else { crate::ui_kit::th(ui, h) }
-                            }
-                            ui.end_row();
-                            for r in &sch.rows {
-                                let colour = if r.critical { BAD() } else { ui.visuals().text_color() };
-                                ui.label(RichText::new(&r.id).color(colour));
-                                ui.label(RichText::new(&r.name).color(colour));
-                                crate::ui_kit::cell_num(ui, if r.is_milestone { "milestone".to_string() } else { r.duration.to_string() });
-                                for d in [r.early_start, r.early_finish, r.late_start, r.late_finish] {
-                                    ui.label(RichText::new(d.to_string()).color(colour));
-                                }
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(r.total_float.to_string()).monospace().color(if r.total_float < 0 { BAD() } else { colour })));
-                                crate::ui_kit::cell_num(ui, r.free_float.to_string());
-                                ui.label(if r.critical { "critical" } else { "" });
-                                ui.label(format!("{:?}", r.status));
-                                crate::ui_kit::cell_num(ui, format!("{:.0}", r.percent_complete));
-                                ui.end_row();
-                            }
-                        });
-                    });
+                    {
+                        use crate::ui_kit::Col;
+                        let heads = ["Id", "Name", "Days", "Early start", "Early finish", "Late start", "Late finish", "Total float (d)", "Free float (d)", "Critical", "Status", "Done (%)"];
+                        let cols = [Col::Text, Col::Text, Col::Num, Col::Text, Col::Text, Col::Text, Col::Text, Col::Num, Col::Num, Col::Text, Col::Text, Col::Num];
+                        let rows: Vec<Vec<String>> = sch.rows.iter().map(|r| vec![r.id.clone(), r.name.clone(), if r.is_milestone { "milestone".to_string() } else { r.duration.to_string() }, r.early_start.to_string(), r.early_finish.to_string(), r.late_start.to_string(), r.late_finish.to_string(), r.total_float.to_string(), r.free_float.to_string(), if r.critical { "critical".into() } else { String::new() }, format!("{:?}", r.status), format!("{:.0}", r.percent_complete)]).collect();
+                        let colors: Vec<Option<Color32>> = sch.rows.iter().map(|r| r.critical.then(BAD)).collect();
+                        crate::ui_kit::frozen_table(ui, "sched-results", &heads, &cols, &rows, &colors, 260.0);
+                    }
                     crate::ui_kit::heading(ui, &format!("Findings ({})", sch.issues.len()));
                     egui::ScrollArea::vertical().id_salt("sched-issues").max_height(120.0).show(ui, |ui| {
                         if sch.issues.is_empty() {

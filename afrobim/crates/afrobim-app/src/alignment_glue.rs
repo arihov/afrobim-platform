@@ -16,6 +16,11 @@ pub fn register(modules: &mut ModuleRegistry) {
     modules.register(Box::new(afrobim_alignment::AlignmentModule));
 }
 
+/// The alignment of the document with this name.
+pub fn alignment_by_name(doc: &Document, name: &str) -> Option<Alignment> {
+    doc.elements().iter().filter(|e| e.category == CATEGORY).filter_map(|e| serde_json::from_value::<Alignment>(e.data.clone()).ok()).find(|a| a.name == name)
+}
+
 pub fn alignment_of(doc: &Document, id: ElementId) -> Option<Alignment> {
     let e = doc.find(id)?;
     if e.category != CATEGORY {

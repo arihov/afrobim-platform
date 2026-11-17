@@ -15,7 +15,8 @@ use crate::ui_kit::{self, Level};
 /// What the editor in the tab is building.
 #[derive(Clone, PartialEq)]
 pub struct CrsEdit {
-    /// 0 a system the kernel knows, 1 named only (a name, a code or pasted WKT), 2 local site grid.
+    /// 0 a system the kernel knows, 1 named only (a name, a code or pasted WKT), 2 local site grid,
+    /// 3 a geographic system (latitude and longitude).
     mode: usize,
     query: String,
     /// EPSG code picked from the list.
@@ -64,6 +65,10 @@ impl CrsEdit {
                     self.mode = 2;
                     self.name = c.name.clone();
                 }
+                CrsKind::Geographic => {
+                    self.mode = 3;
+                    self.selected = c.epsg;
+                }
             }
         }
     }
@@ -95,6 +100,10 @@ impl CrsEdit {
                         _ => ProjectCrs::named_only(epsg, &shown),
                     }
                 }
+            }
+            3 => {
+                let code = self.selected.ok_or("Pick a geographic system from the list.")?;
+                ProjectCrs::geographic(code).ok_or_else(|| format!("EPSG:{code} is not a geographic system the application knows."))?
             }
             _ => {
                 if self.name.trim().is_empty() {
@@ -130,6 +139,7 @@ pub fn kind_text(kind: CrsKind) -> &'static str {
         CrsKind::Projected => "Projected, with maths: the application can place a coordinate on the Earth (latitude, longitude, grid convergence, point scale factor) and check an import against the area of use.",
         CrsKind::NamedOnly => "Named only: the system is recorded by name or code, but the application has no maths for it. Coordinates are shown as eastings and northings; no latitude, longitude, convergence or scale, and imports are checked only for the same code or name.",
         CrsKind::LocalGrid => "Local site grid: the numbers have no geodetic meaning. Nothing can be placed on the Earth and imports cannot be checked against it.",
+        CrsKind::Geographic => "Geographic: latitude and longitude in degrees on a datum. The application takes it as the source or target of a datum transformation (TRANSFORM). A document whose model is drawn in metres should use a projected system as its project system.",
     }
 }
 
@@ -171,6 +181,38 @@ pub fn lat_lon_text(p: Pt, crs: &ProjectCrs) -> Option<String> {
     Some(format!("lat {:.6}  lon {:.6}  ({datum})", lat, lon))
 }
 
+thread_local! {
+    /// The plan to WGS 84 for a project system near a place: (system code, 50 km cell) to plan.
+    static WGS84_PLAN: std::cell::RefCell<Option<((Option<u32>, i64, i64), Option<afrobim_kernel::crs_plan::TransformPlan>)>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The WGS 84 latitude and longitude of a model point as a second reading, labelled with the EPSG
+/// transformation code and its stated accuracy. None when the project system is on WGS 84 already
+/// (the first reading is that), has no maths, or the registry has no transformation to WGS 84.
+/// The datum's own latitude and longitude stay the primary reading.
+pub fn wgs84_text(p: Pt, crs: &ProjectCrs) -> Option<String> {
+    if crs.kind != CrsKind::Projected {
+        return None;
+    }
+    let (e, n) = crs_from_model_point(p);
+    let key = (crs.epsg, (e / 50_000.0).floor() as i64, (n / 50_000.0).floor() as i64);
+    let plan = WGS84_PLAN.with(|c| {
+        let mut c = c.borrow_mut();
+        if c.as_ref().map(|x| x.0) != Some(key) {
+            let wgs = ProjectCrs::geographic(4326)?;
+            let plan = afrobim_kernel::crs_plan::plan_transform(crs, &wgs, Some(afrobim_kernel::crs_plan::DataExtent::new((e, n), (e, n)))).ok().and_then(|v| v.into_iter().next());
+            *c = Some((key, plan));
+        }
+        c.as_ref().and_then(|x| x.1.clone())
+    })?;
+    if plan.kind != afrobim_kernel::crs_plan::PlanKind::DatumTransformation {
+        return None;
+    }
+    let r = plan.apply(e, n, 0.0).ok()?;
+    let codes: Vec<String> = plan.transformation_codes().iter().map(|c| format!("EPSG:{c}")).collect();
+    Some(format!("WGS 84  lat {:.6}  lon {:.6}  ({}, stated accuracy {} m)", r.first, r.second, codes.join(" + "), plan.accuracy_m.map(|a| a.to_string()).unwrap_or_else(|| "not stated".into())))
+}
+
 /// Grid convergence and point scale factor, as two lines, with the units stated.
 pub fn convergence_text(p: Pt, crs: &ProjectCrs) -> Option<String> {
     let (e, n) = crs_from_model_point(p);
@@ -195,7 +237,13 @@ pub fn where_lines(p: Pt, crs: Option<&ProjectCrs>) -> Vec<String> {
                 out.extend(cv.lines().map(str::to_string));
             }
             if c.kind == CrsKind::Projected {
-                out.push("Latitude and longitude are on the datum of the system. No datum shift to WGS 84 is applied.".into());
+                match wgs84_text(p, c) {
+                    Some(w) => {
+                        out.push(w);
+                        out.push("The first latitude and longitude are on the datum of the system. The WGS 84 line is computed through the registry transformation named, to its stated accuracy, which is not survey accuracy.".into());
+                    }
+                    None => out.push("Latitude and longitude are on the datum of the system. No transformation to WGS 84 is recorded for it, so no WGS 84 reading is offered.".into()),
+                }
             }
         }
     }
@@ -321,6 +369,7 @@ pub fn tab(ui: &mut egui::Ui, state: &mut CrsUi, current: &Option<ProjectCrs>, o
                         CrsKind::Projected => "Projected, with maths",
                         CrsKind::NamedOnly => "Named only",
                         CrsKind::LocalGrid => "Local site grid",
+                        CrsKind::Geographic => "Geographic (latitude, longitude)",
                     });
                 });
                 f.row("Horizontal datum", |ui| {
@@ -354,12 +403,24 @@ pub fn tab(ui: &mut egui::Ui, state: &mut CrsUi, current: &Option<ProjectCrs>, o
             ui.add_space(4.0);
         }
         let mut mode = edit.mode;
-        ui_kit::segmented(ui, &mut mode, &["Known system", "Named only", "Local site grid"]);
+        ui_kit::segmented(ui, &mut mode, &["Known system", "Named only", "Local site grid", "Geographic"]);
         edit.mode = mode;
         ui.add_space(4.0);
         match edit.mode {
             0 => known_systems(ui, edit),
             1 => named_only(ui, edit),
+            3 => {
+                for c in ProjectCrs::geographic_systems() {
+                    if ui.selectable_label(edit.selected == c.epsg, c.label()).clicked() {
+                        edit.selected = c.epsg;
+                    }
+                }
+                if let Some(c) = edit.selected.and_then(ProjectCrs::geographic) {
+                    if let Some(g) = afrobim_kernel::crs_transform::geographic_crs(c.epsg.unwrap_or_default()) {
+                        crate::ui_kit::note(ui, format!("Area of use: {} (latitude {:.2} to {:.2}, longitude {:.2} to {:.2} degrees)", g.area_text, g.area.south, g.area.north, g.area.west, g.area.east));
+                    }
+                }
+            }
             _ => {
                 ui_kit::form(ui, "crs-local", |f| {
                     f.row_note("Name", "a site grid has no geodetic meaning", |ui| {
@@ -387,6 +448,7 @@ pub fn tab(ui: &mut egui::Ui, state: &mut CrsUi, current: &Option<ProjectCrs>, o
                     CrsKind::Projected => "projected, with maths",
                     CrsKind::NamedOnly => "named only",
                     CrsKind::LocalGrid => "local site grid",
+                    CrsKind::Geographic => "geographic",
                 })).size(crate::theme::FONT_SMALL));
                 let same = current.as_ref().is_some_and(|c| c.epsg == crs.epsg && c.name == crs.name && c.kind == crs.kind && c.horizontal_datum == crs.horizontal_datum && c.vertical_datum == crs.vertical_datum && c.wkt == crs.wkt);
                 ui.horizontal(|ui| {
@@ -529,7 +591,7 @@ mod tests {
         assert!(ll.contains("Arc 1960") && ll.contains("lon 33.000000"), "{ll}");
         assert!(lat_lon_text(p, &ProjectCrs::named_only(Some(2039), "Israeli Grid")).is_none());
         let lines = where_lines(p, Some(&arc));
-        assert!(lines.iter().any(|l| l.contains("No datum shift")), "{lines:?}");
+        assert!(lines.iter().any(|l| l.contains("WGS 84") && l.contains("stated accuracy")), "{lines:?}");
         assert!(where_lines(p, None).iter().any(|l| l.contains("No coordinate system")));
     }
 

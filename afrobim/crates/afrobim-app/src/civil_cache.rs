@@ -36,7 +36,7 @@ impl CivilState {
 
 /// Whether a category's scene reads other elements (alignments, surfaces, profiles).
 fn depends(category: &str) -> bool {
-    matches!(category, PROFILE | PROFILE_VIEW | CORRIDOR | SAMPLES | PARCEL)
+    matches!(category, PROFILE | PROFILE_VIEW | CORRIDOR | SAMPLES | PARCEL | PIPEPROFILE | GRADING | INTERSECTION | ROUNDABOUT)
 }
 
 /// A hash of what the dependent scenes read: every alignment and every civil element's revision.
@@ -112,7 +112,9 @@ impl crate::app::AfroBimApp {
         if e.category != afrobim_corridor::SURFACE_CATEGORY {
             return None;
         }
-        let size = e.data.to_string().len();
+        // The size of the encoded TIN stands for its identity: reading it costs nothing, where
+        // serialising the whole surface every call cost milliseconds a frame.
+        let size = e.data.get("tin").map_or(0, |t| ["points", "triangles"].iter().map(|k| t.get(k).and_then(|v| v.as_str()).map_or(0, str::len)).sum());
         if let Some((n, t)) = self.civil.imported.get(&id) {
             if *n == size {
                 return Some(t.clone());
@@ -184,8 +186,8 @@ impl crate::app::AfroBimApp {
     fn fit_bounds(&mut self, id: ElementId, b: &Built) {
         let Some(cat) = self.doc.find(id).map(|e| e.category.clone()) else { return };
         let bounds = match cat.as_str() {
-            PROFILE_VIEW | SAMPLES | CORRIDOR => civil_build::scene_bounds(&b.scene),
-            SURFACE => b.tin.as_ref().map(|t| {
+            PROFILE_VIEW | SAMPLES | CORRIDOR | PIPEPROFILE => civil_build::scene_bounds(&b.scene),
+            SURFACE | GRADING => b.tin.as_ref().map(|t| {
                 let x = t.bounds();
                 civil::Bounds { min_e: x.min_x, min_n: x.min_y, max_e: x.max_x, max_n: x.max_y }
             }),
@@ -193,7 +195,7 @@ impl crate::app::AfroBimApp {
         };
         if let Some(bounds) = bounds {
             // The 3D mesh is in the frame of the element's origin: a moved origin means a rebuild.
-            if civil::set_bounds(&mut self.doc, id, bounds) && (cat == SURFACE || cat == CORRIDOR) {
+            if civil::set_bounds(&mut self.doc, id, bounds) && (cat == SURFACE || cat == CORRIDOR || cat == GRADING) {
                 civil::touch(&mut self.doc, id);
             }
         }
@@ -244,8 +246,8 @@ pub fn build_all(elements: Vec<Element>, tins: HashMap<u64, Arc<afrobim_corridor
     let mut order: Vec<ElementId> = stale.clone();
     order.sort_by_key(|id| match ctx.element(id.0).map(|e| e.category.as_str()) {
         Some(SURFACE) => 0,
-        Some(PROFILE) | Some(ASSEMBLY) => 1,
-        Some(CORRIDOR) => 2,
+        Some(PROFILE) | Some(ASSEMBLY) | Some(FEATURELINE) => 1,
+        Some(CORRIDOR) | Some(GRADING) => 2,
         _ => 3,
     });
     let mut out = Vec::new();

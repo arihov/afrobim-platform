@@ -1,0 +1,5499 @@
+{
+ "schema_version": 1,
+ "pack": {
+  "id": "dmrb",
+  "name": "UK Design Manual for Roads and Bridges (DMRB)",
+  "publisher": "National Highways, on behalf of the UK overseeing organisations (standardsforhighways.co.uk)",
+  "data_version": 1,
+  "read_on": "2026-11-16",
+  "read_by": "automated reader (pdftotext text extraction plus visual reading of rendered PDF pages) working from the PDFs named in each document record",
+  "review_status": "NOT REVIEWED by an engineer. Values must be reviewed against the documents before the product relies on them.",
+  "uganda_caveat": "DMRB is a UK standard. Its values assume UK traffic, vehicles, climate and practice. For work under the MoWT Uganda manuals, switch basis when a MoWT pack exists; until then these values are a starting point that the engineer must confirm.",
+  "licence": {
+   "name": "Open Government Licence",
+   "printed_notice": "© Crown copyright. You may re-use this information (not including logos) free of charge in any format or medium, under the terms of the Open Government Licence. To view this licence: visit www.nationalarchives.gov.uk/doc/open-government-licence/, write to the Information Policy Team, The National Archives, Kew, London TW9 4DU, or email psi@nationalarchives.gsi.gov.uk. (Last page of each fetched PDF; the year printed is given in each document record.)",
+   "website_notice": "Crown copyright © Crown copyright, 2025. You may use and re-use the information featured on this website (not including logos) free of charge in any format or medium, under the terms of the Open Government Licence. (standardsforhighways.co.uk terms and conditions page, fetched 2026-11-16; the year printed there is 2025.)",
+   "attribution": "The fetched documents print no separate attribution sentence beyond the notice above. Suggested acknowledgement used by AfroBIM (AfroBIM wording, not printed by the publisher): 'Contains information from the Design Manual for Roads and Bridges, © Crown copyright, used under the Open Government Licence.' The Open Government Licence text itself was not fetched in this session; confirm its attribution terms before distribution."
+  }
+ },
+ "documents": {
+  "CD 109": {
+   "title": "Highway link design",
+   "version": "1.1.0",
+   "published": "30-Oct-2026",
+   "copyright": "© Crown copyright 2026",
+   "annex": "Core document applies to England, Northern Ireland, Scotland and Wales. England NAA (CD 109 - ENAA v1.1.0) adds relaxations only for modifying existing motorways, existing all-purpose dual carriageways and smart motorways (sections E/1 to E/3); it does not change the tabulated values stored here. NI NAA covers traffic signs only; Scotland and Wales NAAs state there are no alternative requirements.",
+   "reference": "CD 109",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/9893870e-00ba-4df1-a603-de47d2635494"
+  },
+  "CD 127": {
+   "title": "Cross-sections and headrooms",
+   "version": "1.0.1",
+   "published": "29-Jul-2021",
+   "copyright": "© Crown copyright 2021",
+   "annex": "Core document values used. The England NAA sections E/1 and E/3 (reduced cross-sections for widening existing motorways and smart motorways) were not used and may differ from the core values.",
+   "reference": "CD 127",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/210ff1ed-4a73-466f-ad7c-45936d121fce"
+  },
+  "CD 123": {
+   "title": "Geometric design of at-grade priority and signal-controlled junctions",
+   "version": "2.1.0",
+   "published": "29-Nov-2021",
+   "copyright": "© Crown copyright 2021",
+   "annex": "No national application annex content was read for this document; the core document values are stored.",
+   "reference": "CD 123",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/bae4a08b-92ea-4496-94fc-8ce938d81181"
+  },
+  "CD 116": {
+   "title": "Geometric design of roundabouts",
+   "version": "2.1.0",
+   "published": "31-May-2023",
+   "copyright": "© Crown copyright 2023",
+   "annex": "Core document applies to all four nations. England NAA (CD 116 - ENAA v1.1.0) contains only road lighting content (E/1); it does not change the geometric values stored here.",
+   "reference": "CD 116",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/cbb7bbf1-2edb-4d27-ba34-6f31078cfcb3"
+  },
+  "CG 501": {
+   "title": "Design of highway drainage systems",
+   "version": "2.2.0",
+   "published": "30-Sep-2025",
+   "copyright": "© Crown copyright 2025",
+   "annex": "Core values apply to all; climate change allowances are set by each nation's NAA. England NAA (CG 501 - ENAA v1.0.0, E/1.1 to E/1.4) uses Environment Agency allowances instead of a fixed percentage.",
+   "reference": "CG 501",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/47142322-1e97-446a-b68a-9a032a9f5d7b"
+  },
+  "CD 521": {
+   "title": "Hydraulic design of road edge surface water channels and outlets",
+   "version": "1.2.0",
+   "published": "30-Sep-2025",
+   "copyright": "© Crown copyright 2025",
+   "annex": "No national application annex content was read; core values stored.",
+   "reference": "CD 521",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/f9a31275-6a55-416c-8332-03e99fcab07d"
+  },
+  "CD 522": {
+   "title": "Drainage of runoff from natural catchments",
+   "version": "0.1.0",
+   "published": "30-Sep-2025",
+   "copyright": "© Crown copyright 2025",
+   "annex": "Core document; no national application annex was found in the fetched PDF.",
+   "reference": "CD 522",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/3c42680c-b78c-4966-a6fa-68c1c4049a40"
+  },
+  "CD 529": {
+   "title": "Design of outfall and culvert details",
+   "version": "1.1.0",
+   "published": "30-Sep-2025",
+   "copyright": "© Crown copyright 2025",
+   "annex": "Core document; no national application annex was found in the fetched PDF.",
+   "reference": "CD 529",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/9734bc51-9b25-41de-acff-604801cf4340"
+  },
+  "CD 523": {
+   "title": "Determination of pipe roughness and assessment of sediment deposition to aid pipeline design",
+   "version": "1.1.1",
+   "published": "09-Oct-2026",
+   "copyright": "© Crown copyright 2026",
+   "annex": "Core values stored. Clause 5.1 refers to national application annexes for sediment volume prediction; not read.",
+   "reference": "CD 523",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/93924807-1b39-4dab-824d-0eafbfbbb180"
+  },
+  "CD 377": {
+   "title": "Requirements for road restraint systems",
+   "version": "5.0.1",
+   "published": "27-Feb-2026",
+   "copyright": "© Crown copyright 2026",
+   "annex": "Core document values stored; national application annexes were not read.",
+   "reference": "CD 377",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/5e11e7a0-3e4f-41c7-8aa0-89bf224cdac0"
+  },
+  "CD 622": {
+   "title": "Managing geotechnical risk",
+   "version": "2.0.0",
+   "published": "30-Sep-2025",
+   "copyright": "© Crown copyright 2025",
+   "annex": "Core document; national application annexes were not read.",
+   "reference": "CD 622",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/2863a9f1-1e8d-400a-9506-878ac1ff2bdc"
+  },
+  "CC 601": {
+   "title": "Earthworks",
+   "version": "1.0.0 (Core)",
+   "published": "30-Sep-2025",
+   "copyright": "© Crown copyright 2025",
+   "annex": "MCHW Volume 1 (Specification for Highway Works) construction document, Core version; England, Northern Ireland, Scotland and Wales versions exist and were not compared.",
+   "reference": "CC 601",
+   "url": "https://www.standardsforhighways.co.uk/tses/attachments/by-attachment-id/81f75342-b062-45e0-8e63-3f3cea1f40fd"
+  }
+ },
+ "entries": [
+  {
+   "key": "link.ssd.desirable_min",
+   "group": "link_design",
+   "title": "Stopping sight distance, desirable minimum",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clause 2.9)",
+   "pdf_page": 18,
+   "condition": "Design speed related parameter, one value per design speed step (120, 100, 85, 70, 60, 50 km/h); rural and urban, new and improved all-purpose and motorway trunk roads. Clause 2.9: designs shall provide at least the desirable minimum values except where a relaxation is permitted",
+   "status": "desirable_minimum",
+   "verb": "shall (cl. 2.9)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 70
+     },
+     {
+      "at": 60,
+      "value": 90
+     },
+     {
+      "at": 70,
+      "value": 120
+     },
+     {
+      "at": 85,
+      "value": 160
+     },
+     {
+      "at": 100,
+      "value": 215
+     },
+     {
+      "at": 120,
+      "value": 295
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.ssd.one_step_below",
+   "group": "link_design",
+   "title": "Stopping sight distance, one step below desirable minimum",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clause 2.9, 3.5)",
+   "pdf_page": 18,
+   "condition": "Design speed related parameter, one value per design speed step (120, 100, 85, 70, 60, 50 km/h); rural and urban, new and improved all-purpose and motorway trunk roads. Usable only as a relaxation permitted by Table 3.5 and subject to GG 101",
+   "status": "relaxation",
+   "verb": "table value; relaxation permitted by clause 3.5",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 50
+     },
+     {
+      "at": 60,
+      "value": 70
+     },
+     {
+      "at": 70,
+      "value": 90
+     },
+     {
+      "at": 85,
+      "value": 120
+     },
+     {
+      "at": 100,
+      "value": 160
+     },
+     {
+      "at": 120,
+      "value": 215
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.horizontal.min_radius_adverse_camber_no_transition",
+   "group": "link_design",
+   "title": "Minimum radius with adverse camber and without transitions (V^2/R = 5)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clauses 4.1, 4.1.1, 4.12)",
+   "pdf_page": 18,
+   "condition": "Design speed related parameter, one value per design speed step (120, 100, 85, 70, 60, 50 km/h); rural and urban, new and improved all-purpose and motorway trunk roads. Radii above this need no superelevation and no transitions (crossfall 2.5 %); radii below it need superelevation and transitions. Not recommended for single carriageways (Table 2.10 footnote, see Section 9)",
+   "status": "requirement",
+   "verb": "shall (cl. 4.1, 4.12)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 510
+     },
+     {
+      "at": 60,
+      "value": 720
+     },
+     {
+      "at": 70,
+      "value": 1020
+     },
+     {
+      "at": 85,
+      "value": 1440
+     },
+     {
+      "at": 100,
+      "value": 2040
+     },
+     {
+      "at": 120,
+      "value": 2880
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.horizontal.min_radius_superelevation_2_5",
+   "group": "link_design",
+   "title": "Minimum radius with superelevation of 2.5 % (V^2/R = 7.07)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clause 4.1, 4.2)",
+   "pdf_page": 18,
+   "condition": "Design speed related parameter, one value per design speed step (120, 100, 85, 70, 60, 50 km/h); rural and urban, new and improved all-purpose and motorway trunk roads",
+   "status": "requirement",
+   "verb": "shall (cl. 4.1, 4.2)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 360
+     },
+     {
+      "at": 60,
+      "value": 510
+     },
+     {
+      "at": 70,
+      "value": 720
+     },
+     {
+      "at": 85,
+      "value": 1020
+     },
+     {
+      "at": 100,
+      "value": 1440
+     },
+     {
+      "at": 120,
+      "value": 2040
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.horizontal.min_radius_superelevation_3_5",
+   "group": "link_design",
+   "title": "Minimum radius with superelevation of 3.5 % (V^2/R = 10)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 109",
+   "clause": "Table 2.10",
+   "pdf_page": 18,
+   "condition": "Design speed related parameter, one value per design speed step (120, 100, 85, 70, 60, 50 km/h); rural and urban, new and improved all-purpose and motorway trunk roads",
+   "status": "requirement",
+   "verb": "table value",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 255
+     },
+     {
+      "at": 60,
+      "value": 360
+     },
+     {
+      "at": 70,
+      "value": 510
+     },
+     {
+      "at": 85,
+      "value": 720
+     },
+     {
+      "at": 100,
+      "value": 1020
+     },
+     {
+      "at": 120,
+      "value": 1440
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.horizontal.desirable_min_radius_superelevation_5",
+   "group": "link_design",
+   "title": "Desirable minimum radius (superelevation 5 %, V^2/R = 14.14)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clause 2.9)",
+   "pdf_page": 18,
+   "condition": "Design speed related parameter, one value per design speed step (120, 100, 85, 70, 60, 50 km/h); rural and urban, new and improved all-purpose and motorway trunk roads. Clause 2.9: designs shall provide at least the desirable minimum horizontal curvature except where a relaxation is permitted",
+   "status": "desirable_minimum",
+   "verb": "shall (cl. 2.9)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 180
+     },
+     {
+      "at": 60,
+      "value": 255
+     },
+     {
+      "at": 70,
+      "value": 360
+     },
+     {
+      "at": 85,
+      "value": 510
+     },
+     {
+      "at": 100,
+      "value": 720
+     },
+     {
+      "at": 120,
+      "value": 1020
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.horizontal.one_step_below_radius_superelevation_7",
+   "group": "link_design",
+   "title": "One step below desirable minimum radius (superelevation 7 %, V^2/R = 20)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clause 4.5)",
+   "pdf_page": 18,
+   "condition": "Design speed related parameter, one value per design speed step (120, 100, 85, 70, 60, 50 km/h); rural and urban, new and improved all-purpose and motorway trunk roads. Usable only as a relaxation permitted by Table 4.5",
+   "status": "relaxation",
+   "verb": "table value; relaxation permitted by clause 4.5",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 127
+     },
+     {
+      "at": 60,
+      "value": 180
+     },
+     {
+      "at": 70,
+      "value": 255
+     },
+     {
+      "at": 85,
+      "value": 360
+     },
+     {
+      "at": 100,
+      "value": 510
+     },
+     {
+      "at": 120,
+      "value": 720
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.horizontal.two_steps_below_radius_superelevation_7",
+   "group": "link_design",
+   "title": "Two steps below desirable minimum radius (superelevation 7 %, V^2/R = 28.28)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clause 4.5)",
+   "pdf_page": 18,
+   "condition": "Design speed related parameter, one value per design speed step (120, 100, 85, 70, 60, 50 km/h); rural and urban, new and improved all-purpose and motorway trunk roads. Usable only as a relaxation permitted by Table 4.5",
+   "status": "relaxation",
+   "verb": "table value; relaxation permitted by clause 4.5",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 90
+     },
+     {
+      "at": 60,
+      "value": 127
+     },
+     {
+      "at": 70,
+      "value": 180
+     },
+     {
+      "at": 85,
+      "value": 255
+     },
+     {
+      "at": 100,
+      "value": 360
+     },
+     {
+      "at": 120,
+      "value": 510
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.vertical.crest_k_desirable_min",
+   "group": "link_design",
+   "title": "Crest curve K value, desirable minimum",
+   "kind": "table",
+   "unit": "m/%",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clauses 2.9, 5.4)",
+   "pdf_page": 18,
+   "condition": "Design speed related parameter, one value per design speed step (120, 100, 85, 70, 60, 50 km/h); rural and urban, new and improved all-purpose and motorway trunk roads. Length of curve = K x algebraic change of gradient in percent (clause 5.4). Table footnote: not recommended for the design of single carriageways (see Section 9)",
+   "status": "desirable_minimum",
+   "verb": "shall (cl. 2.9)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 10
+     },
+     {
+      "at": 60,
+      "value": 17
+     },
+     {
+      "at": 70,
+      "value": 30
+     },
+     {
+      "at": 85,
+      "value": 55
+     },
+     {
+      "at": 100,
+      "value": 100
+     },
+     {
+      "at": 120,
+      "value": 182
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.vertical.crest_k_one_step_below",
+   "group": "link_design",
+   "title": "Crest curve K value, one step below desirable minimum",
+   "kind": "table",
+   "unit": "m/%",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clause 5.6, Table 5.7)",
+   "pdf_page": 18,
+   "condition": "Design speed related parameter, one value per design speed step (120, 100, 85, 70, 60, 50 km/h); rural and urban, new and improved all-purpose and motorway trunk roads. Usable only as a relaxation permitted by Table 5.7",
+   "status": "relaxation",
+   "verb": "table value; relaxation permitted by clause 5.6",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 6.5
+     },
+     {
+      "at": 60,
+      "value": 10
+     },
+     {
+      "at": 70,
+      "value": 17
+     },
+     {
+      "at": 85,
+      "value": 30
+     },
+     {
+      "at": 100,
+      "value": 55
+     },
+     {
+      "at": 120,
+      "value": 100
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.vertical.sag_k_desirable_min",
+   "group": "link_design",
+   "title": "Sag curve K value, desirable minimum",
+   "kind": "table",
+   "unit": "m/%",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clauses 2.9, 5.5)",
+   "pdf_page": 18,
+   "condition": "Design speed related parameter, one value per design speed step (120, 100, 85, 70, 60, 50 km/h); rural and urban, new and improved all-purpose and motorway trunk roads. Length of curve = K x algebraic change of gradient in percent (clause 5.5). The document calls this value 'Desirable minimum sag K value' (an older edition called it absolute minimum)",
+   "status": "desirable_minimum",
+   "verb": "shall (cl. 2.9)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 9
+     },
+     {
+      "at": 60,
+      "value": 13
+     },
+     {
+      "at": 70,
+      "value": 20
+     },
+     {
+      "at": 85,
+      "value": 20
+     },
+     {
+      "at": 100,
+      "value": 26
+     },
+     {
+      "at": 120,
+      "value": 37
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.overtaking.fosd",
+   "group": "link_design",
+   "title": "Full overtaking sight distance (FOSD)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clauses 2.10, 3.3)",
+   "pdf_page": 18,
+   "condition": "Where an overtaking section is provided on a 2 lane single carriageway. The table shows '-' at 120 km/h so no value is stored for 120",
+   "status": "requirement",
+   "verb": "shall (cl. 2.10)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 290
+     },
+     {
+      "at": 60,
+      "value": 345
+     },
+     {
+      "at": 70,
+      "value": 410
+     },
+     {
+      "at": 85,
+      "value": 490
+     },
+     {
+      "at": 100,
+      "value": 580
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.overtaking.crest_k",
+   "group": "link_design",
+   "title": "FOSD overtaking crest K value",
+   "kind": "table",
+   "unit": "m/%",
+   "document": "CD 109",
+   "clause": "Table 2.10 (clause 2.10)",
+   "pdf_page": 18,
+   "condition": "Where an overtaking section is provided on a 2 lane single carriageway. The table shows '-' at 120 km/h so no value is stored for 120",
+   "status": "requirement",
+   "verb": "shall (cl. 2.10)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 100
+     },
+     {
+      "at": 60,
+      "value": 142
+     },
+     {
+      "at": 70,
+      "value": 200
+     },
+     {
+      "at": 85,
+      "value": 285
+     },
+     {
+      "at": 100,
+      "value": 400
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "link.relaxation.floor_design_speed",
+   "group": "link_design",
+   "title": "Relaxation floor: lowest design speed column usable for SSD, horizontal and vertical curvature",
+   "kind": "scalar",
+   "unit": "km/h",
+   "value": 50,
+   "document": "CD 109",
+   "clause": "2.11",
+   "pdf_page": 19,
+   "condition": "Values shall not be less than those in Table 2.10 for 50 km/h design speed regardless of permitted relaxations",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "18"
+  },
+  {
+   "key": "link.relaxation.structure",
+   "group": "link_design",
+   "title": "Relaxations and departures exist (structure only, logic not encoded)",
+   "kind": "text",
+   "unit": "none",
+   "text": "Values below the desirable minimum are permitted only as relaxations within the number of design speed steps given in Table 3.5 (stopping sight distance), Table 4.5 (horizontal curvature), Table 5.7 (crest curves) and Table 5.9 (sag curves), by road type (motorway or all-purpose) and design speed band (A or B, from Figure 2.1). Clauses 2.11 to 2.13 restrict combinations and use on immediate approaches to junctions. GG 101 gives the requirements for recording relaxations and for departures from standard; GG 101 was not fetched, so the departure procedure is not recorded here.",
+   "document": "CD 109",
+   "clause": "2.9 to 2.13, 3.5 to 3.7, 4.5 to 4.7, 5.6 to 5.11",
+   "pdf_page": 18,
+   "condition": "All relaxations and departures",
+   "status": "advice",
+   "verb": "shall (cl. 2.9, 2.11 to 2.13)",
+   "note": "Band A or B is read from Figure 2.1 (a chart), which was not stored.",
+   "page": "17"
+  },
+  {
+   "key": "link.sight.eye_height_min",
+   "group": "link_design",
+   "title": "Driver eye height, lower bound for stopping sight distance",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 1.05,
+   "document": "CD 109",
+   "clause": "3.1",
+   "pdf_page": 21,
+   "condition": "Stopping sight distance measured between driver's eye heights 1.05 m and 2.00 m to object heights 0.26 m and 2.00 m above the road surface",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "20"
+  },
+  {
+   "key": "link.sight.eye_height_max",
+   "group": "link_design",
+   "title": "Driver eye height, upper bound for stopping sight distance",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 2.0,
+   "document": "CD 109",
+   "clause": "3.1",
+   "pdf_page": 21,
+   "condition": "Stopping sight distance measured between driver's eye heights 1.05 m and 2.00 m to object heights 0.26 m and 2.00 m above the road surface",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "20"
+  },
+  {
+   "key": "link.sight.object_height_min",
+   "group": "link_design",
+   "title": "Object height, lower bound for stopping sight distance",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 0.26,
+   "document": "CD 109",
+   "clause": "3.1",
+   "pdf_page": 21,
+   "condition": "Stopping sight distance measured between driver's eye heights 1.05 m and 2.00 m to object heights 0.26 m and 2.00 m above the road surface",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "20"
+  },
+  {
+   "key": "link.sight.object_height_max",
+   "group": "link_design",
+   "title": "Object height, upper bound for stopping sight distance",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 2.0,
+   "document": "CD 109",
+   "clause": "3.1",
+   "pdf_page": 21,
+   "condition": "Stopping sight distance measured between driver's eye heights 1.05 m and 2.00 m to object heights 0.26 m and 2.00 m above the road surface",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "20"
+  },
+  {
+   "key": "link.sight.fosd_eye_and_object_height_min",
+   "group": "link_design",
+   "title": "Eye and object height, lower bound for full overtaking sight distance",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 1.05,
+   "document": "CD 109",
+   "clause": "3.3",
+   "pdf_page": 21,
+   "condition": "FOSD measured between eye heights 1.05 m and 2.00 m to object heights 1.05 m and 2.00 m above the centre of the carriageway",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "20"
+  },
+  {
+   "key": "link.sight.fosd_eye_and_object_height_max",
+   "group": "link_design",
+   "title": "Eye and object height, upper bound for full overtaking sight distance",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 2.0,
+   "document": "CD 109",
+   "clause": "3.3",
+   "pdf_page": 21,
+   "condition": "FOSD measured between eye heights 1.05 m and 2.00 m to object heights 1.05 m and 2.00 m above the centre of the carriageway",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "20"
+  },
+  {
+   "key": "link.sight.obstruction_max_width",
+   "group": "link_design",
+   "title": "Maximum width of a fixed object not counted as an obstruction to the stopping sight visibility envelope",
+   "kind": "scalar",
+   "unit": "mm",
+   "value": 550,
+   "document": "CD 109",
+   "clause": "3.4",
+   "pdf_page": 22,
+   "condition": "Fixed object, or group of fixed objects, with combined width / length of 550 mm or less",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "21"
+  },
+  {
+   "key": "link.crossfall.normal",
+   "group": "link_design",
+   "title": "Normal crossfall / camber",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 2.5,
+   "document": "CD 109",
+   "clause": "4.1.1",
+   "pdf_page": 24,
+   "condition": "Where radius exceeds the Table 2.10 minimum R with adverse camber and without transitions (V^2/R < 5): 2.5 % falling from the centre of single carriageways, or the central reserve of dual carriageways, to the outer channels",
+   "status": "advice",
+   "verb": "should",
+   "page": "23"
+  },
+  {
+   "key": "link.superelevation.band_2_5",
+   "group": "link_design",
+   "title": "Superelevation where radius is between the 2.5 % row and the adverse camber row of Table 2.10",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 2.5,
+   "document": "CD 109",
+   "clause": "4.1",
+   "pdf_page": 24,
+   "condition": "Radii less than Table 2.10 'Minimum R with adverse camber and without transitions' (V^2/R > 5) but greater than or equal to 'Minimum R with superelevation of 2.5 %'; falling towards the inside of the curve",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "23"
+  },
+  {
+   "key": "link.superelevation.formula",
+   "group": "link_design",
+   "title": "Superelevation formula",
+   "kind": "formula",
+   "unit": "none",
+   "text": "S = V^2 / (2.828 R)   [S in percent, V design speed in km/h, R radius in metres]",
+   "document": "CD 109",
+   "clause": "4.2 (Equation 4.2)",
+   "pdf_page": 24,
+   "condition": "Curves with radius less than Table 2.10 'Minimum R with superelevation of 2.5 %' (V^2/R > 7), subject to the maximum values for rural and urban roads",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "23"
+  },
+  {
+   "key": "link.superelevation.max_rural",
+   "group": "link_design",
+   "title": "Maximum superelevation, rural areas",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 7,
+   "document": "CD 109",
+   "clause": "4.3",
+   "pdf_page": 24,
+   "condition": "Rural areas, except existing roads and connector road loops (CD 122)",
+   "status": "requirement",
+   "verb": "shall not exceed",
+   "page": "23"
+  },
+  {
+   "key": "link.superelevation.max_urban",
+   "group": "link_design",
+   "title": "Maximum superelevation, urban areas",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 5,
+   "document": "CD 109",
+   "clause": "4.4",
+   "pdf_page": 24,
+   "condition": "Urban areas",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "23"
+  },
+  {
+   "key": "link.superelevation.edge_profile_grade_variation_max",
+   "group": "link_design",
+   "title": "Maximum variation in grade of carriageway edge profile from the pivot line",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 1,
+   "document": "CD 109",
+   "clause": "4.8.1",
+   "pdf_page": 25,
+   "condition": "Where superelevation is introduced or adverse camber removed",
+   "status": "advice",
+   "verb": "should not vary by more than",
+   "page": "24"
+  },
+  {
+   "key": "link.superelevation.edge_profile_grade_variation_max_motorway",
+   "group": "link_design",
+   "title": "Maximum variation in grade of carriageway edge profile on motorways",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 0.5,
+   "document": "CD 109",
+   "clause": "4.8.2",
+   "pdf_page": 25,
+   "condition": "Motorways, where practicable (where local drainage conditions permit)",
+   "status": "advice",
+   "verb": "should",
+   "page": "24"
+  },
+  {
+   "key": "link.superelevation.min_longitudinal_gradient",
+   "group": "link_design",
+   "title": "Minimum longitudinal gradient where superelevation is applied or reversed",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 0.5,
+   "document": "CD 109",
+   "clause": "4.8.3",
+   "pdf_page": 25,
+   "condition": "Wherever superelevation is applied or reversed",
+   "status": "advice",
+   "verb": "should",
+   "page": "24"
+  },
+  {
+   "key": "link.curve_widening.standard_width",
+   "group": "link_design",
+   "title": "Lane widening on curves, carriageways of standard width",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 0.3,
+   "document": "CD 109",
+   "clause": "4.10",
+   "pdf_page": 25,
+   "condition": "Per lane, horizontal radius greater than 90 m but less than 150 m, carriageways of standard width as defined in CD 127. Two lane roads wider than 7.9 m need no additional widening",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "24"
+  },
+  {
+   "key": "link.curve_widening.below_standard_r90_150",
+   "group": "link_design",
+   "title": "Lane widening on curves, below standard width, radius 90 m to 150 m",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 0.6,
+   "document": "CD 109",
+   "clause": "4.11 (1)",
+   "pdf_page": 25,
+   "condition": "Per lane, radius greater than 90 m but less than 150 m, subject to maximum carriageway widths of 7.9 m, 11.9 m and 15.8 m for 2, 3 and 4 lane carriageways",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "24"
+  },
+  {
+   "key": "link.curve_widening.below_standard_r150_300",
+   "group": "link_design",
+   "title": "Lane widening on curves, below standard width, radius 150 m to 300 m",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 0.5,
+   "document": "CD 109",
+   "clause": "4.11 (2)",
+   "pdf_page": 26,
+   "condition": "Per lane, radius at least 150 m but less than 300 m, subject to a width not greater than the standard lane widths in CD 127",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "25"
+  },
+  {
+   "key": "link.curve_widening.below_standard_r300_400",
+   "group": "link_design",
+   "title": "Lane widening on curves, below standard width, radius 300 m to 400 m",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 0.3,
+   "document": "CD 109",
+   "clause": "4.11 (3)",
+   "pdf_page": 26,
+   "condition": "Per lane, radius at least 300 m but less than 400 m, subject to a width not greater than the standard lane widths in CD 127",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "25"
+  },
+  {
+   "key": "link.transition.length_formula",
+   "group": "link_design",
+   "title": "Basic transition length",
+   "kind": "formula",
+   "unit": "none",
+   "text": "L = V^3 / (46.7 q R)   [L metres, V km/h, q rate of increase of centripetal acceleration in m/s^3, R metres]",
+   "document": "CD 109",
+   "clause": "4.13 (Equation 4.13)",
+   "pdf_page": 26,
+   "condition": "Transition curves provided on curves with radius less than Table 2.10 'Minimum R with adverse camber and without transitions'",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "25"
+  },
+  {
+   "key": "link.transition.q_max",
+   "group": "link_design",
+   "title": "Rate of increase of centripetal acceleration q, maximum",
+   "kind": "scalar",
+   "unit": "m/s3",
+   "value": 0.6,
+   "document": "CD 109",
+   "clause": "4.14",
+   "pdf_page": 26,
+   "condition": "Value of q used in the basic transition length calculation",
+   "status": "requirement",
+   "verb": "shall not exceed",
+   "page": "25"
+  },
+  {
+   "key": "link.transition.q_desirable_max",
+   "group": "link_design",
+   "title": "Rate of increase of centripetal acceleration q, should not exceed",
+   "kind": "scalar",
+   "unit": "m/s3",
+   "value": 0.3,
+   "document": "CD 109",
+   "clause": "4.14.1",
+   "pdf_page": 26,
+   "condition": "Value of q used in the basic transition length calculation",
+   "status": "advice",
+   "verb": "should not exceed",
+   "page": "25"
+  },
+  {
+   "key": "link.transition.length_limit_formula",
+   "group": "link_design",
+   "title": "Transition length limit",
+   "kind": "formula",
+   "unit": "none",
+   "text": "L_limit = sqrt(24 R)   [metres]. If the basic length is less than sqrt(24 R) use the basic length; if greater, sqrt(24 R) should be used",
+   "document": "CD 109",
+   "clause": "4.15, 4.15.1",
+   "pdf_page": 26,
+   "condition": "Comparison of the basic transition length with sqrt(24 R). Note 1: using sqrt(24 R) can give q greater than 0.6 m/s^3",
+   "status": "requirement",
+   "verb": "shall (4.15); should (4.15.1)",
+   "page": "25"
+  },
+  {
+   "key": "link.gradient.desirable_max",
+   "group": "link_design",
+   "title": "Longitudinal gradient, desirable maximum",
+   "kind": "table",
+   "unit": "%",
+   "document": "CD 109",
+   "clause": "Table 5.1 (clause 5.1.1)",
+   "pdf_page": 28,
+   "condition": "By road type: motorway; all-purpose dual carriageway; all-purpose single carriageway",
+   "status": "desirable_maximum",
+   "verb": "should not be exceeded wherever practicable",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "motorway",
+      "value": 3
+     },
+     {
+      "at": "all_purpose_dual",
+      "value": 4
+     },
+     {
+      "at": "all_purpose_single",
+      "value": 6
+     }
+    ]
+   },
+   "page": "27"
+  },
+  {
+   "key": "link.gradient.max_with_relaxation",
+   "group": "link_design",
+   "title": "Longitudinal gradient, maximum permitted relaxation",
+   "kind": "table",
+   "unit": "%",
+   "document": "CD 109",
+   "clause": "Table 5.1 (clause 5.1)",
+   "pdf_page": 28,
+   "condition": "By road type: motorway; all-purpose dual carriageway; all-purpose single carriageway",
+   "status": "requirement",
+   "verb": "shall not exceed",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "motorway",
+      "value": 4
+     },
+     {
+      "at": "all_purpose_dual",
+      "value": 8
+     },
+     {
+      "at": "all_purpose_single",
+      "value": 8
+     }
+    ]
+   },
+   "page": "27"
+  },
+  {
+   "key": "link.gradient.min_desirable",
+   "group": "link_design",
+   "title": "Longitudinal gradient, desirable minimum",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 0.5,
+   "document": "CD 109",
+   "clause": "5.1.2",
+   "pdf_page": 28,
+   "condition": "All roads; a 0.5 % gradient can enable effective drainage",
+   "status": "advice",
+   "verb": "should",
+   "page": "27"
+  },
+  {
+   "key": "link.gradient.false_channel_below",
+   "group": "link_design",
+   "title": "Gradient below which false channel paths are required on kerbed roads",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 0.5,
+   "document": "CD 109",
+   "clause": "5.2",
+   "pdf_page": 28,
+   "condition": "Kerbed roads with a gradient of less than 0.5 %",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "27"
+  },
+  {
+   "key": "xs.rural_motorway.lane_width",
+   "group": "cross_section",
+   "title": "Rural motorway mainline, traffic lane width",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.2, Figure 2.1.1N1a",
+   "pdf_page": 17,
+   "condition": "Dimension from Figure 2.1.1N1a (rural motorway mainline), road types D2M, D3M, D4M (dual 2, 3, 4 lane motorway); horizontal radius greater than 400 m (2.2). All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "road_type/lane",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2M/L1",
+      "value": 3.65
+     },
+     {
+      "at": "D2M/L2",
+      "value": 3.65
+     },
+     {
+      "at": "D3M/L1",
+      "value": 3.65
+     },
+     {
+      "at": "D3M/L2",
+      "value": 3.7
+     },
+     {
+      "at": "D3M/L3",
+      "value": 3.65
+     },
+     {
+      "at": "D4M/L1",
+      "value": 3.65
+     },
+     {
+      "at": "D4M/L2",
+      "value": 3.7
+     },
+     {
+      "at": "D4M/L3",
+      "value": 3.7
+     },
+     {
+      "at": "D4M/L4",
+      "value": 3.65
+     }
+    ]
+   },
+   "page": "16"
+  },
+  {
+   "key": "xs.rural_motorway.carriageway_width",
+   "group": "cross_section",
+   "title": "Rural motorway mainline, carriageway width E",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "Figure 2.1.1N1a",
+   "pdf_page": 17,
+   "condition": "Dimension from Figure 2.1.1N1a (rural motorway mainline). All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (2.2)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2M",
+      "value": 7.3
+     },
+     {
+      "at": "D3M",
+      "value": 11.0
+     },
+     {
+      "at": "D4M",
+      "value": 14.7
+     }
+    ]
+   },
+   "page": "16"
+  },
+  {
+   "key": "xs.rural_motorway.hard_shoulder_width",
+   "group": "cross_section",
+   "title": "Rural motorway mainline, hard shoulder width D",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.7, Figure 2.1.1N1a",
+   "pdf_page": 17,
+   "condition": "Dimension from Figure 2.1.1N1a (rural motorway mainline). All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2M",
+      "value": 3.3
+     },
+     {
+      "at": "D3M",
+      "value": 3.3
+     },
+     {
+      "at": "D4M",
+      "value": 3.3
+     }
+    ]
+   },
+   "page": "16"
+  },
+  {
+   "key": "xs.rural_motorway.verge_width",
+   "group": "cross_section",
+   "title": "Rural motorway mainline, verge width C (minimum)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.10, Figure 2.1.1N1a",
+   "pdf_page": 17,
+   "condition": "Dimension from Figure 2.1.1N1a (rural motorway mainline); minimum verge width, increased where clause 2.10 items apply. All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (minimum)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2M",
+      "value": 1.5
+     },
+     {
+      "at": "D3M",
+      "value": 1.5
+     },
+     {
+      "at": "D4M",
+      "value": 1.5
+     }
+    ]
+   },
+   "page": "16"
+  },
+  {
+   "key": "xs.rural_motorway.hard_strip_offside_width",
+   "group": "cross_section",
+   "title": "Rural motorway mainline, offside hard strip width F (minimum)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.5, Figure 2.1.1N1a",
+   "pdf_page": 17,
+   "condition": "Dimension from Figure 2.1.1N1a (rural motorway mainline); maximum offside hard strip is 1.00 m (2.6). All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (minimum)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2M",
+      "value": 0.7
+     },
+     {
+      "at": "D3M",
+      "value": 0.7
+     },
+     {
+      "at": "D4M",
+      "value": 0.7
+     }
+    ]
+   },
+   "page": "16"
+  },
+  {
+   "key": "xs.rural_motorway.central_reserve_width",
+   "group": "cross_section",
+   "title": "Rural motorway mainline, central reserve width G (minimum)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.9, Figure 2.1.1N1a",
+   "pdf_page": 17,
+   "condition": "Dimension from Figure 2.1.1N1a (rural motorway mainline); except where the offside hard strip is widened for drainage. All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (minimum)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2M",
+      "value": 3.1
+     },
+     {
+      "at": "D3M",
+      "value": 3.1
+     },
+     {
+      "at": "D4M",
+      "value": 3.1
+     }
+    ]
+   },
+   "page": "16"
+  },
+  {
+   "key": "xs.urban_motorway.lane_width",
+   "group": "cross_section",
+   "title": "Urban motorway mainline, traffic lane width",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.2, Figure 2.1.1N1c",
+   "pdf_page": 19,
+   "condition": "Dimension from Figure 2.1.1N1c (urban motorway mainline), road types D2UM, D3UM, D4UM; keys use D2M, D3M, D4M for 2, 3, 4 lane; horizontal radius greater than 400 m. All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "road_type/lane",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2M/L1",
+      "value": 3.65
+     },
+     {
+      "at": "D2M/L2",
+      "value": 3.65
+     },
+     {
+      "at": "D3M/L1",
+      "value": 3.65
+     },
+     {
+      "at": "D3M/L2",
+      "value": 3.7
+     },
+     {
+      "at": "D3M/L3",
+      "value": 3.65
+     },
+     {
+      "at": "D4M/L1",
+      "value": 3.65
+     },
+     {
+      "at": "D4M/L2",
+      "value": 3.7
+     },
+     {
+      "at": "D4M/L3",
+      "value": 3.7
+     },
+     {
+      "at": "D4M/L4",
+      "value": 3.65
+     }
+    ]
+   },
+   "page": "18"
+  },
+  {
+   "key": "xs.urban_motorway.carriageway_width",
+   "group": "cross_section",
+   "title": "Urban motorway mainline, carriageway width E",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "Figure 2.1.1N1c",
+   "pdf_page": 19,
+   "condition": "Dimension from Figure 2.1.1N1c (urban motorway mainline); keys D2M, D3M, D4M for 2, 3, 4 lane. All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (2.2)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2M",
+      "value": 7.3
+     },
+     {
+      "at": "D3M",
+      "value": 11.0
+     },
+     {
+      "at": "D4M",
+      "value": 14.7
+     }
+    ]
+   },
+   "page": "18"
+  },
+  {
+   "key": "xs.urban_motorway.hard_shoulder_width",
+   "group": "cross_section",
+   "title": "Urban motorway mainline, hard shoulder width D",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.7, Figure 2.1.1N1c",
+   "pdf_page": 19,
+   "condition": "Dimension from Figure 2.1.1N1c (urban motorway mainline); keys D2M, D3M, D4M for 2, 3, 4 lane. All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2M",
+      "value": 2.75
+     },
+     {
+      "at": "D3M",
+      "value": 2.75
+     },
+     {
+      "at": "D4M",
+      "value": 2.75
+     }
+    ]
+   },
+   "page": "18"
+  },
+  {
+   "key": "xs.urban_motorway.hard_strip_offside_width",
+   "group": "cross_section",
+   "title": "Urban motorway mainline, offside hard strip width F (minimum)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.5, Figure 2.1.1N1c",
+   "pdf_page": 19,
+   "condition": "Dimension from Figure 2.1.1N1c (urban motorway mainline); keys D2M, D3M, D4M for 2, 3, 4 lane. All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (minimum)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2M",
+      "value": 0.7
+     },
+     {
+      "at": "D3M",
+      "value": 0.7
+     },
+     {
+      "at": "D4M",
+      "value": 0.7
+     }
+    ]
+   },
+   "page": "18"
+  },
+  {
+   "key": "xs.urban_motorway.central_reserve_width",
+   "group": "cross_section",
+   "title": "Urban motorway mainline, central reserve width G (minimum)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.9, Figure 2.1.1N1c",
+   "pdf_page": 19,
+   "condition": "Dimension from Figure 2.1.1N1c (urban motorway mainline); keys D2M, D3M, D4M for 2, 3, 4 lane. Verge widths are shown as 'Varies' and are not stored. All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (minimum)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2M",
+      "value": 1.6
+     },
+     {
+      "at": "D3M",
+      "value": 2.1
+     },
+     {
+      "at": "D4M",
+      "value": 2.1
+     }
+    ]
+   },
+   "page": "18"
+  },
+  {
+   "key": "xs.rural_all_purpose.lane_width",
+   "group": "cross_section",
+   "title": "Rural all-purpose mainline, traffic lane width (M is the column labelled M in the figure for WS2+1, between L1 and L2)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.2, Figure 2.1.1N1e",
+   "pdf_page": 21,
+   "condition": "Dimension from Figure 2.1.1N1e (rural all-purpose roads mainline). Types: D2AP, D3AP dual 2, 3 lane; S2 single; WS2 wide single; WS2+1 wide single 2+1; WS2_climbing wide single climbing lane section. All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "road_type/lane",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2AP/L1",
+      "value": 3.65
+     },
+     {
+      "at": "D2AP/L2",
+      "value": 3.65
+     },
+     {
+      "at": "D3AP/L1",
+      "value": 3.65
+     },
+     {
+      "at": "D3AP/L2",
+      "value": 3.7
+     },
+     {
+      "at": "D3AP/L3",
+      "value": 3.65
+     },
+     {
+      "at": "S2/L1",
+      "value": 3.65
+     },
+     {
+      "at": "S2/L2",
+      "value": 3.65
+     },
+     {
+      "at": "WS2/L1",
+      "value": 5.0
+     },
+     {
+      "at": "WS2/L2",
+      "value": 5.0
+     },
+     {
+      "at": "WS2+1/L1",
+      "value": 3.5
+     },
+     {
+      "at": "WS2+1/M",
+      "value": 1.0
+     },
+     {
+      "at": "WS2+1/L2",
+      "value": 3.5
+     },
+     {
+      "at": "WS2+1/L3",
+      "value": 3.5
+     },
+     {
+      "at": "WS2_climbing/L1",
+      "value": 3.5
+     },
+     {
+      "at": "WS2_climbing/L2",
+      "value": 3.5
+     },
+     {
+      "at": "WS2_climbing/L3",
+      "value": 3.5
+     }
+    ]
+   },
+   "page": "20"
+  },
+  {
+   "key": "xs.rural_all_purpose.carriageway_width",
+   "group": "cross_section",
+   "title": "Rural all-purpose mainline, carriageway width E",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "Figure 2.1.1N1e",
+   "pdf_page": 21,
+   "condition": "Dimension from Figure 2.1.1N1e (rural all-purpose roads mainline). All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (2.2)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2AP",
+      "value": 7.3
+     },
+     {
+      "at": "D3AP",
+      "value": 11.0
+     },
+     {
+      "at": "S2",
+      "value": 7.3
+     },
+     {
+      "at": "WS2",
+      "value": 10.0
+     },
+     {
+      "at": "WS2+1",
+      "value": 11.5
+     },
+     {
+      "at": "WS2_climbing",
+      "value": 10.5
+     }
+    ]
+   },
+   "page": "20"
+  },
+  {
+   "key": "xs.rural_all_purpose.hard_strip_nearside_width",
+   "group": "cross_section",
+   "title": "Rural all-purpose mainline, nearside hard strip width D",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.4, Figure 2.1.1N1e",
+   "pdf_page": 21,
+   "condition": "Dimension from Figure 2.1.1N1e (rural all-purpose roads mainline). All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2AP",
+      "value": 1.0
+     },
+     {
+      "at": "D3AP",
+      "value": 1.0
+     },
+     {
+      "at": "S2",
+      "value": 1.0
+     },
+     {
+      "at": "WS2",
+      "value": 1.0
+     },
+     {
+      "at": "WS2+1",
+      "value": 1.0
+     },
+     {
+      "at": "WS2_climbing",
+      "value": 1.0
+     }
+    ]
+   },
+   "page": "20"
+  },
+  {
+   "key": "xs.rural_all_purpose.verge_width",
+   "group": "cross_section",
+   "title": "Rural all-purpose mainline, verge width C (minimum)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.10, Figure 2.1.1N1e",
+   "pdf_page": 21,
+   "condition": "Dimension from Figure 2.1.1N1e (rural all-purpose roads mainline); minimum verge width, increased where clause 2.10 items apply. All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (minimum)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2AP",
+      "value": 2.5
+     },
+     {
+      "at": "D3AP",
+      "value": 2.5
+     },
+     {
+      "at": "S2",
+      "value": 2.5
+     },
+     {
+      "at": "WS2",
+      "value": 2.5
+     },
+     {
+      "at": "WS2+1",
+      "value": 2.5
+     },
+     {
+      "at": "WS2_climbing",
+      "value": 2.5
+     }
+    ]
+   },
+   "page": "20"
+  },
+  {
+   "key": "xs.rural_all_purpose.hard_strip_offside_width",
+   "group": "cross_section",
+   "title": "Rural all-purpose dual carriageway, offside hard strip width F (minimum)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.5, Figure 2.1.1N1e",
+   "pdf_page": 21,
+   "condition": "Dimension from Figure 2.1.1N1e (rural all-purpose dual carriageway); maximum 1.00 m (2.6). All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (minimum)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2AP",
+      "value": 1.0
+     },
+     {
+      "at": "D3AP",
+      "value": 1.0
+     }
+    ]
+   },
+   "page": "20"
+  },
+  {
+   "key": "xs.rural_all_purpose.central_reserve_width",
+   "group": "cross_section",
+   "title": "Rural all-purpose dual carriageway, central reserve width G (minimum)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.9, Figure 2.1.1N1e",
+   "pdf_page": 21,
+   "condition": "Dimension from Figure 2.1.1N1e (rural all-purpose dual carriageway). All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (minimum)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2AP",
+      "value": 2.5
+     },
+     {
+      "at": "D3AP",
+      "value": 2.5
+     }
+    ]
+   },
+   "page": "20"
+  },
+  {
+   "key": "xs.urban_all_purpose.lane_width",
+   "group": "cross_section",
+   "title": "Urban all-purpose mainline, traffic lane width",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.2, Figure 2.1.1N1g",
+   "pdf_page": 23,
+   "condition": "Dimension from Figure 2.1.1N1g (urban all-purpose roads mainline). Types: D2UAP, D3UAP dual 2, 3 lane; SU2 single 2 lane. Verge widths are 'Varies' and are not stored. All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "road_type/lane",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2UAP/L1",
+      "value": 3.65
+     },
+     {
+      "at": "D2UAP/L2",
+      "value": 3.65
+     },
+     {
+      "at": "D3UAP/L1",
+      "value": 3.65
+     },
+     {
+      "at": "D3UAP/L2",
+      "value": 3.7
+     },
+     {
+      "at": "D3UAP/L3",
+      "value": 3.65
+     },
+     {
+      "at": "SU2/L1",
+      "value": 3.65
+     },
+     {
+      "at": "SU2/L2",
+      "value": 3.65
+     }
+    ]
+   },
+   "page": "22"
+  },
+  {
+   "key": "xs.urban_all_purpose.carriageway_width",
+   "group": "cross_section",
+   "title": "Urban all-purpose mainline, carriageway width E",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "Figure 2.1.1N1g",
+   "pdf_page": 23,
+   "condition": "Dimension from Figure 2.1.1N1g (urban all-purpose roads mainline). All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (2.2)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2UAP",
+      "value": 7.3
+     },
+     {
+      "at": "D3UAP",
+      "value": 11.0
+     },
+     {
+      "at": "SU2",
+      "value": 7.3
+     }
+    ]
+   },
+   "page": "22"
+  },
+  {
+   "key": "xs.urban_all_purpose.central_reserve_width",
+   "group": "cross_section",
+   "title": "Urban all-purpose dual carriageway, central reserve width G (minimum)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "2.9, Figure 2.1.1N1g",
+   "pdf_page": 23,
+   "condition": "Dimension from Figure 2.1.1N1g (urban all-purpose dual carriageway). All dimensions in metres (Note 2 to clause 2.1.1). Lane widths are measured between the trafficked side of edge lines and the centre of lane lines (2.3)",
+   "status": "requirement",
+   "verb": "shall (minimum)",
+   "table": {
+    "dimension": {
+     "name": "road_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "D2UAP",
+      "value": 1.8
+     },
+     {
+      "at": "D3UAP",
+      "value": 1.8
+     }
+    ]
+   },
+   "page": "22"
+  },
+  {
+   "key": "xs.hard_strip_offside_max",
+   "group": "cross_section",
+   "title": "Maximum offside hard strip width (dimension F)",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 1.0,
+   "document": "CD 127",
+   "clause": "2.6",
+   "pdf_page": 25,
+   "condition": "All cross-sections; up to 1.00 m can be appropriate where the road falls to the offside",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "24"
+  },
+  {
+   "key": "xs.lanes_max_all_purpose_dual",
+   "group": "cross_section",
+   "title": "Maximum mainline lanes in one direction, all-purpose dual carriageway",
+   "kind": "scalar",
+   "unit": "none",
+   "value": 3,
+   "document": "CD 127",
+   "clause": "2.14",
+   "pdf_page": 27,
+   "condition": "Auxiliary lanes are not counted",
+   "status": "requirement",
+   "verb": "shall not have more than",
+   "page": "26"
+  },
+  {
+   "key": "xs.lanes_max_motorway",
+   "group": "cross_section",
+   "title": "Maximum mainline lanes in one direction, motorway",
+   "kind": "scalar",
+   "unit": "none",
+   "value": 4,
+   "document": "CD 127",
+   "clause": "2.15",
+   "pdf_page": 27,
+   "condition": "Auxiliary lanes are not counted",
+   "status": "requirement",
+   "verb": "shall not have more than",
+   "page": "26"
+  },
+  {
+   "key": "xs.headroom.new_construction_base",
+   "group": "headroom",
+   "title": "Minimum standard headroom, new construction, before sag compensation S",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "Table 4.1 (clause 4.1)",
+   "pdf_page": 52,
+   "condition": "Headroom above the paved width, verges and central reserve = value + S, S from Table 4.3. Types: overbridges; footbridges, sign and signal gantries and other structures vulnerable to vehicular impact; all permanent structures over high load routes (not applicable in Northern Ireland). Free-standing temporary structures: N/A for new construction",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "structure_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "overbridge",
+      "value": 5.3
+     },
+     {
+      "at": "footbridge_gantry_vulnerable",
+      "value": 5.7
+     },
+     {
+      "at": "high_load_route_permanent",
+      "value": 6.45
+     }
+    ]
+   },
+   "page": "51"
+  },
+  {
+   "key": "xs.headroom.maintained_base",
+   "group": "headroom",
+   "title": "Minimum standard headroom, maintained, before sag compensation S",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 127",
+   "clause": "Table 4.1 (clause 4.1)",
+   "pdf_page": 52,
+   "condition": "Maintained headroom = value + S, S from Table 4.3",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "structure_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "overbridge",
+      "value": 5.03
+     },
+     {
+      "at": "footbridge_gantry_vulnerable",
+      "value": 5.41
+     },
+     {
+      "at": "free_standing_temporary",
+      "value": 5.41
+     },
+     {
+      "at": "high_load_route_permanent",
+      "value": 6.18
+     }
+    ]
+   },
+   "page": "51"
+  },
+  {
+   "key": "xs.headroom.sag_compensation",
+   "group": "headroom",
+   "title": "Additional clearance S for sag curve compensation",
+   "kind": "table",
+   "unit": "mm",
+   "document": "CD 127",
+   "clause": "Table 4.3 (clause 4.3)",
+   "pdf_page": 52,
+   "condition": "Road passing under the structure on a sag curve. The table row 1000 means sag radius of 1000 m or less. Sag radius is measured along the carriageway over a 25 m chord (4.4). Radii not in the table are not interpolated by the document",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "sag_radius_m",
+     "unit": "m"
+    },
+    "lookup": "exact",
+    "monotonic": "decreasing_with_dimension",
+    "rows": [
+     {
+      "at": 1000,
+      "value": 80
+     },
+     {
+      "at": 1200,
+      "value": 70
+     },
+     {
+      "at": 1500,
+      "value": 55
+     },
+     {
+      "at": 2000,
+      "value": 45
+     },
+     {
+      "at": 3000,
+      "value": 25
+     },
+     {
+      "at": 6000,
+      "value": 15
+     }
+    ]
+   },
+   "page": "51"
+  },
+  {
+   "key": "xs.headroom.sag_compensation_over_6000",
+   "group": "headroom",
+   "title": "Additional clearance S for sag radius greater than 6000 m",
+   "kind": "scalar",
+   "unit": "mm",
+   "value": 0,
+   "document": "CD 127",
+   "clause": "Table 4.3",
+   "pdf_page": 52,
+   "condition": "Sag radius greater than 6000 m",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "51"
+  },
+  {
+   "key": "junction.visibility.x_distance_standard",
+   "group": "junction",
+   "title": "Setback distance X of the visibility splay, full value (a)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "3.8, 3.8.1",
+   "pdf_page": 25,
+   "condition": "Minimum distance used to locate point X along the minor road centreline from the line of the nearside edge of the major road running carriageway; option a) for each type",
+   "status": "advice",
+   "verb": "should (3.8.1); shall satisfy one of a) or b) (3.8)",
+   "table": {
+    "dimension": {
+     "name": "junction_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "direct_access",
+      "value": 4.5
+     },
+     {
+      "at": "simple_priority",
+      "value": 9.0
+     },
+     {
+      "at": "other_priority",
+      "value": 9.0
+     }
+    ]
+   },
+   "page": "24"
+  },
+  {
+   "key": "junction.visibility.x_distance_minimum",
+   "group": "junction",
+   "title": "Setback distance X of the visibility splay, lowest permitted (b)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "3.8, 3.8.2",
+   "pdf_page": 25,
+   "condition": "Option b) for each type; where a) is not feasible X should be as close to a) as practicable but no less than b)",
+   "status": "absolute_minimum",
+   "verb": "shall satisfy one of a) or b); no less than b) (3.8.2)",
+   "table": {
+    "dimension": {
+     "name": "junction_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "direct_access",
+      "value": 2.0
+     },
+     {
+      "at": "simple_priority",
+      "value": 2.4
+     },
+     {
+      "at": "other_priority",
+      "value": 4.5
+     }
+    ]
+   },
+   "page": "24"
+  },
+  {
+   "key": "junction.visibility.y_distance",
+   "group": "junction",
+   "title": "Setback Y distance of the visibility splay",
+   "kind": "formula",
+   "unit": "none",
+   "text": "Y = desirable minimum stopping sight distance for the major road design speed (CD 109 Table 2.10, key link.ssd.desirable_min), measured along the major road nearside edge of carriageway from point W",
+   "document": "CD 123",
+   "clause": "3.4 (3)",
+   "pdf_page": 24,
+   "condition": "Priority junctions and direct accesses; speed basis per clause 3.5",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "23"
+  },
+  {
+   "key": "junction.visibility.x_max_open_areas",
+   "group": "junction",
+   "title": "Greatest X distance from which desirable minimum SSD may be available",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 9,
+   "document": "CD 123",
+   "clause": "3.11",
+   "pdf_page": 26,
+   "condition": "All priority junctions; in open areas visibility may need restricting",
+   "status": "requirement",
+   "verb": "shall not be available from an X distance greater than",
+   "page": "25"
+  },
+  {
+   "key": "junction.visibility.central_reserve_setback",
+   "group": "junction",
+   "title": "Setback of visibility point along the centre of a central reserve opening",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 2.4,
+   "document": "CD 123",
+   "clause": "3.12 (2)",
+   "pdf_page": 26,
+   "condition": "Dual carriageway and single lane dualling junctions where right turns are permitted",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "25"
+  },
+  {
+   "key": "junction.corner_radius.simple_no_design_vehicle_urban",
+   "group": "junction",
+   "title": "Corner radius, simple priority junction, no provision for design vehicle, urban",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 6,
+   "document": "CD 123",
+   "clause": "5.6.1",
+   "pdf_page": 31,
+   "condition": "Simple priority junctions, urban areas",
+   "status": "advice",
+   "verb": "should (minimum)",
+   "page": "30"
+  },
+  {
+   "key": "junction.corner_radius.simple_no_design_vehicle_rural",
+   "group": "junction",
+   "title": "Corner radius, simple priority junction, no provision for design vehicle, rural",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 10,
+   "document": "CD 123",
+   "clause": "5.6.1",
+   "pdf_page": 31,
+   "condition": "Simple priority junctions, rural areas",
+   "status": "advice",
+   "verb": "should (minimum)",
+   "page": "30"
+  },
+  {
+   "key": "junction.corner_radius.simple_design_vehicle",
+   "group": "junction",
+   "title": "Corner radius, simple priority junction with provision for design vehicle",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "5.6.2",
+   "pdf_page": 31,
+   "condition": "Simple priority junctions where provision is made for the design vehicle: urban; rural; part of a staggered junction arrangement",
+   "status": "advice",
+   "verb": "should",
+   "table": {
+    "dimension": {
+     "name": "setting",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "urban",
+      "value": 10
+     },
+     {
+      "at": "rural",
+      "value": 15
+     },
+     {
+      "at": "staggered",
+      "value": 15
+     }
+    ]
+   },
+   "page": "30"
+  },
+  {
+   "key": "junction.corner_taper.simple_design_vehicle_ratio",
+   "group": "junction",
+   "title": "Corner taper ratio (1 in n) after the corner radius, simple junction with design vehicle",
+   "kind": "table",
+   "unit": "1:n",
+   "document": "CD 123",
+   "clause": "5.6.2",
+   "pdf_page": 31,
+   "condition": "Urban 1:5, rural 1:10, staggered 1:8",
+   "status": "advice",
+   "verb": "should",
+   "table": {
+    "dimension": {
+     "name": "setting",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "urban",
+      "value": 5
+     },
+     {
+      "at": "rural",
+      "value": 10
+     },
+     {
+      "at": "staggered",
+      "value": 8
+     }
+    ]
+   },
+   "page": "30"
+  },
+  {
+   "key": "junction.corner_taper.simple_design_vehicle_length",
+   "group": "junction",
+   "title": "Corner taper length, simple junction with design vehicle",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "5.6.2",
+   "pdf_page": 31,
+   "condition": "Urban 30 m, rural 25 m, staggered 32 m",
+   "status": "advice",
+   "verb": "should",
+   "table": {
+    "dimension": {
+     "name": "setting",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "urban",
+      "value": 30
+     },
+     {
+      "at": "rural",
+      "value": 25
+     },
+     {
+      "at": "staggered",
+      "value": 32
+     }
+    ]
+   },
+   "page": "30"
+  },
+  {
+   "key": "junction.corner_radius.ghost_island_no_tapers",
+   "group": "junction",
+   "title": "Corner radius, ghost island junction without diverge or merge tapers",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 15,
+   "document": "CD 123",
+   "clause": "5.6.3",
+   "pdf_page": 31,
+   "condition": "Ghost island junctions where no diverge or merge tapers are provided; followed by a corner taper 1:6 over 30 m",
+   "status": "advice",
+   "verb": "should",
+   "page": "30"
+  },
+  {
+   "key": "junction.corner_taper.ghost_island_ratio",
+   "group": "junction",
+   "title": "Corner taper ratio (1 in n), ghost island junction",
+   "kind": "scalar",
+   "unit": "1:n",
+   "value": 6,
+   "document": "CD 123",
+   "clause": "5.6.3",
+   "pdf_page": 31,
+   "condition": "Ghost island junctions",
+   "status": "advice",
+   "verb": "should",
+   "page": "30"
+  },
+  {
+   "key": "junction.corner_taper.ghost_island_length",
+   "group": "junction",
+   "title": "Corner taper length, ghost island junction",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 30,
+   "document": "CD 123",
+   "clause": "5.6.3",
+   "pdf_page": 31,
+   "condition": "Ghost island junctions",
+   "status": "advice",
+   "verb": "should",
+   "page": "30"
+  },
+  {
+   "key": "junction.corner_radius.ghost_diverge_end_speed_85",
+   "group": "junction",
+   "title": "Corner radius at end of diverge taper or auxiliary lane, ghost island junction, major road design speed 85 km/h",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 20,
+   "document": "CD 123",
+   "clause": "5.6.4 (2)",
+   "pdf_page": 31,
+   "condition": "Minimum",
+   "status": "advice",
+   "verb": "should (minimum)",
+   "page": "30"
+  },
+  {
+   "key": "junction.corner_radius.ghost_diverge_end_speed_over_85",
+   "group": "junction",
+   "title": "Corner radius at end of diverge taper or auxiliary lane, ghost island junction, major road design speed above 85 km/h",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 40,
+   "document": "CD 123",
+   "clause": "5.6.4 (3)",
+   "pdf_page": 31,
+   "condition": "Minimum",
+   "status": "advice",
+   "verb": "should (minimum)",
+   "page": "30"
+  },
+  {
+   "key": "junction.minor_road.approach_lane_width_at_island_tip",
+   "group": "junction",
+   "title": "Minor road approach lane width at the tip of the hatched marking, where a physical island is provided",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 4.0,
+   "document": "CD 123",
+   "clause": "5.7",
+   "pdf_page": 32,
+   "condition": "Lane widths do not include hard strips",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "31"
+  },
+  {
+   "key": "junction.minor_road.approach_lane_width",
+   "group": "junction",
+   "title": "Minor road approach lane width adjacent to island at its furthest point from the major road",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "5.8",
+   "pdf_page": 32,
+   "condition": "Physical traffic island on the minor road; types: single lane at give way line at simple priority and ghost junctions; single lane at SLD and dual carriageway junctions; approach widens to two lanes at give way line",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "junction_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "simple_or_ghost_single_lane",
+      "value": 4.0
+     },
+     {
+      "at": "sld_or_dual_single_lane",
+      "value": 4.5
+     },
+     {
+      "at": "two_lanes",
+      "value": 5.5
+     }
+    ]
+   },
+   "page": "31"
+  },
+  {
+   "key": "junction.minor_road.exit_lane_width",
+   "group": "junction",
+   "title": "Minor road exit lane width adjacent to island at its furthest point from the major road",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "5.9",
+   "pdf_page": 33,
+   "condition": "Physical traffic island on the minor road",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "junction_type",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "simple",
+      "value": 4.0
+     },
+     {
+      "at": "ghost_island",
+      "value": 4.5
+     },
+     {
+      "at": "sld_or_dual",
+      "value": 5.0
+     }
+    ]
+   },
+   "page": "32"
+  },
+  {
+   "key": "junction.lane_width.curve_inside_lane",
+   "group": "junction",
+   "title": "Lane width on curves of 90 m radius or less, single lane carriageway or inside lane of two lane carriageway",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "Table 5.10 (clauses 5.10, 5.11)",
+   "pdf_page": 34,
+   "condition": "Minimum lane width at curves of radius 90 m or less. Radii between table values: minimum width shall be interpolated (5.11). Hard strips adding 2.5 m should be added for single lane sections over 50 m (5.12.1)",
+   "status": "absolute_minimum",
+   "verb": "shall (minimum lane width)",
+   "table": {
+    "dimension": {
+     "name": "inside_curve_radius_m",
+     "unit": "m"
+    },
+    "lookup": "linear",
+    "monotonic": "decreasing_with_dimension",
+    "rows": [
+     {
+      "at": 10,
+      "value": 8.4
+     },
+     {
+      "at": 15,
+      "value": 7.1
+     },
+     {
+      "at": 20,
+      "value": 6.2
+     },
+     {
+      "at": 25,
+      "value": 5.7
+     },
+     {
+      "at": 30,
+      "value": 5.3
+     },
+     {
+      "at": 40,
+      "value": 4.7
+     },
+     {
+      "at": 50,
+      "value": 4.4
+     },
+     {
+      "at": 75,
+      "value": 4.0
+     },
+     {
+      "at": 90,
+      "value": 3.8
+     }
+    ]
+   },
+   "page": "33"
+  },
+  {
+   "key": "junction.lane_width.curve_outside_lane",
+   "group": "junction",
+   "title": "Lane width on curves of 90 m radius or less, outside lane of two lane carriageway",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "Table 5.10 (clauses 5.10, 5.11)",
+   "pdf_page": 34,
+   "condition": "Minimum lane width at curves of radius 90 m or less, outside lane of a two lane carriageway. Interpolate between values (5.11)",
+   "status": "absolute_minimum",
+   "verb": "shall (minimum lane width)",
+   "table": {
+    "dimension": {
+     "name": "inside_curve_radius_m",
+     "unit": "m"
+    },
+    "lookup": "linear",
+    "monotonic": "decreasing_with_dimension",
+    "rows": [
+     {
+      "at": 10,
+      "value": 6.5
+     },
+     {
+      "at": 15,
+      "value": 6.0
+     },
+     {
+      "at": 20,
+      "value": 5.6
+     },
+     {
+      "at": 25,
+      "value": 5.2
+     },
+     {
+      "at": 30,
+      "value": 5.0
+     },
+     {
+      "at": 40,
+      "value": 4.6
+     },
+     {
+      "at": 50,
+      "value": 4.3
+     },
+     {
+      "at": 75,
+      "value": 4.0
+     },
+     {
+      "at": 90,
+      "value": 3.8
+     }
+    ]
+   },
+   "page": "33"
+  },
+  {
+   "key": "junction.island.min_area",
+   "group": "junction",
+   "title": "Minimum area of a physical traffic island on the minor road",
+   "kind": "scalar",
+   "unit": "m2",
+   "value": 4.5,
+   "document": "CD 123",
+   "clause": "5.13",
+   "pdf_page": 34,
+   "condition": "Smaller islands should be defined by road markings",
+   "status": "requirement",
+   "verb": "shall (at least)",
+   "page": "33"
+  },
+  {
+   "key": "junction.island.minor_road_setback",
+   "group": "junction",
+   "title": "Minimum setback of minor road traffic islands from the edge of running carriageway",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 1.0,
+   "document": "CD 123",
+   "clause": "5.16",
+   "pdf_page": 35,
+   "condition": "Or in line with the back of the major road hard strip if that is 1 m wide or more",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "34"
+  },
+  {
+   "key": "junction.minor_road.approach_gradient_standard",
+   "group": "junction",
+   "title": "Maximum gradient of minor road approach, over 15 m from the major road carriageway edge",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 2,
+   "document": "CD 123",
+   "clause": "5.3, 5.3.1",
+   "pdf_page": 30,
+   "condition": "Option 1) of clause 5.3; option 2) is 4 %",
+   "status": "advice",
+   "verb": "should",
+   "page": "29"
+  },
+  {
+   "key": "junction.minor_road.approach_gradient_limit",
+   "group": "junction",
+   "title": "Maximum gradient of minor road approach, permitted alternative",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 4,
+   "document": "CD 123",
+   "clause": "5.3 (2), 5.3.2",
+   "pdf_page": 30,
+   "condition": "Option 2); where option 1) is not feasible the gradient should be as close to 2 % as practicable",
+   "status": "requirement",
+   "verb": "shall satisfy one of 2 % or 4 %",
+   "page": "29"
+  },
+  {
+   "key": "junction.minor_road.approach_angle_standard",
+   "group": "junction",
+   "title": "Angle of minor road approach at new priority junctions",
+   "kind": "scalar",
+   "unit": "deg",
+   "value": 90,
+   "document": "CD 123",
+   "clause": "5.4, 5.4.1",
+   "pdf_page": 30,
+   "condition": "Measured over 15 m from the edge of the major road carriageway",
+   "status": "advice",
+   "verb": "should",
+   "page": "29"
+  },
+  {
+   "key": "junction.minor_road.approach_angle_min",
+   "group": "junction",
+   "title": "Minimum angle of minor road approach at new priority junctions",
+   "kind": "scalar",
+   "unit": "deg",
+   "value": 70,
+   "document": "CD 123",
+   "clause": "5.4 (2), 5.4.2",
+   "pdf_page": 30,
+   "condition": "Measured over 15 m from the edge of the major road carriageway",
+   "status": "absolute_minimum",
+   "verb": "shall satisfy one of 90 or a minimum of 70 degrees",
+   "page": "29"
+  },
+  {
+   "key": "junction.taper.diverge_width_at_corner",
+   "group": "junction",
+   "title": "Width at start of corner radii into the minor road, nearside diverging taper",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 3.5,
+   "document": "CD 123",
+   "clause": "5.19",
+   "pdf_page": 36,
+   "condition": "Nearside diverging tapers formed by an increase in width",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "35"
+  },
+  {
+   "key": "junction.taper.merge_width_at_corner",
+   "group": "junction",
+   "title": "Width at end of corner radii out of the minor road, nearside merging taper",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 3.5,
+   "document": "CD 123",
+   "clause": "5.25",
+   "pdf_page": 37,
+   "condition": "Merging tapers formed by a decrease in width from this value",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "36"
+  },
+  {
+   "key": "junction.diverge.length_up_0_4",
+   "group": "junction",
+   "title": "Diverge taper or auxiliary lane deceleration length, 'up' gradient 0 to 4 %",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "Table 5.22 (clause 5.22)",
+   "pdf_page": 37,
+   "condition": "Major road design speed; length measured from the beginning of the taper to the give way line; gradient is the average for a 500 m length before the minor road. Minimum length",
+   "status": "requirement",
+   "verb": "shall (minimum length)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 25
+     },
+     {
+      "at": 60,
+      "value": 25
+     },
+     {
+      "at": 70,
+      "value": 40
+     },
+     {
+      "at": 85,
+      "value": 55
+     },
+     {
+      "at": 100,
+      "value": 80
+     },
+     {
+      "at": 120,
+      "value": 110
+     }
+    ]
+   },
+   "page": "36"
+  },
+  {
+   "key": "junction.diverge.length_up_over_4",
+   "group": "junction",
+   "title": "Diverge taper or auxiliary lane deceleration length, 'up' gradient over 4 %",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "Table 5.22 (clause 5.22)",
+   "pdf_page": 37,
+   "condition": "Major road design speed; length measured from the beginning of the taper to the give way line; gradient is the average for a 500 m length before the minor road. Minimum length",
+   "status": "requirement",
+   "verb": "shall (minimum length)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 25
+     },
+     {
+      "at": 60,
+      "value": 25
+     },
+     {
+      "at": 70,
+      "value": 25
+     },
+     {
+      "at": 85,
+      "value": 40
+     },
+     {
+      "at": 100,
+      "value": 55
+     },
+     {
+      "at": 120,
+      "value": 80
+     }
+    ]
+   },
+   "page": "36"
+  },
+  {
+   "key": "junction.diverge.length_down_0_4",
+   "group": "junction",
+   "title": "Diverge taper or auxiliary lane deceleration length, 'down' gradient 0 to 4 %",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "Table 5.22 (clause 5.22)",
+   "pdf_page": 37,
+   "condition": "Major road design speed; length measured from the beginning of the taper to the give way line; gradient is the average for a 500 m length before the minor road. Minimum length",
+   "status": "requirement",
+   "verb": "shall (minimum length)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 25
+     },
+     {
+      "at": 60,
+      "value": 25
+     },
+     {
+      "at": 70,
+      "value": 40
+     },
+     {
+      "at": 85,
+      "value": 55
+     },
+     {
+      "at": 100,
+      "value": 80
+     },
+     {
+      "at": 120,
+      "value": 110
+     }
+    ]
+   },
+   "page": "36"
+  },
+  {
+   "key": "junction.diverge.length_down_over_4_dual",
+   "group": "junction",
+   "title": "Diverge taper or auxiliary lane deceleration length, 'down' gradient over 4 %, dual carriageways",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "Table 5.22 (clause 5.22)",
+   "pdf_page": 37,
+   "condition": "Major road design speed; length measured from the beginning of the taper to the give way line; gradient is the average for a 500 m length before the minor road. Minimum length",
+   "status": "requirement",
+   "verb": "shall (minimum length)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 25
+     },
+     {
+      "at": 60,
+      "value": 40
+     },
+     {
+      "at": 70,
+      "value": 55
+     },
+     {
+      "at": 85,
+      "value": 80
+     },
+     {
+      "at": 100,
+      "value": 110
+     },
+     {
+      "at": 120,
+      "value": 150
+     }
+    ]
+   },
+   "page": "36"
+  },
+  {
+   "key": "junction.diverge.length_down_over_4_single",
+   "group": "junction",
+   "title": "Diverge taper or auxiliary lane deceleration length, 'down' gradient over 4 %, single carriageway (including ghost islands and SLD)",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "Table 5.22 (clause 5.22)",
+   "pdf_page": 37,
+   "condition": "Major road design speed; length measured from the beginning of the taper to the give way line; gradient is the average for a 500 m length before the minor road. Minimum length",
+   "status": "requirement",
+   "verb": "shall (minimum length)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 25
+     },
+     {
+      "at": 60,
+      "value": 25
+     },
+     {
+      "at": 70,
+      "value": 40
+     },
+     {
+      "at": 85,
+      "value": 55
+     },
+     {
+      "at": 100,
+      "value": 80
+     },
+     {
+      "at": 120,
+      "value": 110
+     }
+    ]
+   },
+   "page": "36"
+  },
+  {
+   "key": "junction.diverge.length_direct_taper",
+   "group": "junction",
+   "title": "Direct taper length",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "Table 5.22 (clause 5.22)",
+   "pdf_page": 37,
+   "condition": "Major road design speed; length measured from the beginning of the taper to the give way line; gradient is the average for a 500 m length before the minor road. Minimum length. Column headed 'Direct taper (metres)'",
+   "status": "requirement",
+   "verb": "shall (minimum length)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 5
+     },
+     {
+      "at": 60,
+      "value": 5
+     },
+     {
+      "at": 70,
+      "value": 15
+     },
+     {
+      "at": 85,
+      "value": 15
+     },
+     {
+      "at": 100,
+      "value": 25
+     },
+     {
+      "at": 120,
+      "value": 30
+     }
+    ]
+   },
+   "page": "36"
+  },
+  {
+   "key": "junction.diverge.aux_lane_min_length_speed_100_or_less",
+   "group": "junction",
+   "title": "Minimum auxiliary lane length for design speeds of 100 km/h or less",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 80,
+   "document": "CD 123",
+   "clause": "5.22.1",
+   "pdf_page": 37,
+   "condition": "And sufficient for the speed change from the major road to the turn into the minor road",
+   "status": "advice",
+   "verb": "should",
+   "page": "36"
+  },
+  {
+   "key": "junction.merge.length_minor_not_through",
+   "group": "junction",
+   "title": "Merging taper length, minor road not a through route",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "Table 5.26 (clause 5.26)",
+   "pdf_page": 38,
+   "condition": "Dual carriageway major road; priority junctions where the minor road is not a through route. Minimum length",
+   "status": "requirement",
+   "verb": "shall (minimum length)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 85,
+      "value": 70
+     },
+     {
+      "at": 100,
+      "value": 90
+     },
+     {
+      "at": 120,
+      "value": 110
+     }
+    ]
+   },
+   "page": "37"
+  },
+  {
+   "key": "junction.merge.length_all_other",
+   "group": "junction",
+   "title": "Merging taper length, all other priority junctions",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 123",
+   "clause": "Table 5.26 (clause 5.26)",
+   "pdf_page": 38,
+   "condition": "Dual carriageway major road; all other priority junctions. Minimum length",
+   "status": "requirement",
+   "verb": "shall (minimum length)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 85,
+      "value": 90
+     },
+     {
+      "at": 100,
+      "value": 110
+     },
+     {
+      "at": 120,
+      "value": 130
+     }
+    ]
+   },
+   "page": "37"
+  },
+  {
+   "key": "junction.merge.nose_length_speed_120",
+   "group": "junction",
+   "title": "Length of nose preceding the merging taper, dual carriageway design speed 120 km/h",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 40,
+   "document": "CD 123",
+   "clause": "5.26.1",
+   "pdf_page": 38,
+   "condition": "Minimum back of nose width 2 m",
+   "status": "advice",
+   "verb": "should",
+   "page": "37"
+  },
+  {
+   "key": "junction.island_taper.single_carriageway",
+   "group": "junction",
+   "title": "Central island taper (1 in n), ghost island and SLD, single carriageway",
+   "kind": "table",
+   "unit": "1:n",
+   "document": "CD 123",
+   "clause": "Table 6.1.1 (clause 6.1.1)",
+   "pdf_page": 39,
+   "condition": "Table shows '-' at 120 km/h so no value is stored for 120",
+   "status": "advice",
+   "verb": "should",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 20
+     },
+     {
+      "at": 60,
+      "value": 20
+     },
+     {
+      "at": 70,
+      "value": 20
+     },
+     {
+      "at": 85,
+      "value": 25
+     },
+     {
+      "at": 100,
+      "value": 30
+     }
+    ]
+   },
+   "page": "38"
+  },
+  {
+   "key": "junction.island_taper.dual_carriageway",
+   "group": "junction",
+   "title": "Central island taper (1 in n), dual carriageway",
+   "kind": "table",
+   "unit": "1:n",
+   "document": "CD 123",
+   "clause": "Table 6.1.4 (clause 6.1.4)",
+   "pdf_page": 39,
+   "condition": "Central treatments developed to maximum width",
+   "status": "advice",
+   "verb": "should",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 50,
+      "value": 40
+     },
+     {
+      "at": 60,
+      "value": 40
+     },
+     {
+      "at": 70,
+      "value": 40
+     },
+     {
+      "at": 85,
+      "value": 45
+     },
+     {
+      "at": 100,
+      "value": 50
+     },
+     {
+      "at": 120,
+      "value": 55
+     }
+    ]
+   },
+   "page": "38"
+  },
+  {
+   "key": "roundabout.icd.min",
+   "group": "roundabout",
+   "title": "Inscribed circle diameter (ICD), minimum",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 28,
+   "document": "CD 116",
+   "clause": "3.5",
+   "pdf_page": 31,
+   "condition": "Normal or compact roundabout; smallest roundabout that can accommodate the swept path of the design vehicle",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "30"
+  },
+  {
+   "key": "roundabout.icd.compact_max",
+   "group": "roundabout",
+   "title": "Inscribed circle diameter (ICD), compact roundabout, upper limit",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 36,
+   "document": "CD 116",
+   "clause": "3.5.1",
+   "pdf_page": 31,
+   "condition": "Compact roundabout",
+   "status": "advice",
+   "verb": "should not exceed",
+   "page": "30"
+  },
+  {
+   "key": "roundabout.icd.normal_max",
+   "group": "roundabout",
+   "title": "Inscribed circle diameter (ICD), normal roundabout, upper limit",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 100,
+   "document": "CD 116",
+   "clause": "3.5.2",
+   "pdf_page": 31,
+   "condition": "Normal roundabout; large ICD can lead to excessive circulatory speeds",
+   "status": "advice",
+   "verb": "should not exceed",
+   "page": "30"
+  },
+  {
+   "key": "roundabout.circulatory_width.min_factor",
+   "group": "roundabout",
+   "title": "Circulatory carriageway width, lower factor on maximum entry width",
+   "kind": "scalar",
+   "unit": "ratio",
+   "value": 1.0,
+   "document": "CD 116",
+   "clause": "3.6",
+   "pdf_page": 31,
+   "condition": "Normal or compact roundabout; width between 1.0 and 1.2 times the maximum entry width, excluding any overrun area",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "30"
+  },
+  {
+   "key": "roundabout.circulatory_width.max_factor",
+   "group": "roundabout",
+   "title": "Circulatory carriageway width, upper factor on maximum entry width",
+   "kind": "scalar",
+   "unit": "ratio",
+   "value": 1.2,
+   "document": "CD 116",
+   "clause": "3.6",
+   "pdf_page": 31,
+   "condition": "Normal or compact roundabout; width between 1.0 and 1.2 times the maximum entry width, excluding any overrun area",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "30"
+  },
+  {
+   "key": "roundabout.central_island.min_diameter",
+   "group": "roundabout",
+   "title": "Central island diameter, minimum",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 4,
+   "document": "CD 116",
+   "clause": "3.7",
+   "pdf_page": 35,
+   "condition": "Normal or compact roundabout",
+   "status": "requirement",
+   "verb": "shall (at least)",
+   "page": "34"
+  },
+  {
+   "key": "roundabout.entry_width.max_single_carriageway",
+   "group": "roundabout",
+   "title": "Entry width, maximum, single carriageway approach to a normal roundabout",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 10.5,
+   "document": "CD 116",
+   "clause": "3.12",
+   "pdf_page": 40,
+   "condition": "Normal roundabout, single carriageway approach",
+   "status": "requirement",
+   "verb": "shall not exceed",
+   "page": "39"
+  },
+  {
+   "key": "roundabout.entry_width.max_dual_carriageway",
+   "group": "roundabout",
+   "title": "Entry width, maximum, dual carriageway approach to a normal roundabout",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 15,
+   "document": "CD 116",
+   "clause": "3.13",
+   "pdf_page": 40,
+   "condition": "Normal roundabout, dual carriageway approach",
+   "status": "requirement",
+   "verb": "shall not exceed",
+   "page": "39"
+  },
+  {
+   "key": "roundabout.entry_lane_width.min",
+   "group": "roundabout",
+   "title": "Lane width at the give way line, minimum",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 3,
+   "document": "CD 116",
+   "clause": "3.14",
+   "pdf_page": 40,
+   "condition": "Normal or compact roundabout",
+   "status": "requirement",
+   "verb": "shall be no less than",
+   "page": "39"
+  },
+  {
+   "key": "roundabout.entry_lane_width.max",
+   "group": "roundabout",
+   "title": "Lane width at the give way line, maximum",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 4.5,
+   "document": "CD 116",
+   "clause": "3.14",
+   "pdf_page": 40,
+   "condition": "Normal or compact roundabout",
+   "status": "requirement",
+   "verb": "shall be no greater than",
+   "page": "39"
+  },
+  {
+   "key": "roundabout.entry_lane_width.single_lane_entry",
+   "group": "roundabout",
+   "title": "Lane width at the give way line, single lane entries",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 4.5,
+   "document": "CD 116",
+   "clause": "3.14.1",
+   "pdf_page": 40,
+   "condition": "Single lane entries",
+   "status": "advice",
+   "verb": "should",
+   "page": "39"
+  },
+  {
+   "key": "roundabout.entry_lane_width.multi_lane_entry_min",
+   "group": "roundabout",
+   "title": "Lane width at the give way line, multi-lane entries, lower value",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 3.0,
+   "document": "CD 116",
+   "clause": "3.14.2",
+   "pdf_page": 40,
+   "condition": "Multi-lane entries; between 3 m and 3.5 m",
+   "status": "advice",
+   "verb": "should",
+   "page": "39"
+  },
+  {
+   "key": "roundabout.entry_lane_width.multi_lane_entry_max",
+   "group": "roundabout",
+   "title": "Lane width at the give way line, multi-lane entries, upper value",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 3.5,
+   "document": "CD 116",
+   "clause": "3.14.2",
+   "pdf_page": 40,
+   "condition": "Multi-lane entries; between 3 m and 3.5 m",
+   "status": "advice",
+   "verb": "should",
+   "page": "39"
+  },
+  {
+   "key": "roundabout.entry_angle.min",
+   "group": "roundabout",
+   "title": "Entry angle, minimum",
+   "kind": "scalar",
+   "unit": "deg",
+   "value": 20,
+   "document": "CD 116",
+   "clause": "3.18.1",
+   "pdf_page": 46,
+   "condition": "Normal and compact roundabouts, measured as the conflict angle (3.18)",
+   "status": "advice",
+   "verb": "should be no less than",
+   "page": "45"
+  },
+  {
+   "key": "roundabout.entry_angle.max",
+   "group": "roundabout",
+   "title": "Entry angle, maximum",
+   "kind": "scalar",
+   "unit": "deg",
+   "value": 60,
+   "document": "CD 116",
+   "clause": "3.18.1",
+   "pdf_page": 46,
+   "condition": "Normal and compact roundabouts, measured as the conflict angle (3.18)",
+   "status": "advice",
+   "verb": "should be no greater than",
+   "page": "45"
+  },
+  {
+   "key": "roundabout.entry_kerb_radius.min",
+   "group": "roundabout",
+   "title": "Entry kerb radius, minimum",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 10,
+   "document": "CD 116",
+   "clause": "3.19.1",
+   "pdf_page": 50,
+   "condition": "Radius of the best fit circular curve over 25 m within a 35 m zone",
+   "status": "advice",
+   "verb": "should not be less than",
+   "page": "49"
+  },
+  {
+   "key": "roundabout.entry_kerb_radius.max",
+   "group": "roundabout",
+   "title": "Entry kerb radius, maximum",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 100,
+   "document": "CD 116",
+   "clause": "3.19.2",
+   "pdf_page": 50,
+   "condition": "Larger values tend to give inadequate entry deflection",
+   "status": "advice",
+   "verb": "should not be greater than",
+   "page": "49"
+  },
+  {
+   "key": "roundabout.entry_kerb_radius.hgv_min",
+   "group": "roundabout",
+   "title": "Entry kerb radius, minimum where the approach is regularly used by HGVs",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 20,
+   "document": "CD 116",
+   "clause": "3.19.3",
+   "pdf_page": 50,
+   "condition": "Except at compact roundabouts",
+   "status": "advice",
+   "verb": "should not be less than",
+   "page": "49"
+  },
+  {
+   "key": "roundabout.entry_path_radius.max_normal",
+   "group": "roundabout",
+   "title": "Entry path radius, maximum, normal roundabout",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 100,
+   "document": "CD 116",
+   "clause": "3.26",
+   "pdf_page": 56,
+   "condition": "Normal roundabout",
+   "status": "requirement",
+   "verb": "shall not exceed",
+   "page": "55"
+  },
+  {
+   "key": "roundabout.entry_path_radius.max_compact_urban",
+   "group": "roundabout",
+   "title": "Entry path radius, maximum, compact roundabout in an urban area",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 70,
+   "document": "CD 116",
+   "clause": "3.24",
+   "pdf_page": 56,
+   "condition": "Compact roundabout, speed limit 40 mph or less within 100 m of the give way line on any approach",
+   "status": "requirement",
+   "verb": "shall not exceed",
+   "page": "55"
+  },
+  {
+   "key": "roundabout.entry_path_radius.max_compact_high_speed",
+   "group": "roundabout",
+   "title": "Entry path radius, maximum, compact roundabout with a high speed approach",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 100,
+   "document": "CD 116",
+   "clause": "3.25",
+   "pdf_page": 56,
+   "condition": "Compact roundabout, speed limit 50 mph or greater within 100 m of the give way line on any approach",
+   "status": "requirement",
+   "verb": "shall not exceed",
+   "page": "55"
+  },
+  {
+   "key": "roundabout.exit_kerb_radius.normal",
+   "group": "roundabout",
+   "title": "Exit kerb radius, normal roundabout",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 40,
+   "document": "CD 116",
+   "clause": "3.29.2",
+   "pdf_page": 62,
+   "condition": "Normal roundabouts; should also exceed the largest entry radius (3.29.1)",
+   "status": "advice",
+   "verb": "should",
+   "page": "61"
+  },
+  {
+   "key": "roundabout.turning_width.r1",
+   "group": "roundabout",
+   "title": "Turning widths required: R1",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 116",
+   "clause": "Table 3.8 (clause 3.8)",
+   "pdf_page": 36,
+   "condition": "Compact or smaller normal roundabout. Design vehicle: articulated vehicle with a single rear trailer axle, 15.5 m long. R1 and R2 are radii shown on Figure 3.8.1N1; the value is looked up by central island diameter",
+   "status": "requirement",
+   "verb": "shall provide space in accordance with Table 3.8",
+   "table": {
+    "dimension": {
+     "name": "central_island_diameter_m",
+     "unit": "m"
+    },
+    "lookup": "linear",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 4.0,
+      "value": 3.0
+     },
+     {
+      "at": 6.0,
+      "value": 4.0
+     },
+     {
+      "at": 8.0,
+      "value": 5.0
+     },
+     {
+      "at": 10.0,
+      "value": 6.0
+     },
+     {
+      "at": 12.0,
+      "value": 7.0
+     },
+     {
+      "at": 14.0,
+      "value": 8.0
+     },
+     {
+      "at": 16.0,
+      "value": 9.0
+     },
+     {
+      "at": 18.0,
+      "value": 10.0
+     }
+    ]
+   },
+   "page": "35"
+  },
+  {
+   "key": "roundabout.turning_width.r2",
+   "group": "roundabout",
+   "title": "Turning widths required: R2",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 116",
+   "clause": "Table 3.8 (clause 3.8)",
+   "pdf_page": 36,
+   "condition": "Compact or smaller normal roundabout. Design vehicle: articulated vehicle with a single rear trailer axle, 15.5 m long. R1 and R2 are radii shown on Figure 3.8.1N1; the value is looked up by central island diameter",
+   "status": "requirement",
+   "verb": "shall provide space in accordance with Table 3.8",
+   "table": {
+    "dimension": {
+     "name": "central_island_diameter_m",
+     "unit": "m"
+    },
+    "lookup": "linear",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 4.0,
+      "value": 13.0
+     },
+     {
+      "at": 6.0,
+      "value": 13.4
+     },
+     {
+      "at": 8.0,
+      "value": 13.9
+     },
+     {
+      "at": 10.0,
+      "value": 14.4
+     },
+     {
+      "at": 12.0,
+      "value": 15.0
+     },
+     {
+      "at": 14.0,
+      "value": 15.6
+     },
+     {
+      "at": 16.0,
+      "value": 16.3
+     },
+     {
+      "at": 18.0,
+      "value": 17.0
+     }
+    ]
+   },
+   "page": "35"
+  },
+  {
+   "key": "roundabout.turning_width.min_icd",
+   "group": "roundabout",
+   "title": "Turning widths required: minimum ICD",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 116",
+   "clause": "Table 3.8 (clause 3.8)",
+   "pdf_page": 36,
+   "condition": "Compact or smaller normal roundabout. Design vehicle: articulated vehicle with a single rear trailer axle, 15.5 m long. R1 and R2 are radii shown on Figure 3.8.1N1; the value is looked up by central island diameter",
+   "status": "requirement",
+   "verb": "shall provide space in accordance with Table 3.8",
+   "table": {
+    "dimension": {
+     "name": "central_island_diameter_m",
+     "unit": "m"
+    },
+    "lookup": "linear",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 4.0,
+      "value": 28.0
+     },
+     {
+      "at": 6.0,
+      "value": 28.8
+     },
+     {
+      "at": 8.0,
+      "value": 29.8
+     },
+     {
+      "at": 10.0,
+      "value": 30.8
+     },
+     {
+      "at": 12.0,
+      "value": 32.0
+     },
+     {
+      "at": 14.0,
+      "value": 33.2
+     },
+     {
+      "at": 16.0,
+      "value": 34.6
+     },
+     {
+      "at": 18.0,
+      "value": 36.0
+     }
+    ]
+   },
+   "page": "35"
+  },
+  {
+   "key": "roundabout.visibility.circulatory_distance",
+   "group": "roundabout",
+   "title": "Visibility distance along the centre of the circulatory carriageway ('a')",
+   "kind": "table",
+   "unit": "m",
+   "document": "CD 116",
+   "clause": "Table 3.49 (clause 3.49)",
+   "pdf_page": 81,
+   "condition": "Non-signal-controlled and part-time signal-controlled roundabouts; objects 0.26 m to 2 m high, seen from the centre of the nearside lane 15 m back from the give way line. ICD below 40 m: whole junction (no distance stored)",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "icd_band",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "40-60",
+      "value": 40
+     },
+     {
+      "at": "gt60-100",
+      "value": 50
+     },
+     {
+      "at": "gt100",
+      "value": 70
+     }
+    ]
+   },
+   "page": "80"
+  },
+  {
+   "key": "drainage.storm.no_surcharge_return_period",
+   "group": "drainage",
+   "title": "Design storm return period, no surcharge of the drainage system",
+   "kind": "scalar",
+   "unit": "years",
+   "value": 1,
+   "document": "CG 501",
+   "clause": "5.1 (1)",
+   "pdf_page": 29,
+   "condition": "All road runoff within drainage systems; 1 in 1 year, no surcharge",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "28"
+  },
+  {
+   "key": "drainage.storm.no_flooding_return_period",
+   "group": "drainage",
+   "title": "Design storm return period, no flooding from the drainage system",
+   "kind": "scalar",
+   "unit": "years",
+   "value": 5,
+   "document": "CG 501",
+   "clause": "5.1 (2)",
+   "pdf_page": 29,
+   "condition": "All road runoff within drainage systems; 1 in 5 year, no flooding",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "28"
+  },
+  {
+   "key": "drainage.storm.no_flooding_beyond_boundary_return_period",
+   "group": "drainage",
+   "title": "Rainfall event for which highway surface water flooding must not extend beyond the highway boundary",
+   "kind": "scalar",
+   "unit": "years",
+   "value": 100,
+   "document": "CG 501",
+   "clause": "5.3",
+   "pdf_page": 29,
+   "condition": "All drainage systems, including an allowance for climate change",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "28"
+  },
+  {
+   "key": "drainage.surcharge.verge_width_hard_shoulder",
+   "group": "drainage",
+   "title": "Surcharge width limit for 1 in 5 year storms, verge channel with hard shoulder",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 1.5,
+   "document": "CG 501",
+   "clause": "Table 5.2",
+   "pdf_page": 29,
+   "condition": "Verges: surcharge for storms up to 1 in 5 year limited to this width",
+   "status": "requirement",
+   "verb": "shall (clause 5.2)",
+   "page": "28"
+  },
+  {
+   "key": "drainage.surcharge.verge_width_hard_strip",
+   "group": "drainage",
+   "title": "Surcharge width limit for 1 in 5 year storms, verge channel with hard strip",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 1.0,
+   "document": "CG 501",
+   "clause": "Table 5.2",
+   "pdf_page": 29,
+   "condition": "Verges: surcharge for storms up to 1 in 5 year limited to this width",
+   "status": "requirement",
+   "verb": "shall (clause 5.2)",
+   "page": "28"
+  },
+  {
+   "key": "drainage.climate_change.default_uplift",
+   "group": "drainage",
+   "title": "Climate change uplift to peak rainfall intensity, default",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 20,
+   "document": "CG 501",
+   "clause": "4.2",
+   "pdf_page": 28,
+   "condition": "Applies only where the relevant national application annex states no allowance. England NAA (ENAA E/1.1) instead requires the Environment Agency 'central' allowance (3.3 % AEP, 2070s epoch) for drained areas up to 5 km2, so no fixed England percentage exists",
+   "status": "requirement",
+   "verb": "shall",
+   "national_annex": "England: not applicable; CG 501 ENAA v1.0.0 E/1.1 to E/1.4 use Environment Agency allowances (CCA(E)).",
+   "page": "27"
+  },
+  {
+   "key": "drainage.climate_change.sensitivity_uplift",
+   "group": "drainage",
+   "title": "Climate change sensitivity test uplift to peak rainfall intensity",
+   "kind": "scalar",
+   "unit": "%",
+   "value": 40,
+   "document": "CG 501",
+   "clause": "4.3",
+   "pdf_page": 28,
+   "condition": "Applies only where the relevant national application annex states no allowance; England NAA E/1.2 uses the Environment Agency 'upper end' allowance instead",
+   "status": "requirement",
+   "verb": "shall",
+   "national_annex": "England: not applicable; see ENAA E/1.2.",
+   "page": "27"
+  },
+  {
+   "key": "drainage.design_life",
+   "group": "drainage",
+   "title": "Minimum design life of new carriageway drainage",
+   "kind": "scalar",
+   "unit": "years",
+   "value": 60,
+   "document": "CG 501",
+   "clause": "4.6",
+   "pdf_page": 28,
+   "condition": "Unless otherwise instructed by the Overseeing Organisation",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "27"
+  },
+  {
+   "key": "drainage.natural_catchment.return_period",
+   "group": "drainage",
+   "title": "Storm return period for flow from natural catchments",
+   "kind": "scalar",
+   "unit": "years",
+   "value": 100,
+   "document": "CD 522",
+   "clause": "5.1",
+   "pdf_page": 16,
+   "condition": "Flow rates from natural catchments, with the relevant climate change allowance",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "15"
+  },
+  {
+   "key": "drainage.natural_catchment.ih124_max_area",
+   "group": "drainage",
+   "title": "Largest catchment area for which IH 124 may be used",
+   "kind": "scalar",
+   "unit": "ha",
+   "value": 25,
+   "document": "CD 522",
+   "clause": "5.3",
+   "pdf_page": 16,
+   "condition": "IH 124 only for catchments with surface area less than 25 ha",
+   "status": "requirement",
+   "verb": "shall only be used",
+   "page": "15"
+  },
+  {
+   "key": "drainage.roughness.manning_n_surface_channel",
+   "group": "drainage",
+   "title": "Manning's roughness coefficient n, concrete and asphalt surface water channels",
+   "kind": "table",
+   "unit": "s/m^(1/3)",
+   "document": "CD 521",
+   "clause": "Table 5.18.1 (clause 5.18.1)",
+   "pdf_page": 50,
+   "condition": "Design of concrete or asphalt surface water channels",
+   "status": "advice",
+   "verb": "should",
+   "table": {
+    "dimension": {
+     "name": "channel_condition",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "concrete_average",
+      "value": 0.013
+     },
+     {
+      "at": "concrete_poor",
+      "value": 0.016
+     },
+     {
+      "at": "asphalt_average",
+      "value": 0.017
+     },
+     {
+      "at": "asphalt_poor",
+      "value": 0.021
+     }
+    ]
+   },
+   "page": "49"
+  },
+  {
+   "key": "drainage.roughness.manning_n_slipformed_pipe",
+   "group": "drainage",
+   "title": "Manning's roughness coefficient n_ip, slipformed concrete internal pipes of combined channel and pipe systems",
+   "kind": "table",
+   "unit": "s/m^(1/3)",
+   "document": "CD 521",
+   "clause": "Table 5.71 (clause 5.71)",
+   "pdf_page": 66,
+   "condition": "Smooth-bore pipes formed by the slip-forming process. 'Average' assumes ks = 0.6 mm plus 0.0025 for entry losses; 'poor' ks = 1.5 mm with sediment 5 % of diameter",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "condition",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "average",
+      "value": 0.014
+     },
+     {
+      "at": "poor",
+      "value": 0.016
+     }
+    ]
+   },
+   "page": "65"
+  },
+  {
+   "key": "drainage.velocity.min_internal_pipe",
+   "group": "drainage",
+   "title": "Minimum pipe-full velocity for self-cleansing flows, internal pipe at downstream end of a drainage length",
+   "kind": "table",
+   "unit": "m/s",
+   "document": "CD 521",
+   "clause": "Table 5.74 (clause 5.74)",
+   "pdf_page": 67,
+   "condition": "Internal pipe of a combined surface water channel and pipe system. Note 1: interpolation can be used for intermediate sizes",
+   "status": "requirement",
+   "verb": "shall (not less than)",
+   "table": {
+    "dimension": {
+     "name": "pipe_diameter_mm",
+     "unit": "mm"
+    },
+    "lookup": "linear",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 200,
+      "value": 0.71
+     },
+     {
+      "at": 250,
+      "value": 0.73
+     },
+     {
+      "at": 300,
+      "value": 0.79
+     },
+     {
+      "at": 350,
+      "value": 0.84
+     },
+     {
+      "at": 400,
+      "value": 0.89
+     },
+     {
+      "at": 450,
+      "value": 0.97
+     },
+     {
+      "at": 500,
+      "value": 1.05
+     }
+    ]
+   },
+   "page": "66"
+  },
+  {
+   "key": "drainage.chamber.in_line_outlet_min_internal_diameter",
+   "group": "drainage",
+   "title": "Minimum internal diameter of in-line outlet chambers",
+   "kind": "scalar",
+   "unit": "mm",
+   "value": 1050,
+   "document": "CD 521",
+   "clause": "3.31",
+   "pdf_page": 27,
+   "condition": "In-line outlet chambers of surface water channel systems",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "26"
+  },
+  {
+   "key": "drainage.roughness.kc_carrier_drain",
+   "group": "drainage",
+   "title": "Pipe roughness kc for design of new carrier drains (Colebrook-White)",
+   "kind": "scalar",
+   "unit": "mm",
+   "value": 0.6,
+   "document": "CD 523",
+   "clause": "3.2",
+   "pdf_page": 16,
+   "condition": "New pipework, carrier drains",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "15"
+  },
+  {
+   "key": "drainage.roughness.kc_combined_drain",
+   "group": "drainage",
+   "title": "Pipe roughness kc for design of new combined surface and sub-surface drains (Colebrook-White)",
+   "kind": "scalar",
+   "unit": "mm",
+   "value": 1.5,
+   "document": "CD 523",
+   "clause": "3.2",
+   "pdf_page": 16,
+   "condition": "New pipework, combined surface and sub-surface drains",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "15"
+  },
+  {
+   "key": "drainage.culvert.min_diameter",
+   "group": "drainage",
+   "title": "Culvert minimum diameter",
+   "kind": "scalar",
+   "unit": "mm",
+   "value": 450,
+   "document": "CD 529",
+   "clause": "3.5.1",
+   "pdf_page": 9,
+   "condition": "Smaller sizes are prone to blockage",
+   "status": "advice",
+   "verb": "should",
+   "page": "8"
+  },
+  {
+   "key": "drainage.culvert.min_diameter_over_12m_circular",
+   "group": "drainage",
+   "title": "Minimum diameter of a circular culvert longer than 12 m",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 1.2,
+   "document": "CD 529",
+   "clause": "3.4",
+   "pdf_page": 9,
+   "condition": "To facilitate access for maintenance",
+   "status": "requirement",
+   "verb": "shall be at least",
+   "page": "8"
+  },
+  {
+   "key": "drainage.culvert.min_span_height_over_12m_box",
+   "group": "drainage",
+   "title": "Minimum span and height of a box culvert longer than 12 m",
+   "kind": "scalar",
+   "unit": "m",
+   "value": 1.2,
+   "document": "CD 529",
+   "clause": "3.5",
+   "pdf_page": 9,
+   "condition": "Both span and height; to facilitate access for maintenance",
+   "status": "requirement",
+   "verb": "shall",
+   "page": "8"
+  },
+  {
+   "key": "drainage.culvert.invert_below_drain_bed",
+   "group": "drainage",
+   "title": "Culvert invert depth below the bed of the drain",
+   "kind": "scalar",
+   "unit": "mm",
+   "value": 75,
+   "document": "CD 529",
+   "clause": "3.10",
+   "pdf_page": 9,
+   "condition": "Culvert conveying a highway drain that is not a public watercourse; so water does not pond in front of the culvert",
+   "status": "requirement",
+   "verb": "shall be at least",
+   "page": "8"
+  },
+  {
+   "key": "drainage.culvert.structure_threshold",
+   "group": "drainage",
+   "title": "Diameter or clear span above which a culvert or outfall is a structure",
+   "kind": "scalar",
+   "unit": "mm",
+   "value": 900,
+   "document": "CD 529",
+   "clause": "3.3 Notes 1 and 2 (also 1.1 Note 2 on page 6)",
+   "pdf_page": 9,
+   "condition": "Culverts of 900 mm or less are not structures and have a design life of 60 years",
+   "status": "advice",
+   "verb": "defined as structures above this size",
+   "page": "8"
+  },
+  {
+   "key": "drainage.culvert.design_life_900_or_less",
+   "group": "drainage",
+   "title": "Design life of culverts of 900 mm diameter or clear span or less",
+   "kind": "scalar",
+   "unit": "years",
+   "value": 60,
+   "document": "CD 529",
+   "clause": "3.3 Note 1",
+   "pdf_page": 9,
+   "condition": "Culverts of 900 mm or less are not structures",
+   "status": "advice",
+   "verb": "are considered to have",
+   "page": "8"
+  },
+  {
+   "key": "restraint.pedestrian.min_setback",
+   "group": "restraint",
+   "title": "Minimum set-back of a pedestrian restraint system",
+   "kind": "table",
+   "unit": "mm",
+   "document": "CD 377",
+   "clause": "Table 9.4 (clause 9.4)",
+   "pdf_page": 78,
+   "condition": "By speed limit of the road: less than 50 mph; 50 mph; greater than 50 mph. Set-back is the lateral distance from the traffic face to the back of nearside hard strip or hard shoulder, kerb face, or edge line (9.5)",
+   "status": "requirement",
+   "verb": "shall (minimum)",
+   "table": {
+    "dimension": {
+     "name": "speed_limit_band_mph",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "lt50",
+      "value": 450
+     },
+     {
+      "at": "50",
+      "value": 600
+     },
+     {
+      "at": "gt50",
+      "value": 1000
+     }
+    ]
+   },
+   "page": "77"
+  },
+  {
+   "key": "restraint.min_serviceable_life",
+   "group": "restraint",
+   "title": "Minimum serviceable life of road restraint system components",
+   "kind": "table",
+   "unit": "years",
+   "document": "CD 377",
+   "clause": "Table 2.59 (clause 2.59)",
+   "pdf_page": 28,
+   "condition": "Component type as listed in Table 2.59. Keys abbreviate the table row names (for example metal_vehicle_parapet covers 'Metal vehicle parapets and metal components of combined metal and concrete vehicle parapets')",
+   "status": "requirement",
+   "verb": "shall",
+   "table": {
+    "dimension": {
+     "name": "component",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "permanent_metal_safety_barrier_terminal_transition_crash_cushion",
+      "value": 20
+     },
+     {
+      "at": "permanent_concrete_safety_barrier",
+      "value": 50
+     },
+     {
+      "at": "plastic_permanent_safety_barrier",
+      "value": 10
+     },
+     {
+      "at": "plastic_components_multi_material_barrier",
+      "value": 10
+     },
+     {
+      "at": "wooden_components_combined_barrier",
+      "value": 10
+     },
+     {
+      "at": "metal_vehicle_parapet",
+      "value": 30
+     },
+     {
+      "at": "concrete_vehicle_parapet",
+      "value": 120
+     },
+     {
+      "at": "metal_pedestrian_parapet",
+      "value": 30
+     },
+     {
+      "at": "concrete_pedestrian_parapet",
+      "value": 120
+     },
+     {
+      "at": "pedestrian_guardrail",
+      "value": 15
+     },
+     {
+      "at": "temporary_metal_vrs",
+      "value": 20
+     },
+     {
+      "at": "temporary_concrete_vrs",
+      "value": 10
+     },
+     {
+      "at": "temporary_plastic_vrs",
+      "value": 10
+     },
+     {
+      "at": "cattle_grid",
+      "value": 50
+     }
+    ]
+   },
+   "page": "27"
+  },
+  {
+   "key": "earthworks.side_slopes.no_value",
+   "group": "earthworks",
+   "title": "Side slopes: no angle given, left to geotechnical assessment",
+   "kind": "text",
+   "unit": "none",
+   "text": "CD 622 gives no side slope angle or gradient. Appendix D, item D6 (recommended content of the Preliminary Sources Study Report) lists side slopes (short and long term stability) of cuttings and embankments as items of the preliminary engineering assessment for each soil or rock type and location. No numeric default exists in the fetched DMRB documents; side slopes are a geotechnical design output.",
+   "document": "CD 622",
+   "clause": "Appendix D, D6 (2) and (3)",
+   "pdf_page": 38,
+   "condition": "Cuttings and embankments",
+   "status": "advice",
+   "verb": "recommended content (no value)",
+   "page": "37"
+  },
+  {
+   "key": "earthworks.tolerance.no_value",
+   "group": "earthworks",
+   "title": "Earthworks surface finished profile tolerance: no value given, project specific",
+   "kind": "text",
+   "unit": "none",
+   "text": "CC 601 clause 1.10 states that tolerances on the earthworks surface finished profile shall be as stated in CC 601/WSR/001, the works specific requirements document written for each project. No numeric tolerance is tabulated in CC 601 core text. The same section defers layout drawings or models (1.2) and verification (1.11) to the same document.",
+   "document": "CC 601",
+   "clause": "1.10 (also 1.2, 1.11)",
+   "pdf_page": 8,
+   "condition": "Earthworks surface finished profile, all earthworks",
+   "status": "requirement",
+   "verb": "shall be as stated in CC 601/WSR/001 (no value)",
+   "page": "7"
+  },
+  {
+   "key": "drainage.velocity.min_urban_design",
+   "group": "drainage",
+   "title": "Minimum self-cleansing velocity, Urban, design conditions, roughness k0 = 0.6 mm",
+   "kind": "table",
+   "unit": "m/s",
+   "document": "CD 523",
+   "clause": "Table 4.1.1N4a (clause 4.1.1, Note 4)",
+   "pdf_page": 18,
+   "condition": "Urban, design conditions, roughness k0 = 0.6 mm. Straight pipe runs; minimum velocity and the associated pipe gradient (1 in n), pipes flowing full (procedure in Appendix A of CD 523)",
+   "status": "advice",
+   "verb": "Note (advice)",
+   "table": {
+    "dimension": {
+     "name": "pipe_diameter_mm",
+     "unit": "mm"
+    },
+    "lookup": "linear",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 150,
+      "value": 0.47
+     },
+     {
+      "at": 200,
+      "value": 0.52
+     },
+     {
+      "at": 225,
+      "value": 0.54
+     },
+     {
+      "at": 250,
+      "value": 0.56
+     },
+     {
+      "at": 275,
+      "value": 0.58
+     },
+     {
+      "at": 300,
+      "value": 0.6
+     },
+     {
+      "at": 350,
+      "value": 0.63
+     },
+     {
+      "at": 375,
+      "value": 0.65
+     },
+     {
+      "at": 400,
+      "value": 0.66
+     },
+     {
+      "at": 450,
+      "value": 0.69
+     },
+     {
+      "at": 500,
+      "value": 0.72
+     },
+     {
+      "at": 525,
+      "value": 0.73
+     },
+     {
+      "at": 600,
+      "value": 0.78
+     },
+     {
+      "at": 675,
+      "value": 0.84
+     },
+     {
+      "at": 700,
+      "value": 0.86
+     },
+     {
+      "at": 750,
+      "value": 0.9
+     },
+     {
+      "at": 800,
+      "value": 0.94
+     },
+     {
+      "at": 825,
+      "value": 0.96
+     },
+     {
+      "at": 900,
+      "value": 1.02
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "drainage.gradient.min_urban_design",
+   "group": "drainage",
+   "title": "Minimum pipe gradient (1 in n) for self-cleansing, Urban, design conditions, roughness k0 = 0.6 mm",
+   "kind": "table",
+   "unit": "1:n",
+   "document": "CD 523",
+   "clause": "Table 4.1.1N4a (clause 4.1.1, Note 4)",
+   "pdf_page": 18,
+   "condition": "Urban, design conditions, roughness k0 = 0.6 mm. Straight pipe runs; minimum velocity and the associated pipe gradient (1 in n), pipes flowing full (procedure in Appendix A of CD 523). Value n means gradient 1 in n",
+   "status": "advice",
+   "verb": "Note (advice)",
+   "table": {
+    "dimension": {
+     "name": "pipe_diameter_mm",
+     "unit": "mm"
+    },
+    "lookup": "linear",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": 150,
+      "value": 304
+     },
+     {
+      "at": 200,
+      "value": 362
+     },
+     {
+      "at": 225,
+      "value": 387
+     },
+     {
+      "at": 250,
+      "value": 411
+     },
+     {
+      "at": 275,
+      "value": 433
+     },
+     {
+      "at": 300,
+      "value": 455
+     },
+     {
+      "at": 350,
+      "value": 496
+     },
+     {
+      "at": 375,
+      "value": 515
+     },
+     {
+      "at": 400,
+      "value": 534
+     },
+     {
+      "at": 450,
+      "value": 570
+     },
+     {
+      "at": 500,
+      "value": 603
+     },
+     {
+      "at": 525,
+      "value": 619
+     },
+     {
+      "at": 600,
+      "value": 640
+     },
+     {
+      "at": 675,
+      "value": 641
+     },
+     {
+      "at": 700,
+      "value": 640
+     },
+     {
+      "at": 750,
+      "value": 638
+     },
+     {
+      "at": 800,
+      "value": 635
+     },
+     {
+      "at": 825,
+      "value": 633
+     },
+     {
+      "at": 900,
+      "value": 625
+     }
+    ]
+   },
+   "page": "17"
+  },
+  {
+   "key": "drainage.velocity.min_rural_design",
+   "group": "drainage",
+   "title": "Minimum self-cleansing velocity, Rural, design conditions, roughness k0 = 0.6 mm",
+   "kind": "table",
+   "unit": "m/s",
+   "document": "CD 523",
+   "clause": "Table 4.1.1N4b (clause 4.1.1, Note 4)",
+   "pdf_page": 19,
+   "condition": "Rural, design conditions, roughness k0 = 0.6 mm. Straight pipe runs; minimum velocity and the associated pipe gradient (1 in n), pipes flowing full (procedure in Appendix A of CD 523)",
+   "status": "advice",
+   "verb": "Note (advice)",
+   "table": {
+    "dimension": {
+     "name": "pipe_diameter_mm",
+     "unit": "mm"
+    },
+    "lookup": "linear",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 150,
+      "value": 0.41
+     },
+     {
+      "at": 200,
+      "value": 0.44
+     },
+     {
+      "at": 225,
+      "value": 0.45
+     },
+     {
+      "at": 250,
+      "value": 0.46
+     },
+     {
+      "at": 275,
+      "value": 0.47
+     },
+     {
+      "at": 300,
+      "value": 0.48
+     },
+     {
+      "at": 350,
+      "value": 0.5
+     },
+     {
+      "at": 375,
+      "value": 0.51
+     },
+     {
+      "at": 400,
+      "value": 0.52
+     },
+     {
+      "at": 450,
+      "value": 0.53
+     },
+     {
+      "at": 500,
+      "value": 0.55
+     },
+     {
+      "at": 525,
+      "value": 0.56
+     },
+     {
+      "at": 600,
+      "value": 0.58
+     },
+     {
+      "at": 675,
+      "value": 0.6
+     },
+     {
+      "at": 700,
+      "value": 0.6
+     },
+     {
+      "at": 750,
+      "value": 0.62
+     },
+     {
+      "at": 800,
+      "value": 0.63
+     },
+     {
+      "at": 825,
+      "value": 0.64
+     },
+     {
+      "at": 900,
+      "value": 0.66
+     }
+    ]
+   },
+   "page": "18"
+  },
+  {
+   "key": "drainage.gradient.min_rural_design",
+   "group": "drainage",
+   "title": "Minimum pipe gradient (1 in n) for self-cleansing, Rural, design conditions, roughness k0 = 0.6 mm",
+   "kind": "table",
+   "unit": "1:n",
+   "document": "CD 523",
+   "clause": "Table 4.1.1N4b (clause 4.1.1, Note 4)",
+   "pdf_page": 19,
+   "condition": "Rural, design conditions, roughness k0 = 0.6 mm. Straight pipe runs; minimum velocity and the associated pipe gradient (1 in n), pipes flowing full (procedure in Appendix A of CD 523). Value n means gradient 1 in n",
+   "status": "advice",
+   "verb": "Note (advice)",
+   "table": {
+    "dimension": {
+     "name": "pipe_diameter_mm",
+     "unit": "mm"
+    },
+    "lookup": "linear",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": 150,
+      "value": 363
+     },
+     {
+      "at": 200,
+      "value": 463
+     },
+     {
+      "at": 225,
+      "value": 511
+     },
+     {
+      "at": 250,
+      "value": 558
+     },
+     {
+      "at": 275,
+      "value": 603
+     },
+     {
+      "at": 300,
+      "value": 646
+     },
+     {
+      "at": 350,
+      "value": 730
+     },
+     {
+      "at": 375,
+      "value": 771
+     },
+     {
+      "at": 400,
+      "value": 810
+     },
+     {
+      "at": 450,
+      "value": 887
+     },
+     {
+      "at": 500,
+      "value": 961
+     },
+     {
+      "at": 525,
+      "value": 997
+     },
+     {
+      "at": 600,
+      "value": 1100
+     },
+     {
+      "at": 675,
+      "value": 1190
+     },
+     {
+      "at": 700,
+      "value": 1212
+     },
+     {
+      "at": 750,
+      "value": 1256
+     },
+     {
+      "at": 800,
+      "value": 1298
+     },
+     {
+      "at": 825,
+      "value": 1319
+     },
+     {
+      "at": 900,
+      "value": 1379
+     }
+    ]
+   },
+   "page": "18"
+  },
+  {
+   "key": "drainage.velocity.min_urban_deteriorated",
+   "group": "drainage",
+   "title": "Minimum self-cleansing velocity, Urban, deteriorated conditions, roughness k0 = 2.1 mm",
+   "kind": "table",
+   "unit": "m/s",
+   "document": "CD 523",
+   "clause": "Table 4.1.1N4c (clause 4.1.1, Note 4)",
+   "pdf_page": 20,
+   "condition": "Urban, deteriorated conditions, roughness k0 = 2.1 mm. Straight pipe runs; minimum velocity and the associated pipe gradient (1 in n), pipes flowing full (procedure in Appendix A of CD 523)",
+   "status": "advice",
+   "verb": "Note (advice)",
+   "table": {
+    "dimension": {
+     "name": "pipe_diameter_mm",
+     "unit": "mm"
+    },
+    "lookup": "linear",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 150,
+      "value": 0.45
+     },
+     {
+      "at": 200,
+      "value": 0.5
+     },
+     {
+      "at": 225,
+      "value": 0.52
+     },
+     {
+      "at": 250,
+      "value": 0.54
+     },
+     {
+      "at": 275,
+      "value": 0.56
+     },
+     {
+      "at": 300,
+      "value": 0.58
+     },
+     {
+      "at": 350,
+      "value": 0.61
+     },
+     {
+      "at": 375,
+      "value": 0.63
+     },
+     {
+      "at": 400,
+      "value": 0.64
+     },
+     {
+      "at": 450,
+      "value": 0.67
+     },
+     {
+      "at": 500,
+      "value": 0.7
+     },
+     {
+      "at": 525,
+      "value": 0.71
+     },
+     {
+      "at": 600,
+      "value": 0.76
+     },
+     {
+      "at": 675,
+      "value": 0.82
+     },
+     {
+      "at": 700,
+      "value": 0.84
+     },
+     {
+      "at": 750,
+      "value": 0.88
+     },
+     {
+      "at": 800,
+      "value": 0.92
+     },
+     {
+      "at": 825,
+      "value": 0.94
+     },
+     {
+      "at": 900,
+      "value": 1.0
+     }
+    ]
+   },
+   "page": "19"
+  },
+  {
+   "key": "drainage.gradient.min_urban_deteriorated",
+   "group": "drainage",
+   "title": "Minimum pipe gradient (1 in n) for self-cleansing, Urban, deteriorated conditions, roughness k0 = 2.1 mm",
+   "kind": "table",
+   "unit": "1:n",
+   "document": "CD 523",
+   "clause": "Table 4.1.1N4c (clause 4.1.1, Note 4)",
+   "pdf_page": 20,
+   "condition": "Urban, deteriorated conditions, roughness k0 = 2.1 mm. Straight pipe runs; minimum velocity and the associated pipe gradient (1 in n), pipes flowing full (procedure in Appendix A of CD 523). Value n means gradient 1 in n",
+   "status": "advice",
+   "verb": "Note (advice)",
+   "table": {
+    "dimension": {
+     "name": "pipe_diameter_mm",
+     "unit": "mm"
+    },
+    "lookup": "linear",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": 150,
+      "value": 256
+     },
+     {
+      "at": 200,
+      "value": 306
+     },
+     {
+      "at": 225,
+      "value": 328
+     },
+     {
+      "at": 250,
+      "value": 349
+     },
+     {
+      "at": 275,
+      "value": 369
+     },
+     {
+      "at": 300,
+      "value": 388
+     },
+     {
+      "at": 350,
+      "value": 424
+     },
+     {
+      "at": 375,
+      "value": 441
+     },
+     {
+      "at": 400,
+      "value": 457
+     },
+     {
+      "at": 450,
+      "value": 488
+     },
+     {
+      "at": 500,
+      "value": 518
+     },
+     {
+      "at": 525,
+      "value": 532
+     },
+     {
+      "at": 600,
+      "value": 550
+     },
+     {
+      "at": 675,
+      "value": 551
+     },
+     {
+      "at": 700,
+      "value": 551
+     },
+     {
+      "at": 750,
+      "value": 549
+     },
+     {
+      "at": 800,
+      "value": 546
+     },
+     {
+      "at": 825,
+      "value": 544
+     },
+     {
+      "at": 900,
+      "value": 537
+     }
+    ]
+   },
+   "page": "19"
+  },
+  {
+   "key": "drainage.velocity.min_rural_deteriorated",
+   "group": "drainage",
+   "title": "Minimum self-cleansing velocity, Rural, deteriorated conditions, roughness k0 = 2.1 mm",
+   "kind": "table",
+   "unit": "m/s",
+   "document": "CD 523",
+   "clause": "Table 4.1.1N4d (clause 4.1.1, Note 4)",
+   "pdf_page": 21,
+   "condition": "Rural, deteriorated conditions, roughness k0 = 2.1 mm. Straight pipe runs; minimum velocity and the associated pipe gradient (1 in n), pipes flowing full (procedure in Appendix A of CD 523)",
+   "status": "advice",
+   "verb": "Note (advice)",
+   "table": {
+    "dimension": {
+     "name": "pipe_diameter_mm",
+     "unit": "mm"
+    },
+    "lookup": "linear",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 150,
+      "value": 0.4
+     },
+     {
+      "at": 200,
+      "value": 0.43
+     },
+     {
+      "at": 225,
+      "value": 0.44
+     },
+     {
+      "at": 250,
+      "value": 0.45
+     },
+     {
+      "at": 275,
+      "value": 0.46
+     },
+     {
+      "at": 300,
+      "value": 0.47
+     },
+     {
+      "at": 350,
+      "value": 0.49
+     },
+     {
+      "at": 375,
+      "value": 0.5
+     },
+     {
+      "at": 400,
+      "value": 0.51
+     },
+     {
+      "at": 450,
+      "value": 0.52
+     },
+     {
+      "at": 500,
+      "value": 0.54
+     },
+     {
+      "at": 525,
+      "value": 0.54
+     },
+     {
+      "at": 600,
+      "value": 0.56
+     },
+     {
+      "at": 675,
+      "value": 0.59
+     },
+     {
+      "at": 700,
+      "value": 0.59
+     },
+     {
+      "at": 750,
+      "value": 0.61
+     },
+     {
+      "at": 800,
+      "value": 0.62
+     },
+     {
+      "at": 825,
+      "value": 0.63
+     },
+     {
+      "at": 900,
+      "value": 0.65
+     }
+    ]
+   },
+   "page": "20"
+  },
+  {
+   "key": "drainage.gradient.min_rural_deteriorated",
+   "group": "drainage",
+   "title": "Minimum pipe gradient (1 in n) for self-cleansing, Rural, deteriorated conditions, roughness k0 = 2.1 mm",
+   "kind": "table",
+   "unit": "1:n",
+   "document": "CD 523",
+   "clause": "Table 4.1.1N4d (clause 4.1.1, Note 4)",
+   "pdf_page": 21,
+   "condition": "Rural, deteriorated conditions, roughness k0 = 2.1 mm. Straight pipe runs; minimum velocity and the associated pipe gradient (1 in n), pipes flowing full (procedure in Appendix A of CD 523). Value n means gradient 1 in n",
+   "status": "advice",
+   "verb": "Note (advice)",
+   "table": {
+    "dimension": {
+     "name": "pipe_diameter_mm",
+     "unit": "mm"
+    },
+    "lookup": "linear",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": 150,
+      "value": 304
+     },
+     {
+      "at": 200,
+      "value": 391
+     },
+     {
+      "at": 225,
+      "value": 433
+     },
+     {
+      "at": 250,
+      "value": 473
+     },
+     {
+      "at": 275,
+      "value": 512
+     },
+     {
+      "at": 300,
+      "value": 550
+     },
+     {
+      "at": 350,
+      "value": 623
+     },
+     {
+      "at": 375,
+      "value": 659
+     },
+     {
+      "at": 400,
+      "value": 694
+     },
+     {
+      "at": 450,
+      "value": 760
+     },
+     {
+      "at": 500,
+      "value": 825
+     },
+     {
+      "at": 525,
+      "value": 856
+     },
+     {
+      "at": 600,
+      "value": 947
+     },
+     {
+      "at": 675,
+      "value": 1025
+     },
+     {
+      "at": 700,
+      "value": 1045
+     },
+     {
+      "at": 750,
+      "value": 1083
+     },
+     {
+      "at": 800,
+      "value": 1120
+     },
+     {
+      "at": 825,
+      "value": 1138
+     },
+     {
+      "at": 900,
+      "value": 1190
+     }
+    ]
+   },
+   "page": "20"
+  },
+  {
+   "key": "drainage.velocity.min_rural_design_d50_2_15",
+   "group": "drainage",
+   "title": "Minimum self-cleansing velocity, Rural, design conditions, d50 = 2.15 mm, roughness k0 = 0.6 mm",
+   "kind": "table",
+   "unit": "m/s",
+   "document": "CD 523",
+   "clause": "Table 4.1.1N5 (clause 4.1.1, Note 4)",
+   "pdf_page": 22,
+   "condition": "Rural, design conditions, d50 = 2.15 mm, roughness k0 = 0.6 mm. Straight pipe runs; minimum velocity and the associated pipe gradient (1 in n), pipes flowing full (procedure in Appendix A of CD 523)",
+   "status": "advice",
+   "verb": "Note (advice)",
+   "table": {
+    "dimension": {
+     "name": "pipe_diameter_mm",
+     "unit": "mm"
+    },
+    "lookup": "linear",
+    "monotonic": "nondecreasing_with_dimension",
+    "rows": [
+     {
+      "at": 150,
+      "value": 0.41
+     },
+     {
+      "at": 200,
+      "value": 0.46
+     },
+     {
+      "at": 225,
+      "value": 0.49
+     },
+     {
+      "at": 250,
+      "value": 0.51
+     },
+     {
+      "at": 275,
+      "value": 0.53
+     },
+     {
+      "at": 300,
+      "value": 0.54
+     },
+     {
+      "at": 350,
+      "value": 0.56
+     },
+     {
+      "at": 375,
+      "value": 0.57
+     },
+     {
+      "at": 400,
+      "value": 0.58
+     },
+     {
+      "at": 450,
+      "value": 0.59
+     },
+     {
+      "at": 500,
+      "value": 0.61
+     },
+     {
+      "at": 525,
+      "value": 0.62
+     },
+     {
+      "at": 600,
+      "value": 0.64
+     },
+     {
+      "at": 675,
+      "value": 0.66
+     },
+     {
+      "at": 700,
+      "value": 0.66
+     },
+     {
+      "at": 750,
+      "value": 0.68
+     },
+     {
+      "at": 800,
+      "value": 0.69
+     },
+     {
+      "at": 825,
+      "value": 0.69
+     },
+     {
+      "at": 900,
+      "value": 0.71
+     }
+    ]
+   },
+   "page": "21"
+  },
+  {
+   "key": "drainage.gradient.min_rural_design_d50_2_15",
+   "group": "drainage",
+   "title": "Minimum pipe gradient (1 in n) for self-cleansing, Rural, design conditions, d50 = 2.15 mm, roughness k0 = 0.6 mm",
+   "kind": "table",
+   "unit": "1:n",
+   "document": "CD 523",
+   "clause": "Table 4.1.1N5 (clause 4.1.1, Note 4)",
+   "pdf_page": 22,
+   "condition": "Rural, design conditions, d50 = 2.15 mm, roughness k0 = 0.6 mm. Straight pipe runs; minimum velocity and the associated pipe gradient (1 in n), pipes flowing full (procedure in Appendix A of CD 523). Value n means gradient 1 in n",
+   "status": "advice",
+   "verb": "Note (advice)",
+   "table": {
+    "dimension": {
+     "name": "pipe_diameter_mm",
+     "unit": "mm"
+    },
+    "lookup": "linear",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": 150,
+      "value": 316
+     },
+     {
+      "at": 200,
+      "value": 363
+     },
+     {
+      "at": 225,
+      "value": 383
+     },
+     {
+      "at": 250,
+      "value": 402
+     },
+     {
+      "at": 275,
+      "value": 429
+     },
+     {
+      "at": 300,
+      "value": 461
+     },
+     {
+      "at": 350,
+      "value": 524
+     },
+     {
+      "at": 375,
+      "value": 554
+     },
+     {
+      "at": 400,
+      "value": 584
+     },
+     {
+      "at": 450,
+      "value": 641
+     },
+     {
+      "at": 500,
+      "value": 696
+     },
+     {
+      "at": 525,
+      "value": 723
+     },
+     {
+      "at": 600,
+      "value": 802
+     },
+     {
+      "at": 675,
+      "value": 876
+     },
+     {
+      "at": 700,
+      "value": 900
+     },
+     {
+      "at": 750,
+      "value": 947
+     },
+     {
+      "at": 800,
+      "value": 993
+     },
+     {
+      "at": 825,
+      "value": 1016
+     },
+     {
+      "at": 900,
+      "value": 1081
+     }
+    ]
+   },
+   "page": "21"
+  }
+ ]
+}
