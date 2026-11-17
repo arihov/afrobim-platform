@@ -85,6 +85,9 @@ pub struct SurveyForm {
     excluded: BTreeSet<String>,
     /// The file as read in `order`, or why it cannot be.
     read: Result<SurveyPoints, String>,
+    /// The descriptions of `read` with their counts, kept so that they are not counted again
+    /// every frame.
+    codes: Vec<(String, usize)>,
     problem: Option<String>,
     /// Keep, transform or cancel, when the file's stated system differs from the project's.
     xform: crate::transform_ui::ImportCrs,
@@ -95,9 +98,10 @@ impl SurveyForm {
         let order = ColumnOrder::Pnezd;
         // The file is taken to be in the project's system unless it is told otherwise.
         let crs = project.as_ref().map(|p| p.code().unwrap_or_else(|| p.name.clone())).unwrap_or_default();
-        SurveyForm {
+        let mut form = SurveyForm {
             name: path.file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
             read: read_survey_points(&path, &SurveyFormat::metres(order)).map_err(|e| e.to_string()),
+            codes: Vec::new(),
             path,
             order,
             unit: 0,
@@ -111,7 +115,9 @@ impl SurveyForm {
             excluded: BTreeSet::new(),
             problem: None,
             xform: crate::transform_ui::ImportCrs::default(),
-        }
+        };
+        form.codes = form.read.as_ref().map(SurveyPoints::codes).unwrap_or_default();
+        form
     }
 
     fn format(&self) -> SurveyFormat {
@@ -120,17 +126,18 @@ impl SurveyForm {
 
     fn read_again(&mut self) {
         self.read = read_survey_points(&self.path, &self.format()).map_err(|e| e.to_string());
+        self.codes = self.read.as_ref().map(SurveyPoints::codes).unwrap_or_default();
         self.problem = None;
     }
 
+    /// The request of the form. The ticked descriptions go in as they are, one entry each: a
+    /// description may hold a comma (a tab-delimited file allows it), and the entry with nothing
+    /// in it stands for the points with no description. The typed patterns are separated by commas.
     fn request(&self) -> Result<SurveyImportRequest, String> {
-        let mut exclude: Vec<&str> = self.excluded.iter().map(String::as_str).collect();
-        exclude.extend(self.patterns.split(',').map(str::trim).filter(|p| !p.is_empty()));
-        let mut r = request_in(&self.name, self.format(), &self.crs, &self.max_side, &exclude.join(","))?;
-        // A description may itself hold a comma-free blank entry: the points with none.
-        if self.excluded.contains("") {
-            r.options.exclude.push(String::new());
-        }
+        let mut r = request_in(&self.name, self.format(), &self.crs, &self.max_side, &self.patterns)?;
+        let mut exclude: Vec<String> = self.excluded.iter().cloned().collect();
+        exclude.append(&mut r.options.exclude);
+        r.options.exclude = exclude;
         Ok(r)
     }
 }
@@ -350,8 +357,8 @@ fn survey_body(ui: &mut egui::Ui, form: &mut SurveyForm) {
             });
         });
     });
-    if let Ok(survey) = &form.read {
-        let codes = survey.codes();
+    if form.read.is_ok() {
+        let codes = form.codes.clone();
         ui_kit::section(ui, &format!("Points left out ({} descriptions)", codes.len()), |ui| {
             crate::ui_kit::note(ui, "Tick the descriptions that are not ground levels (inverts, tops of walls) to leave their points out.");
             ui.horizontal(|ui| {
@@ -423,6 +430,28 @@ mod tests {
         assert_eq!(r.format.unit_m, 0.3048);
         assert!((UNITS[2].1 - 0.304_800_609_6).abs() < 1e-9);
         assert!(request_in("", SurveyFormat { order: ColumnOrder::Enzd, unit_m: 0.0 }, "", "", "").is_err());
+    }
+
+    #[test]
+    fn ticked_descriptions_are_passed_whole_even_with_a_comma_or_nothing_in_them() {
+        // Tab-delimited, so a description can hold a comma; the last point has none.
+        let dir = std::env::temp_dir().join(format!("afrobim-survey-form-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("tabs.txt");
+        std::fs::write(&path, "1\t0\t0\t10\tWALL, TOP\n2\t0\t10\t10\tSH\n3\t10\t0\t10\tSH\n4\t10\t10\t10\tSH\n5\t5\t5\t3\n").unwrap();
+        let mut form = SurveyForm::new(path, None);
+        assert_eq!(form.codes, vec![("SH".to_string(), 3), ("".to_string(), 1), ("WALL, TOP".to_string(), 1)]);
+        form.excluded.insert("WALL, TOP".to_string());
+        form.excluded.insert(String::new());
+        form.patterns = "CULV-*, WW".to_string();
+        let r = form.request().unwrap();
+        assert_eq!(r.options.exclude, vec![String::new(), "WALL, TOP".to_string(), "CULV-*".to_string(), "WW".to_string()]);
+        assert!(r.options.excludes("wall, top") && r.options.excludes("") && r.options.excludes("culv-inv") && !r.options.excludes("SH") && !r.options.excludes("WALL"));
+        // Changing the column order reads the file again and counts again.
+        form.order = ColumnOrder::Penzd;
+        form.read_again();
+        assert_eq!(form.codes.len(), 3);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
