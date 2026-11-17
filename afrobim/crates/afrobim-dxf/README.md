@@ -17,7 +17,7 @@ written by AutoCAD and other programs (see Verification).
 ```rust
 use afrobim_dxf::reader::{self, DisplayOptions, SnapOptions};
 
-// Errors say what to do: binary DXF -> save as ASCII; DWG -> convert to DXF first.
+// Errors say what to do: binary DXF -> save as ASCII; DWG without ODA File Converter -> install it or convert to DXF.
 let mut under = reader::read_file(std::path::Path::new("site.dxf"))?;
 
 // What was and was not read.
@@ -79,8 +79,25 @@ XLINE, RAY, REGION, 3DSOLID, BODY, MESH, OLE2FRAME, ATTDEF (a definition, not dr
 polyface polylines, entities with an oblique extrusion, entities switched invisible, and anything
 else. Paper space entities are skipped and counted (`paper_space_skipped`). Z is dropped (plan
 view). Line types, line weights, hatch patterns and fills, text fonts and styles, dimension
-styles, xrefs and proxy graphics are not read. Binary DXF and DWG are refused with a message
-(DWG needs conversion to DXF first). Entity handles and objects other than the LAYER table are ignored.
+styles and xrefs are not read. Binary DXF is refused with a message. Entity handles and objects
+other than the LAYER table are ignored.
+
+**Proxy graphics** (`reader::proxy`): an `ACAD_PROXY_ENTITY`, which is how a converter writes an
+object of a class it does not know (every Civil 3D object), is drawn from the picture its program
+saved: polylines, polygons, circles, arcs, elliptic arcs, shells (as faces), meshes (as lines),
+text, light-weight polylines in the DWG bit stream, with the layer, colour and transform commands
+applied. The layout follows `ezdxf`'s `proxygraphic.py`. Construction lines, tilted circles and
+arcs, and commands of other types are counted as not read; an empty picture, or the stand-in box a
+program writes when it saved none, draws nothing and is counted.
+
+**DWG** (`reader::dwg`): `read_file` converts a DWG to DXF 2018 with ODA File Converter when it
+is installed (`AFROBIM_ODA_CONVERTER`, the usual install folders, then `PATH`), in a cache folder
+keyed by the file's path, size and modification time, and reads the DXF. Without the converter, or
+for `read_bytes`, a DWG is refused with instructions. The converter is never bundled.
+
+Tried on two real Civil 3D drawings (AC1032) converted with ODA File Converter 27.10 on macOS: a
+topographic survey (36 887 proxies; all drawn except 4 stand-in boxes) and a road model (601
+proxies; 233 empty pictures).
 Text in a code page other than UTF-8 is decoded as Latin-1.
 
 ## Units

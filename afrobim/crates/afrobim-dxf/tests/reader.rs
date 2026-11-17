@@ -320,7 +320,7 @@ fn binary_dxf_and_dwg_are_refused_with_instructions() {
     let e = reader::read_bytes(b"AC1027\0\0\0\0\0\0\0\0\0\0\0\0\0").unwrap_err();
     assert!(matches!(e, ReadError::Dwg(_)));
     let m = e.to_string();
-    assert!(m.contains("DWG") && m.contains("Convert it to DXF") && m.contains("release R2013"), "{m}");
+    assert!(m.contains("DWG") && m.contains("convert it to DXF") && m.contains("ODA File Converter") && m.contains("release R2013"), "{m}");
     assert!(matches!(reader::read_bytes(b"hello world\nthis is not a dxf\n").unwrap_err(), ReadError::NotDxf(_)));
 }
 

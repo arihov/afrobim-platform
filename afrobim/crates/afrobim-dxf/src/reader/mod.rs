@@ -2,8 +2,10 @@
 //!
 //! Reads ASCII DXF from R12 through the current release as AutoCAD and Civil 3D write it, keeps
 //! the geometry by layer in the file's own units, and produces an [`afrobim_draw::Drawing`] for
-//! display plus snap points for object snap. Binary DXF and DWG are refused (see
-//! [`ReadError`]). Nothing here edits or writes a DXF; the writer in the crate root is untouched.
+//! display plus snap points for object snap. Binary DXF is refused (see [`ReadError`]). A DWG
+//! given to [`read_file`] is converted to DXF with ODA File Converter when it is installed, and
+//! refused with what to do when it is not (see [`dwg`]). Nothing here edits or writes a DXF or a
+//! DWG; the writer in the crate root is untouched.
 //!
 //! ```no_run
 //! use afrobim_dxf::reader::{read_file, DisplayOptions, SnapOptions};
@@ -21,15 +23,18 @@
 //! What is read: LINE, LWPOLYLINE, POLYLINE (2D and 3D plan, bulges), ARC, CIRCLE, ELLIPSE, SPLINE,
 //! TEXT, MTEXT, ATTRIB, POINT, INSERT (scale, rotation, arrays, nesting, layer 0 and by-block
 //! inheritance), DIMENSION (through its drawn block), SOLID, TRACE, 3DFACE, HATCH boundaries, the
-//! LAYER table and the header units and extents. Everything else is counted by type in
-//! [`ReadReport::unread`].
+//! LAYER table and the header units and extents, and the drawn form (proxy graphics) of
+//! ACAD_PROXY_ENTITY, which is how a converter writes objects of classes it does not know, such
+//! as Civil 3D's (see [`proxy`]). Everything else is counted by type in [`ReadReport::unread`].
 
 mod aci;
+pub mod dwg;
 mod expand;
 mod geom;
 mod model;
 mod mtext;
 mod parse;
+pub mod proxy;
 mod scan;
 mod snap;
 mod units;
@@ -55,8 +60,10 @@ pub enum ReadError {
     Io(#[from] std::io::Error),
     #[error("This is a binary DXF file, which this program cannot read. Save it as an ASCII DXF from the CAD program and attach that.")]
     Binary,
-    #[error("This is a DWG file ({0}), which this program cannot read. Convert it to DXF first (save as DXF from AutoCAD or Civil 3D, or use a converter), then attach the DXF.")]
+    #[error("This is a DWG file ({0}). {hint}", hint = dwg::install_hint())]
     Dwg(String),
+    #[error("{0}")]
+    DwgConversion(#[from] dwg::DwgError),
     #[error("{0}")]
     NotDxf(String),
 }
@@ -80,8 +87,21 @@ pub struct Underlay {
     pub report: ReadReport,
 }
 
-/// Reads an ASCII DXF file. Binary DXF and DWG are refused with a message that says what to do.
+/// Reads an ASCII DXF file, or a DWG through ODA File Converter (see [`dwg`]). Binary DXF, and a
+/// DWG when there is no converter, are refused with a message that says what to do.
 pub fn read_file(path: &Path) -> Result<Underlay, ReadError> {
+    let mut f = std::fs::File::open(path)?;
+    let mut head = [0u8; 6];
+    let n = f.read(&mut head)?;
+    if dwg::is_dwg(&head[..n]) {
+        let code = String::from_utf8_lossy(&head).to_string();
+        let program = dwg::find_converter().ok_or_else(|| ReadError::Dwg(format!("version {code}, {}", dwg_name(&code))))?;
+        let dxf = dwg::convert_with(&program, path, &dwg::default_cache_root())?;
+        let mut under = read(BufReader::with_capacity(1 << 20, std::fs::File::open(&dxf)?))?;
+        under.report.warn(format!("Converted from DWG ({}, {}) with ODA File Converter.", code, dwg_name(&code)));
+        return Ok(under);
+    }
+    drop(f);
     let f = std::fs::File::open(path)?;
     read(BufReader::with_capacity(1 << 20, f))
 }

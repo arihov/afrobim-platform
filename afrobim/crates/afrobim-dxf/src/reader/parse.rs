@@ -25,6 +25,7 @@
 //! | HATCH | 91 path count; per path 92 flags (2 polyline); polyline path: 72 has bulge, 73 closed, 93 vertices, 10/20 and 42; edge path: 93 edges, 72 edge type (1 line, 2 arc, 3 ellipse, 4 spline) with 10/11, 40, 50/51, 73, and for splines 94, 73, 74, 95, 96, 40, 10, 42; 97 source object count ends a path |
 //! | LAYER | 2 name, 70 flags (1 frozen, 4 locked), 62 colour (negative: off), 420 true colour |
 //! | BLOCK | 2 name, 10 base point; entities up to ENDBLK |
+//! | ACAD_PROXY_ENTITY | 92 or 160 graphics size and the 310 chunks after it (see `proxy.rs`) |
 //! | header | $ACADVER (1), $INSUNITS (70), $MEASUREMENT (70), $EXTMIN, $EXTMAX (10, 20) |
 
 use std::collections::HashMap;
@@ -568,6 +569,33 @@ fn entity(rec: &Record, b: &mut Builder) {
                 return;
             }
             add(b, Geom::Hatch(loops));
+        }
+        "ACAD_PROXY_ENTITY" => {
+            let Some(bytes) = super::proxy::graphics_bytes(&rec.pairs) else {
+                b.report.count_unread("ACAD_PROXY_ENTITY (no proxy graphics)");
+                return;
+            };
+            let r2010 = b.report.dxf_version.as_deref().is_some_and(|v| v >= "AC1024");
+            let decoded = super::proxy::decode(&bytes, b.layers.len(), r2010);
+            for (what, n) in &decoded.skipped {
+                *b.report.unread.entry(format!("ACAD_PROXY_ENTITY ({what})")).or_default() += n;
+            }
+            if decoded.truncated {
+                b.report.warn("Some proxy graphics ended inside a drawing command; what came before it is drawn.");
+            }
+            if decoded.items.is_empty() {
+                b.report.count_unread("ACAD_PROXY_ENTITY (empty picture)");
+                return;
+            }
+            if super::proxy::is_placeholder(&decoded.items) {
+                b.report.count_unread("ACAD_PROXY_ENTITY (no picture saved, only the stand-in box)");
+                return;
+            }
+            b.report.count_read(kind);
+            for item in decoded.items {
+                let entity = Entity { layer: item.layer.unwrap_or(layer), colour: item.colour.unwrap_or(colour), geom: item.geom };
+                b.push(entity);
+            }
         }
         "ATTDEF" => b.report.count_unread("ATTDEF (definition, not drawn)"),
         "VERTEX" => b.report.warn("A VERTEX outside a POLYLINE was ignored."),

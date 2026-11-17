@@ -341,8 +341,8 @@ impl UnderlayState {
         self.entries.get(&id).and_then(|e| e.built.as_ref())
     }
 
-    /// Attaches a DXF: adds the record to the document and starts reading. DWG is refused by the
-    /// reader with its message (convert to DXF first).
+    /// Attaches a DXF, or a DWG (converted to DXF by the reader with ODA File Converter when it is
+    /// installed): adds the record to the document and starts reading.
     pub fn attach(&mut self, doc: &mut Document, path: &Path) -> Result<ElementId, String> {
         let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         if !path.exists() {
@@ -740,7 +740,7 @@ impl crate::app::AfroBimApp {
             self.schedule_commit_now();
         }
         if attach {
-            if let Some(path) = rfd::FileDialog::new().add_filter("DXF drawing", &["dxf"]).add_filter("any file", &["*"]).set_title("Attach a DXF underlay").pick_file() {
+            if let Some(path) = rfd::FileDialog::new().add_filter("DXF or DWG drawing", &["dxf", "dwg"]).add_filter("any file", &["*"]).set_title("Attach a DXF or DWG underlay").pick_file() {
                 match self.under.attach(&mut self.doc, &path) {
                     Ok(id) => {
                         self.under.selected = Some(id);
@@ -860,8 +860,10 @@ mod tests {
         assert!(tolerance_log2(1.0) < tolerance_log2(0.01));
     }
 
+    /// A file that only starts like a DWG: with no converter the reader says how to open DWG;
+    /// with ODA File Converter installed the conversion fails and says so. Either way, a message.
     #[test]
-    fn dwg_is_refused_with_the_readers_message() {
+    fn a_dwg_that_cannot_be_read_fails_with_the_readers_message() {
         let dir = std::env::temp_dir().join(format!("afrobim-u1-dwg-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("site.dwg");
@@ -871,7 +873,7 @@ mod tests {
         let id = st.attach(&mut doc, &path).unwrap();
         st.wait(&mut doc, 0.1);
         match st.entry_status(id) {
-            Some(FileStatus::Failed(m)) => assert!(m.contains("Convert it to DXF first"), "{m}"),
+            Some(FileStatus::Failed(m)) => assert!(m.contains("DWG") || m.contains("ODA File Converter"), "{m}"),
             other => panic!("{other:?}"),
         }
     }
