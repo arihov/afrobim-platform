@@ -11,6 +11,9 @@
 //! and undo. Front ends forward input and draw state.
 
 mod controller;
+pub mod crs;
+pub mod crs_plan;
+pub mod crs_transform;
 mod document;
 mod drafting;
 mod geometry;
@@ -23,11 +26,17 @@ mod view;
 pub use afrobim_draw::Pt2 as Pt;
 pub use controller::{CanvasCommand, CanvasController, CanvasEvent, CanvasTool};
 pub use document::{Document, DocumentError, Element, ElementId, Layer, SelectMode, SitePlacement, FILE_EXTENSION};
-pub use drafting::{display_spacing, ortho, parse_point, snap};
+pub use drafting::{display_spacing, display_spacing_fine, ortho, parse_point, snap};
 pub use geometry::BBox;
 pub use module::{Generated, Module, ModuleRegistry, Note, Severity};
+pub use crs::{crs_from_model_point, elevation_m_to_mm, elevation_mm_to_m, m_to_mm, mm_to_m, model_point_from_crs, supported_epsg_codes, AreaOfUse, CrsCheck, CrsFinding, CrsKind, CrsSource, FindingKind, IncomingDataset, LinearUnit, PlanExtent, ProjectCrs, TransverseMercator};
+pub use crs_plan::{
+    combined_scale_factor, elevation_factor, plan_transform, BatchResult, CalibrationError, ControlPair, ControlResidual, CrsRef, DataExtent, HeightAssumption, NoPath, PlanKind, PointEffects, SiteCalibration, StepKind,
+    StepRecord, TransformError, TransformLog, TransformPlan, TransformedPoint,
+};
+pub use crs_transform::{geographic_crs, transformations, transformations_between, transformations_containing, GeographicCrs, Transformation};
 pub use settings::{
-    project_setting, project_settings_id, set_project_setting, ProjectSettingsModule, PROJECT_SETTINGS_CATEGORY, PROJECT_SETTINGS_LAYER,
+    clear_project_crs, project_crs, set_project_crs, PROJECT_CRS_KEY, project_setting, project_settings_id, set_project_setting, ProjectSettingsModule, PROJECT_SETTINGS_CATEGORY, PROJECT_SETTINGS_LAYER,
 };
 pub use speed_band::{set_speed_band_rule, speed_band_rule, SpeedBandRule};
 pub use undo::UndoHistory;

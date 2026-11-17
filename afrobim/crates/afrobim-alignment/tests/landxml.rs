@@ -104,7 +104,8 @@ fn reads_lines_curves_and_spirals_with_northing_first_and_a_station_start() {
 fn converts_units_and_says_what_it_left_out() {
     let import = read_landxml(&file("unsupported.xml")).unwrap();
     let names: Vec<&str> = import.alignments.iter().map(|a| a.name.as_str()).collect();
-    assert_eq!(names, ["Feet", "By reference", "Kinked"]);
+    assert_eq!(names, ["Feet", "Irregular", "Chained", "By reference", "Kinked"]);
+    let by_name = |n: &str| import.alignments.iter().find(|a| a.name == n).unwrap();
     let note = |needle: &str| import.notes.iter().find(|n| n.contains(needle)).unwrap_or_else(|| panic!("no note about {needle} in {:#?}", import.notes));
 
     // US survey feet to metres.
@@ -127,22 +128,31 @@ fn converts_units_and_says_what_it_left_out() {
     assert_close(a.displayed_station(1400.0 * ft).unwrap().station_m, 2100.0 * ft, 1e-9, "displayed station");
 
     // Points by pntRef; and a stated length that disagrees with them.
-    let b = &import.alignments[1];
+    let b = by_name("By reference");
     assert_close(b.length(), 400.0 * ft, 1e-9, "length from the referenced points");
     assert_close(b.elements[0].heading_rad, 0.0, 1e-12, "due east");
     assert!(note("Alignment 'By reference': element 1 (Line)").contains("the points are used"));
     assert!(note("Alignment 'By reference': length=").contains("add up to"));
 
     // A corner is imported and reported.
-    assert_eq!(import.alignments[2].elements.len(), 2);
+    assert_eq!(by_name("Kinked").elements.len(), 2);
     assert!(note("Alignment 'Kinked'").contains("turns 90.0000°"), "{}", note("Alignment 'Kinked'"));
 
     // Left out, each with its reason.
     assert_eq!(note("'Bloss'"), "Alignment 'Bloss' was not imported: element 2 is a spiral of type 'bloss'; only clothoid spirals are supported");
-    assert_eq!(note("'Irregular'"), "Alignment 'Irregular' was not imported: element 1 is a IrregularLine, which is not supported");
-    assert_eq!(note("'Chained'"), "Alignment 'Chained' was not imported: element 1 is a Chain, which is not supported");
+    // An irregular line and a chain are read as straight segments, with a note, and their own corners are not reported.
+    let irregular = by_name("Irregular");
+    assert_eq!(irregular.elements.len(), 2);
+    assert_close(irregular.elements[1].x, 50.0 * ft, 1e-9, "vertex easting");
+    assert_close(irregular.elements[1].y, 1.0 * ft, 1e-9, "vertex northing");
+    assert!(note("Alignment 'Irregular': element 1 (IrregularLine) was read as 2 straight segments").ends_with("between its points."));
+    assert!(!import.notes.iter().any(|n| n.starts_with("Alignment 'Irregular'") && n.contains("turns")), "{:#?}", import.notes);
+    let chained = by_name("Chained");
+    assert_eq!(chained.elements.len(), 1);
+    assert_close(chained.length(), 400.0 * ft, 1e-9, "chain length");
+    assert!(note("Alignment 'Chained': element 1 (Chain)").contains("1 straight segment between"));
     assert!(note("'Dangling'").contains("refers to point 'P9', which is not in the file"));
-    assert_eq!(import.notes.len(), 7, "{:#?}", import.notes);
+    assert_eq!(import.notes.len(), 9, "{:#?}", import.notes);
 }
 
 #[test]

@@ -17,19 +17,37 @@ use crate::app::AfroBimApp;
 use crate::check_all::{self, Report, Row, Sources, Status};
 use crate::check_inputs::{self as inputs, CatchmentRow, CulvertInputs, DrainInputs, RationalInputs};
 
-const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const NEED: Color32 = Color32::from_rgb(0x5B, 0x9B, 0xE6);
-const NOTE: Color32 = Color32::from_rgb(0x8A, 0x91, 0x99);
+#[allow(non_snake_case)]
+
+fn GOOD() -> egui::Color32 {
+
+    crate::theme::success()
+
+}
+#[allow(non_snake_case)]
+fn BAD() -> egui::Color32 {
+    crate::theme::danger()
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+fn NEED() -> egui::Color32 {
+    crate::theme::accent_text()
+}
+#[allow(non_snake_case)]
+fn NOTE() -> egui::Color32 {
+    crate::theme::muted()
+}
 
 fn colour(status: Status) -> Color32 {
     match status {
-        Status::Passes => GOOD,
-        Status::Fails => BAD,
-        Status::Differs => WARN,
-        Status::InputNeeded => NEED,
-        Status::NotChecked => NOTE,
+        Status::Passes => GOOD(),
+        Status::Fails => BAD(),
+        Status::Differs => WARN(),
+        Status::InputNeeded => NEED(),
+        Status::NotChecked => NOTE(),
     }
 }
 
@@ -138,8 +156,8 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
     let small = |ui: &mut Ui, text: &str| {
         ui.label(RichText::new(text).small());
     };
-    ui.label(RichText::new("Run-off coefficient (SDM Table 3.7 and 3.8)").strong());
-    egui::Grid::new("sanral-basic").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::heading(ui, "Run-off coefficient (SDM Table 3.7 and 3.8)");
+    crate::ui_kit::grid(ui, "sanral-basic", |ui| {
         field(ui, "Catchment area (km²)", &mut s.area_km2, "enter the area");
         field(ui, "Mean annual precipitation (mm)", &mut s.map_mm, "selects the column of Table 3.7");
         field(ui, "Dolomitic share of the rural area (%)", &mut s.dolomite_percent, "enter 0 if none");
@@ -188,7 +206,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
         ui.end_row();
     });
     ui.add_space(4.0);
-    ui.label(RichText::new("Urban parts (C2): the factor is yours, within the printed range shown").strong());
+    crate::ui_kit::heading(ui, "Urban parts (C2): the factor is yours, within the printed range shown");
     let mut remove = None;
     for (i, u) in s.urban.iter_mut().enumerate() {
         ui.horizontal(|ui| {
@@ -201,7 +219,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
             });
             ui.add(egui::TextEdit::singleline(&mut u.percent).hint_text("share %").desired_width(60.0));
             ui.add(egui::TextEdit::singleline(&mut u.factor).hint_text("factor").desired_width(60.0));
-            if ui.small_button("x").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                 remove = Some(i);
             }
         });
@@ -213,7 +231,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
         s.urban.push(inputs::UrbanRow::default());
     }
     ui.add_space(6.0);
-    ui.label(RichText::new("Time of concentration, by reach (SDM 3.5.1.4)").strong());
+    crate::ui_kit::heading(ui, "Time of concentration, by reach (SDM 3.5.1.4)");
     let mut remove = None;
     for (i, r) in s.reaches.iter_mut().enumerate() {
         ui.horizontal(|ui| {
@@ -225,7 +243,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
             }
             ui.add(egui::TextEdit::singleline(&mut r.length).hint_text(if r.kind == 2 { "length m" } else { "length km" }).desired_width(70.0));
             ui.add(egui::TextEdit::singleline(&mut r.slope_or_velocity).hint_text(if r.kind == 2 { "velocity m/s" } else { "slope m/m" }).desired_width(80.0));
-            if ui.small_button("x").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                 remove = Some(i);
             }
         });
@@ -237,8 +255,8 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
         s.reaches.push(inputs::ReachRow::default());
     }
     ui.add_space(6.0);
-    ui.label(RichText::new("Rainfall (always yours)").strong());
-    egui::Grid::new("sanral-rain").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::heading(ui, "Rainfall (always yours)");
+    crate::ui_kit::grid(ui, "sanral-rain", |ui| {
         field(ui, "Point rainfall depth for Tc and T (mm)", &mut s.point_rainfall_mm, "from the DDF, Hershfield or Design Rainfall Estimation");
         field(ui, "Where the depth comes from", &mut s.rainfall_source, "your source and its date");
         ui.label("Area reduction factor");
@@ -252,7 +270,7 @@ fn sanral_rational_form(ui: &mut Ui, s: &mut inputs::SanralRational) {
         });
         ui.end_row();
     });
-    ui.label(RichText::new("SANRAL Drainage Manual, 6th edition (2013), Section 3.5.1. AfroBIM holds no rainfall data and no map: the depth, the shares and the factors are yours. Every field starts empty.").small().weak());
+    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "SANRAL Drainage Manual, 6th edition (2013), Section 3.5.1. AfroBIM holds no rainfall data and no map: the depth, the shares and the factors are yours. Every field starts empty.");
 }
 
 /// The SANRAL culvert entries below the flow. The slope unit is a question with no default.
@@ -263,7 +281,7 @@ fn sanral_culvert_rows(ui: &mut Ui, s: &mut inputs::SanralCulvertEntries) {
             ui.selectable_value(&mut s.slope_unit, Some(0), "metre per metre");
             ui.selectable_value(&mut s.slope_unit, Some(1), "per cent");
             if s.slope_unit.is_none() {
-                ui.label(RichText::new("not answered").color(WARN));
+                ui.label(RichText::new("not answered").color(WARN()));
             }
         });
         ui.label(RichText::new(inputs::SLOPE_UNIT_NOTE).small().weak());
@@ -402,6 +420,9 @@ impl AfroBimApp {
         self.doc.select(&[id], SelectMode::Replace);
         self.sync_generated();
         let Some(e) = self.doc.find(id).cloned() else { return };
+        // ZOOM Previous returns to where the view was before.
+        self.ctl.remember_view(&self.view);
+        self.camera_history.push(self.camera.clone());
         if self.view_3d {
             let site_mode = self.site_mode();
             let Some(frame) = self.frame_of(&e, site_mode) else {
@@ -451,39 +472,26 @@ impl AfroBimApp {
             self.checks.report_open = false;
             return;
         };
-        crate::win::new(ctx, "Check the whole model").open(&mut open).default_width(900.0).default_height(640.0).show(ctx, |ui| {
-            ui.label(
-                RichText::new("Every check an engine has, on every element it applies to, with the inputs kept on each element. A pass means the engine's own lines passed on those inputs: it is a calculation for an engineer to check, not a certification. Warnings the engines raise are in the calculation lines, as the engines wrote them.")
-                    .small()
-                    .weak(),
-            );
+        let dlg = crate::ui_kit::Dialog::titled("Check the whole model").subtitle("Every check of every element, with its status").width(900.0).show(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Every check an engine has, on every element it applies to, with the inputs kept on each element. A pass means the engine's own lines passed on those inputs: it is a calculation for an engineer to check, not a certification. Warnings the engines raise are in the calculation lines, as the engines wrote them.");
+            crate::ui_kit::heading(ui, "Show");
             ui.horizontal_wrapped(|ui| {
                 for (i, s) in Status::ALL.iter().enumerate() {
                     let text = RichText::new(format!("{} ({})", s.label(), report.count(*s))).color(colour(*s));
                     ui.toggle_value(&mut c.statuses[i], text);
                 }
-                ui.separator();
-                ui.label("Category");
-                let shown = c.category.clone().unwrap_or_else(|| "all".to_string());
-                egui::ComboBox::from_id_salt("check-category").selected_text(shown).show_ui(ui, |ui| {
-                    ui.selectable_value(&mut c.category, None, "all");
-                    for cat in report.categories() {
-                        ui.selectable_value(&mut c.category, Some(cat.clone()), cat);
-                    }
+            });
+            crate::ui_kit::form(ui, "check-filter", |f| {
+                f.row("Category", |ui| {
+                    let shown = c.category.clone().unwrap_or_else(|| "all".to_string());
+                    egui::ComboBox::from_id_salt("check-category").selected_text(shown).show_ui(ui, |ui| {
+                        ui.selectable_value(&mut c.category, None, "all");
+                        for cat in report.categories() {
+                            ui.selectable_value(&mut c.category, Some(cat.clone()), cat);
+                        }
+                    });
                 });
             });
-            ui.horizontal(|ui| {
-                if ui.button("Run again").clicked() {
-                    again = true;
-                }
-                if ui.button("Export CSV…").clicked() {
-                    csv = true;
-                }
-                if ui.button("Export calculation pack…").clicked() {
-                    pack = true;
-                }
-            });
-            ui.separator();
             // What needs attention first: failures, then missing input, then differences, then the rest.
             let rank = |s: Status| match s {
                 Status::Fails => 0,
@@ -494,8 +502,8 @@ impl AfroBimApp {
             };
             let mut visible = report.visible(&c.statuses, c.category.as_deref());
             visible.sort_by_key(|i| rank(report.rows[*i].status));
-            ui.label(RichText::new(format!("{} of {} check(s) shown", visible.len(), report.rows.len())).small().weak());
-            egui::ScrollArea::vertical().id_salt("check-rows").max_height(ui.available_height() - 90.0).auto_shrink([false, false]).show(ui, |ui| {
+            crate::ui_kit::heading(ui, &format!("Checks ({} of {} shown)", visible.len(), report.rows.len()));
+            {
                 for i in visible {
                     let r = &report.rows[i];
                     ui.horizontal(|ui| {
@@ -515,7 +523,7 @@ impl AfroBimApp {
                             for l in &r.lines {
                                 let flagged = l.contains("FAILS") || l.starts_with("WARNING") || l.starts_with("Check:") || l.contains("DIFFERS");
                                 let text = RichText::new(l).small().monospace();
-                                ui.label(if flagged { text.color(WARN) } else { text });
+                                ui.label(if flagged { text.color(WARN()) } else { text });
                             }
                             if !r.notes.is_empty() {
                                 ui.label(RichText::new("Messages from the model").small().strong());
@@ -527,13 +535,29 @@ impl AfroBimApp {
                     }
                     ui.separator();
                 }
-            });
+            }
             egui::CollapsingHeader::new(format!("Categories with no check ({})", report.no_check.len())).default_open(true).show(ui, |ui| {
                 for (category, why) in &report.no_check {
-                    ui.label(RichText::new(format!("{category}: {why}")).small().weak());
+                    crate::ui_kit::note(ui, format!("{category}: {why}"));
                 }
             });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Run again").secondary(&["Export CSV...", "Export calculation pack..."]).cancel(Some("Close")).show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                again = true;
+            }
+            match out.secondary {
+                Some(0) => csv = true,
+                Some(1) => pack = true,
+                _ => {}
+            }
+        }
         self.checks.report_open = open;
         if again {
             self.run_check_all();
@@ -589,8 +613,9 @@ impl AfroBimApp {
         let mark = self.doc.find(d.element).map(|e| e.name.clone()).unwrap_or_default();
         let has_rational = inputs::load::<RationalInputs>(&self.doc, d.element, inputs::KEY_RATIONAL).is_some();
         let (mut keep, mut run, mut rational) = (true, false, false);
-        crate::win::new(ctx, format!("Check the capacity of {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
-            egui::Grid::new("drain-check").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                let footer_ok = true;
+        let dlg = crate::ui_kit::Dialog::titled(format!("Check the capacity of {mark}")).width(480.0).resizable(false).show(ctx, |ui| {
+            crate::ui_kit::grid(ui, "drain-check", |ui| {
                 flow_rows(ui, &mut d.form.flow_m3_s, &mut d.form.flow_from_rational, has_rational, &mut rational);
                 ui.label("Basis");
                 basis_radios(ui, &mut d.form);
@@ -598,17 +623,17 @@ impl AfroBimApp {
                 field(ui, "Required freeboard (m)", &mut d.form.required_freeboard_m, "only if the project states one");
             });
             ui.add_space(4.0);
-            ui.label(RichText::new("The design flow is the engineer's: AfroBIM holds no rainfall data. Every field starts empty. The drain's gradient, lining and roughness are those entered in Properties. What you enter is kept on the drain, for CHECKALL.").small().weak());
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                if ui.button("Check").clicked() {
-                    run = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    keep = false;
-                }
-            });
-        });
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "The design flow is the engineer's: AfroBIM holds no rainfall data. Every field starts empty. The drain's gradient, lining and roughness are those entered in Properties. What you enter is kept on the drain, for CHECKALL.");
+        }, |ui| crate::ui_kit::Footer::new("Check").enabled(footer_ok, "Complete the inputs").cancel(Some("Cancel")).show(ui));
+        if let Some((_, f)) = &dlg.inner {
+            run = f.primary;
+            if f.cancel {
+                keep = false;
+            }
+        }
+        if dlg.closed {
+            keep = false;
+        }
         if rational {
             self.checks.open_rational(&self.doc, Some(d.element));
         }
@@ -640,8 +665,9 @@ impl AfroBimApp {
         let mark = self.doc.find(d.element).map(|e| e.name.clone()).unwrap_or_default();
         let has_rational = inputs::load::<RationalInputs>(&self.doc, d.element, inputs::KEY_RATIONAL).is_some();
         let (mut keep, mut run, mut rational) = (true, false, false);
-        crate::win::new(ctx, format!("Check the culvert {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
-            egui::Grid::new("culvert-check").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+                let footer_ok = true;
+        let dlg = crate::ui_kit::Dialog::titled(format!("Check the culvert {mark}")).width(480.0).resizable(false).show(ctx, |ui| {
+            crate::ui_kit::grid(ui, "culvert-check", |ui| {
                 flow_rows(ui, &mut d.form.flow_m3_s, &mut d.form.flow_from_rational, has_rational, &mut rational);
                 ui.label("Design basis");
                 culvert_basis_radios(ui, &mut d.form);
@@ -662,7 +688,7 @@ impl AfroBimApp {
                     });
                     if let Some(w) = d.wall {
                         let (lo, hi) = w.manning_n_range();
-                        ui.label(RichText::new(format!("The appendix recommends {lo} to {hi}. The value within it is yours to choose and type above.")).small().weak());
+                        crate::ui_kit::note(ui, format!("The appendix recommends {lo} to {hi}. The value within it is yours to choose and type above."));
                     }
                 });
                 ui.end_row();
@@ -703,22 +729,22 @@ impl AfroBimApp {
                     sanral_culvert_rows(ui, &mut d.form.sanral);
                 } else {
                     ui.label("");
-                    ui.label(RichText::new("The UK DMRB basis has no culvert hydraulic check in the engine: only its layout limits are checked. Choose MoWT or SANRAL for the hydraulics.").small().color(WARN));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "The UK DMRB basis has no culvert hydraulic check in the engine: only its layout limits are checked. Choose MoWT or SANRAL for the hydraulics.");
                     ui.end_row();
                 }
             });
             ui.add_space(4.0);
-            ui.label(RichText::new("MoWT: the complete check is inlet control (FHWA HDS-5 equations, the inlet edge you choose) and outlet control (DDM Section 9.4.2); the greater governs and is named, and the outlet lines are shown first. With no inlet edge or allowable headwater only the outlet half is shown, and it is marked as incomplete. SANRAL: SDM Table 7.2 and Eq. 7.4, for the barrel of this element. Each basis keeps its own values. Every field starts empty and what you enter is kept on the culvert, for CHECKALL.").small().weak());
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                if ui.button("Check").clicked() {
-                    run = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    keep = false;
-                }
-            });
-        });
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "MoWT: the complete check is inlet control (FHWA HDS-5 equations, the inlet edge you choose) and outlet control (DDM Section 9.4.2); the greater governs and is named, and the outlet lines are shown first. With no inlet edge or allowable headwater only the outlet half is shown, and it is marked as incomplete. SANRAL: SDM Table 7.2 and Eq. 7.4, for the barrel of this element. Each basis keeps its own values. Every field starts empty and what you enter is kept on the culvert, for CHECKALL.");
+        }, |ui| crate::ui_kit::Footer::new("Check").enabled(footer_ok, "Complete the inputs").cancel(Some("Cancel")).show(ui));
+        if let Some((_, f)) = &dlg.inner {
+            run = f.primary;
+            if f.cancel {
+                keep = false;
+            }
+        }
+        if dlg.closed {
+            keep = false;
+        }
         if rational {
             self.checks.open_rational(&self.doc, Some(d.element));
         }
@@ -753,15 +779,14 @@ impl AfroBimApp {
         let Some(mut d) = self.checks.rational.take() else { return };
         let target = d.element.and_then(|id| self.doc.find(id)).map(|e| e.name.clone());
         let (mut keep, mut calculate, mut use_it) = (true, false, false);
-        crate::win::new(ctx, match &target {
+        let keep_label = target.as_ref().map(|mark| format!("Keep on {mark} and use as its design flow"));
+        let dlg = crate::ui_kit::Dialog::titled(match &target {
             Some(mark) => format!("Rational method for {mark}"),
             None => "Rational method".to_string(),
-        })
-        .collapsible(false)
-        .resizable(true)
-        .default_width(600.0)
-        .show(ctx, |ui| {
-            egui::ScrollArea::vertical().max_height(520.0).auto_shrink([false, true]).show(ui, |ui| {
+        }).subtitle("Peak flow from the catchment, by the rational method").width(600.0).show(
+            ctx,
+            |ui| {
+            ui.scope(|ui| {
                 ui.horizontal(|ui| {
                     ui.label("Method");
                     ui.selectable_value(&mut d.form.use_sanral, false, "MoWT (Vol. 2, 4.4.2)");
@@ -770,7 +795,7 @@ impl AfroBimApp {
                 if d.form.use_sanral {
                     sanral_rational_form(ui, &mut d.form.sanral);
                 } else {
-                ui.label(RichText::new("Parts of the catchment").strong());
+                crate::ui_kit::heading(ui, "Parts of the catchment");
                 let mut remove = None;
                 egui::Grid::new("rational-rows").num_columns(4).spacing([8.0, 4.0]).show(ui, |ui| {
                     for h in ["What the part is", "Area (ha)", "Runoff coefficient C", ""] {
@@ -781,7 +806,7 @@ impl AfroBimApp {
                         ui.add(egui::TextEdit::singleline(&mut r.description).hint_text("description").desired_width(180.0));
                         ui.add(egui::TextEdit::singleline(&mut r.area_ha).hint_text("area").desired_width(80.0));
                         ui.add(egui::TextEdit::singleline(&mut r.runoff_coefficient).hint_text("C").desired_width(80.0));
-                        if ui.small_button("x").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                             remove = Some(i);
                         }
                         ui.end_row();
@@ -794,48 +819,53 @@ impl AfroBimApp {
                     d.form.rows.push(CatchmentRow::default());
                 }
                 ui.add_space(6.0);
-                egui::Grid::new("rational-flow").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "rational-flow", |ui| {
                     field(ui, "Design rainfall intensity (mm/h)", &mut d.form.intensity_mm_h, "for the time of concentration");
                     field(ui, "Where the intensity comes from", &mut d.form.intensity_source, "your source and its date");
                     field(ui, "Recurrence multiplier", &mut d.form.frequency_multiplier, "empty: none applied");
                     field(ui, "Storage factor Cs", &mut d.form.storage_factor, "empty: the basic method");
                 });
                 ui.add_space(4.0);
-                ui.label(RichText::new("MoWT Road Design Manual Vol. 2, Sections 4.4.2 and 4.4.3. AfroBIM holds no rainfall data: the intensity, the areas and the runoff coefficients are yours. Every field starts empty.").small().weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "MoWT Road Design Manual Vol. 2, Sections 4.4.2 and 4.4.3. AfroBIM holds no rainfall data: the intensity, the areas and the runoff coefficients are yours. Every field starts empty.");
                 }
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Calculate").clicked() {
-                        calculate = true;
-                    }
-                    if let Some(mark) = &target {
-                        if ui.button(format!("Keep on {mark} and use as its design flow")).clicked() {
-                            calculate = true;
-                            use_it = true;
-                        }
-                    }
-                    if ui.button("Close").clicked() {
-                        keep = false;
-                    }
-                });
                 match &d.result {
                     Some(Ok((q, lines))) => {
                         ui.separator();
-                        ui.label(RichText::new(format!("Design peak flow Q = {q:.3} m³/s")).strong());
+                        crate::ui_kit::heading(ui, &format!("Design peak flow Q = {q:.3} m³/s"));
                         for l in lines.iter().cloned() {
                             let flagged = l.starts_with("Check:");
                             let text = RichText::new(l).small().monospace();
-                            ui.label(if flagged { text.color(WARN) } else { text });
+                            ui.label(if flagged { text.color(WARN()) } else { text });
                         }
                     }
                     Some(Err(e)) => {
                         ui.separator();
-                        ui.label(RichText::new(format!("Not calculated: {e}")).color(BAD));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("Not calculated: {e}"));
                     }
                     None => {}
                 }
             });
-        });
+        },
+            |ui| {
+                let labels: Vec<&str> = keep_label.iter().map(String::as_str).collect();
+                crate::ui_kit::Footer::new("Calculate").secondary(&labels).cancel(Some("Close")).show(ui)
+            },
+        );
+        if let Some((_, f)) = &dlg.inner {
+            if f.primary {
+                calculate = true;
+            }
+            if f.secondary == Some(0) {
+                calculate = true;
+                use_it = true;
+            }
+            if f.cancel {
+                keep = false;
+            }
+        }
+        if dlg.closed {
+            keep = false;
+        }
         if calculate {
             d.result = Some(d.form.run_flow());
             if let Some(Ok((q, _))) = &d.result {

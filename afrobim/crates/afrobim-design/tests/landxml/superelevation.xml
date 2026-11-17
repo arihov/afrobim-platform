@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-built test file following the LandXML 1.2 schema. It was NOT exported by Civil 3D.
+     Coordinates are of true UTM size south of the equator (northing about 9 960 000 m, easting
+     about 450 000 m). The curve (radius 200 m, 100 m long, turning left) lies between stations 100
+     and 200; the numbers were computed outside the crate to four decimals. -->
+<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.landxml.org/schema/LandXML-1.2 http://www.landxml.org/schema/LandXML-1.2/LandXML-1.2.xsd" date="2026-11-16" time="09:00:00" version="1.2" language="English" readOnly="false">
+  <Units>
+    <Metric areaUnit="squareMeter" linearUnit="meter" volumeUnit="cubicMeter" temperatureUnit="celsius" pressureUnit="milliBars" angularUnit="decimal degrees" directionUnit="decimal degrees"/>
+  </Units>
+  <CoordinateSystem name="WGS 84 / UTM zone 36S" epsgCode="32736" horizontalDatum="WGS84" rotationAngle="0.25"/>
+  <Project name="Superelevation test"/>
+  <Application name="hand-built" desc="test data" manufacturer="AfroBIM" version="1"/>
+  <Alignments>
+    <Alignment name="SE1" length="300.0" staStart="0.0">
+      <CoordGeom>
+        <Line length="100.0">
+          <Start>9960000.5678 450000.1234</Start>
+          <End>9960000.5678 450100.1234</End>
+        </Line>
+        <Curve rot="ccw" radius="200.0" length="100.0">
+          <Start>9960000.5678 450100.1234</Start>
+          <Center>9960200.5678 450100.1234</Center>
+          <End>9960025.0513 450196.0085</End>
+        </Curve>
+        <Line length="100.0">
+          <Start>9960025.0513 450196.0085</Start>
+          <End>9960072.9938 450283.7668</End>
+        </Line>
+      </CoordGeom>
+      <Superelevation staStart="60.0" staEnd="240.0">
+        <BeginRunoutSta>60.0</BeginRunoutSta>
+        <BeginRunoffSta>80.0</BeginRunoffSta>
+        <FullSuperSta>100.0</FullSuperSta>
+        <FullSuperelev>6.0</FullSuperelev>
+        <RunoffSta>200.0</RunoffSta>
+        <StartofRunoutSta>220.0</StartofRunoutSta>
+        <EndofRunoutSta>240.0</EndofRunoutSta>
+        <AdverseSE>non-adverse</AdverseSE>
+      </Superelevation>
+    </Alignment>
+  </Alignments>
+</LandXML>

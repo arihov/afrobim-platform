@@ -7,7 +7,7 @@
 use afrobim_annotate as ann;
 use afrobim_annotate::geometry::{dist, pt};
 use afrobim_annotate::{Ann, AnnGeometry, AnnotationSettings, DimData, DimKind, DimStyle, DisplayUnits, Justify, LayerProps, LeaderText, Seg, TextStyle};
-use afrobim_kernel::{display_spacing, ortho, snap, Document, Element, ElementId, Pt, ViewTransform};
+use afrobim_kernel::{display_spacing_fine, ortho, snap, Document, Element, ElementId, Pt, ViewTransform};
 use egui::{pos2, Align2, Color32, FontId, Painter, Pos2, RichText, Shape, Stroke, Ui};
 
 use crate::alignment_glue;
@@ -18,8 +18,10 @@ const GHOST: Color32 = Color32::from_rgb(0xFF, 0xB0, 0x30);
 const SNAP_COL: Color32 = Color32::from_rgb(0xFF, 0xE0, 0x40);
 const GRIP_FILL: Color32 = Color32::from_rgb(0x2F, 0x7F, 0xE0);
 const GRIP_HOT: Color32 = Color32::from_rgb(0xFF, 0x5A, 0x36);
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+#[allow(non_snake_case)]
+fn BAD() -> egui::Color32 {
+    crate::theme::danger()
+}
 /// Pixels of a grip's reach.
 const GRIP_REACH_PX: f64 = 7.0;
 /// Pixels within which object snap takes a candidate.
@@ -37,12 +39,30 @@ pub struct GripDrag {
     pub index: usize,
 }
 
+/// What the layer manager asked for this frame, applied after the window is drawn.
+enum LayerOp {
+    UnlockAll,
+    HideAll,
+    ShowAll,
+    Visible(String, bool),
+    Locked(String, bool),
+    Colour(String, [u8; 3]),
+    Weight(String, f64),
+    Rename(String, String),
+    Delete(String, Option<String>),
+    Create(String, LayerProps),
+}
+
 #[derive(Default)]
 pub struct LayerWin {
     pub new_name: String,
     pub rename: Option<(String, String)>,
     pub delete: Option<(String, String)>,
     pub message: String,
+    /// The filter over the names, and what a new layer will look like (the engine's `LayerProps`).
+    pub filter: String,
+    pub new_colour: [u8; 3],
+    pub new_weight: f64,
 }
 
 #[derive(Default)]
@@ -57,7 +77,6 @@ pub struct AnnoUi {
     pub results_open: bool,
     pub layers_open: bool,
     pub layer_win: LayerWin,
-    pub units_open: bool,
     pub text_styles_open: bool,
     pub dim_styles_open: bool,
     pub text_sel: usize,
@@ -94,13 +113,21 @@ fn sp(view: &ViewTransform, p: Pt) -> Pos2 {
     pos2(s.x as f32, s.y as f32)
 }
 
+/// A line segment in model space, clipped in f64 so that a coordinate millions of pixels off the
+/// screen (a deep zoom) neither loses its direction nor overflows f32.
+fn line(painter: &Painter, view: &ViewTransform, a: Pt, b: Pt, stroke: Stroke) {
+    if let Some((a, b)) = crate::render::clip_segment(view.to_screen(a), view.to_screen(b), crate::render::CLIP_PX) {
+        painter.line_segment([pos2(a.x as f32, a.y as f32), pos2(b.x as f32, b.y as f32)], stroke);
+    }
+}
+
 /// Paints an annotation's geometry in one colour (the ghost of a command in progress).
 pub fn paint_geometry(painter: &Painter, view: &ViewTransform, g: &AnnGeometry, colour: Color32) {
     let stroke = Stroke::new(1.5_f32, colour);
     for seg in &g.segs {
         match seg {
             Seg::Line { a, b } => {
-                painter.line_segment([sp(view, *a), sp(view, *b)], stroke);
+                line(painter, view, *a, *b, stroke);
             }
             Seg::Arc { centre, radius, start_deg, end_deg } => {
                 let sweep = if end_deg >= start_deg { end_deg - start_deg } else { end_deg - start_deg + 360.0 };
@@ -114,8 +141,10 @@ pub fn paint_geometry(painter: &Painter, view: &ViewTransform, g: &AnnGeometry, 
                 painter.add(Shape::line(pts, stroke));
             }
             Seg::Poly { pts, closed } => {
-                let pts: Vec<Pos2> = pts.iter().map(|p| sp(view, *p)).collect();
-                painter.add(if *closed { Shape::closed_line(pts, stroke) } else { Shape::line(pts, stroke) });
+                let n = pts.len();
+                for i in 0..if *closed { n } else { n.saturating_sub(1) } {
+                    line(painter, view, pts[i], pts[(i + 1) % n], stroke);
+                }
             }
         }
     }
@@ -229,7 +258,7 @@ impl AfroBimApp {
     pub(crate) fn osnap_candidates(&self, raw: Pt) -> Vec<Cand> {
         let radius = SNAP_REACH_PX / self.view.scale;
         let extra = self.under.snaps_near(&self.doc, raw, radius);
-        let grid = self.grid_on.then(|| display_spacing(self.grid_spacing, self.view.scale, 14.0));
+        let grid = self.grid_on.then(|| display_spacing_fine(self.grid_spacing, self.view.scale, 14.0));
         let drawn = |id: afrobim_kernel::ElementId| self.cache.get(&id).and_then(|c| c.generated.as_ref().ok()).map(|g| &g.drawing);
         anno_glue::candidates_with(&self.doc, raw, radius, &self.anno.osnap, grid, &extra, &drawn)
     }
@@ -497,7 +526,6 @@ impl AfroBimApp {
         self.anno_results_window(ctx);
         self.anno_osnap_window(ctx);
         self.anno_layers_window(ctx);
-        self.anno_units_window(ctx);
         self.anno_text_styles_window(ctx);
         self.anno_dim_styles_window(ctx);
         self.anno_edit_window(ctx);
@@ -509,31 +537,42 @@ impl AfroBimApp {
         }
         let mut open = true;
         let mut clear = false;
-        crate::win::new(ctx, "Measure results").open(&mut open).default_width(560.0).show(ctx, |ui| {
+        let no_results = self.anno.results.is_empty();
+        let dlg = crate::ui_kit::Dialog::titled("Measure results").subtitle("Distances, angles and areas measured in the drawing").width(560.0).show(ctx, |ui| {
+            crate::ui_kit::heading(ui, &format!("Results ({})", self.anno.results.len()));
             if self.anno.results.is_empty() {
-                ui.label(RichText::new("Nothing measured yet. Use DIST, AREA, ID, MEASUREANGLE or MEASURERADIUS.").weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Nothing measured yet. Use DIST, AREA, ID, MEASUREANGLE or MEASURERADIUS.");
             }
-            egui::ScrollArea::vertical().max_height(260.0).stick_to_bottom(true).show(ui, |ui| {
+            egui::Grid::new("measure-results").num_columns(3).striped(true).spacing([12.0, 4.0]).show(ui, |ui| {
+                crate::ui_kit::th_num(ui, "No.");
+                crate::ui_kit::th(ui, "Result");
+                crate::ui_kit::th(ui, "");
+                ui.end_row();
                 for (i, r) in self.anno.results.iter().enumerate() {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(RichText::new(format!("{}.", i + 1)).weak());
-                        ui.label(RichText::new(r).monospace());
-                        if ui.small_button("Copy").clicked() {
-                            ui.ctx().copy_text(r.clone());
-                        }
-                    });
+                    crate::ui_kit::cell_num(ui, (i + 1).to_string());
+                    ui.label(RichText::new(r).monospace());
+                    if ui.small_button("Copy").clicked() {
+                        ui.ctx().copy_text(r.clone());
+                    }
+                    ui.end_row();
                 }
             });
-            ui.horizontal(|ui| {
-                if ui.button("Copy all").clicked() {
-                    ui.ctx().copy_text(self.anno.results.join("\n"));
-                }
-                if ui.button("Clear").clicked() {
-                    clear = true;
-                }
-            });
-            ui.label(RichText::new("Results use the document's units (UNITS). Stored values stay in millimetres.").small().weak());
-        });
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Results use the document's units (UNITS). Stored values stay in millimetres.");
+        }, |ui| crate::ui_kit::Footer::new("Copy all").enabled(!no_results, "Nothing measured yet").secondary(&["Clear"]).cancel(Some("Close")).show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                ctx.copy_text(self.anno.results.join("\n"));
+            }
+            if out.secondary == Some(0) {
+                clear = true;
+            }
+        }
         if clear {
             self.anno.results.clear();
         }
@@ -545,265 +584,269 @@ impl AfroBimApp {
             return;
         }
         let mut open = true;
-        crate::win::new(ctx, "Object snap settings").open(&mut open).default_width(560.0).show(ctx, |ui| {
-            ui.checkbox(&mut self.anno.osnap.on, "Object snap on (F3)");
-            ui.label(RichText::new("Used by the text, dimension, leader and measure commands, when dragging an annotation grip, by the base point and second point of MOVE and COPY, when dragging a grip of an element, and when placing a sign hung from the cursor (its centre lands on the point). Pick a mode to see which elements provide it.").small().weak());
-            ui.add_space(4.0);
-            egui::Grid::new("osnap-modes").num_columns(2).spacing([14.0, 6.0]).show(ui, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Object snap settings").subtitle("Which points the cursor snaps to").width(560.0).show_body(ctx, |ui| {
+            crate::ui_kit::heading(ui, "Object snap");
+            crate::ui_kit::toggle(ui, &mut self.anno.osnap.on, "Object snap on (F3)");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Used by the text, dimension, leader and measure commands, when dragging an annotation grip, by the base point and second point of MOVE and COPY, when dragging a grip of an element, and when placing a sign hung from the cursor (its centre lands on the point). Pick a mode to see which elements provide it.");
+            crate::ui_kit::heading(ui, "Snap modes");
+            crate::ui_kit::grid(ui, "osnap-modes", |ui| {
                 for m in SnapMode::ALL {
                     let mut on = self.anno.osnap.has(m);
-                    if ui.checkbox(&mut on, m.label()).changed() {
+                    if crate::ui_kit::toggle(ui, &mut on, m.label()).changed() {
                         self.anno.osnap.set(m, on);
                     }
                     ui.label(RichText::new(m.provided_by()).small().weak());
                     ui.end_row();
                 }
             });
-            ui.add_space(4.0);
-            ui.label(RichText::new("Limits: an element other than an alignment, an annotation or an underlay gives snaps from the lines, arcs and circles of its drawing (the first 2000 of them, and 400 line segments for intersections over all elements); the shapes and lettering of a sign or marking are not snapped to, and an element with no line or arc in its drawing gives the corners, edge middles and centre of its bounding rectangle. Nothing snaps on a hidden layer. A press-and-drag move of the selection snaps to the grid only. The element being moved never snaps to itself.").small());
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "Limits: an element other than an alignment, an annotation or an underlay gives snaps from the lines, arcs and circles of its drawing (the first 2000 of them, and 400 line segments for intersections over all elements); the shapes and lettering of a sign or marking are not snapped to, and an element with no line or arc in its drawing gives the corners, edge middles and centre of its bounding rectangle. Nothing snaps on a hidden layer. A press-and-drag move of the selection snaps to the grid only. The element being moved never snaps to itself.");
         });
+        if dlg.closed {
+            open = false;
+        }
         self.anno.osnap_open = open;
     }
 
     fn anno_layers_window(&mut self, ctx: &egui::Context) {
+        use crate::ui_kit::{self, Dialog, Footer, Level};
         if !self.anno.layers_open {
             return;
         }
-        let mut open = true;
         let mut committed = false;
-        crate::win::new(ctx, "Layer manager").open(&mut open).default_width(700.0).show(ctx, |ui| {
-            let rows: Vec<ann::LayerInfo> = ann::layers::list(&self.doc).into_iter().filter(|l| !hidden_layer(&l.name)).collect();
-            let mut msg: Option<String> = None;
-            egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
-                egui::Grid::new("layers-grid").num_columns(8).spacing([10.0, 4.0]).striped(true).show(ui, |ui| {
-                    for h in ["Current", "Name", "On", "Lock", "Colour", "Line weight (mm)", "Elements", ""] {
-                        ui.label(RichText::new(h).strong());
-                    }
-                    ui.end_row();
-                    for l in &rows {
-                        let current = self.anno.current_layer() == l.name;
-                        if ui.radio(current, "").on_hover_text("Make this the current layer: new annotation goes on it").clicked() {
-                            self.anno.layer = l.name.clone();
+        let rows: Vec<ann::LayerInfo> = ann::layers::list(&self.doc).into_iter().filter(|l| !hidden_layer(&l.name)).collect();
+        let current = self.anno.current_layer().to_string();
+        let mut msg: Option<String> = None;
+        let mut doc_ops: Vec<LayerOp> = Vec::new();
+        let layer_win = &mut self.anno.layer_win;
+        let mut set_current: Option<String> = None;
+        let out = Dialog::new("Layer manager", crate::glyphs::by_name("LAYER"))
+            .subtitle(format!("{} layers  ·  current: {current}", rows.len()))
+            .width(780.0)
+            .help("Create, rename, delete, colour and weight the layers; make one current so new annotation goes on it. Colour auto means the canvas ink. On and lock are not part of undo (the kernel keeps them outside its history); name, colour, line weight, create and delete are. Layer 0 and the built-in layers cannot be renamed or deleted. Colour and line weight show on the 2D canvas and in the DXF for annotation; DXF R12 carries no line weight.")
+            .show(
+                ctx,
+                |ui| {
+                    let t = crate::theme::tokens_ui(ui);
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(crate::glyphs::ui::SEARCH).font(crate::theme::icon_font(15.0)).color(t.text_muted));
+                        ui.add(egui::TextEdit::singleline(&mut layer_win.filter).hint_text("Filter layers by name").desired_width(220.0));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Unlock all").clicked() {
+                                doc_ops.push(LayerOp::UnlockAll);
+                            }
+                            if ui.button("Hide all").clicked() {
+                                doc_ops.push(LayerOp::HideAll);
+                            }
+                            if ui.button("Show all").clicked() {
+                                doc_ops.push(LayerOp::ShowAll);
+                            }
+                        });
+                    });
+                    ui.add_space(4.0);
+                    let needle = layer_win.filter.trim().to_lowercase();
+                    egui::Grid::new("layers-grid").num_columns(8).spacing([12.0, 5.0]).striped(true).show(ui, |ui| {
+                        for h in ["Current", "Name", "Show", "Lock", "Colour", "Line weight", "Elements", ""] {
+                            ui.label(RichText::new(h).size(crate::theme::FONT_SMALL).strong().color(t.text_muted));
                         }
-                        match self.anno.layer_win.rename.clone() {
-                            Some((old, mut new)) if old == l.name => {
-                                let mut done = false;
-                                ui.horizontal(|ui| {
-                                    ui.add(egui::TextEdit::singleline(&mut new).desired_width(120.0));
-                                    if ui.small_button("OK").clicked() {
-                                        done = true;
+                        ui.end_row();
+                        for l in rows.iter().filter(|l| needle.is_empty() || l.name.to_lowercase().contains(&needle)) {
+                            if ui.radio(current == l.name, "").on_hover_text("Make this the current layer: new annotation goes on it").clicked() {
+                                set_current = Some(l.name.clone());
+                            }
+                            match layer_win.rename.clone() {
+                                Some((old, mut new)) if old == l.name => {
+                                    let mut done = false;
+                                    ui.horizontal(|ui| {
+                                        let r = ui.add(egui::TextEdit::singleline(&mut new).desired_width(130.0));
+                                        if ui_kit::icon_button(ui, crate::glyphs::ui::CHECK, "Rename").clicked() || (r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+                                            done = true;
+                                        }
+                                    });
+                                    if done {
+                                        doc_ops.push(LayerOp::Rename(old, new));
+                                        layer_win.rename = None;
+                                    } else {
+                                        layer_win.rename = Some((old, new));
+                                    }
+                                }
+                                _ => {
+                                    ui.label(RichText::new(&l.name).color(t.text));
+                                }
+                            }
+                            if ui_kit::icon_button_on(ui, if l.visible { crate::glyphs::ui::EYE } else { crate::glyphs::ui::EYE_OFF }, "Visible on the drawing", l.visible).clicked() {
+                                doc_ops.push(LayerOp::Visible(l.name.clone(), !l.visible));
+                            }
+                            if ui_kit::icon_button_on(ui, if l.locked { crate::glyphs::ui::LOCK } else { crate::glyphs::ui::UNLOCK }, "Locked layers cannot be selected", l.locked).clicked() {
+                                doc_ops.push(LayerOp::Locked(l.name.clone(), !l.locked));
+                            }
+                            ui.horizontal(|ui| {
+                                let mut rgb = l.colour;
+                                if ui.color_edit_button_srgb(&mut rgb).changed() {
+                                    doc_ops.push(LayerOp::Colour(l.name.clone(), rgb));
+                                }
+                                if l.colour == [0, 0, 0] {
+                                    ui.label(RichText::new("auto").size(crate::theme::FONT_SMALL).color(t.text_muted));
+                                } else if ui.small_button("auto").on_hover_text("Back to the canvas ink colour").clicked() {
+                                    doc_ops.push(LayerOp::Colour(l.name.clone(), [0, 0, 0]));
+                                }
+                            });
+                            let mut w = l.lineweight_mm;
+                            if ui.add(egui::DragValue::new(&mut w).speed(0.05).range(0.0..=2.11).fixed_decimals(2).suffix(" mm")).changed() {
+                                doc_ops.push(LayerOp::Weight(l.name.clone(), w));
+                            }
+                            ui.label(RichText::new(l.elements.to_string()).monospace());
+                            ui.horizontal(|ui| {
+                                if ui_kit::icon_button(ui, crate::glyphs::by_name("TEXTEDIT"), "Rename").clicked() {
+                                    layer_win.rename = Some((l.name.clone(), l.name.clone()));
+                                }
+                                if ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Delete").clicked() {
+                                    let target = rows.iter().find(|r| r.name != l.name).map(|r| r.name.clone()).unwrap_or_default();
+                                    layer_win.delete = Some((l.name.clone(), target));
+                                }
+                            });
+                            ui.end_row();
+                        }
+                    });
+                    if let Some((name, target)) = layer_win.delete.clone() {
+                        let count = rows.iter().find(|r| r.name == name).map(|r| r.elements).unwrap_or(0);
+                        ui.add_space(6.0);
+                        ui_kit::callout(ui, Level::Warning, if count == 0 { format!("Delete the empty layer {name}?") } else { format!("{name} holds {count} element(s). A layer is deleted only when it is empty, or its elements are moved to another layer first.") });
+                        ui.horizontal(|ui| {
+                            let mut tgt = target.clone();
+                            if count > 0 {
+                                ui.label("Move them to");
+                                egui::ComboBox::from_id_salt("layer-move-target").selected_text(tgt.clone()).show_ui(ui, |ui| {
+                                    for r in rows.iter().filter(|r| r.name != name) {
+                                        ui.selectable_value(&mut tgt, r.name.clone(), &r.name);
                                     }
                                 });
-                                if done {
-                                    match ann::layers::rename(&mut self.doc, &old, &new) {
-                                        Ok(()) => {
-                                            if self.anno.layer == old {
-                                                self.anno.layer = new.clone();
-                                            }
-                                            committed = true;
-                                            msg = Some(format!("Renamed {old} to {new}; its elements moved with it."));
-                                        }
-                                        Err(e) => msg = Some(e.to_string()),
+                                if tgt != target {
+                                    layer_win.delete = Some((name.clone(), tgt.clone()));
+                                }
+                            }
+                            if ui.button(if count == 0 { "Delete" } else { "Move the elements and delete" }).clicked() {
+                                doc_ops.push(LayerOp::Delete(name.clone(), if count == 0 { None } else { Some(tgt.clone()) }));
+                                layer_win.delete = None;
+                            }
+                            if ui.button("Keep it").clicked() {
+                                layer_win.delete = None;
+                            }
+                        });
+                    }
+                    ui_kit::section(ui, "New layer", |ui| {
+                        ui_kit::form(ui, "layer-new", |f| {
+                            f.row("Name", |ui| {
+                                ui_kit::text_field(ui, &mut layer_win.new_name, "name");
+                            });
+                            f.row("Colour", |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.color_edit_button_srgb(&mut layer_win.new_colour);
+                                    if layer_win.new_colour == [0, 0, 0] {
+                                        ui.label(RichText::new("auto: the canvas ink").size(crate::theme::FONT_SMALL).color(t.text_muted));
                                     }
-                                    self.anno.layer_win.rename = None;
-                                } else {
-                                    self.anno.layer_win.rename = Some((old, new));
-                                }
-                            }
-                            _ => {
-                                ui.label(&l.name);
-                            }
-                        }
-                        let mut on = l.visible;
-                        if ui.checkbox(&mut on, "").changed() {
-                            let _ = ann::layers::set_visible(&mut self.doc, &l.name, on);
-                        }
-                        let mut locked = l.locked;
-                        if ui.checkbox(&mut locked, "").changed() {
-                            let _ = ann::layers::set_locked(&mut self.doc, &l.name, locked);
-                        }
+                                });
+                            });
+                            f.row("Line weight", |ui| {
+                                ui_kit::f64_field(ui, &mut layer_win.new_weight, "mm (0: default pen)", 0.0..=2.11, 0.05);
+                            });
+                        });
+                        let name_ok = ann::layers::valid_name(layer_win.new_name.trim()) && !rows.iter().any(|r| r.name.eq_ignore_ascii_case(layer_win.new_name.trim()));
                         ui.horizontal(|ui| {
-                            let mut rgb = l.colour;
-                            if ui.color_edit_button_srgb(&mut rgb).changed() {
-                                let _ = ann::layers::set_colour(&mut self.doc, &l.name, rgb);
-                                committed = true;
+                            if ui.add_enabled(name_ok, egui::Button::new("Create layer")).clicked() {
+                                doc_ops.push(LayerOp::Create(layer_win.new_name.trim().to_string(), LayerProps { colour: layer_win.new_colour, lineweight_mm: layer_win.new_weight }));
+                                layer_win.new_name.clear();
                             }
-                            if l.colour == [0, 0, 0] {
-                                ui.label(RichText::new("auto").small().weak());
-                            } else if ui.small_button("auto").on_hover_text("Back to the canvas ink colour").clicked() {
-                                let _ = ann::layers::set_colour(&mut self.doc, &l.name, [0, 0, 0]);
-                                committed = true;
+                            if !layer_win.new_name.trim().is_empty() && !name_ok {
+                                ui.label(crate::theme::icon_text(crate::glyphs::ui::WARNING, "A layer name is not empty, has no leading or trailing blanks, no control characters and none of \" ; > \\ ` < = : / ? *, and is not taken.", crate::theme::FONT_SMALL, t.warning));
                             }
                         });
-                        let mut w = l.lineweight_mm;
-                        if ui.add(egui::DragValue::new(&mut w).speed(0.05).range(0.0..=2.11).fixed_decimals(2)).changed() {
-                            let _ = ann::layers::set_lineweight(&mut self.doc, &l.name, w);
-                            committed = true;
-                        }
-                        ui.label(l.elements.to_string());
-                        ui.horizontal(|ui| {
-                            if ui.small_button("Rename").clicked() {
-                                self.anno.layer_win.rename = Some((l.name.clone(), l.name.clone()));
-                            }
-                            if ui.small_button("Delete").clicked() {
-                                let target = rows.iter().find(|r| r.name != l.name).map(|r| r.name.clone()).unwrap_or_default();
-                                self.anno.layer_win.delete = Some((l.name.clone(), target));
-                            }
-                        });
-                        ui.end_row();
+                    });
+                    if !layer_win.message.is_empty() {
+                        ui.add_space(4.0);
+                        ui_kit::callout(ui, Level::Info, layer_win.message.clone());
                     }
-                });
-            });
-            if let Some((name, target)) = self.anno.layer_win.delete.clone() {
-                let count = rows.iter().find(|r| r.name == name).map(|r| r.elements).unwrap_or(0);
-                ui.separator();
-                ui.horizontal_wrapped(|ui| {
-                    if count == 0 {
-                        ui.label(format!("Delete the empty layer {name}?"));
-                    } else {
-                        ui.label(format!("{name} holds {count} element(s). A layer is deleted only when it is empty, or its elements are moved to:"));
-                        let mut t = target.clone();
-                        egui::ComboBox::from_id_salt("layer-move-target").selected_text(t.clone()).show_ui(ui, |ui| {
-                            for r in rows.iter().filter(|r| r.name != name) {
-                                ui.selectable_value(&mut t, r.name.clone(), &r.name);
-                            }
-                        });
-                        if t != target {
-                            self.anno.layer_win.delete = Some((name.clone(), t));
-                        }
-                    }
-                    if ui.button(if count == 0 { "Delete" } else { "Move the elements and delete" }).clicked() {
-                        let policy = if count == 0 { ann::OnDelete::RefuseUnlessEmpty } else { ann::OnDelete::MoveTo(self.anno.layer_win.delete.as_ref().map(|d| d.1.clone()).unwrap_or_default()) };
-                        match ann::layers::delete(&mut self.doc, &name, &policy) {
-                            Ok(moved) => {
-                                msg = Some(format!("Deleted layer {name}{}.", if moved > 0 { format!(", {moved} element(s) moved") } else { String::new() }));
-                                if self.anno.layer == name {
-                                    self.anno.layer.clear();
-                                }
-                                committed = true;
-                            }
-                            Err(e) => msg = Some(e.to_string()),
-                        }
-                        self.anno.layer_win.delete = None;
-                    }
-                    if ui.button("Keep it").clicked() {
-                        self.anno.layer_win.delete = None;
-                    }
-                });
-            }
-            ui.separator();
-            ui.horizontal(|ui| {
-                ui.label("New layer");
-                ui.add(egui::TextEdit::singleline(&mut self.anno.layer_win.new_name).desired_width(160.0).hint_text("name"));
-                if ui.button("Create").clicked() {
-                    let name = std::mem::take(&mut self.anno.layer_win.new_name);
-                    match ann::layers::create(&mut self.doc, &name, LayerProps::default()) {
-                        Ok(()) => {
-                            committed = true;
-                            msg = Some(format!("Layer {name} created."));
-                        }
-                        Err(e) => {
-                            self.anno.layer_win.new_name = name;
-                            msg = Some(e.to_string());
-                        }
+                },
+                |ui| Footer::new("Done").cancel(None).note("Colour auto means the canvas ink").show(ui),
+            );
+        if let Some(c) = set_current {
+            self.anno.layer = c;
+        }
+        for op in doc_ops {
+            match op {
+                LayerOp::UnlockAll => {
+                    for l in &rows {
+                        let _ = ann::layers::set_locked(&mut self.doc, &l.name, false);
                     }
                 }
-            });
-            if let Some(m) = msg {
-                self.anno.layer_win.message = m;
+                LayerOp::HideAll => {
+                    for l in &rows {
+                        let _ = ann::layers::set_visible(&mut self.doc, &l.name, false);
+                    }
+                }
+                LayerOp::ShowAll => {
+                    for l in &rows {
+                        let _ = ann::layers::set_visible(&mut self.doc, &l.name, true);
+                    }
+                }
+                LayerOp::Visible(n, v) => {
+                    let _ = ann::layers::set_visible(&mut self.doc, &n, v);
+                }
+                LayerOp::Locked(n, v) => {
+                    let _ = ann::layers::set_locked(&mut self.doc, &n, v);
+                }
+                LayerOp::Colour(n, c) => {
+                    let _ = ann::layers::set_colour(&mut self.doc, &n, c);
+                    committed = true;
+                }
+                LayerOp::Weight(n, w) => {
+                    let _ = ann::layers::set_lineweight(&mut self.doc, &n, w);
+                    committed = true;
+                }
+                LayerOp::Rename(old, new) => match ann::layers::rename(&mut self.doc, &old, &new) {
+                    Ok(()) => {
+                        if self.anno.layer == old {
+                            self.anno.layer = new.clone();
+                        }
+                        committed = true;
+                        msg = Some(format!("Renamed {old} to {new}; its elements moved with it."));
+                    }
+                    Err(e) => msg = Some(e.to_string()),
+                },
+                LayerOp::Delete(name, target) => {
+                    let policy = match target {
+                        None => ann::OnDelete::RefuseUnlessEmpty,
+                        Some(t) => ann::OnDelete::MoveTo(t),
+                    };
+                    match ann::layers::delete(&mut self.doc, &name, &policy) {
+                        Ok(moved) => {
+                            msg = Some(format!("Deleted layer {name}{}.", if moved > 0 { format!(", {moved} element(s) moved") } else { String::new() }));
+                            if self.anno.layer == name {
+                                self.anno.layer.clear();
+                            }
+                            committed = true;
+                        }
+                        Err(e) => msg = Some(e.to_string()),
+                    }
+                }
+                LayerOp::Create(name, props) => match ann::layers::create(&mut self.doc, &name, props) {
+                    Ok(()) => {
+                        committed = true;
+                        msg = Some(format!("Layer {name} created."));
+                    }
+                    Err(e) => msg = Some(e.to_string()),
+                },
             }
-            if !self.anno.layer_win.message.is_empty() {
-                ui.label(RichText::new(&self.anno.layer_win.message).small());
-            }
-            ui.label(RichText::new(format!("Current layer: {}. Colour auto means the canvas ink. On and lock are not part of undo (the kernel keeps them outside its history); name, colour, line weight, create and delete are.", self.anno.current_layer())).small().weak());
-            ui.label(RichText::new("Colour and line weight show on the 2D canvas (the weight as a pen width in pixels) and in the DXF for annotation; DXF R12 carries no line weight. Layer 0 and the built-in layers cannot be renamed or deleted.").small().weak());
-        });
+        }
+        if let Some(m) = msg {
+            self.anno.layer_win.message = m;
+        }
         if committed {
             self.sync_generated();
             self.schedule_commit_now();
         }
-        self.anno.layers_open = open;
-    }
-
-    fn anno_units_window(&mut self, ctx: &egui::Context) {
-        if !self.anno.units_open {
-            return;
+        if out.closed || out.inner.is_some_and(|(_, f)| f.primary || f.cancel) {
+            self.anno.layers_open = false;
         }
-        let mut open = true;
-        let mut st = ann::settings::load(&self.doc);
-        let before = st.units.clone();
-        let mut set_dims = self.anno.units_set_dims;
-        crate::win::new(ctx, "Units").open(&mut open).default_width(480.0).show(ctx, |ui| {
-            let u = &mut st.units;
-            egui::Grid::new("units-grid").num_columns(2).spacing([14.0, 6.0]).show(ui, |ui| {
-                ui.label("Length");
-                ui.horizontal(|ui| {
-                    ui.radio_value(&mut u.length, ann::LengthUnit::Millimetre, "millimetres");
-                    ui.radio_value(&mut u.length, ann::LengthUnit::Metre, "metres");
-                });
-                ui.end_row();
-                ui.label("Length decimals");
-                ui.add(egui::DragValue::new(&mut u.length_decimals).range(0..=6));
-                ui.end_row();
-                ui.label("Station decimals");
-                ui.add(egui::DragValue::new(&mut u.station_decimals).range(0..=6));
-                ui.end_row();
-                ui.label("Area");
-                ui.horizontal(|ui| {
-                    ui.radio_value(&mut u.area, ann::AreaUnit::SquareMetre, "square metres");
-                    ui.radio_value(&mut u.area, ann::AreaUnit::Hectare, "hectares");
-                });
-                ui.end_row();
-                ui.label("Area decimals");
-                ui.add(egui::DragValue::new(&mut u.area_decimals).range(0..=6));
-                ui.end_row();
-                ui.label("Volume (cubic metres) decimals");
-                ui.add(egui::DragValue::new(&mut u.volume_decimals).range(0..=6));
-                ui.end_row();
-                ui.label("Angle");
-                egui::ComboBox::from_id_salt("angle-format").selected_text(angle_label(u.angle)).show_ui(ui, |ui| {
-                    for f in [ann::AngleFormat::Decimal, ann::AngleFormat::Dms, ann::AngleFormat::QuadrantBearing, ann::AngleFormat::Azimuth] {
-                        ui.selectable_value(&mut u.angle, f, angle_label(f));
-                    }
-                });
-                ui.end_row();
-                ui.label("Angle decimals");
-                ui.add(egui::DragValue::new(&mut u.angle_decimals).range(0..=6));
-                ui.end_row();
-            });
-            ui.checkbox(&mut set_dims, "Also set the dimension styles to these units");
-            ui.add_space(4.0);
-            ui.group(|ui| {
-                ui.label(RichText::new("Examples").strong());
-                ui.label(format!("12 345.6789 mm is shown as {}", u.length_u(12_345.6789)));
-                ui.label(format!("Station 1250.5 m is shown as {}", u.station(1250.5)));
-                ui.label(format!("1 234 567 890 mm2 is shown as {}", u.area_u(1_234_567_890.0)));
-                ui.label(format!("2 500 000 000 mm3 is shown as {} m3", u.volume(2_500_000_000.0)));
-                ui.label(format!("37.5 degrees is shown as {}", u.angle(37.5)));
-                ui.label(format!("A direction of 37.5 degrees is shown as {}", u.direction(37.5)));
-            });
-            ui.label(RichText::new("Typed lengths, stations, areas and angles are read in these formats (12.5, 12.5m, 12500mm, 1+250.500, 45d30m15s). Stored values stay in millimetres.").small().weak());
-            ui.label(RichText::new("Applied to: the status bar coordinates, Properties position and size, measure results, dimension text (styles), the typed point input of annotation commands and the station fields. Still raw: see the README.").small().weak());
-        });
-        self.anno.units_set_dims = set_dims;
-        if st.units != before {
-            if set_dims {
-                for d in &mut st.dim_styles {
-                    d.length_unit = st.units.length;
-                    d.length_decimals = st.units.length_decimals;
-                    d.angle_format = st.units.angle;
-                    d.angle_decimals = st.units.angle_decimals;
-                    d.station_decimals = st.units.station_decimals;
-                }
-            }
-            ann::settings::store(&mut self.doc, &st);
-            if set_dims {
-                ann::settings::restyle(&mut self.doc);
-            }
-            self.sync_generated();
-            self.schedule_commit_now();
-        }
-        self.anno.units_open = open;
     }
 
     fn anno_text_styles_window(&mut self, ctx: &egui::Context) {
@@ -814,7 +857,8 @@ impl AfroBimApp {
         let mut st = ann::settings::load(&self.doc);
         let before = st.clone();
         let mut apply = false;
-        crate::win::new(ctx, "Text styles").open(&mut open).default_width(520.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Text styles").subtitle("Fonts and heights for text and dimensions").width(520.0).show(ctx, |ui| {
+            crate::ui_kit::heading(ui, "Style");
             self.anno.text_sel = self.anno.text_sel.min(st.text_styles.len().saturating_sub(1));
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("text-style-pick").selected_text(st.text_styles[self.anno.text_sel].name.clone()).show_ui(ui, |ui| {
@@ -840,47 +884,43 @@ impl AfroBimApp {
             let s: &mut TextStyle = &mut st.text_styles[self.anno.text_sel];
             let is_current = s.name == current_name;
             let mut make_current = false;
-            egui::Grid::new("text-style-grid").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
-                ui.label("Name");
-                ui.add(egui::TextEdit::singleline(&mut s.name).desired_width(160.0));
-                ui.end_row();
-                ui.label("Height (paper mm)");
-                ui.horizontal(|ui| {
-                    ui.add(egui::DragValue::new(&mut s.height_paper_mm).speed(0.1).range(0.1..=50.0));
-                    ui.label(RichText::new("a default, not a standard").small().weak());
+            crate::ui_kit::form(ui, "text-style-grid", |f| {
+                f.row("Name", |ui| ui.add(egui::TextEdit::singleline(&mut s.name).desired_width(160.0)));
+                f.row_note("Height", "A default, not a standard", |ui| crate::ui_kit::f64_field(ui, &mut s.height_paper_mm, "mm on paper", 0.1..=50.0, 0.1));
+                f.row("Bold", |ui| crate::ui_kit::toggle(ui, &mut s.bold, "Bold lettering"));
+                f.row("Font name", |ui| ui.add(egui::TextEdit::singleline(&mut s.font).desired_width(160.0)));
+            });
+            crate::ui_kit::advanced(ui, "text-style-adv", |ui| {
+                crate::ui_kit::form(ui, "text-style-adv-form", |f| {
+                    f.row("Width factor", |ui| crate::ui_kit::f64_field(ui, &mut s.width_factor, "", 0.2..=5.0, 0.01));
+                    f.row("Line spacing", |ui| crate::ui_kit::f64_field(ui, &mut s.line_spacing, "x height", 1.0..=4.0, 0.05));
                 });
-                ui.end_row();
-                ui.label("Width factor");
-                ui.add(egui::DragValue::new(&mut s.width_factor).speed(0.01).range(0.2..=5.0));
-                ui.end_row();
-                ui.label("Line spacing (x height)");
-                ui.add(egui::DragValue::new(&mut s.line_spacing).speed(0.05).range(1.0..=4.0));
-                ui.end_row();
-                ui.label("Bold");
-                ui.checkbox(&mut s.bold, "");
-                ui.end_row();
-                ui.label("Font name");
-                ui.add(egui::TextEdit::singleline(&mut s.font).desired_width(160.0));
-                ui.end_row();
             });
             if !is_current && ui.button("Make current").clicked() {
                 make_current = true;
             }
             if is_current {
-                ui.label(RichText::new("This is the current style.").small());
+                crate::ui_kit::note(ui, "This is the current style.");
             }
             if make_current {
                 st.current_text_style = st.text_styles[self.anno.text_sel].name.clone();
             }
-            ui.add_space(4.0);
-            if ui.button("Apply to existing text").on_hover_text("Text keeps the style it was made with until you apply a changed style").clicked() {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, format!("Annotation scale 1:{}: a paper height of {:.1} mm is {:.0} mm in the model. Sizes are paper millimetres, multiplied by the annotation scale. Every size here is an editable default and no drafting standard is claimed. Layout uses Helvetica widths whatever font is named.", st.annotation_scale, st.text_styles[self.anno.text_sel].height_paper_mm, st.text_styles[self.anno.text_sel].height_paper_mm * st.annotation_scale));
+            if !self.anno.style_note.is_empty() {
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &self.anno.style_note);
+            }
+        }, |ui| crate::ui_kit::Footer::new("Apply to existing text").cancel(Some("Close")).note("Text keeps the style it was made with until you apply a changed style").show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
                 apply = true;
             }
-            ui.label(RichText::new(format!("Annotation scale 1:{}: a paper height of {:.1} mm is {:.0} mm in the model. Sizes are paper millimetres, multiplied by the annotation scale. Every size here is an editable default and no drafting standard is claimed. Layout uses Helvetica widths whatever font is named.", st.annotation_scale, st.text_styles[self.anno.text_sel].height_paper_mm, st.text_styles[self.anno.text_sel].height_paper_mm * st.annotation_scale)).small().weak());
-            if !self.anno.style_note.is_empty() {
-                ui.label(RichText::new(&self.anno.style_note).small().color(WARN));
-            }
-        });
+        }
         if st != before {
             ann::settings::store(&mut self.doc, &st);
             self.schedule_commit_now();
@@ -902,7 +942,8 @@ impl AfroBimApp {
         let mut st = ann::settings::load(&self.doc);
         let before = st.clone();
         let mut apply = false;
-        crate::win::new(ctx, "Dimension styles").open(&mut open).default_width(560.0).default_height(560.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Dimension styles").subtitle("How dimensions are drawn and read").width(560.0).show(ctx, |ui| {
+            crate::ui_kit::heading(ui, "Style");
             self.anno.dim_sel = self.anno.dim_sel.min(st.dim_styles.len().saturating_sub(1));
             ui.horizontal(|ui| {
                 egui::ComboBox::from_id_salt("dim-style-pick").selected_text(st.dim_styles[self.anno.dim_sel].name.clone()).show_ui(ui, |ui| {
@@ -930,9 +971,9 @@ impl AfroBimApp {
             let s: &mut DimStyle = &mut st.dim_styles[self.anno.dim_sel];
             let is_current = s.name == current_name;
             let mut make_current = false;
-            egui::ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
-                ui.label(RichText::new("Sizes (paper millimetres, defaults to edit; the annotation scale multiplies them)").strong());
-                egui::Grid::new("dim-style-sizes").num_columns(2).spacing([12.0, 5.0]).show(ui, |ui| {
+            {
+                crate::ui_kit::heading(ui, "Sizes (paper millimetres, defaults to edit; the annotation scale multiplies them)");
+                crate::ui_kit::grid(ui, "dim-style-sizes", |ui| {
                     ui.label("Name");
                     ui.add(egui::TextEdit::singleline(&mut s.name).desired_width(160.0));
                     ui.end_row();
@@ -946,22 +987,14 @@ impl AfroBimApp {
                         ("Centre mark size (0 for none)", &mut s.centre_mark_mm),
                     ] {
                         ui.label(label);
-                        ui.add(egui::DragValue::new(v).speed(0.05).range(0.0..=50.0));
+                        crate::ui_kit::f64_field(ui, v, "mm on paper", 0.0..=50.0, 0.05);
                         ui.end_row();
                     }
                     ui.label("Terminator");
-                    egui::ComboBox::from_id_salt("dim-term").selected_text(format!("{:?}", s.terminator)).show_ui(ui, |ui| {
-                        for t in [ann::Terminator::Arrow, ann::Terminator::Tick, ann::Terminator::Dot, ann::Terminator::None] {
-                            ui.selectable_value(&mut s.terminator, t, format!("{t:?}"));
-                        }
-                    });
+                    crate::ui_kit::segmented_of(ui, &mut s.terminator, &[(ann::Terminator::Arrow, "Arrow"), (ann::Terminator::Tick, "Tick"), (ann::Terminator::Dot, "Dot"), (ann::Terminator::None, "None")]);
                     ui.end_row();
                     ui.label("Text placement");
-                    egui::ComboBox::from_id_salt("dim-place").selected_text(format!("{:?}", s.text_placement)).show_ui(ui, |ui| {
-                        for t in [ann::TextPlacement::Above, ann::TextPlacement::Centred] {
-                            ui.selectable_value(&mut s.text_placement, t, format!("{t:?}"));
-                        }
-                    });
+                    crate::ui_kit::segmented_of(ui, &mut s.text_placement, &[(ann::TextPlacement::Above, "Above"), (ann::TextPlacement::Centred, "Centred")]);
                     ui.end_row();
                     ui.label("Text style");
                     egui::ComboBox::from_id_salt("dim-textstyle").selected_text(s.text_style.clone()).show_ui(ui, |ui| {
@@ -974,17 +1007,13 @@ impl AfroBimApp {
                     ui.add(egui::DragValue::new(&mut s.width_factor).speed(0.01).range(0.2..=5.0));
                     ui.end_row();
                     ui.label("Bold");
-                    ui.checkbox(&mut s.bold, "");
+                    crate::ui_kit::toggle(ui, &mut s.bold, "Bold lettering");
                     ui.end_row();
                 });
-                ui.add_space(6.0);
-                ui.label(RichText::new("Value text").strong());
-                egui::Grid::new("dim-style-text").num_columns(2).spacing([12.0, 5.0]).show(ui, |ui| {
+                crate::ui_kit::heading(ui, "Value text");
+                crate::ui_kit::grid(ui, "dim-style-text", |ui| {
                     ui.label("Length unit");
-                    ui.horizontal(|ui| {
-                        ui.radio_value(&mut s.length_unit, ann::LengthUnit::Millimetre, "mm");
-                        ui.radio_value(&mut s.length_unit, ann::LengthUnit::Metre, "m");
-                    });
+                    crate::ui_kit::segmented_of(ui, &mut s.length_unit, &[(ann::LengthUnit::Millimetre, "mm"), (ann::LengthUnit::Metre, "m")]);
                     ui.end_row();
                     ui.label("Length decimals");
                     ui.add(egui::DragValue::new(&mut s.length_decimals).range(0..=6));
@@ -998,16 +1027,12 @@ impl AfroBimApp {
                         ui.add(egui::TextEdit::singleline(&mut s.suffix).desired_width(60.0));
                     });
                     ui.end_row();
-                    ui.label("Strip trailing zeros");
-                    ui.checkbox(&mut s.strip_trailing_zeros, "");
+                    ui.label("Trailing zeros");
+                    crate::ui_kit::toggle(ui, &mut s.strip_trailing_zeros, "Strip trailing zeros");
                     ui.end_row();
                     ui.label("Angle format and decimals");
                     ui.horizontal(|ui| {
-                        egui::ComboBox::from_id_salt("dim-angle").selected_text(angle_label(s.angle_format)).show_ui(ui, |ui| {
-                            for f in [ann::AngleFormat::Decimal, ann::AngleFormat::Dms] {
-                                ui.selectable_value(&mut s.angle_format, f, angle_label(f));
-                            }
-                        });
+                        crate::ui_kit::segmented_of(ui, &mut s.angle_format, &[(ann::AngleFormat::Decimal, angle_label(ann::AngleFormat::Decimal)), (ann::AngleFormat::Dms, angle_label(ann::AngleFormat::Dms))]);
                         ui.add(egui::DragValue::new(&mut s.angle_decimals).range(0..=6));
                     });
                     ui.end_row();
@@ -1023,26 +1048,33 @@ impl AfroBimApp {
                     });
                     ui.end_row();
                 });
-            });
+            }
             if !is_current && ui.button("Make current").clicked() {
                 make_current = true;
             }
             if is_current {
-                ui.label(RichText::new("This is the current style.").small());
+                crate::ui_kit::note(ui, "This is the current style.");
             }
             if make_current {
                 st.current_dim_style = st.dim_styles[self.anno.dim_sel].name.clone();
             }
-            ui.add_space(4.0);
-            if ui.button("Apply to existing dimensions and leaders").on_hover_text("Dimensions keep the style they were made with until you apply a changed style").clicked() {
+            crate::ui_kit::note(ui, format!("A preview at 1:{scale}: a dimension line with text {:.0} mm high and arrows {:.0} mm long in the model.", st.dim_styles[self.anno.dim_sel].text_height_mm * scale, st.dim_styles[self.anno.dim_sel].arrow_size_mm * scale));
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Every size is an editable default; none is taken from a drafting standard. Text override of one dimension is in its Properties and keeps the measured value shown.");
+            if !self.anno.style_note.is_empty() {
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &self.anno.style_note);
+            }
+        }, |ui| crate::ui_kit::Footer::new("Apply to existing dimensions and leaders").cancel(Some("Close")).note("Dimensions keep the style they were made with until you apply a changed style").show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
                 apply = true;
             }
-            ui.label(RichText::new(format!("A preview at 1:{scale}: a dimension line with text {:.0} mm high and arrows {:.0} mm long in the model.", st.dim_styles[self.anno.dim_sel].text_height_mm * scale, st.dim_styles[self.anno.dim_sel].arrow_size_mm * scale)).small().weak());
-            ui.label(RichText::new("Every size is an editable default; none is taken from a drafting standard. Text override of one dimension is in its Properties and keeps the measured value shown.").small().weak());
-            if !self.anno.style_note.is_empty() {
-                ui.label(RichText::new(&self.anno.style_note).small().color(WARN));
-            }
-        });
+        }
         if st != before {
             ann::settings::store(&mut self.doc, &st);
             self.schedule_commit_now();
@@ -1060,17 +1092,21 @@ impl AfroBimApp {
         let Some((id, mut text)) = self.anno.edit.take() else { return };
         let (mut ok, mut cancel) = (false, false);
         let mark = self.doc.find(id).map(|e| e.name.clone()).unwrap_or_default();
-        crate::win::new(ctx, format!("Edit text of {mark}")).collapsible(false).default_width(420.0).show(ctx, |ui| {
-            ui.add(egui::TextEdit::multiline(&mut text).desired_rows(5).desired_width(f32::INFINITY));
-            ui.horizontal(|ui| {
-                if ui.button("OK").clicked() {
-                    ok = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    cancel = true;
-                }
-            });
-        });
+        let dlg = crate::ui_kit::Dialog::titled(format!("Edit text of {mark}")).subtitle("The words of this text object").width(420.0).show(
+            ctx,
+            |ui| {
+                let r = ui.add(egui::TextEdit::multiline(&mut text).desired_rows(5).desired_width(f32::INFINITY));
+                crate::ui_kit::focus_once(ui, &r, "anno-edit-text");
+            },
+            |ui| crate::ui_kit::Footer::new("OK").show(ui),
+        );
+        if let Some((_, f)) = &dlg.inner {
+            ok = f.primary;
+            cancel = f.cancel;
+        }
+        if dlg.closed {
+            cancel = true;
+        }
         if ok {
             match anno_glue::set_text(&mut self.doc, id, &text) {
                 Ok(()) => {
@@ -1086,7 +1122,7 @@ impl AfroBimApp {
     }
 }
 
-fn angle_label(f: ann::AngleFormat) -> &'static str {
+pub(crate) fn angle_label(f: ann::AngleFormat) -> &'static str {
     match f {
         ann::AngleFormat::Decimal => "decimal degrees",
         ann::AngleFormat::Dms => "degrees, minutes, seconds",
@@ -1116,7 +1152,7 @@ const JUSTIFY: [(Justify, &str); 9] = [
 /// The Definition section of the Properties panel for an annotation. True when something changed.
 pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments: &[String]) -> bool {
     let Ok(mut a) = ann::read(e) else {
-        ui.label(RichText::new("The annotation cannot be read.").color(BAD));
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, "The annotation cannot be read.");
         return false;
     };
     let before = a.clone();
@@ -1125,7 +1161,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
         Ann::Text(t) => {
             ui.label("Text");
             ui.add(egui::TextEdit::multiline(&mut t.text).desired_rows(3).desired_width(f32::INFINITY));
-            egui::Grid::new("ann-text-grid").num_columns(2).spacing([10.0, 5.0]).show(ui, |ui| {
+            crate::ui_kit::grid(ui, "ann-text-grid", |ui| {
                 ui.label("Style");
                 egui::ComboBox::from_id_salt("ann-text-style").selected_text(t.style.clone()).show_ui(ui, |ui| {
                     for s in &st.text_styles {
@@ -1192,7 +1228,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
             if d.overrides.len() < texts.len() {
                 d.overrides.resize(texts.len(), None);
             }
-            egui::Grid::new("ann-dim-grid").num_columns(2).spacing([10.0, 5.0]).show(ui, |ui| {
+            crate::ui_kit::grid(ui, "ann-dim-grid", |ui| {
                 ui.label("Style");
                 egui::ComboBox::from_id_salt("ann-dim-style").selected_text(d.style.name.clone()).show_ui(ui, |ui| {
                     for s in &st.dim_styles {
@@ -1225,7 +1261,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
                         ui.end_row();
                         if let Some(p) = &d.cache.problem {
                             ui.label("");
-                            ui.label(RichText::new(p).color(BAD).small());
+                            ui.label(RichText::new(p).color(BAD()).small());
                             ui.end_row();
                         }
                     }
@@ -1245,7 +1281,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
                     _ => {}
                 }
             });
-            ui.label(RichText::new("The measured value is recomputed from the points; an override shows beside it here.").small().weak());
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "The measured value is recomputed from the points; an override shows beside it here.");
         }
         Ann::Leader(l) => {
             match &mut l.text {
@@ -1280,7 +1316,7 @@ pub fn edit_ui(ui: &mut Ui, e: &mut Element, st: &AnnotationSettings, alignments
         match ann::write(e, a) {
             Ok(()) => return true,
             Err(err) => {
-                ui.label(RichText::new(format!("Not applied: {err}")).color(BAD));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("Not applied: {err}"));
                 let _ = ann::write(e, before);
             }
         }

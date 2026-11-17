@@ -64,7 +64,7 @@ pub fn owns(category: &str) -> bool {
 /// A ground surface: shown in the 3D site view from its mesh, never edited as a definition (its
 /// data is the whole TIN).
 pub fn is_surface(category: &str) -> bool {
-    category == corridor::SURFACE_CATEGORY
+    category == corridor::SURFACE_CATEGORY || category == crate::civil::SURFACE
 }
 
 /// Keys of a definition that the generic editor leaves alone: caches and records the crates

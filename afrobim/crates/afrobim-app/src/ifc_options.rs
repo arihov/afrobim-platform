@@ -3,7 +3,6 @@
 
 use afrobim_ifc::AlignmentExport;
 use afrobim_kernel::{project_setting, set_project_setting, Document};
-use egui::RichText;
 
 use crate::app::AfroBimApp;
 
@@ -49,24 +48,41 @@ impl AfroBimApp {
         }
         let mut mode = mode_of(&self.doc);
         let (mut keep, mut export) = (true, false);
-        crate::win::new(ctx, "Export IFC").collapsible(false).resizable(false).show(ctx, |ui| {
-            ui.label(RichText::new("How alignments are written").strong());
-            for m in MODES {
-                ui.radio_value(&mut mode, m, name(m));
-                ui.label(RichText::new(explain(m)).small().weak());
+        let crs_line = crate::crs_ui::export_statement(afrobim_kernel::project_crs(&self.doc).as_ref());
+        let out = crate::ui_kit::Dialog::titled("Export IFC").subtitle("IFC 4.3 (STEP) of the whole model").width(720.0).resizable(false).show(
+            ctx,
+            |ui| {
+                crate::ui_kit::section(ui, "How alignments are written", |ui| {
+                    for m in MODES {
+                        ui.radio_value(&mut mode, m, name(m));
+                        crate::ui_kit::note(ui, explain(m));
+                        ui.add_space(2.0);
+                    }
+                    crate::ui_kit::note(ui, "The choice is kept in the document. Simple is the default and what earlier versions wrote.");
+                });
+                let rows = crate::civil_ifc::export_rows(&self.doc);
+                if !rows.is_empty() {
+                    crate::ui_kit::section(ui, "Civil objects: what is written and what is not", |ui| {
+                        let table: Vec<Vec<String>> = rows.iter().map(|r| vec![r.label.clone(), r.count.to_string(), if r.written.is_empty() { "not mapped".to_string() } else { r.written.clone() }, r.not_mapped.clone()]).collect();
+                        crate::ui_kit::results_table(ui, "ifc-civil", &["Object", "Count", "Written as", "Not mapped"], &[crate::ui_kit::Col::Text, crate::ui_kit::Col::Num, crate::ui_kit::Col::Text, crate::ui_kit::Col::Text], &table);
+                        crate::ui_kit::note(ui, "Every entity and type was checked against the IFC4X3_ADD2 schema. The Geometry or Linear alignment mode writes the vertical and superelevation segments of the alignments.");
+                    });
+                }
+                crate::ui_kit::section(ui, "Coordinate reference", |ui| {
+                    crate::ui_kit::note(ui, crs_line.clone());
+                });
+            },
+            |ui| crate::ui_kit::Footer::new("Choose the file and export...").show(ui),
+        );
+        if let Some((_, f)) = &out.inner {
+            export = f.primary;
+            if f.cancel {
+                keep = false;
             }
-            ui.add_space(4.0);
-            ui.label(RichText::new("The choice is kept in the document. Simple is the default and what earlier versions wrote.").small().weak());
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                if ui.button("Choose the file and export…").clicked() {
-                    export = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    keep = false;
-                }
-            });
-        });
+        }
+        if out.closed {
+            keep = false;
+        }
         if mode != mode_of(&self.doc) {
             set_mode(&mut self.doc, mode);
             self.schedule_commit_now();

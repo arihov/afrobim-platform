@@ -12,7 +12,13 @@ use crate::app::AfroBimApp;
 use crate::ext_markings_glue::{self as glue, ExtRequest, Group, Placement, PLACEHOLDER_WORDS};
 use crate::{alignment_glue, station_input};
 
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+#[allow(non_snake_case)]
+
+fn WARN() -> egui::Color32 {
+
+    crate::theme::warn()
+
+}
 
 /// The state of the window.
 pub struct ExtDialog {
@@ -144,7 +150,7 @@ fn dimension_rows(ui: &mut Ui, spec: &ExtSpec, req: &mut ExtRequest) {
             opt_mm(ui, &mut req.width_mm, 50.0, "");
             ui.end_row();
             ui.label("");
-            ui.label(RichText::new(format!("The sign page gives stripes {} to {} mm, gaps {} to {} mm, width {} to {} mm.", c.mark_min_mm, c.mark_max_mm, c.gap_min_mm, c.gap_max_mm, c.min_width_mm, c.max_width_mm)).small().weak());
+            crate::ui_kit::note(ui, format!("The sign page gives stripes {} to {} mm, gaps {} to {} mm, width {} to {} mm.", c.mark_min_mm, c.mark_max_mm, c.gap_min_mm, c.gap_max_mm, c.min_width_mm, c.max_width_mm));
             ui.end_row();
             if c.stripes {
                 ui.label("Gap between stripes (mm)");
@@ -193,9 +199,10 @@ impl AfroBimApp {
         let Some(mut d) = self.ext_marking_dialog.take() else { return };
         let choices = alignment_glue::alignments(&self.doc);
         let (mut keep, mut lay) = (true, false);
-        crate::win::new(ctx, format!("Road markings: {}", d.group.title())).collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
+                let footer_ok = d.alignment.is_some();
+        let dlg = crate::ui_kit::Dialog::titled(format!("Road markings: {}", d.group.title())).width(560.0).show(ctx, |ui| {
             egui::ScrollArea::vertical().max_height(620.0).auto_shrink([false, true]).show(ui, |ui| {
-                egui::Grid::new("extmark").num_columns(2).spacing([10.0, 7.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "extmark", |ui| {
                     ui.label("Alignment");
                     let current = choices.iter().find(|c| Some(c.0) == d.alignment).map(|c| c.1.clone()).unwrap_or_default();
                     egui::ComboBox::from_id_salt("extmark-alignment").selected_text(current).show_ui(ui, |ui| {
@@ -259,7 +266,7 @@ impl AfroBimApp {
                     for (fam, msg) in &missing {
                         ui.label("");
                         ui.vertical(|ui| {
-                            ui.label(RichText::new(msg).color(WARN));
+                            ui.label(RichText::new(msg).color(WARN()));
                             if d.req.basis == Basis::Uganda && glue::types_of(Basis::Uk, *fam).is_ok() {
                                 let on = d.fallback_family == Some(*fam);
                                 if ui.selectable_label(on, format!("Use the UK value for {}", glue::family_label(*fam).to_lowercase())).clicked() {
@@ -283,10 +290,10 @@ impl AfroBimApp {
                             ui.label(RichText::new(s.citation).small());
                             ui.label(RichText::new(s.applies).small().weak());
                             if glue::is_placeholder(s) {
-                                ui.label(RichText::new(PLACEHOLDER_WORDS).strong().color(WARN));
+                                ui.label(RichText::new(PLACEHOLDER_WORDS).strong().color(WARN()));
                             }
                             if let markings::GeometryStatus::CatalogueOnly(why) = s.geometry {
-                                ui.label(RichText::new(format!("Catalogue only, it cannot be laid: {why}")).color(WARN));
+                                ui.label(RichText::new(format!("Catalogue only, it cannot be laid: {why}")).color(WARN()));
                             }
                         });
                         ui.end_row();
@@ -350,7 +357,7 @@ impl AfroBimApp {
                                     let r = crate::projset::resolve_answered(&self.doc, v, false, &crate::projset::marking_thresholds(), d.answer);
                                     ui.label(RichText::new(&r.band_note).small());
                                     if let Some(ask) = r.ask {
-                                        ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).small().color(WARN));
+                                        ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).small().color(WARN()));
                                         ui.horizontal(|ui| {
                                             ui.selectable_value(&mut d.answer, Some(true), "Yes, take the band");
                                             ui.selectable_value(&mut d.answer, Some(false), "No, keep the exact value");
@@ -380,16 +387,16 @@ impl AfroBimApp {
                         .weak(),
                 );
             });
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                if ui.add_enabled(d.alignment.is_some(), egui::Button::new("Lay the marking")).clicked() {
-                    lay = true;
-                }
-                if ui.button("Close").clicked() {
-                    keep = false;
-                }
-            });
-        });
+        }, |ui| crate::ui_kit::Footer::new("Lay the marking").enabled(footer_ok, "Complete the inputs").cancel(Some("Close")).show(ui));
+        if let Some((_, f)) = &dlg.inner {
+            lay = f.primary;
+            if f.cancel {
+                keep = false;
+            }
+        }
+        if dlg.closed {
+            keep = false;
+        }
         if lay {
             if let Some(a) = d.alignment {
                 match glue::add(&mut self.doc, a, &d.req) {
@@ -446,7 +453,7 @@ fn stud_rows(ui: &mut Ui, d: &mut ExtDialog) {
                     }
                 }
                 None => {
-                    ui.label(RichText::new(format!("The table gives no spacing here: \"{}\".", r.text)).color(WARN));
+                    ui.label(RichText::new(format!("The table gives no spacing here: \"{}\".", r.text)).color(WARN()));
                 }
             }
         }
@@ -455,13 +462,13 @@ fn stud_rows(ui: &mut Ui, d: &mut ExtDialog) {
                 ui.label(RichText::new(format!("Spacing {} m, colour {}.", s as f64 / 1000.0, c.label())).small());
             }
             _ => {
-                ui.label(RichText::new("No spacing chosen yet.").small().weak());
+                crate::ui_kit::note(ui, "No spacing chosen yet.");
             }
         }
     });
     ui.end_row();
     ui.label("Line the studs go with");
-    ui.label(RichText::new("The offset above is the line's offset; the studs run along it between the stations.").small().weak());
+    crate::ui_kit::note(ui, "The offset above is the line's offset; the studs run along it between the stations.");
     ui.end_row();
     let _ = StudColour::White;
 }
@@ -479,11 +486,11 @@ fn preview(ui: &mut Ui, doc: &Document, d: &ExtDialog) {
             None => Err(notes.iter().filter(|n| n.severity == afrobim_kernel::Severity::Error).map(|n| n.message.clone()).collect::<Vec<_>>().join(" ")),
         }
     });
-    ui.label(RichText::new("Preview in plan").strong());
+    crate::ui_kit::heading(ui, "Preview in plan");
     let (resolved, laid) = match outcome {
         Ok(v) => v,
         Err(why) => {
-            ui.label(RichText::new(if why.is_empty() { "Not laid out yet.".to_string() } else { why }).small().color(WARN));
+            ui.label(RichText::new(if why.is_empty() { "Not laid out yet.".to_string() } else { why }).small().color(WARN()));
             return;
         }
     };

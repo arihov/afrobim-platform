@@ -30,7 +30,7 @@ version = "0.1.0"
 dependencies = [
  "afrobim-draw",
  "afrobim-kernel",
- "roxmltree",
+ "roxmltree 0.20.0",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -56,35 +56,54 @@ version = "0.1.0"
 dependencies = [
  "afrobim-alignment",
  "afrobim-annotate",
+ "afrobim-cogo",
  "afrobim-coordination",
  "afrobim-corridor",
  "afrobim-cost",
+ "afrobim-defaults",
  "afrobim-design",
  "afrobim-drainage",
  "afrobim-draw",
  "afrobim-dxf",
  "afrobim-fabrication",
  "afrobim-gantry",
+ "afrobim-grading",
  "afrobim-ifc",
+ "afrobim-junction",
  "afrobim-kernel",
  "afrobim-lighting",
  "afrobim-markings",
  "afrobim-pavement",
+ "afrobim-pipes",
+ "afrobim-pointcloud",
  "afrobim-progress",
  "afrobim-restraint",
  "afrobim-schedule",
  "afrobim-sheets",
+ "afrobim-shortcuts",
  "afrobim-signs",
  "afrobim-supports",
+ "afrobim-survey",
+ "afrobim-terrain",
  "afrobim-visibility",
  "eframe",
  "egui",
+ "egui-phosphor",
  "embed-resource",
  "image",
  "lyon_tessellation",
  "rfd",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "afrobim-cogo"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -95,7 +114,7 @@ dependencies = [
  "afrobim-ifc",
  "afrobim-kernel",
  "flate2",
- "roxmltree",
+ "roxmltree 0.20.0",
  "serde",
  "serde_json",
 ]
@@ -108,7 +127,7 @@ dependencies = [
  "afrobim-draw",
  "afrobim-kernel",
  "delaunator",
- "roxmltree",
+ "roxmltree 0.20.0",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -131,6 +150,15 @@ dependencies = [
  "afrobim-restraint",
  "afrobim-signs",
  "afrobim-supports",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "afrobim-defaults"
+version = "0.1.0"
+dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -209,6 +237,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-grading"
+version = "0.1.0"
+dependencies = [
+ "afrobim-corridor",
+ "afrobim-terrain",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-ifc"
 version = "0.1.0"
 dependencies = [
@@ -224,7 +263,19 @@ dependencies = [
  "afrobim-restraint",
  "afrobim-supports",
  "lyon_tessellation",
+ "serde",
  "serde_json",
+]
+
+[[package]]
+name = "afrobim-junction"
+version = "0.1.0"
+dependencies = [
+ "afrobim-alignment",
+ "afrobim-corridor",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -286,6 +337,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-pipes"
+version = "0.1.0"
+dependencies = [
+ "afrobim-alignment",
+ "afrobim-corridor",
+ "afrobim-drainage",
+ "roxmltree 0.20.0",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "afrobim-pointcloud"
+version = "0.1.0"
+dependencies = [
+ "afrobim-corridor",
+ "afrobim-terrain",
+ "e57",
+ "las",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-progress"
 version = "0.1.0"
 dependencies = [
@@ -316,7 +394,7 @@ version = "0.1.0"
 dependencies = [
  "afrobim-draw",
  "afrobim-kernel",
- "roxmltree",
+ "roxmltree 0.20.0",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -340,12 +418,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-shortcuts"
+version = "0.1.0"
+dependencies = [
+ "afrobim-kernel",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-signs"
 version = "0.1.0"
 dependencies = [
  "afrobim-draw",
  "regex",
- "roxmltree",
+ "roxmltree 0.20.0",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -359,6 +449,28 @@ dependencies = [
  "afrobim-kernel",
  "serde",
  "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "afrobim-survey"
+version = "0.1.0"
+dependencies = [
+ "afrobim-cogo",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "afrobim-terrain"
+version = "0.1.0"
+dependencies = [
+ "afrobim-corridor",
+ "robust",
+ "serde",
+ "serde_json",
+ "spade",
  "thiserror 2.0.21",
 ]
 
@@ -398,6 +510,12 @@ checksum = "c982642fa9e8606056828ee9a8505737230110bb1099153c79efe865c59d12ba"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "allocator-api2"
+version = "0.2.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "android-activity"
@@ -578,6 +696,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d8c1fef690941d3e7788d328517591fecc684c084084702d6ff1641e993699a"
 
 [[package]]
+name = "block-buffer"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
+dependencies = [
+ "generic-array",
+]
+
+[[package]]
 name = "block2"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -620,6 +747,12 @@ dependencies = [
  "quote",
  "syn 3.0.10",
 ]
+
+[[package]]
+name = "byteorder"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "byteorder-lite"
@@ -717,6 +850,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "chrono"
+version = "0.4.45"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
+dependencies = [
+ "iana-time-zone",
+ "js-sys",
+ "num-traits",
+ "wasm-bindgen",
+ "windows-link",
+]
+
+[[package]]
 name = "clipboard-win"
 version = "5.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -795,6 +941,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpufeatures"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "crc32fast"
 version = "1.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -816,6 +971,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
+name = "crypto-common"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
+dependencies = [
+ "generic-array",
+ "typenum",
+]
+
+[[package]]
 name = "cursor-icon"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -828,6 +993,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e1ee323c1275374f7e612d3724d12707079fb6a2117349fe144def656f5a880"
 dependencies = [
  "robust",
+]
+
+[[package]]
+name = "digest"
+version = "0.10.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
+dependencies = [
+ "block-buffer",
+ "crypto-common",
 ]
 
 [[package]]
@@ -890,6 +1065,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 
 [[package]]
+name = "e57"
+version = "0.11.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcfee41a50fbd70278c70cc477b8671ffe03951cba028cc2c057777a9ee6a3cc"
+dependencies = [
+ "roxmltree 0.21.2",
+]
+
+[[package]]
 name = "ecolor"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -948,6 +1132,15 @@ dependencies = [
  "log",
  "nohash-hasher",
  "profiling",
+]
+
+[[package]]
+name = "egui-phosphor"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "171d57331491e92f0a7c73fad1088716e3200984309f4f8684731b750cee1378"
+dependencies = [
+ "egui",
 ]
 
 [[package]]
@@ -1183,6 +1376,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
 name = "foreign-types"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1280,6 +1479,16 @@ dependencies = [
  "futures-task",
  "pin-project-lite",
  "slab",
+]
+
+[[package]]
+name = "generic-array"
+version = "0.14.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
+dependencies = [
+ "typenum",
+ "version_check",
 ]
 
 [[package]]
@@ -1460,7 +1669,18 @@ version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
- "foldhash",
+ "foldhash 0.1.5",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
 ]
 
 [[package]]
@@ -1492,6 +1712,30 @@ name = "hexf-parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
+
+[[package]]
+name = "iana-time-zone"
+version = "0.1.65"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e31bc9ad994ba00e440a8aa5c9ef0ec67d5cb5e5cb0cc7f8b744a35b389cc470"
+dependencies = [
+ "android_system_properties",
+ "core-foundation-sys",
+ "iana-time-zone-haiku",
+ "js-sys",
+ "log",
+ "wasm-bindgen",
+ "windows-core",
+]
+
+[[package]]
+name = "iana-time-zone-haiku"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f31827a206f56af32e590ba56d5d2d085f558508192593743f16b2306495269f"
+dependencies = [
+ "cc",
+]
 
 [[package]]
 name = "icu_collections"
@@ -1722,6 +1966,31 @@ name = "khronos_api"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
+
+[[package]]
+name = "las"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8823fdc8209bf345e7ec7586f2e1f5ad0f978899ebb9e637c6d54e0f26cba0b"
+dependencies = [
+ "byteorder",
+ "chrono",
+ "laz",
+ "log",
+ "num-traits",
+ "thiserror 2.0.21",
+ "uuid",
+]
+
+[[package]]
+name = "laz"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a1bd8242fad6a61a7520b73d072ddf63dff1f3680e3f5c157b1dc6e8e5ab2ec"
+dependencies = [
+ "byteorder",
+ "num-traits",
+]
 
 [[package]]
 name = "libc"
@@ -2671,6 +2940,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 
 [[package]]
+name = "roxmltree"
+version = "0.21.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9da7f59328b09405b181fee1018925fad50f157afb43c0c0f5c522c256dd5907"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2814,6 +3092,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha2"
+version = "0.10.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
+]
+
+[[package]]
 name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2952,6 +3241,18 @@ checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "spade"
+version = "2.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9699399fd9349b00b184f5635b074f9ec93afffef30c853f8c875b32c0f8c7fa"
+dependencies = [
+ "hashbrown 0.16.1",
+ "num-traits",
+ "robust",
+ "smallvec",
 ]
 
 [[package]]
@@ -3235,6 +3536,12 @@ checksum = "cb30dbbd9036155e74adad6812e9898d03ec374946234fbcebd5dfc7b9187b90"
 dependencies = [
  "rustc-hash 2.1.3",
 ]
+
+[[package]]
+name = "typenum"
+version = "1.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
 name = "uds_windows"

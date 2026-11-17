@@ -28,6 +28,8 @@ pub struct AlignCheckUi {
     /// Where the limits come from, and the built-in selection (class, terrain, speed, emax).
     pub source: LimitSource,
     pub builtin: BuiltinChoice,
+    /// The design speed row of the defaults basis shown in the reference panel (0 follows the chosen design speed).
+    pub ref_speed: usize,
 }
 
 impl AlignCheckUi {
@@ -40,6 +42,8 @@ impl AlignCheckUi {
 #[derive(Default)]
 pub struct OptionsUi {
     pub open: bool,
+    /// 0 basis, 1 options, 2 comparison, 3 scoring.
+    pub tab: usize,
     pub set: Option<ElementId>,
     pub new_set: String,
     pub new_option: String,
@@ -54,9 +58,9 @@ pub struct OptionsUi {
 
 fn status_colour(s: CheckStatus) -> Color32 {
     match s {
-        CheckStatus::Pass => GOOD,
-        CheckStatus::Fail => BAD,
-        CheckStatus::NotChecked => WARN,
+        CheckStatus::Pass => GOOD(),
+        CheckStatus::Fail => BAD(),
+        CheckStatus::NotChecked => WARN(),
     }
 }
 
@@ -102,7 +106,7 @@ fn builtin_picker(ui: &mut egui::Ui, b: &mut BuiltinChoice) {
     let bases = afrobim_design::builtin_bases();
     let Some(info) = bases.first() else { return };
     ui.label(RichText::new(&info.name).small());
-    egui::Grid::new("chk-builtin").num_columns(2).spacing([10.0, 5.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "chk-builtin", |ui| {
         ui.label("Road class");
         let shown = b.class.and_then(|c| info.classes.iter().find(|x| x.class == c)).map(|x| x.name.to_string()).unwrap_or_else(|| "choose".into());
         egui::ComboBox::from_id_salt("chk-class").selected_text(shown).show_ui(ui, |ui| {
@@ -132,7 +136,7 @@ fn builtin_picker(ui: &mut egui::Ui, b: &mut BuiltinChoice) {
         if let Some(class) = class {
             for (terrain, why) in &class.refused_terrains {
                 ui.label("");
-                ui.label(RichText::new(format!("{terrain:?} is not offered for this class: {why}")).small().weak());
+                crate::ui_kit::note(ui, format!("{terrain:?} is not offered for this class: {why}"));
                 ui.end_row();
             }
         }
@@ -158,14 +162,61 @@ fn builtin_picker(ui: &mut egui::Ui, b: &mut BuiltinChoice) {
         });
         ui.end_row();
         ui.label("Maximum gradient");
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut b.absolute_grade, false, "desirable");
-            ui.selectable_value(&mut b.absolute_grade, true, "absolute");
-        });
+        crate::ui_kit::segmented_of(ui, &mut b.absolute_grade, &[(false, "Desirable"), (true, "Absolute")]);
         ui.end_row();
         ui.label("Minimum grade in cut");
-        ui.checkbox(&mut b.minimum_grade_in_cut, "check the 0.5 % minimum (applied to every grade, so use it only when the alignment is in cut throughout)");
+        ui.vertical(|ui| {
+            crate::ui_kit::toggle(ui, &mut b.minimum_grade_in_cut, "Check the 0.5 % minimum");
+            crate::ui_kit::note(ui, "Applied to every grade, so use it only when the alignment is in cut throughout.");
+        });
         ui.end_row();
+    });
+}
+
+/// The reference values of the project's defaults basis at a design speed: sight distance, minimum
+/// radii by superelevation, K values and gradients, each with its citation. They are shown for
+/// comparison with the limits chosen below; the checks use the limits source chosen, not these.
+fn defaults_reference(ui: &mut egui::Ui, pick: &mut usize, from_choice: Option<f64>) {
+    use afrobim_defaults::Conditions;
+    let speeds = crate::defaults_glue::speeds_of("link.ssd.desirable_min");
+    egui::CollapsingHeader::new(format!("Reference values from the defaults basis ({})", crate::defaults_glue::basis_name())).id_salt("chk-defaults-ref").default_open(false).show(ui, |ui| {
+        if speeds.is_empty() {
+            crate::ui_kit::note(ui, "The project has no defaults basis, or it holds no design speed tables.");
+            return;
+        }
+        let mut labels: Vec<String> = vec![match from_choice { Some(s) => format!("follow the design speed chosen ({s} km/h)"), None => "choose".to_string() }];
+        labels.extend(speeds.iter().map(|v| format!("{} km/h", afrobim_defaults::fmt_num(*v))));
+        ui.horizontal(|ui| {
+            ui.label("Design speed");
+            crate::ui_kit::combo_owned(ui, "chk-ref-speed", pick, &labels);
+        });
+        let speed = if *pick > 0 { speeds.get(*pick - 1).copied() } else { from_choice };
+        let Some(v) = speed else {
+            crate::ui_kit::note(ui, "Choose a design speed to see the values.");
+            return;
+        };
+        if !speeds.iter().any(|s| (s - v).abs() < 1e-9) {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, format!("The basis has no row for {v} km/h; choose one of its own design speeds."));
+            return;
+        }
+        let c = Conditions::none().design_speed(v);
+        let items: Vec<(&str, &str, Conditions)> = vec![
+            ("Stopping sight distance, desirable minimum", "link.ssd.desirable_min", c.clone()),
+            ("Stopping sight distance, one step below", "link.ssd.one_step_below", c.clone()),
+            ("Minimum radius, superelevation 2.5 %", "link.horizontal.min_radius_superelevation_2_5", c.clone()),
+            ("Minimum radius, superelevation 3.5 %", "link.horizontal.min_radius_superelevation_3_5", c.clone()),
+            ("Desirable minimum radius, superelevation 5 %", "link.horizontal.desirable_min_radius_superelevation_5", c.clone()),
+            ("Radius one step below, superelevation 7 %", "link.horizontal.one_step_below_radius_superelevation_7", c.clone()),
+            ("Crest K, desirable minimum", "link.vertical.crest_k_desirable_min", c.clone()),
+            ("Sag K, desirable minimum", "link.vertical.sag_k_desirable_min", c.clone()),
+            ("Desirable maximum gradient, motorway", "link.gradient.desirable_max", Conditions::none().label("road_type", "motorway")),
+            ("Desirable maximum gradient, all-purpose dual", "link.gradient.desirable_max", Conditions::none().label("road_type", "all_purpose_dual")),
+            ("Desirable maximum gradient, all-purpose single", "link.gradient.desirable_max", Conditions::none().label("road_type", "all_purpose_single")),
+            ("Minimum gradient for drainage", "link.gradient.min_desirable", Conditions::none()),
+        ];
+        let rows = crate::defaults_glue::reference_rows(&items);
+        crate::ui_kit::results_table(ui, "chk-ref", &["Value", "Number", "Unit", "Source"], &[crate::ui_kit::Col::Text, crate::ui_kit::Col::Num, crate::ui_kit::Col::Text, crate::ui_kit::Col::Text], &rows);
+        crate::ui_kit::note(ui, "Not reviewed by an engineer. A starting point for the project's own limits; see DEFAULTS.");
     });
 }
 
@@ -179,7 +230,7 @@ fn mowt_panels(ui: &mut egui::Ui) {
         }
     });
     egui::CollapsingHeader::new("Known slips in the manual").id_salt("chk-slips").default_open(open).show(ui, |ui| {
-        ui.add(egui::Label::new(RichText::new(format!("{} Where a table cell contradicts another table of the same manual it is withheld and the check is reported Not checked, or derived and labelled so; the engineer decides which figure governs.", glue::THIRD_PARTY_NOTE)).small().color(WARN)).wrap());
+        ui.add(egui::Label::new(RichText::new(format!("{} Where a table cell contradicts another table of the same manual it is withheld and the check is reported Not checked, or derived and labelled so; the engineer decides which figure governs.", glue::THIRD_PARTY_NOTE)).small().color(WARN())).wrap());
         for s in afrobim_design::mowt::known_slips() {
             ui.add(egui::Label::new(RichText::new(format!("{} ({}): {} Treatment: {}", s.id, s.place, s.what, s.treatment)).small()).wrap());
         }
@@ -239,36 +290,45 @@ impl AfroBimApp {
         let mut template = false;
         let mut csv = false;
         let units = crate::anno_ui::units_of(&self.doc);
-        crate::win::new(ctx, "ALIGNCHECK: design checks").open(&mut open).default_width(860.0).default_height(560.0).vscroll(true).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Alignment");
-                let current = c.design.and_then(|d| designs.iter().find(|x| x.0 == d)).map(|x| x.2.clone()).unwrap_or_else(|| "choose".into());
-                egui::ComboBox::from_id_salt("chk-design").selected_text(current).show_ui(ui, |ui| {
-                    for (d, _, n) in &designs {
-                        if ui.selectable_label(c.design == Some(*d), n).clicked() {
-                            c.design = Some(*d);
-                            c.report = None;
+        let (run_ok, run_reason) = if c.design.is_none() {
+            (false, "Choose the alignment")
+        } else if c.source != LimitSource::UserFile && c.builtin.selection().is_err() {
+            (false, "Choose the class, terrain, design speed and emax")
+        } else if c.source != LimitSource::Builtin && c.row.is_empty() {
+            (false, "Load a limits table and choose its design speed row")
+        } else {
+            (true, "")
+        };
+        let dlg = crate::ui_kit::Dialog::titled("Alignment design checks").id_title("ALIGNCHECK: design checks").subtitle("What the design standard asks of the alignment, and what it finds").width(860.0).show(ctx, |ui| {
+            crate::ui_kit::heading(ui, "Alignment");
+            crate::ui_kit::form(ui, "chk-align", |f| {
+                f.row("Alignment", |ui| {
+                    let current = c.design.and_then(|d| designs.iter().find(|x| x.0 == d)).map(|x| x.2.clone()).unwrap_or_else(|| "choose".into());
+                    egui::ComboBox::from_id_salt("chk-design").selected_text(current).show_ui(ui, |ui| {
+                        for (d, _, n) in &designs {
+                            if ui.selectable_label(c.design == Some(*d), n).clicked() {
+                                c.design = Some(*d);
+                                c.report = None;
+                            }
                         }
-                    }
+                    });
                 });
             });
-            ui.separator();
-            ui.label(RichText::new("Limits source").strong());
-            ui.horizontal_wrapped(|ui| {
-                for s in LimitSource::ALL {
-                    if ui.selectable_value(&mut c.source, s, s.label()).clicked() {
-                        c.report = None;
-                    }
+            crate::ui_kit::heading(ui, "Limits source");
+            {
+                let all: Vec<(LimitSource, &str)> = LimitSource::ALL.iter().map(|s| (*s, s.label())).collect();
+                if crate::ui_kit::segmented_of(ui, &mut c.source, &all) {
+                    c.report = None;
                 }
-            });
+            }
+            defaults_reference(ui, &mut c.ref_speed, c.builtin.speed_kmh.map(|s| s as f64));
             if c.source != LimitSource::UserFile {
                 builtin_picker(ui, &mut c.builtin);
-                ui.label(RichText::new(glue::THIRD_PARTY_NOTE).small().weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, glue::THIRD_PARTY_NOTE);
                 mowt_panels(ui);
             }
             if c.source != LimitSource::Builtin {
-            ui.separator();
-            ui.label(RichText::new(if c.source == LimitSource::BuiltinWithOverlay { "Your limits table (its stated values replace the built-in ones)" } else { "Limits table" }).strong());
+            crate::ui_kit::heading(ui, if c.source == LimitSource::BuiltinWithOverlay { "Your limits table (its stated values replace the built-in ones)" } else { "Limits table" });
             ui.scope(|ui| {
             ui.horizontal(|ui| {
                 ui.add_sized([420.0, 20.0], egui::TextEdit::singleline(&mut c.path).hint_text("path of a limits file (CSV or JSON)"));
@@ -287,16 +347,11 @@ impl AfroBimApp {
             });
             }
             let builtin_ready = c.source == LimitSource::Builtin && c.builtin.selection().is_ok();
+            let _ = builtin_ready;
             if c.source == LimitSource::Builtin {
-                // The built-in basis needs no file: the run button is here.
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(builtin_ready && c.design.is_some(), egui::Button::new("Run the checks")).clicked() {
-                        run = true;
-                    }
-                    if let Err(why) = c.builtin.selection() {
-                        ui.label(RichText::new(format!("Still to choose: {why}.")).small().color(WARN));
-                    }
-                });
+                if let Err(why) = c.builtin.selection() {
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("Still to choose: {why}."));
+                }
             }
             match if c.source == LimitSource::Builtin { &None } else { &c.basis } {
                 None if c.source == LimitSource::Builtin => {}
@@ -308,7 +363,7 @@ impl AfroBimApp {
                     });
                 }
                 Some(Err(e)) => {
-                    ui.label(RichText::new(e).color(BAD));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
                 }
                 Some(Ok(b)) => {
                     ui.label(format!("Loaded: {} with {} row(s).", b.name, b.rows.len()));
@@ -328,35 +383,29 @@ impl AfroBimApp {
                                 }
                             }
                         });
-                        if ui.add_enabled(!c.row.is_empty() && c.design.is_some() && (c.source == LimitSource::UserFile || c.builtin.selection().is_ok()), egui::Button::new("Run the checks")).clicked() {
-                            run = true;
-                        }
                     });
                 }
             }
-            ui.separator();
+            crate::ui_kit::heading(ui, "Results");
             match &c.report {
                 None => {
-                    ui.label(RichText::new("No results yet.").weak());
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No results yet.");
                 }
                 Some(Err(e)) => {
-                    ui.label(RichText::new(e).color(BAD));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
                 }
                 Some(Ok(r)) => {
                     if c.report_rev != revision {
-                        ui.label(RichText::new("The design changed since these results: run the checks again.").color(WARN));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "The design changed since these results: run the checks again.");
                     }
                     ui.label(format!("{} pass, {} fail, {} not checked. Limits: {}; row {}.", r.count(CheckStatus::Pass), r.count(CheckStatus::Fail), r.count(CheckStatus::NotChecked), r.basis_name, r.row_label));
-                    ui.label(RichText::new(format!("Source string of the limits table: {}", r.source)).small());
-                    if ui.button("Save the results as CSV...").clicked() {
-                        csv = true;
-                    }
+                    crate::ui_kit::note(ui, format!("Source string of the limits table: {}", r.source));
                     egui::ScrollArea::both().auto_shrink([false, true]).max_height(330.0).show(ui, |ui| {
                         // By element: the worst status of each PI, PVI or grade.
-                        ui.label(RichText::new("By element").strong());
+                        crate::ui_kit::heading(ui, "By element");
                         egui::Grid::new("chk-elements").num_columns(5).striped(true).spacing([14.0, 3.0]).show(ui, |ui| {
                             for h in ["Element", "Status", "Pass", "Fail", "Not checked"] {
-                                ui.label(RichText::new(h).strong());
+                                crate::ui_kit::th(ui, &h);
                             }
                             ui.end_row();
                             let mut seen: Vec<&str> = Vec::new();
@@ -376,11 +425,11 @@ impl AfroBimApp {
                             }
                         });
                         ui.add_space(6.0);
-                        ui.label(RichText::new("Every check").strong());
-                        ui.label(RichText::new("Values and limits are shown in the document's units. The source of a limit keeps the unit the limits table prints, and the message is the engine's own text.").small().weak());
+                        crate::ui_kit::heading(ui, "Every check");
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Values and limits are shown in the document's units. The source of a limit keeps the unit the limits table prints, and the message is the engine's own text.");
                         egui::Grid::new("chk-items").num_columns(7).striped(true).spacing([12.0, 3.0]).show(ui, |ui| {
                             for h in ["Element", "Check", "Value", "Limit", "Status", "Source of the limit", "Message"] {
-                                ui.label(RichText::new(h).strong());
+                                crate::ui_kit::th(ui, &h);
                             }
                             ui.end_row();
                             for i in &r.items {
@@ -398,8 +447,22 @@ impl AfroBimApp {
                     });
                 }
             }
-            ui.label(RichText::new("These are checks of the geometry against the limits chosen: lateral sight distance, passing and decision sight distance, superelevation and combinations of horizontal and vertical alignment are not checked. A pass is not a certification.").small().weak());
-        });
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "These are checks of the geometry against the limits chosen: lateral sight distance, passing and decision sight distance, superelevation and combinations of horizontal and vertical alignment are not checked. A pass is not a certification.");
+        }, |ui| crate::ui_kit::Footer::new("Run the checks").enabled(run_ok, run_reason).secondary(&["Save the results as CSV..."]).cancel(Some("Close")).show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                run = true;
+            }
+            if out.secondary == Some(0) {
+                csv = true;
+            }
+        }
         if let Some(p) = load {
             c.path = p.display().to_string();
             c.basis = Some(glue::load_basis(&p));
@@ -490,7 +553,7 @@ impl AfroBimApp {
         } else {
             o.cmp = None;
         }
-        crate::win::new(ctx, "OPTIONS: alignment options").open(&mut open).default_width(1040.0).default_height(720.0).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Alignment options").id_title("OPTIONS: alignment options").subtitle("How alignments are checked, drawn and labelled").width(1040.0).show_body(ctx, |ui| {
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Option set");
@@ -514,7 +577,7 @@ impl AfroBimApp {
                     }
                 });
                 if !o.message.is_empty() {
-                    ui.label(RichText::new(&o.message).color(WARN));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, &o.message);
                 }
                 let (Some(set_id), Some(loaded)) = (set_id, loaded) else {
                     ui.label("There is no option set yet. Name one above and press New set, then add the current design to it as an option.");
@@ -523,12 +586,14 @@ impl AfroBimApp {
                 let set = match loaded {
                     Ok(s) => s,
                     Err(e) => {
-                        ui.label(RichText::new(e).color(BAD));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
                         return;
                     }
                 };
-                ui.separator();
-                ui.label(RichText::new("What the options are measured against").strong());
+                crate::ui_kit::tabs(ui, &mut o.tab, &["Basis", "Options", "Comparison", "Scoring"]);
+                ui.add_space(4.0);
+                if o.tab == 0 {
+                crate::ui_kit::section(ui, "What the options are measured against", |_| {});
                 ui.horizontal(|ui| {
                     ui.label("Ground surface");
                     let cur = set.surface.and_then(|s| surfaces.iter().find(|x| x.0 == s)).map(|x| x.1.clone()).unwrap_or_else(|| "none".into());
@@ -575,9 +640,10 @@ impl AfroBimApp {
                         }
                     });
                 });
-                ui.label(RichText::new("Cut, fill and land take need a ground surface and a typical section; cost needs your estimate. A figure that cannot be computed says why.").small().weak());
-                ui.separator();
-                ui.label(RichText::new("Options").strong());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Cut, fill and land take need a ground surface and a typical section; cost needs your estimate. A figure that cannot be computed says why.");
+                }
+                if o.tab == 1 {
+                crate::ui_kit::section(ui, "Options", |_| {});
                 ui.horizontal(|ui| {
                     ui.label("Add the current design as");
                     ui.add_sized([160.0, 20.0], egui::TextEdit::singleline(&mut o.new_option).hint_text("option name"));
@@ -637,14 +703,18 @@ impl AfroBimApp {
                         ui.end_row();
                     }
                 });
-                ui.separator();
-                ui.label(RichText::new("Comparison: the figures of each option, unweighted").strong());
+                }
+                if o.tab >= 2 {
+                if o.tab == 2 {
+                    crate::ui_kit::section(ui, "Comparison: the figures of each option, unweighted", |_| {});
+                }
                 match o.cmp.as_ref().map(|(_, c)| c) {
                     Some(Ok(cmp)) if !cmp.options.is_empty() => {
+                        if o.tab == 2 {
                         let units = crate::anno_ui::units_of(&self.doc);
                         egui::Grid::new("opt-cmp").num_columns(cmp.options.len() + 2).striped(true).spacing([14.0, 3.0]).show(ui, |ui| {
-                            ui.label(RichText::new("Figure").strong());
-                            ui.label(RichText::new("Unit").strong());
+                            crate::ui_kit::heading(ui, "Figure");
+                            crate::ui_kit::heading(ui, "Unit");
                             for r in &cmp.options {
                                 ui.label(RichText::new(&r.name).strong());
                             }
@@ -676,7 +746,7 @@ impl AfroBimApp {
                                 let why = cmp.options.iter().filter_map(|r| r.figure(key)).filter_map(|f| f.not_computed.clone()).next();
                                 match (how, why) {
                                     (Some(h), _) => ui.label(RichText::new(format!("{label}: {h}.")).small()),
-                                    (None, Some(w)) => ui.label(RichText::new(format!("{label}: not computed here, because {w}.")).small().color(WARN)),
+                                    (None, Some(w)) => ui.label(RichText::new(format!("{label}: not computed here, because {w}.")).small().color(WARN())),
                                     _ => ui.label(""),
                                 };
                             }
@@ -687,7 +757,7 @@ impl AfroBimApp {
                             }
                             egui::CollapsingHeader::new(format!("Notes: {}", r.name)).default_open(false).show(ui, |ui| {
                                 if let Some(e) = &r.error {
-                                    ui.label(RichText::new(format!("Cannot be built: {e}")).color(BAD));
+                                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("Cannot be built: {e}"));
                                 }
                                 for n in &r.notes {
                                     ui.label(RichText::new(n).small());
@@ -707,9 +777,10 @@ impl AfroBimApp {
                                 action = Some(Box::new(move |_| Ok(note)));
                             }
                         }
-                        ui.separator();
-                        ui.label(RichText::new("Weighted scoring").strong());
-                        ui.label(RichText::new("You choose the criteria, their weights and which way is better. Each criterion is scaled 0 to 1 between the worst and the best option and weighted by your weight. None is prefilled, and the unweighted figures above stay in view.").small().weak());
+                        }
+                        if o.tab == 3 {
+                        crate::ui_kit::section(ui, "Weighted scoring", |_| {});
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "You choose the criteria, their weights and which way is better. Each criterion is scaled 0 to 1 between the worst and the best option and weighted by your weight. None is prefilled, and the unweighted figures above stay in view.");
                         egui::Grid::new("opt-criteria").num_columns(4).spacing([10.0, 4.0]).show(ui, |ui| {
                             for (i, c) in set.criteria.iter().enumerate() {
                                 let label = figure_keys().iter().find(|k| k.0 == c.key).map(|k| k.1.to_string()).unwrap_or_else(|| c.key.clone());
@@ -767,11 +838,11 @@ impl AfroBimApp {
                         if !set.criteria.is_empty() {
                             let table = score(cmp, &set.criteria);
                             egui::Grid::new("opt-score").num_columns(set.criteria.len() + 2).striped(true).spacing([14.0, 3.0]).show(ui, |ui| {
-                                ui.label(RichText::new("Option").strong());
+                                crate::ui_kit::heading(ui, "Option");
                                 for c in &table.criteria {
                                     ui.label(RichText::new(figure_keys().iter().find(|k| k.0 == c.key).map(|k| k.1).unwrap_or(&c.key)).strong());
                                 }
-                                ui.label(RichText::new("Weighted score").strong());
+                                crate::ui_kit::heading(ui, "Weighted score");
                                 ui.end_row();
                                 for r in &table.options {
                                     ui.label(&r.name);
@@ -783,7 +854,7 @@ impl AfroBimApp {
                                     }
                                     match (r.score, &r.reason) {
                                         (Some(s), _) => ui.label(RichText::new(format!("{s:.3}")).strong()),
-                                        (None, Some(why)) => ui.label(RichText::new(why).small().color(WARN)),
+                                        (None, Some(why)) => ui.label(RichText::new(why).small().color(WARN())),
                                         _ => ui.label(""),
                                     };
                                     ui.end_row();
@@ -803,16 +874,21 @@ impl AfroBimApp {
                             }
                         }
                     }
+                    }
                     Some(Ok(_)) => {
                         ui.label("The set has no options yet. Add the current design above.");
                     }
                     Some(Err(e)) => {
-                        ui.label(RichText::new(e).color(BAD));
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
                     }
                     None => {}
                 }
+                }
             });
         });
+        if dlg.closed {
+            open = false;
+        }
         if !open {
             o.open = false;
         }

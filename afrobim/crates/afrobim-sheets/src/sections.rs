@@ -29,6 +29,16 @@ pub struct SectionsView {
     /// Label the daylight points and the centreline ground level.
     pub show_daylight_labels: bool,
     pub caption: String,
+    /// The name of a sample line group (a civil object) whose section views are shown instead of
+    /// the sections of the corridor. The group is cut by the application, which hands the drawings
+    /// over in `fed` each time the set is composed (they are not stored in the file).
+    #[serde(default)]
+    pub sample_group: Option<String>,
+    /// The section drawings of the sample line group, in station order, and their stations.
+    #[serde(skip)]
+    pub fed: Vec<afrobim_corridor::SectionDrawing>,
+    #[serde(skip)]
+    pub fed_stations_m: Vec<f64>,
 }
 
 impl SectionsView {
@@ -44,6 +54,24 @@ impl SectionsView {
             show_design_labels: false,
             show_daylight_labels: true,
             caption: String::new(),
+            sample_group: None,
+            fed: Vec::new(),
+            fed_stations_m: Vec::new(),
+        }
+    }
+
+    /// A view of the section views of a sample line group (see `sample_group`).
+    pub fn of_sample_group(group: &str, scale: Scale, columns: usize) -> SectionsView {
+        SectionsView { sample_group: Some(group.to_string()), ..SectionsView::new("", scale, columns) }
+    }
+
+    /// The fed drawings the view shows, with their stations: those at `stations_m` when given,
+    /// else those between `from_station_m` and `to_station_m`.
+    pub fn pick_fed(&self) -> Vec<(f64, &afrobim_corridor::SectionDrawing)> {
+        let all = self.fed_stations_m.iter().copied().zip(self.fed.iter());
+        match &self.stations_m {
+            Some(list) => list.iter().filter_map(|s| all.clone().find(|(x, _)| (x - s).abs() <= 1e-3)).collect(),
+            None => all.filter(|(s, _)| self.from_station_m.is_none_or(|f| *s >= f - 1e-6) && self.to_station_m.is_none_or(|t| *s <= t + 1e-6)).collect(),
         }
     }
 }
@@ -66,23 +94,36 @@ pub fn compose_sections(sheet: &mut ComposedSheet, ctx: &Ctx, view: &SectionsVie
         sheet.warn("A sections view needs a valid scale, a positive exaggeration and at least one column.");
         return 0;
     }
-    let Some(id) = ctx.model.id_of(afrobim_corridor::CORRIDOR_CATEGORY, &view.corridor) else {
-        sheet.warn(format!("There is no corridor called '{}' in the document.", view.corridor));
-        return 0;
-    };
-    let corridor = match corridor_of(ctx.model.doc, id) {
-        Ok(c) => c,
-        Err(e) => {
-            sheet.warn(format!("Corridor '{}' cannot be built: {e}", view.corridor));
-            return 0;
+    let (drawings, source_name): (Vec<afrobim_corridor::SectionDrawing>, String) = match &view.sample_group {
+        Some(group) => {
+            let chosen = view.pick_fed();
+            if chosen.is_empty() {
+                sheet.warn(format!("Sample line group '{group}' has no section views in the range asked for."));
+                return 0;
+            }
+            (chosen.into_iter().map(|(_, d)| d.clone()).collect(), group.clone())
+        }
+        None => {
+            let Some(id) = ctx.model.id_of(afrobim_corridor::CORRIDOR_CATEGORY, &view.corridor) else {
+                sheet.warn(format!("There is no corridor called '{}' in the document.", view.corridor));
+                return 0;
+            };
+            let corridor = match corridor_of(ctx.model.doc, id) {
+                Ok(c) => c,
+                Err(e) => {
+                    sheet.warn(format!("Corridor '{}' cannot be built: {e}", view.corridor));
+                    return 0;
+                }
+            };
+            let chosen = pick_sections(&corridor.sections, view);
+            if chosen.is_empty() {
+                sheet.warn(format!("Corridor '{}' has no sections in the range asked for.", view.corridor));
+                return 0;
+            }
+            (chosen.iter().map(|s| section_drawing(s, view.vertical_exaggeration)).collect(), view.corridor.clone())
         }
     };
-    let chosen = pick_sections(&corridor.sections, view);
-    if chosen.is_empty() {
-        sheet.warn(format!("Corridor '{}' has no sections in the range asked for.", view.corridor));
-        return 0;
-    }
-    let drawings: Vec<_> = chosen.iter().map(|s| section_drawing(s, view.vertical_exaggeration)).collect();
+    let _ = source_name;
     let (lh, hh) = (styles.text.label, styles.text.heading);
     let pen = styles.pens.pen(layers::SECTION);
     // Paper size of a drawing: its units are millimetres at full size.
@@ -103,12 +144,12 @@ pub fn compose_sections(sheet: &mut ComposedSheet, ctx: &Ctx, view: &SectionsVie
     }
     let rows_fit = ((rect.height() - hh * 2.4) / cell_h).floor().max(0.0) as usize;
     let capacity = rows_fit * view.columns;
-    if capacity < chosen.len() {
-        sheet.warn(format!("{} of {} sections fit at {} in {} columns; the rest need another sheet.", capacity, chosen.len(), view.scale.label(), view.columns));
+    if capacity < drawings.len() {
+        sheet.warn(format!("{} of {} sections fit at {} in {} columns; the rest need another sheet.", capacity, drawings.len(), view.scale.label(), view.columns));
     }
     let mut drawn = 0;
     let top = rect.y1 - hh * 2.4;
-    for (i, (section, sd)) in chosen.iter().zip(&drawings).enumerate().take(capacity) {
+    for (i, sd) in drawings.iter().enumerate().take(capacity) {
         let (row, col) = (i / view.columns, i % view.columns);
         let cell = Rect::new(rect.x0 + col as f64 * cell_w, top - (row + 1) as f64 * cell_h, rect.x0 + (col + 1) as f64 * cell_w, top - row as f64 * cell_h);
         let ext = &sd.drawing.extents;
@@ -143,7 +184,6 @@ pub fn compose_sections(sheet: &mut ComposedSheet, ctx: &Ctx, view: &SectionsVie
                 }
             }
         }
-        let _ = section;
         drawn += 1;
     }
     let vp = styles.pens.pen(layers::VIEWPORT);

@@ -402,7 +402,7 @@ pub fn edit_ui(ui: &mut egui::Ui, data: &mut Value) -> bool {
     if placeholder {
         ui.label(
             egui::RichText::new("Placeholder dimensions. They are not designed or checked: enter the engineer's values.")
-                .color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B))
+                .color(crate::theme::warn())
                 .small(),
         );
     }

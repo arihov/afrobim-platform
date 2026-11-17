@@ -39,7 +39,7 @@
 //! such as `ellipsoidHeight`, and is not applied). **PVI stations are taken to be internal
 //! stations**; the schema does not say, and a note is made when the alignment also has station
 //! equations. Only the first `ProfAlign` of an alignment is read; the others are named in a note.
-//! `ProfSurf` (existing ground) is not read.
+//! `ProfSurf` (existing ground) is not part of the alignment; [`crate::parse_landxml_file`] reads it.
 //!
 //! **Superelevation** (`Alignment/Superelevation`, one element per curve): the stations
 //! `BeginRunoutSta`, `BeginRunoffSta`, `FullSuperSta`, `RunoffSta`, `StartofRunoutSta`,
@@ -67,16 +67,25 @@
 //! why, and the rest of the file is still read:
 //!
 //! - spirals other than clothoids (`bloss`, `cubic`, `sinusoid`, …);
-//! - `IrregularLine` and `Chain`;
 //! - points given neither as coordinates nor as a resolvable `pntRef`.
 //!
-//! Ignored silently: `ProfSurf`, `CrossSects`, `Cant`, `AlignPIs`, `Feature`.
+//! `IrregularLine` (its `PntList2D` or `PntList3D` of northing, easting [, elevation]; the schema
+//! says the list includes the start and end, and they are added when it does not) and `Chain` (the
+//! `CgPoint` names, joined in order) are read as **straight segments between their points**, so an
+//! alignment through a polyline imports as a run of lines, with a note; the corners between those
+//! segments are not reported as discontinuities. A `Chain` that names a point not in the file leaves
+//! the alignment out.
+//!
+//! Ignored silently by this reader: `ProfSurf`, `CrossSects`, `Cant`, `AlignPIs`, `Feature`
+//! ([`crate::parse_landxml_file`] reads the first two and counts the others as skipped).
 //!
 //! None of this has been tested against a file exported by Civil 3D.
 
 use std::collections::HashMap;
 use std::f64::consts::{FRAC_PI_2, TAU};
 use std::path::Path;
+
+use crate::landxml_ext::list_numbers;
 
 use crate::geometry::{format_station, integrate_heading, Alignment, AlignmentElement};
 use crate::profile::{Profile, Pvi, VerticalCurve};
@@ -105,14 +114,36 @@ pub struct LandXmlImport {
 
 /// Reads the alignments of a LandXML file, with their profile, station equations and superelevation.
 pub fn read_landxml(path: &Path) -> Result<LandXmlImport, LandXmlError> {
-    parse_landxml(&std::fs::read_to_string(path)?)
+    let bytes = std::fs::read(path)?;
+    let (text, note) = crate::landxml_ext::decode_text(&bytes);
+    let mut import = parse_landxml(&text)?;
+    if let Some(note) = note {
+        import.notes.insert(0, note);
+    }
+    Ok(import)
 }
 
 /// Reads the alignments of a LandXML document held in a string, with their profile, station
 /// equations and superelevation.
 pub fn parse_landxml(text: &str) -> Result<LandXmlImport, LandXmlError> {
     let doc = roxmltree::Document::parse(text).map_err(|e| LandXmlError::Xml(e.to_string()))?;
-    let root = doc.root_element();
+    import_from_root(doc.root_element()).map(|i| i.import)
+}
+
+/// One `Alignment` element of the file: the name it is known by and where its engine alignment is.
+pub(crate) struct AlignmentNode<'a, 'i> {
+    pub name: String,
+    pub node: roxmltree::Node<'a, 'i>,
+    /// Index in [`LandXmlImport::alignments`]; `None` when it was left out.
+    pub index: Option<usize>,
+}
+
+pub(crate) struct Imported<'a, 'i> {
+    pub import: LandXmlImport,
+    pub nodes: Vec<AlignmentNode<'a, 'i>>,
+}
+
+pub(crate) fn import_from_root<'a, 'i>(root: roxmltree::Node<'a, 'i>) -> Result<Imported<'a, 'i>, LandXmlError> {
     if root.tag_name().name() != "LandXML" {
         return Err(LandXmlError::NotLandXml(root.tag_name().name().to_string()));
     }
@@ -129,6 +160,7 @@ pub fn parse_landxml(text: &str) -> Result<LandXmlImport, LandXmlError> {
 
     let ctx = Context { scale, points };
     let mut unnamed = 0;
+    let mut nodes: Vec<AlignmentNode<'a, 'i>> = Vec::new();
     for group in children(root, "Alignments") {
         for node in children(group, "Alignment") {
             let name = match node.attribute("name") {
@@ -141,15 +173,58 @@ pub fn parse_landxml(text: &str) -> Result<LandXmlImport, LandXmlError> {
                 }
             };
             match read_alignment(node, &name, &ctx, &mut import.notes) {
-                Ok(a) => import.alignments.push(a),
-                Err(why) => import.notes.push(format!("Alignment '{name}' was not imported: {why}")),
+                Ok(a) => {
+                    nodes.push(AlignmentNode { name, node, index: Some(import.alignments.len()) });
+                    import.alignments.push(a);
+                }
+                Err(why) => {
+                    import.notes.push(format!("Alignment '{name}' was not imported: {why}"));
+                    nodes.push(AlignmentNode { name, node, index: None });
+                }
             }
         }
+    }
+
+    // Superelevation, once every alignment's geometry is known: the sign of FullSuperelev is read as
+    // the direction of the curve only if the whole file says so.
+    let (mut right_positive, mut left_negative, mut against, mut negatives) = (0usize, 0usize, 0usize, 0usize);
+    let mut sink = Vec::new();
+    for an in &nodes {
+        let Some(i) = an.index else { continue };
+        for rec in crate::landxml_civil::read_superelevation_records(an.node, scale, Some(&import.alignments[i]), &an.name, &mut sink) {
+            negatives += rec.full_super_rates_pct.iter().filter(|r| **r < 0.0).count();
+            if let (Some(rate), Some(turn)) = (rec.rate_pct(), rec.turn) {
+                match (rate > 0.0, rate < 0.0, turn) {
+                    (true, _, crate::Turn::Right) => right_positive += 1,
+                    (_, true, crate::Turn::Left) => left_negative += 1,
+                    (false, false, _) => {}
+                    _ => against += 1,
+                }
+            }
+        }
+    }
+    let follows = right_positive + left_negative;
+    let sign_follows_turn = follows >= 3 && against == 0;
+    if sign_follows_turn {
+        import.notes.push(format!(
+            "FullSuperelev is positive on {right_positive} right-hand and negative on {left_negative} left-hand curves of this file, with no exception; its sign is read as the direction of the curve and its magnitude as the rate (the schema defines no sign)."
+        ));
+    } else if against > 0 && negatives > 0 {
+        import.notes.push(format!(
+            "The sign of FullSuperelev follows the direction of the curve in {follows} sections and not in {against}; no sign convention is assumed, and negative rates are not applied."
+        ));
+    }
+    for an in &nodes {
+        let Some(i) = an.index else { continue };
+        let mut local = Vec::new();
+        let se = read_superelevation(an.node, scale, &import.alignments[i], &mut local, sign_follows_turn);
+        import.alignments[i].superelevation = se;
+        import.notes.extend(local.into_iter().map(|n| format!("Alignment '{}': {n}", an.name)));
     }
     if import.alignments.is_empty() && import.notes.is_empty() {
         import.notes.push("The file contains no alignments.".to_string());
     }
-    Ok(import)
+    Ok(Imported { import, nodes })
 }
 
 struct Context<'a> {
@@ -158,7 +233,7 @@ struct Context<'a> {
     points: HashMap<&'a str, (f64, f64)>,
 }
 
-trait LocalName {
+pub(crate) trait LocalName {
     fn has_tag_name_local(&self, name: &str) -> bool;
 }
 
@@ -168,7 +243,7 @@ impl LocalName for roxmltree::Node<'_, '_> {
     }
 }
 
-fn children<'a, 'i>(node: roxmltree::Node<'a, 'i>, name: &'static str) -> impl Iterator<Item = roxmltree::Node<'a, 'i>> {
+pub(crate) fn children<'a, 'i>(node: roxmltree::Node<'a, 'i>, name: &'static str) -> impl Iterator<Item = roxmltree::Node<'a, 'i>> {
     node.children().filter(move |n| n.has_tag_name_local(name))
 }
 
@@ -258,6 +333,8 @@ fn read_alignment(node: roxmltree::Node, name: &str, ctx: &Context, notes: &mut 
     let mut elements: Vec<AlignmentElement> = Vec::new();
     let mut local_notes: Vec<String> = Vec::new();
     let mut found_geometry = false;
+    // Elements that start at a vertex inside an irregular line or chain: a corner there is expected.
+    let mut poly_joints: std::collections::HashSet<usize> = std::collections::HashSet::new();
     for geom in children(node, "CoordGeom") {
         found_geometry = true;
         for item in geom.children().filter(|n| n.is_element()) {
@@ -338,8 +415,43 @@ fn read_alignment(node: roxmltree::Node, name: &str, ctx: &Context, notes: &mut 
                     }
                     elements.push(AlignmentElement { x: s.0, y: s.1, heading_rad: heading, length, curvature_start: k0, curvature_end: k1 });
                 }
-                "IrregularLine" | "Chain" => {
-                    return Err(format!("element {n} is a {}, which is not supported", item.tag_name().name()));
+                "IrregularLine" => {
+                    let (s, e) = (point(item, "Start", ctx)?, point(item, "End", ctx)?);
+                    let (list, stride) = match (children(item, "PntList2D").next(), children(item, "PntList3D").next()) {
+                        (Some(l), _) => (l, 2),
+                        (None, Some(l)) => (l, 3),
+                        _ => return Err(format!("element {n} is an IrregularLine with no PntList2D or PntList3D")),
+                    };
+                    let text = list.text().unwrap_or("");
+                    let values = list_numbers(text).filter(|v| v.len() % stride == 0 && v.len() >= 2 * stride);
+                    let mut pts: Vec<(f64, f64)> = values
+                        .ok_or_else(|| format!("element {n} is an IrregularLine whose point list is not at least two points of {stride} numbers"))?
+                        .chunks(stride)
+                        .map(|c| (c[1] * scale, c[0] * scale))
+                        .collect();
+                    // The schema says the list includes the start and the end; a file that leaves them out gets them added.
+                    if (pts[0].0 - s.0).hypot(pts[0].1 - s.1) > 1e-6 {
+                        pts.insert(0, s);
+                        local_notes.push(format!("element {n} (IrregularLine): its point list does not begin at Start; Start was added."));
+                    }
+                    if (pts[pts.len() - 1].0 - e.0).hypot(pts[pts.len() - 1].1 - e.1) > 1e-6 {
+                        pts.push(e);
+                        local_notes.push(format!("element {n} (IrregularLine): its point list does not end at End; End was added."));
+                    }
+                    polyline(&pts, &mut elements, &mut poly_joints);
+                    local_notes.push(format!("element {n} (IrregularLine) was read as {} between its points.", segments(pts.len() - 1)));
+                }
+                "Chain" => {
+                    let mut pts: Vec<(f64, f64)> = Vec::new();
+                    for name in item.text().unwrap_or("").split_whitespace() {
+                        let p = ctx.points.get(name).ok_or_else(|| format!("element {n} is a Chain that names point '{name}', which is not in the file"))?;
+                        pts.push((p.0 * scale, p.1 * scale));
+                    }
+                    if pts.len() < 2 {
+                        return Err(format!("element {n} is a Chain of fewer than two points"));
+                    }
+                    polyline(&pts, &mut elements, &mut poly_joints);
+                    local_notes.push(format!("element {n} (Chain) was read as {} between its points.", segments(pts.len() - 1)));
                 }
                 "Feature" => {}
                 other => return Err(format!("element {n} is a <{other}>, which is not part of CoordGeom")),
@@ -368,7 +480,6 @@ fn read_alignment(node: roxmltree::Node, name: &str, ctx: &Context, notes: &mut 
     let mut alignment = Alignment::from_elements(name, start_station_m, elements).map_err(|e| e.to_string())?;
     alignment.station_equations = read_station_equations(node, scale, &alignment, &mut local_notes);
     alignment.profile = read_profile(node, scale, &alignment, &mut local_notes);
-    alignment.superelevation = read_superelevation(node, scale, &alignment, &mut local_notes);
 
     if let Some(declared) = number(node, "length")? {
         if (declared * scale - alignment.length()).abs() > 1e-3 {
@@ -376,6 +487,9 @@ fn read_alignment(node: roxmltree::Node, name: &str, ctx: &Context, notes: &mut 
         }
     }
     for j in alignment.discontinuities(1e-3, 1e-4) {
+        if poly_joints.contains(&j.index) && j.gap_m <= 1e-3 {
+            continue;
+        }
         local_notes.push(format!(
             "at station {} element {} starts {:.4} m from the end of the one before and turns {:.4}° from it.",
             crate::format_station(j.station_m, 3),
@@ -386,6 +500,26 @@ fn read_alignment(node: roxmltree::Node, name: &str, ctx: &Context, notes: &mut 
     }
     notes.extend(local_notes.into_iter().map(|n| format!("Alignment '{name}': {n}")));
     Ok(alignment)
+}
+
+fn segments(n: usize) -> String {
+    format!("{n} straight segment{}", if n == 1 { "" } else { "s" })
+}
+
+/// Straight elements through `pts` (easting, northing, metres). The first starts where the previous
+/// element ended; the ones after it start at a vertex of the polyline and are recorded in `joints`.
+fn polyline(pts: &[(f64, f64)], elements: &mut Vec<AlignmentElement>, joints: &mut std::collections::HashSet<usize>) {
+    let mut first = true;
+    for w in pts.windows(2) {
+        let length = (w[1].0 - w[0].0).hypot(w[1].1 - w[0].1);
+        if length > 0.0 {
+            if !first {
+                joints.insert(elements.len());
+            }
+            first = false;
+            elements.push(AlignmentElement::line(w[0].0, w[0].1, (w[1].1 - w[0].1).atan2(w[1].0 - w[0].0), length));
+        }
+    }
 }
 
 /// Agreement asked of redundant values, and how far a profile may fall short of the alignment's
@@ -496,7 +630,21 @@ fn read_profile(node: roxmltree::Node, scale: f64, alignment: &Alignment, notes:
     let (profile, circular_lengths) = match read() {
         Ok(read) => read,
         Err(why) => {
-            notes.push(format!("profile '{name}' was not imported: {why}"));
+            // Two PVIs at one station are a vertical step, which the engine profile cannot hold.
+            let step = first
+                .children()
+                .filter(|n| n.is_element())
+                .filter_map(|n| station_elevation(n).ok())
+                .collect::<Vec<_>>()
+                .windows(2)
+                .find(|w| w[0].0 == w[1].0)
+                .map(|w| format!(" (the file steps the level from {} m to {} m at station {})", w[0].1 * scale, w[1].1 * scale, format_station(w[0].0 * scale, 3)))
+                .unwrap_or_default();
+            if step.is_empty() {
+                notes.push(format!("profile '{name}' was not imported: {why}"));
+            } else {
+                notes.push(format!("profile '{name}' was not imported: {why}{step}; an engine profile has one level at a station, and parse_landxml_file keeps the entries as written (design_profiles)."));
+            }
             return None;
         }
     };
@@ -535,7 +683,7 @@ fn read_profile(node: roxmltree::Node, scale: f64, alignment: &Alignment, notes:
 
 /// `Alignment/Superelevation`: one section per element. See the module documentation for what a
 /// LandXML superelevation does and does not say.
-fn read_superelevation(node: roxmltree::Node, scale: f64, alignment: &Alignment, notes: &mut Vec<String>) -> Option<Superelevation> {
+fn read_superelevation(node: roxmltree::Node, scale: f64, alignment: &Alignment, notes: &mut Vec<String>, sign_follows_turn: bool) -> Option<Superelevation> {
     const STATIONS: [(&str, CriticalStation); 6] = [
         ("BeginRunoutSta", CriticalStation::BeginRunout),
         ("BeginRunoffSta", CriticalStation::BeginRunoff),
@@ -589,10 +737,16 @@ fn read_superelevation(node: roxmltree::Node, scale: f64, alignment: &Alignment,
             match (rate, full.as_slice()) {
                 (None, _) => notes.push(unassigned("it has no FullSuperelev")),
                 (_, []) => notes.push(unassigned("it has neither FullSuperSta nor RunoffSta")),
-                (Some(rate), _) if rate < 0.0 => notes.push(unassigned(&format!("its FullSuperelev is negative ({rate} %) and the schema does not say what a sign means"))),
-                (Some(rate), stations) => {
+                (Some(rate), _) if rate < 0.0 && !sign_follows_turn => notes.push(unassigned(&format!("its FullSuperelev is negative ({rate} %) and the schema does not say what a sign means"))),
+                (Some(signed), stations) => {
+                    let rate = signed.abs();
                     let middle = (stations[0] + stations[stations.len() - 1]) / 2.0;
                     match alignment.curvature_at(middle) {
+                        Some(k) if sign_follows_turn && (signed > 0.0) != (k < 0.0) => notes.push(unassigned(&format!(
+                            "its FullSuperelev ({signed} %) has the sign of a {} curve but the horizontal curve there turns {}",
+                            if signed > 0.0 { "right-hand" } else { "left-hand" },
+                            if k > 0.0 { "left" } else { "right" }
+                        ))),
                         Some(k) if k != 0.0 => {
                             // The inside of the curve falls, unless the superelevation is adverse.
                             let left_falls = (k > 0.0) != adverse;
@@ -618,7 +772,7 @@ fn read_superelevation(node: roxmltree::Node, scale: f64, alignment: &Alignment,
         };
         match read(notes) {
             Ok(section) => sections.push(section),
-            Err(why) => notes.push(format!("superelevation {n} was not imported: {why}.")),
+            Err(why) => notes.push(format!("superelevation {n} was not applied as cross-fall: {why}; the element is kept as written in the superelevation table of parse_landxml_file.")),
         }
     }
     if sections.is_empty() {
@@ -628,7 +782,7 @@ fn read_superelevation(node: roxmltree::Node, scale: f64, alignment: &Alignment,
     match Superelevation::new(sections) {
         Ok(s) => Some(s),
         Err(why) => {
-            notes.push(format!("superelevation was not imported: {why}."));
+            notes.push(format!("superelevation was not applied as cross-fall: {why}; the elements are kept as written in the superelevation table of parse_landxml_file."));
             None
         }
     }

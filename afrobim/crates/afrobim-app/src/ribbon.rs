@@ -20,6 +20,7 @@ pub enum Tab {
     Modify,
     Signs,
     Roads,
+    Civil,
     Design,
     Structures,
     Coordination,
@@ -32,7 +33,7 @@ pub enum Tab {
     Help,
 }
 
-pub const TABS: [(Tab, &str); 17] = [
+pub const TABS: [(Tab, &str); 18] = [
     (Tab::Home, "Home"),
     (Tab::Edit, "Edit"),
     (Tab::Insert, "Insert"),
@@ -40,6 +41,7 @@ pub const TABS: [(Tab, &str); 17] = [
     (Tab::Modify, "Modify"),
     (Tab::Signs, "Signs"),
     (Tab::Roads, "Roads"),
+    (Tab::Civil, "Civil"),
     (Tab::Design, "Design"),
     (Tab::Structures, "Structures"),
     (Tab::Coordination, "Coordination"),
@@ -80,7 +82,7 @@ const MODIFY: Panel = Panel {
 };
 const NAVIGATE: Panel = Panel {
     title: "Navigate",
-    items: &[Big(Icon::ZoomExtents, "Zoom extents", "ZOOM"), Big(Icon::ZoomWindow, "Zoom window", "ZOOMWINDOW"), Big(Icon::View3d, "2D / 3D", "3D")],
+    items: &[Big(Icon::ZoomExtents, "Zoom extents", "ZOOM"), Big(Icon::ZoomWindow, "Zoom window", "ZOOMWINDOW"), Big(Icon::ZoomSelection, "Zoom selection", "ZS"), Big(Icon::View3d, "2D / 3D", "3D")],
 };
 const SUPPORTS: Panel = Panel {
     title: "Supports",
@@ -173,6 +175,23 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Pavement", items: &[Big(Icon::Pavement, "Pavement", "PAVEMENT"), Big(Icon::Design, "Pavement design", "PAVEDESIGN")] },
         Panel { title: "Earthworks", items: &[Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Surface, "Survey points", "SURVEY"), Big(Icon::Corridor, "Corridor", "CORRIDOR"), Big(Icon::Section, "Sections", "SECTIONS")] },
     ];
+    const CIVIL: &[Panel] = &[
+        Panel { title: "Points", items: &[Big(Icon::Surface, "Import", "POINTS"), Big(Icon::Surface, "Create", "POINTCREATE"), Big(Icon::ResultsList, "Table", "POINTTABLE"), Small(Icon::Layers, "Groups", "POINTGROUPS"), Small(Icon::Options, "Keys", "DESCKEYS"), Small(Icon::Csv, "Export", "POINTEXPORT"), Small(Icon::Measure, "COGO", "COGO"), Small(Icon::AlignDesign, "Traverse", "TRAVERSE")] },
+        Panel { title: "Surfaces", items: &[Big(Icon::Surface, "New", "SURFACENEW"), Big(Icon::Options, "Definition", "SURFACEDEF"), Big(Icon::Surface, "Style", "SURFACESTYLE"), Small(Icon::IdPoint, "Spot", "SPOT"), Small(Icon::Drainage, "Flow", "FLOWPATH"), Small(Icon::Estimate, "Volumes", "VOLUMES")] },
+        Panel { title: "Alignments", items: &[Big(Icon::AlignDesign, "New", "ALIGNDESIGN"), Big(Icon::Alignment, "Import", "LANDXML")] },
+        Panel { title: "Profiles", items: &[Big(Icon::ProfileDesign, "Ground", "GROUNDPROFILE"), Big(Icon::ProfileDesign, "View", "PROFILEVIEW")] },
+        Panel { title: "Sections", items: &[Big(Icon::Section, "Sample lines", "SAMPLELINES"), Big(Icon::Section, "Views", "SECTIONVIEWS")] },
+        Panel { title: "Corridors", items: &[Big(Icon::Pavement, "Assembly", "ASSEMBLY"), Big(Icon::Corridor, "Corridor", "CORRIDORMODEL")] },
+        Panel { title: "Parcels", items: &[Big(Icon::Area, "Create", "PARCELPICK"), Big(Icon::Measure, "Deed", "PARCELDEED"), Small(Icon::Project, "Properties", "PARCELPROPS"), Small(Icon::CheckAll, "Topology", "PARCELTOPOLOGY"), Small(Icon::Design, "Split", "PARCELSPLIT"), Small(Icon::Schedule, "Schedule", "ACQUISITION")] },
+        Panel { title: "Pipe networks", items: &[Big(Icon::Drainage, "Create", "PIPENEW"), Big(Icon::ResultsList, "Parts", "PIPEPARTS"), Big(Icon::Options, "Rules", "PIPEPROPS"), Big(Icon::AlignEdit, "Edit", "PIPEEDIT"), Big(Icon::CheckAll, "Checks", "PIPECHECK"), Small(Icon::ResultsList, "Tables", "PIPETABLES"), Small(Icon::Quantities, "Quantities", "PIPEQTY"), Small(Icon::ProfileDesign, "Profile", "PIPEPROFILE")] },
+        Panel { title: "Grading", items: &[Big(Icon::Alignment, "Feature line", "FEATURELINE"), Big(Icon::AlignEdit, "Edit line", "FLEDIT"), Big(Icon::Layers, "Sites", "GRADESITE"), Big(Icon::Surface, "Grading", "GRADING"), Big(Icon::Quantities, "Groups", "GRADINGGROUP"), Small(Icon::Area, "Pad, pond", "GRADEHELPERS")] },
+        Panel { title: "Intersections", items: &[Big(Icon::Tee, "Intersection", "INTERSECTION"), Big(Icon::Roundabout, "Roundabout", "ROUNDABOUTDESIGN")] },
+        Panel { title: "Survey database", items: &[Big(Icon::Open, "Open", "SURVEYOPEN"), Big(Icon::Options, "Settings", "SURVEYSETTINGS"), Big(Icon::LandXmlOut, "Import", "SURVEYIMPORT"), Big(Icon::ResultsList, "Observations", "SURVEYOBS"), Big(Icon::Measure, "Adjust", "SURVEYADJUST"), Small(Icon::Alignment, "Traverse", "SURVEYTRAVERSE"), Small(Icon::Alignment, "Figures", "SURVEYFIGURES"), Small(Icon::Project, "Insert points", "SURVEYINSERT"), Small(Icon::Project, "Update", "SURVEYUPDATE"), Small(Icon::ResultsList, "Events", "SURVEYEVENTS"), Small(Icon::New, "New", "SURVEYNEW"), Small(Icon::CheckAll, "Apply", "SURVEYAPPLY")] },
+        Panel { title: "Point clouds", items: &[Big(Icon::Surface, "Attach", "CLOUDATTACH"), Big(Icon::Options, "Display", "CLOUDPROPS"), Big(Icon::Area, "Clip", "CLOUDCLIP"), Big(Icon::Section, "Slices", "CLOUDSLICE"), Big(Icon::Surface, "Surface", "CLOUDSURFACE"), Small(Icon::Quantities, "Compare", "CLOUDCOMPARE"), Small(Icon::LandXmlOut, "Export", "CLOUDEXPORT")] },
+        Panel { title: "Shortcuts", items: &[Big(Icon::RefList, "Manager", "SHORTCUTS"), Big(Icon::LandXmlOut, "Publish", "SHORTCUTPUBLISH"), Big(Icon::RefModel, "Reference", "SHORTCUTREF"), Big(Icon::CheckAll, "Synchronise", "SHORTCUTSYNC"), Small(Icon::Project, "Folder", "SHORTCUTFOLDER"), Small(Icon::Design, "Promote", "SHORTCUTPROMOTE"), Small(Icon::Options, "Repair", "SHORTCUTREPAIR"), Small(Icon::CheckAll, "Validate", "SHORTCUTVALIDATE"), Small(Icon::Dxf, "Underlay", "SHORTCUTUNDERLAY")] },
+        Panel { title: "Reprojection", items: &[Big(Icon::Project, "Transform", "TRANSFORM"), Big(Icon::Measure, "Calibrate", "CALIBRATE")] },
+        Panel { title: "Quantities", items: &[Big(Icon::Quantities, "Earthworks", "EARTHWORKS"), Small(Icon::LandXmlOut, "LandXML", "CIVILXML"), Small(Icon::Help, "Demo", "CIVILDEMO"), Small(Icon::Options, "Defaults", "DEFAULTS")] },
+    ];
     const DESIGN: &[Panel] = &[
         Panel { title: "Alignment", items: &[Big(Icon::AlignDesign, "New alignment", "ALIGNDESIGN"), Big(Icon::AlignEdit, "Edit in plan", "ALIGNEDIT"), Big(Icon::PiTable, "PI table", "PITABLE"), Big(Icon::Labels, "Curve labels", "ALIGNLABELS")] },
         Panel { title: "Profile", items: &[Big(Icon::ProfileDesign, "Profile editor", "PROFILEDESIGN")] },
@@ -207,7 +226,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Primavera P6", items: &[Big(Icon::XerIn, "Import XER", "XERIN"), Big(Icon::XerOut, "Export XER", "XEROUT")] },
     ];
     const FIVED: &[Panel] = &[
-        Panel { title: "Bill", items: &[Big(Icon::Bill, "Bill and rules", "BILL")] },
+        Panel { title: "Bill", items: &[Big(Icon::Bill, "Bill of quantities", "BILL")] },
         Panel { title: "Rates", items: &[Big(Icon::Rates, "Rate library", "RATES"), Big(Icon::Currency, "Currency", "CURRENCY")] },
         Panel { title: "Estimate", items: &[Big(Icon::Estimate, "Estimate", "ESTIMATE")] },
         Panel { title: "Time", items: &[Big(Icon::CashFlow, "Cash flow", "CASHFLOW")] },
@@ -240,18 +259,19 @@ fn panels(tab: Tab) -> &'static [Panel] {
                 Big(Icon::Layers, "Layer manager", "LAYER"),
                 Big(Icon::Units, "Units", "UNITS"),
                 Big(Icon::ProjectSettings, "Project settings", "PROJECTSETTINGS"),
+                Big(Icon::Crs, "Coordinate system", "CRS"),
             ],
         },
-        Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS")] },
+        Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS"), Big(Icon::Theme, "Look and scale", "APPEARANCE")] },
     ];
     const VIEW: &[Panel] = &[
-        Panel { title: "Zoom", items: &[Big(Icon::ZoomExtents, "Extents", "ZOOM"), Big(Icon::ZoomWindow, "Window", "ZOOMWINDOW"), Big(Icon::ZoomIn, "In", "ZOOMIN"), Big(Icon::ZoomOut, "Out", "ZOOMOUT")] },
-        Panel { title: "Views", items: &[Big(Icon::View3d, "2D / 3D", "3D")] },
+        Panel { title: "Zoom", items: &[Big(Icon::ZoomExtents, "Extents", "ZOOM"), Big(Icon::ZoomWindow, "Window", "ZOOMWINDOW"), Big(Icon::ZoomSelection, "Selection", "ZS"), Big(Icon::ZoomPrevious, "Previous", "ZP"), Big(Icon::ZoomIn, "In", "ZOOMIN"), Big(Icon::ZoomOut, "Out", "ZOOMOUT")] },
+        Panel { title: "Views", items: &[Big(Icon::View3d, "2D / 3D", "3D"), Big(Icon::RefList, "Toolspace", "TOOLSPACE")] },
         Panel { title: "Display", items: &[Big(Icon::Real, "Real", "REAL"), Big(Icon::Outlined, "Outlined", "OUTLINED"), Big(Icon::Marks, "Element marks", "MARKS")] },
         DRAFTING,
-        Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS")] },
+        Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS"), Big(Icon::Theme, "Look and scale", "APPEARANCE")] },
     ];
-    const HELP: &[Panel] = &[Panel { title: "Help", items: &[Big(Icon::Help, "Command list", "HELP"), Big(Icon::About, "About AfroBIM", "ABOUT")] }];
+    const HELP: &[Panel] = &[Panel { title: "Help", items: &[Big(Icon::Help, "Command list", "HELP"), Big(Icon::Help, "Command palette", "PALETTE"), Big(Icon::About, "About AfroBIM", "ABOUT")] }];
     match tab {
         Tab::Home => HOME,
         Tab::Edit => EDIT,
@@ -260,6 +280,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Tab::Modify => MODIFY_TAB,
         Tab::Signs => &[], // built from the active standard's templates, see `show`
         Tab::Roads => ROADS,
+        Tab::Civil => CIVIL,
         Tab::Design => DESIGN,
         Tab::Structures => STRUCTURES,
         Tab::Coordination => COORDINATION,
@@ -271,6 +292,31 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Tab::View => VIEW,
         Tab::Help => HELP,
     }
+}
+
+/// The names of every command that has a button on some tab (for the tests).
+#[cfg(test)]
+pub fn all_commands() -> Vec<&'static str> {
+    let mut out = Vec::new();
+    for (tab, _) in TABS {
+        for p in panels(tab) {
+            for i in p.items {
+                if let Big(_, _, c) | Small(_, _, c) = i {
+                    out.push(*c);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The titles of the panels of a tab, for the workspaces to name them.
+#[allow(dead_code)] // used by the workspace tests
+pub fn panel_titles(tab: Tab) -> Vec<&'static str> {
+    if tab == Tab::Signs {
+        return vec!["Direction signs", "Map-type and temporary", "Catalogue", "Visibility", STANDARD.title, "Fabrication"];
+    }
+    panels(tab).iter().map(|p| p.title).collect()
 }
 
 /// The tab with this name, ignoring case.
@@ -295,21 +341,47 @@ pub fn shortcut(action: Action) -> &'static str {
         Action::ToggleOrtho => "F8",
         Action::ToggleSnap => "F9",
         Action::ToggleOsnap => "F3",
+        Action::Palette => "Ctrl+K",
         _ => "",
+    }
+}
+
+/// What a button shows: a glyph of the icon font, or a hand-drawn icon where no glyph fits.
+#[derive(Clone, Copy)]
+pub enum Pic {
+    Glyph(&'static str),
+    Drawn(Icon),
+}
+
+/// The glyph of the command when it has one, else the hand-drawn icon.
+fn pic_of(info: Option<&CommandInfo>, fallback: Icon) -> Pic {
+    match info.and_then(|c| crate::glyphs::glyph(c.action)) {
+        Some(g) => Pic::Glyph(g),
+        None => Pic::Drawn(fallback),
+    }
+}
+
+pub fn paint_pic(painter: &egui::Painter, rect: Rect, pic: Pic, colour: Color32) {
+    match pic {
+        Pic::Drawn(i) => icons::paint(painter, rect, i, colour),
+        Pic::Glyph(g) => {
+            let side = rect.width().min(rect.height());
+            painter.text(rect.center(), Align2::CENTER_CENTER, g, crate::theme::icon_font(side * 0.98), colour);
+        }
     }
 }
 
 const BIG: Vec2 = Vec2::new(62.0, 62.0);
 const SMALL_H: f32 = 20.0;
-const PLANNED: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+
 
 /// The preview card shown when the pointer rests on a button.
-fn preview(ui: &mut Ui, icon: Icon, label: &str, info: Option<&CommandInfo>, planned: Option<&str>) {
+fn preview(ui: &mut Ui, icon: Pic, label: &str, info: Option<&CommandInfo>, planned: Option<&str>) {
     ui.set_max_width(300.0);
     ui.horizontal(|ui| {
         let (rect, _) = ui.allocate_exact_size(Vec2::splat(44.0), Sense::hover());
         ui.painter().rect_stroke(rect, 4.0, ui.visuals().widgets.noninteractive.bg_stroke, egui::StrokeKind::Inside);
-        icons::paint(ui.painter(), rect.shrink(8.0), icon, ui.visuals().strong_text_color());
+        paint_pic(ui.painter(), rect.shrink(8.0), icon, ui.visuals().strong_text_color());
         ui.vertical(|ui| {
             ui.label(RichText::new(label).strong());
             match (info, planned) {
@@ -331,9 +403,9 @@ fn preview(ui: &mut Ui, icon: Icon, label: &str, info: Option<&CommandInfo>, pla
         if !keys.is_empty() {
             ui.label(RichText::new(format!("Shortcut: {keys}")).small().monospace());
         }
-        ui.label(RichText::new("Click, or type the command and press Enter. Esc cancels.").small().weak());
+        crate::ui_kit::note(ui, "Click, or type the command and press Enter. Esc cancels.");
     } else {
-        ui.label(RichText::new("Planned: not built yet.").small().color(PLANNED));
+        ui.label(RichText::new("Planned: not built yet.").small().color(crate::theme::warn()));
     }
 }
 
@@ -345,7 +417,7 @@ pub fn preview_of(ui: &mut Ui, command: &str) -> bool {
         for item in panels(tab).iter().flat_map(|p| p.items) {
             if let Big(icon, label, name) | Small(icon, label, name) = *item {
                 if commands::resolve(name).is_some_and(|c| c.action == info.action) {
-                    preview(ui, icon, label, Some(info), None);
+                    preview(ui, pic_of(Some(info), icon), label, Some(info), None);
                     return true;
                 }
             }
@@ -355,7 +427,7 @@ pub fn preview_of(ui: &mut Ui, command: &str) -> bool {
 }
 
 /// Draws one button and returns true when it was clicked.
-fn button(ui: &mut Ui, big: bool, icon: Icon, label: &str, info: Option<&CommandInfo>, planned: Option<&str>, on: bool) -> bool {
+fn button(ui: &mut Ui, big: bool, icon: Pic, label: &str, info: Option<&CommandInfo>, planned: Option<&str>, on: bool) -> bool {
     let enabled = info.is_some() && ui.is_enabled();
     let font = FontId::proportional(11.0);
     let size = if big {
@@ -377,7 +449,7 @@ fn button(ui: &mut Ui, big: bool, icon: Icon, label: &str, info: Option<&Command
     let colour = if enabled { ui.visuals().text_color() } else { ui.visuals().weak_text_color().gamma_multiply(0.7) };
     if big {
         let icon_rect = Rect::from_center_size(pos2(rect.center().x, rect.top() + 19.0), Vec2::splat(26.0));
-        icons::paint(ui.painter(), icon_rect, icon, colour);
+        paint_pic(ui.painter(), icon_rect, icon, colour);
         let galley = ui.painter().layout(label.to_string(), font, colour, size.x - 4.0);
         // Centre each wrapped line under the icon.
         let mut y = rect.top() + 36.0;
@@ -388,7 +460,7 @@ fn button(ui: &mut Ui, big: bool, icon: Icon, label: &str, info: Option<&Command
         }
     } else {
         let icon_rect = Rect::from_min_size(rect.min + Vec2::new(4.0, 3.0), Vec2::splat(14.0));
-        icons::paint(ui.painter(), icon_rect, icon, colour);
+        paint_pic(ui.painter(), icon_rect, icon, colour);
         ui.painter().text(pos2(icon_rect.right() + 6.0, rect.center().y), Align2::LEFT_CENTER, label, font, colour);
     }
     let clicked = response.clicked() && enabled;
@@ -420,13 +492,13 @@ fn items(ui: &mut Ui, list: &[Item], pick: &mut Option<Action>, is_on: &dyn Fn(A
         match list[i] {
             Big(icon, label, command) => {
                 let info = commands::resolve(command);
-                if button(ui, true, icon, label, info, None, info.is_some_and(|c| is_on(c.action))) {
+                if button(ui, true, pic_of(info, icon), label, info, None, info.is_some_and(|c| is_on(c.action))) {
                     *pick = info.map(|c| c.action);
                 }
                 i += 1;
             }
             Planned(icon, label, what) => {
-                button(ui, true, icon, label, None, Some(what), false);
+                button(ui, true, Pic::Drawn(icon), label, None, Some(what), false);
                 i += 1;
             }
             Small(..) => {
@@ -436,7 +508,7 @@ fn items(ui: &mut Ui, list: &[Item], pick: &mut Option<Action>, is_on: &dyn Fn(A
                     for item in &run {
                         if let Small(icon, label, command) = *item {
                             let info = commands::resolve(command);
-                            if button(ui, false, icon, label, info, None, info.is_some_and(|c| is_on(c.action))) {
+                            if button(ui, false, pic_of(info, icon), label, info, None, info.is_some_and(|c| is_on(c.action))) {
                                 *pick = info.map(|c| c.action);
                             }
                         }
@@ -448,19 +520,41 @@ fn items(ui: &mut Ui, list: &[Item], pick: &mut Option<Action>, is_on: &dyn Fn(A
     }
 }
 
-/// Draws the tab strip and the active tab's panels. `is_on` tells which toggles are active.
-/// Returns the action of the button that was clicked, if any.
-pub fn show(ui: &mut Ui, tab: &mut Tab, standard: &str, signs_ready: bool, is_on: &dyn Fn(Action) -> bool) -> Option<Action> {
+/// Draws the workspace switcher, the tab strip and the active tab's panels. `is_on` tells which
+/// toggles are active. Returns the action of the button that was clicked, if any; `workspace` is
+/// changed when another workspace is picked (the caller then applies its panel settings).
+pub fn show(ui: &mut Ui, tab: &mut Tab, standard: &str, signs_ready: bool, is_on: &dyn Fn(Action) -> bool, workspace: &mut usize) -> (Option<Action>, bool) {
     let mut pick = None;
+    let ws = &crate::workspace::WORKSPACES[(*workspace).min(crate::workspace::WORKSPACES.len() - 1)];
+    let visible = ws.visible_tabs();
+    if !visible.iter().any(|v| v.tab == *tab) {
+        *tab = Tab::Home;
+    }
+    let t = crate::theme::tokens_ui(ui);
+    let mut switched = false;
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 2.0;
-        for (t, name) in TABS {
-            if ui.selectable_label(*tab == t, RichText::new(name).size(12.5)).clicked() {
-                *tab = t;
+        ui.spacing_mut().item_spacing.x = 4.0;
+        switched = crate::workspace::switcher(ui, workspace);
+        ui.add_space(6.0);
+        for v in &visible {
+            let name = TABS.iter().find(|(x, _)| *x == v.tab).map(|(_, n)| *n).unwrap_or("");
+            let on = *tab == v.tab;
+            let r = ui.add(egui::Label::new(RichText::new(name).size(12.5).color(if on { t.accent_text } else { t.text })).selectable(false).sense(Sense::click()));
+            let r = r.on_hover_cursor(egui::CursorIcon::PointingHand);
+            let line = Rect::from_min_max(pos2(r.rect.left() - 4.0, r.rect.bottom() + 1.0), pos2(r.rect.right() + 4.0, r.rect.bottom() + 3.0));
+            if on {
+                ui.painter().rect_filled(line, 1.0, t.accent_text);
+            } else if r.hovered() {
+                ui.painter().rect_filled(line, 1.0, t.border);
             }
+            if r.clicked() {
+                *tab = v.tab;
+            }
+            ui.add_space(6.0);
         }
     });
-    ui.add_space(1.0);
+    ui.add_space(3.0);
+    let allowed = visible.iter().find(|v| v.tab == *tab).cloned();
     egui::ScrollArea::horizontal().id_salt("ribbon").auto_shrink([false, true]).max_height(BIG.y + 18.0).show(ui, |ui| {
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = 4.0;
@@ -470,7 +564,7 @@ pub fn show(ui: &mut Ui, tab: &mut Tab, standard: &str, signs_ready: bool, is_on
                     for (title, range) in [("Direction signs", 0..5.min(templates.len())), ("Map-type and temporary", 5.min(templates.len())..templates.len())] {
                         panel(ui, title, &mut pick, is_on, |ui, pick, _| {
                             for (i, t) in templates.iter().enumerate().filter(|(i, _)| range.contains(i)) {
-                                if button(ui, true, t.icon, t.label, commands::resolve(t.command), None, false) {
+                                if button(ui, true, Pic::Drawn(t.icon), t.label, commands::resolve(t.command), None, false) {
                                     *pick = Some(Action::InsertSign(i as u8));
                                 }
                             }
@@ -482,13 +576,13 @@ pub fn show(ui: &mut Ui, tab: &mut Tab, standard: &str, signs_ready: bool, is_on
                 panel(ui, STANDARD.title, &mut pick, is_on, |ui, pick, on| items(ui, STANDARD.items, pick, on));
                 panel(ui, "Fabrication", &mut pick, is_on, |ui, pick, on| items(ui, &[Big(Icon::Quantities, "Quantities", "QUANTITIES"), Big(Icon::Sheets, "Fabrication sheets", "SHEETS")], pick, on));
             } else {
-                for p in panels(*tab) {
+                for p in panels(*tab).iter().filter(|p| allowed.as_ref().is_none_or(|a| a.allows(p.title))) {
                     panel(ui, p.title, &mut pick, is_on, |ui, pick, on| items(ui, p.items, pick, on));
                 }
             }
         });
     });
-    pick
+    (pick, switched)
 }
 
 #[cfg(test)]

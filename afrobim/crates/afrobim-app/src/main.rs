@@ -1,16 +1,75 @@
 //! AfroBIM desktop application.
 
 mod aids;
+mod civil;
+mod civil_build;
+mod civil_build2;
+mod civil_cache;
+mod civil_sheets;
+#[cfg(test)]
+mod u3_tests;
+#[cfg(test)]
+mod u4_tests;
+#[cfg(test)]
+mod u4_dialogs_test;
+mod civil_assembly;
+mod civil_targets;
+mod civil_cmds;
+mod civil_corridor;
+mod civil_demo;
+mod civil_dlg;
+mod civil_export;
+mod civil_ifc;
+mod civil_ifc_pkg;
+mod civil_landxml;
+mod civil_parcels;
+mod civil_points;
+mod civil_profile;
+mod civil_quantities;
+mod civil_surface;
+mod civil_scene;
+mod civil_super;
+mod civil_check;
+mod civil_sections;
+mod civil_tree;
+mod civil_ui;
+mod civil_pipes;
+mod pipes_ui;
+mod grading_ui;
+mod junction_ui;
+mod civil_grading;
+mod civil_junction;
+mod transform_doc;
+mod transform_ui;
+mod survey_db;
+mod sdb_ui;
+mod sdb_ui2;
+mod cloud;
+mod cloud_ui;
+mod shortcuts_ui;
+mod defaults_glue;
+#[cfg(test)]
+mod a1_tests;
+#[cfg(test)]
+mod a2_tests;
+#[cfg(test)]
+mod a3_tests;
+#[cfg(test)]
+mod a3b_tests;
 mod alignment_glue;
 mod anno_glue;
 mod anno_ui;
 mod app;
+mod appearance_ui;
 mod background;
 mod canvas;
 mod check_all;
 mod check_inputs;
 mod check_ui;
 mod commands;
+mod crs_ui;
+#[cfg(test)]
+mod crs_tests;
 mod construction_glue;
 mod construction_ui;
 mod coordination_glue;
@@ -26,8 +85,10 @@ mod design_ui;
 mod disp;
 mod dropped;
 mod design_windows;
+mod glyphs;
 mod icons;
 mod ifc_options;
+mod landxml_ui;
 mod issues_ui;
 mod lighting_inputs;
 mod markings_glue;
@@ -38,7 +99,9 @@ mod reference_models;
 mod report_pack;
 mod render;
 mod ribbon;
+mod prefs;
 mod statusbar;
+mod theme;
 mod road_dialogs;
 mod road_glue;
 mod schedule_ext;
@@ -67,7 +130,12 @@ mod u2_units_tests;
 mod u2_ifc_tests;
 #[cfg(test)]
 mod u2_tests;
+mod menus;
+mod palette;
+mod ui_kit;
 mod underlay;
+mod workspace;
+mod zoom_cmds;
 mod view3d;
 mod visibility_ui;
 mod win;
@@ -82,6 +150,8 @@ use eframe::egui;
 pub struct Options {
     pub screenshot: Option<PathBuf>,
     pub demo: bool,
+    /// `--demo civil`: the civil demonstration data (see `civil_demo`).
+    pub civil_demo: bool,
     /// Ribbon tab to start on, e.g. `Roads`.
     pub tab: Option<String>,
     /// Show the ribbon preview card of this command at start-up (to check it without a pointer).
@@ -183,6 +253,25 @@ pub struct Options {
     /// 3D view camera after the first fit, `distance_mm,yaw_deg,pitch_deg[,station_m]` (the target
     /// moves to the first alignment's centre line at that station), for close-up screenshots.
     pub camera: Option<String>,
+    /// Interface look: `dark-glass`, `light-glass`, `solid-dark` or `solid-light`.
+    pub theme: Option<String>,
+    /// Interface scale, 1.0 being normal.
+    pub scale: Option<f32>,
+    /// Workspace to start in, e.g. `"Road Design"`.
+    pub workspace: Option<String>,
+    /// Screenshot aid: pointer actions at start-up, `x,y` to click, `x,yh` to hover and `x,yr` to right-click, separated
+    /// by semicolons, in points (to open a menu or show a tooltip without a pointer).
+    pub click: Option<String>,
+    /// Open the LandXML import dialog on this file at start-up (instead of importing at once).
+    pub landxml_dialog: Option<PathBuf>,
+    /// Import everything a LandXML file holds, with its coordinate system and without the dialog.
+    pub landxml_all: Option<PathBuf>,
+    /// With `--landxml-all`: switch every imported section group to comparison mode.
+    pub landxml_compare: bool,
+    /// `--view E,N,WIDTH`: frame the plan on this easting and northing (metres), WIDTH metres wide.
+    pub view: Option<String>,
+    /// Open the survey points dialog on this file at start-up.
+    pub survey_dialog: Option<PathBuf>,
 }
 
 fn parse_args() -> Options {
@@ -193,11 +282,18 @@ fn parse_args() -> Options {
 /// open (the Windows file association passes the file that way).
 fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
     let mut o = Options::default();
-    let mut args = args;
+    let mut args = args.peekable();
     while let Some(a) = args.next() {
         match a.as_str() {
             "--screenshot" => o.screenshot = args.next().map(PathBuf::from),
-            "--demo" => o.demo = true,
+            "--demo" => {
+                if args.peek().is_some_and(|n| n == "civil") {
+                    args.next();
+                    o.civil_demo = true;
+                } else {
+                    o.demo = true;
+                }
+            }
             "--tab" => o.tab = args.next(),
             "--preview" => o.preview = args.next(),
             "--design" => o.design = true,
@@ -244,6 +340,15 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--zoom-to" => o.zoom_to = args.next(),
             "--size" => o.size = args.next(),
             "--camera" => o.camera = args.next(),
+            "--theme" => o.theme = args.next(),
+            "--scale" => o.scale = args.next().and_then(|v| v.parse().ok()),
+            "--workspace" => o.workspace = args.next(),
+            "--click" => o.click = args.next(),
+            "--landxml-compare" => o.landxml_compare = true,
+            "--view" => o.view = args.next(),
+            "--landxml-all" => o.landxml_all = args.next().map(PathBuf::from),
+            "--landxml-dialog" => o.landxml_dialog = args.next().map(PathBuf::from),
+            "--survey-dialog" => o.survey_dialog = args.next().map(PathBuf::from),
             "--export-pack" => o.export_pack = args.next().map(PathBuf::from),
             "--sheet" => o.sheet = args.next().and_then(|v| v.parse().ok()),
             "--export-sheets" => o.export_sheets = args.next().map(PathBuf::from),

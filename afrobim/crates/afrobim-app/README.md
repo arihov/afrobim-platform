@@ -64,3 +64,14 @@ are checked by headless screenshots looked at by a person, not by an automated t
   hosted runners stopped starting.
 - No file written by the app has been opened in Civil 3D, a BIM viewer other than IfcOpenShell's
   checks, a BCF tool, MS Project, Primavera P6 or AutoCAD.
+
+## Interface foundation (round 5, U1)
+
+- `src/theme.rs`: the design tokens (colours, spacing, radii, shadow, type sizes) for Dark glass, Light glass and Solid, applied through `egui::Style` and `Visuals`. Choose the look and scale with APPEARANCE; the choice, the last workspace, recent files and dialog positions are kept in `prefs.json` in the user's configuration folder (`AFROBIM_PREFS` overrides the path). Glass is alpha, not blur: egui's glow renderer has no live background blur.
+- `src/glyphs.rs`: the icon of every command (Phosphor icon font, MIT). `icons.rs` keeps the hand-drawn icons for the sign templates and planned tools.
+- `src/ui_kit.rs`: the dialog kit. `Dialog::new(title, icon).show(ctx, body, footer)` with `section`, `form`, `num_field`, `segmented`, `callout`, `results_table`, `Footer`, and the rest listed at the top of the file.
+- `src/win.rs`: `win::new` gives every window the glass frame, an icon in the title bar and a remembered position.
+- `src/workspace.rs`: workspaces. To put a tab in a workspace, add `WsTab::all(Tab::X)` (or `WsTab::only(Tab::X, &["Panel title"])`) to that workspace's `tabs` list in `WORKSPACES`.
+- `src/menus.rs`, `src/palette.rs`: the menu bar and context menus, and the Ctrl+K command palette.
+- Fonts: Inter (SIL OFL 1.1) and Phosphor (MIT) are bundled; licences are in `assets/fonts/`.
+- Screenshot flags: `--theme dark-glass|light-glass|solid-dark|solid-light`, `--scale 1.15`, `--workspace NAME`, `--click x,y[h|r];...`, `--landxml-dialog FILE`, `--survey-dialog FILE`.

@@ -17,6 +17,9 @@ use afrobim_markings::{ext_spec, ExtDefinition, Family, ExtMarkingModule, ExtQua
 use afrobim_pavement::{measure_definition, Material, PavementDefinition, PavementModule};
 use afrobim_restraint::{BarrierElement, EndTreatment, RestraintModule, RunQuantities};
 
+mod civil;
+pub use civil::{entity_ok, CivilGroup, CivilPackage, CivilPart, CivilSet, CivilValue, GroupKind, CIVIL_CATEGORY, ENTITIES, QUANTITY_SETS, SYSTEM_TYPES};
+
 use super::{is_closed, mm, valid_site, Model, Pose, Quantity, PROP_DESIGN_BASIS};
 use crate::step::{opt_string, refs};
 use crate::{clip, element_global_id, step_string, IfcElementInput, Value};
@@ -58,6 +61,7 @@ pub(super) fn is_road_category(category: &str) -> bool {
         PAVEMENT_CATEGORY,
         CORRIDOR_CATEGORY,
         SURFACE_CATEGORY,
+        CIVIL_CATEGORY,
     ]
     .contains(&category)
 }
@@ -136,6 +140,8 @@ pub(super) struct RoadState {
     pub(super) hung: BTreeSet<ElementId>,
     /// Products contained in the site, not the road (terrain).
     in_site: Vec<u32>,
+    /// The terrain written for each ground surface element (what an earthworks cut voids).
+    terrain_products: BTreeMap<ElementId, u32>,
 }
 
 impl RoadState {
@@ -286,6 +292,7 @@ impl Model<'_> {
             c if c == RESTRAINT_CATEGORY => self.restraint(input, g, notes),
             c if c == PAVEMENT_CATEGORY => self.pavement(input, g, notes),
             c if c == CORRIDOR_CATEGORY => self.corridor(input, g, notes),
+            c if c == CIVIL_CATEGORY => self.civil(input, g, notes),
             _ => self.surface(input, g, notes),
         };
         self.w.frame = None;
@@ -1078,7 +1085,7 @@ impl Model<'_> {
         for (index, c) in data.layout.columns.iter().enumerate() {
             let base = Pose { x: c.easting_m * 1000.0, y: c.northing_m * 1000.0, z: c.level_m.unwrap_or(0.0) * 1000.0, rotation_deg: 0.0 };
             let link = (!alignment.is_empty()).then(|| super::alignment::Link { alignment: alignment.clone(), station_m: c.station_m, offset_m: c.offset_m });
-            let placement = self.root_placement_on(link, base);
+            let placement = self.root_placement_on(link, self.shifted(base));
             let owner = format!("element/{}/column/{}", e.id.0, index + 1);
             let assembly = self.make("IFCELEMENTASSEMBLY", &self.w.guid(&owner), &c.mark, Some(&format!("Lighting column, {}", c.side.label())), None, placement, None, &format!("{}.{}", e.id.0, index + 1), true, "MAST");
             let luminaires = c.bracket_directions_rad.len();
@@ -1607,6 +1614,7 @@ impl Model<'_> {
         }
         self.element_sets(product, e, g, "AfroBIM_Surface", p, None);
         self.road.in_site.push(product);
+        self.road.terrain_products.insert(e.id, product);
         Vec::new()
     }
 }

@@ -376,12 +376,13 @@ pub fn show(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<LightingC
     let Some(mut d) = slot.take() else { return };
     let mark = doc.find(d.element).map(|e| e.name.clone()).unwrap_or_default();
     let (mut keep, mut run) = (true, false);
-    crate::win::new(ctx, format!("Lighting check inputs for {mark}")).collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
-        ui.label(RichText::new("Enter what you have established elsewhere. Every field starts empty; a field left empty stops the checks that need it and the report says so. Photometric values are the maintained results of a calculation: enter those from your lighting package, or run PHOTOMETRY on a luminaire file and use its results here (the entries are then labelled as computed by AfroBIM). AfroBIM's own photometry is not an EN 13201-3 calculation, has not been validated against DIALux, Relux or AGi32, calculates luminance only from an r-table you supply, and does not compute TI, U_l or the wet U_o: enter those from your own calculation.").small().weak());
+        let footer_ok = true;
+    let dlg = crate::ui_kit::Dialog::titled(format!("Lighting check inputs for {mark}")).width(560.0).show(ctx, |ui| {
+        crate::ui_kit::note(ui, "Enter what you have established elsewhere. Every field starts empty; a field left empty stops the checks that need it and the report says so. Photometric values are the maintained results of a calculation: enter those from your lighting package, or run PHOTOMETRY on a luminaire file and use its results here (the entries are then labelled as computed by AfroBIM). AfroBIM's own photometry is not an EN 13201-3 calculation, has not been validated against DIALux, Relux or AGi32, calculates luminance only from an r-table you supply, and does not compute TI, U_l or the wet U_o: enter those from your own calculation.");
         egui::ScrollArea::vertical().max_height(480.0).auto_shrink([false, false]).show(ui, |ui| {
             let f = &mut d.form;
-            ui.label(RichText::new("The road and the installation").strong());
-            egui::Grid::new("lc-road").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+            crate::ui_kit::heading(ui, "The road and the installation");
+            crate::ui_kit::grid(ui, "lc-road", |ui| {
                 ui.label("Lighting need appraised (TA 501)");
                 tri(ui, "lc-appraisal", &mut f.appraisal_done);
                 ui.end_row();
@@ -419,7 +420,7 @@ pub fn show(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<LightingC
                 for (i, (desc, len)) in f.gaps.iter_mut().enumerate() {
                     ui.add(egui::TextEdit::singleline(desc).hint_text("what the gap is").desired_width(200.0));
                     ui.add(egui::TextEdit::singleline(len).hint_text("length, m").desired_width(80.0));
-                    if ui.small_button("x").clicked() {
+                    if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                         remove = Some(i);
                     }
                     ui.end_row();
@@ -434,7 +435,7 @@ pub fn show(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<LightingC
 
             ui.add_space(8.0);
             ui.label(RichText::new("Photometric results (maintained values), entered or from PHOTOMETRY").strong());
-            egui::Grid::new("lc-photo").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+            crate::ui_kit::grid(ui, "lc-photo", |ui| {
                 field(ui, "Where the results come from", &mut f.ph_source, "program, file, date");
                 field(ui, "L_av, average luminance (cd/m2)", &mut f.l_av, "M classes");
                 field(ui, "U_o, overall uniformity", &mut f.u_o, "M classes");
@@ -464,7 +465,7 @@ pub fn show(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<LightingC
                 ui.radio_value(&mut f.family, Family::P, "P class");
             });
             if f.family != Family::None {
-                egui::Grid::new("lc-sel").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "lc-sel", |ui| {
                     if f.family == Family::P {
                         ui.label("Pedestrian speed");
                         choose(ui, "lc-psp", &mut f.p_speed, &[(PedestrianSpeed::Low, "low"), (PedestrianSpeed::VeryLow, "very low")]);
@@ -529,16 +530,16 @@ pub fn show(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<LightingC
                 });
             }
         });
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui.button("Run the checks").clicked() {
-                run = true;
-            }
-            if ui.button("Cancel").clicked() {
-                keep = false;
-            }
-        });
-    });
+    }, |ui| crate::ui_kit::Footer::new("Run the checks").enabled(footer_ok, "Complete the inputs").cancel(Some("Cancel")).show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        run = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if run {
         match d.form.inputs().and_then(|inputs| road_glue::check_lighting_with(doc, d.element, &inputs)) {
             Ok(lines) => {

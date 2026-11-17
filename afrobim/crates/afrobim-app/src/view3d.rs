@@ -95,9 +95,32 @@ pub fn clip_triangle_near(tri: [V3; 3], near: f64) -> Vec<[V3; 3]> {
 const FOV: f64 = 0.61; // 35°
 /// The same, in degrees, for saved viewpoints.
 pub const FOV_DEG: f64 = 0.61 * 180.0 / std::f64::consts::PI;
-const NEAR: f64 = 1.0;
+/// The near plane as a fraction of the camera distance. A fixed near plane (it was 1 mm) either
+/// cuts the model away when one looks at something a millimetre across, or lets triangles
+/// through that are behind the camera at a distance of ten kilometres. Scaling it with the
+/// distance keeps the same proportion visible at every zoom. The projection is done in software
+/// (no depth buffer), so the ratio of far to near costs no precision.
+const NEAR_FRACTION: f64 = 1.0e-4;
+/// The smallest near plane (mm) and the guard range of the camera distance. Not zoom limits: they
+/// only keep the numbers finite and positive.
+const NEAR_FLOOR: f64 = 1.0e-12;
+const DISTANCE_MIN: f64 = 1.0e-9;
+const DISTANCE_MAX: f64 = 1.0e18;
+
+fn guard_distance(d: f64) -> f64 {
+    if d.is_finite() {
+        d.clamp(DISTANCE_MIN, DISTANCE_MAX)
+    } else {
+        10_000.0
+    }
+}
 
 impl Camera {
+    /// The near plane (view depth, mm) for the current distance.
+    pub fn near(&self) -> f64 {
+        (self.distance * NEAR_FRACTION).max(NEAR_FLOOR)
+    }
+
     pub fn eye(&self) -> V3 {
         let (cp, sp) = (self.pitch.cos(), self.pitch.sin());
         [
@@ -109,17 +132,30 @@ impl Camera {
 
     /// Right, up and forward unit vectors of the view.
     fn basis(&self) -> (V3, V3, V3) {
-        let forward = norm(sub(self.target, self.eye()));
+        // From the angles, not from `target - eye`: far from the origin that difference is the
+        // rounding of two 1e10 numbers, which swamps a camera a micrometre from its target.
+        let (cp, sp) = (self.pitch.cos(), self.pitch.sin());
+        let forward = norm([-cp * self.yaw.cos(), -cp * self.yaw.sin(), -sp]);
         let right = norm(cross(forward, [0.0, 0.0, 1.0]));
         (right, cross(right, forward), forward)
+    }
+
+    /// The vector from the eye to the world point `p`, taken as `(p - target) + forward * distance`
+    /// so the large coordinates cancel first (exactly, as the two are close) and only small
+    /// numbers are added. At 1e10 mm this keeps the camera's own resolution, rather than the 2e-6 mm
+    /// of f64 at that size, for everything near the target.
+    fn from_eye(&self, p: V3) -> V3 {
+        let (_, _, forward) = self.basis();
+        let d = sub(p, self.target);
+        [d[0] + forward[0] * self.distance, d[1] + forward[1] * self.distance, d[2] + forward[2] * self.distance]
     }
 
     /// Screen position and view depth of a world point, or None when it is behind the camera.
     pub fn project(&self, p: V3, viewport: Rect) -> Option<(Pos2, f64)> {
         let (right, up, forward) = self.basis();
-        let d = sub(p, self.eye());
+        let d = self.from_eye(p);
         let z = dot(d, forward);
-        if z < NEAR {
+        if z < self.near() {
             return None;
         }
         let focal = viewport.height() as f64 / (2.0 * (FOV / 2.0).tan());
@@ -130,7 +166,7 @@ impl Camera {
     /// A world point in view space: `[right, up, depth]`, the depth along the viewing direction.
     pub fn to_view(&self, p: V3) -> V3 {
         let (right, up, forward) = self.basis();
-        let d = sub(p, self.eye());
+        let d = self.from_eye(p);
         [dot(d, right), dot(d, up), dot(d, forward)]
     }
 
@@ -150,7 +186,7 @@ impl Camera {
     /// Looks from `position` along `direction`, with the orbit target `distance` ahead.
     pub fn set_look(&mut self, position: V3, direction: V3, distance: f64) {
         let d = norm(direction);
-        self.distance = distance.clamp(50.0, 5.0e9);
+        self.distance = guard_distance(distance);
         self.target = [position[0] + d[0] * self.distance, position[1] + d[1] * self.distance, position[2] + d[2] * self.distance];
         self.pitch = (-d[2]).clamp(-1.0, 1.0).asin().clamp(-1.45, 1.45);
         self.yaw = (-d[1]).atan2(-d[0]);
@@ -171,14 +207,69 @@ impl Camera {
         }
     }
 
+    /// The world point under screen position `at`: the ray through it meets the horizontal plane
+    /// through the target. When the ray is parallel to that plane, or meets it behind the camera
+    /// (looking at the sky), the target itself is the pivot.
+    pub fn pivot_at(&self, at: Pos2, viewport: Rect) -> V3 {
+        let (right, up, forward) = self.basis();
+        let focal = viewport.height() as f64 / (2.0 * (FOV / 2.0).tan());
+        let c = viewport.center();
+        let (sx, sy) = ((at.x - c.x) as f64 / focal, -((at.y - c.y) as f64) / focal);
+        let ray = [forward[0] + sx * right[0] + sy * up[0], forward[1] + sx * right[1] + sy * up[1], forward[2] + sx * right[2] + sy * up[2]];
+        if ray[2].abs() < 1e-12 {
+            return self.target;
+        }
+        // The eye is `target - forward * distance`; the plane is the one through the target.
+        let t = forward[2] * self.distance / ray[2];
+        if !(t.is_finite() && t > 0.0) {
+            return self.target;
+        }
+        let o = [t * ray[0] - forward[0] * self.distance, t * ray[1] - forward[1] * self.distance, t * ray[2] - forward[2] * self.distance];
+        [self.target[0] + o[0], self.target[1] + o[1], self.target[2] + o[2]]
+    }
+
+    /// Zooms by `factor` keeping the world point `pivot` where it is on the screen: the eye and
+    /// the target both move toward the pivot by the same factor, so the viewing direction does not
+    /// change and the distance becomes `distance / factor`. Differences are taken from the pivot,
+    /// so this holds at any position in the world.
+    pub fn zoom_about(&mut self, pivot: V3, factor: f64) {
+        if !(factor.is_finite() && factor > 0.0) || !pivot.iter().all(|v| v.is_finite()) {
+            return;
+        }
+        let distance = self.distance / factor;
+        if !(distance.is_finite() && (DISTANCE_MIN..=DISTANCE_MAX).contains(&distance)) {
+            return;
+        }
+        for i in 0..3 {
+            self.target[i] = pivot[i] + (self.target[i] - pivot[i]) / factor;
+        }
+        self.distance = distance;
+    }
+
+    /// Orbits by a pointer delta about the world point `pivot` instead of the target: the pivot
+    /// keeps its place in the view (its right, up and depth from the camera do not change) while
+    /// the direction of view turns.
+    pub fn orbit_about(&mut self, dx_px: f64, dy_px: f64, pivot: V3) {
+        let rel = self.to_view(pivot);
+        self.orbit(dx_px, dy_px);
+        let (right, up, forward) = self.basis();
+        // target = pivot - (pivot - eye) + forward * distance, the large terms kept apart.
+        for i in 0..3 {
+            let offset = rel[0] * right[i] + rel[1] * up[i] + rel[2] * forward[i] - forward[i] * self.distance;
+            self.target[i] = pivot[i] - offset;
+        }
+    }
+
     pub fn zoom(&mut self, factor: f64) {
-        self.distance = (self.distance / factor).clamp(50.0, 5.0e9);
+        if factor.is_finite() && factor > 0.0 {
+            self.distance = guard_distance(self.distance / factor);
+        }
     }
 
     /// Frames a sphere.
     pub fn fit_sphere(&mut self, centre: V3, radius: f64) {
         self.target = centre;
-        self.distance = (radius.max(500.0) / (FOV / 2.0).sin() * 1.05).clamp(50.0, 5.0e9);
+        self.distance = guard_distance(radius.max(1.0e-6) / (FOV / 2.0).sin() * 1.05);
     }
 
     /// Frames a sheet-space box (standing in the XZ plane) with a margin.
@@ -186,7 +277,7 @@ impl Camera {
         let c = sheet.centre();
         self.target = [c.x, 0.0, c.y];
         let radius = (sheet.width().powi(2) + sheet.height().powi(2)).sqrt() / 2.0;
-        self.distance = (radius.max(500.0) / (FOV / 2.0).sin() * 1.05).clamp(50.0, 5.0e6);
+        self.distance = guard_distance(radius.max(500.0) / (FOV / 2.0).sin() * 1.05);
     }
 }
 
@@ -204,13 +295,28 @@ impl Frame {
     pub fn placement(&self) -> afrobim_coordination::Placement {
         afrobim_coordination::Placement::new(self.origin, self.sin.atan2(self.cos).to_degrees())
     }
-    fn at(&self, u: f64, d: f64, v: f64) -> V3 {
+    pub(crate) fn at(&self, u: f64, d: f64, v: f64) -> V3 {
         [self.origin[0] + u * self.cos - d * self.sin, self.origin[1] + u * self.sin + d * self.cos, self.origin[2] + v]
     }
     /// The direction a face in the local XZ plane looks (local −Y), in the world.
     fn facing(&self) -> V3 {
         [self.sin, -self.cos, 0.0]
     }
+}
+
+/// A mesh with more triangles than this is drawn batched (see `AfroBimApp::big_mesh`).
+const BIG_MESH_TRIANGLES: usize = 3000;
+/// Indices from here on in the batched sort are clipped pieces, not triangles of the mesh.
+const PIECE_BASE: u32 = 0x8000_0000;
+
+fn r_of(c: u8, rec: Option<[u8; 3]>) -> u8 {
+    rec.map_or(c, |r| r[0])
+}
+fn g_of(c: u8, rec: Option<[u8; 3]>) -> u8 {
+    rec.map_or(c, |r| r[1])
+}
+fn b_of(c: u8, rec: Option<[u8; 3]>) -> u8 {
+    rec.map_or(c, |r| r[2])
 }
 
 /// Categories whose solids are modelled directly in site coordinates (X east, Y north, Z up from
@@ -220,7 +326,7 @@ impl Frame {
 /// ground surfaces. A corridor has no solids of its own: its surfaces are built from the
 /// corridor and cached by the app (`AfroBimApp::corridor_cache`).
 pub(crate) fn is_site_solid(category: &str) -> bool {
-    category == crate::markings_glue::CATEGORY || category == crate::ext_markings_glue::CATEGORY_EXT || crate::modules_glue::owns(category) || crate::modules_glue::is_surface(category)
+    category == crate::markings_glue::CATEGORY || category == crate::ext_markings_glue::CATEGORY_EXT || crate::modules_glue::owns(category) || crate::modules_glue::is_surface(category) || crate::civil::is_civil(category)
 }
 
 /// The alignment's centreline as site points in millimetres, at the profile's level where the
@@ -249,7 +355,12 @@ pub(crate) struct WorldCtx<'a> {
 
 /// Site mode: at least one sign or site solid has been placed on site.
 pub(crate) fn site_mode_of(doc: &afrobim_kernel::Document) -> bool {
-    doc.elements().iter().any(|e| (e.category == crate::signs_glue::CATEGORY || is_site_solid(&e.category)) && e.site.is_some())
+    if doc.elements().iter().any(|e| (e.category == crate::signs_glue::CATEGORY || is_site_solid(&e.category)) && e.site.is_some()) {
+        return true;
+    }
+    // A document of alignments and no signs has no design sheet to stand upright: it is a site.
+    let has_signs = doc.elements().iter().any(|e| e.category == crate::signs_glue::CATEGORY);
+    !has_signs && doc.elements().iter().any(|e| e.category == crate::alignment_glue::CATEGORY)
 }
 
 /// The post a support hangs from (itself for a post) and the sign above it.
@@ -329,6 +440,9 @@ impl AfroBimApp {
 
     /// The solids of an element by id: its generated solids, or for a corridor the built surfaces.
     pub(crate) fn meshes_by_id(&self, id: afrobim_kernel::ElementId) -> Option<&[afrobim_draw::Mesh3]> {
+        if self.doc.find(id).is_some_and(|e| crate::civil::is_civil(&e.category)) {
+            return self.civil.built.get(&id).map(|(_, b)| b.scene.meshes.as_slice());
+        }
         if self.doc.find(id).is_some_and(|e| e.category == afrobim_corridor::CORRIDOR_CATEGORY) {
             return self.corridor_cache.get(&id)?.solids.as_ref().ok().map(|s| s.meshes.as_slice());
         }
@@ -341,10 +455,47 @@ impl AfroBimApp {
         self.meshes_by_id(e.id)
     }
 
+    /// The 3D linework of a civil element (contours, outlines, feature lines).
+    fn lines3_of(&self, e: &afrobim_kernel::Element) -> Option<&[crate::civil_scene::L3]> {
+        if !crate::civil::is_civil(&e.category) {
+            return None;
+        }
+        self.civil.built.get(&e.id).map(|(_, b)| b.scene.lines3.as_slice())
+    }
+
+    /// The linework of a civil element, each polyline as one item in the depth-sorted list.
+    fn civil_lines_3d(&self, e: &afrobim_kernel::Element, frame: Frame, rect: Rect, items: &mut Vec<(f64, Vec<Shape>)>) {
+        let Some(lines) = self.lines3_of(e) else { return };
+        let cam = &self.camera;
+        let selected = self.doc.is_selected(e.id);
+        for l in lines {
+            let proj: Vec<Option<(Pos2, f64)>> = l.pts.iter().map(|p| cam.project(frame.at(p[0], p[1], p[2]), rect)).collect();
+            let mut shapes = Vec::new();
+            let mut depth = 0.0;
+            let mut n = 0.0;
+            let colour = if selected { Color32::from_rgb(0x4D, 0xA3, 0xFF) } else { Color32::from_rgb(l.rgb[0], l.rgb[1], l.rgb[2]) };
+            for w in proj.windows(2) {
+                if let (Some((a, da)), Some((b, db))) = (w[0], w[1]) {
+                    if rect.expand(200.0).intersects(Rect::from_two_pos(a, b)) {
+                        shapes.push(Shape::line_segment([a, b], Stroke::new(l.width, colour)));
+                    }
+                    depth += da + db;
+                    n += 2.0;
+                }
+            }
+            if !shapes.is_empty() {
+                // Linework is in front of the ground it lies on, and behind nothing near it.
+                items.push((depth / n, shapes));
+            }
+        }
+    }
+
     /// Lowest and highest world corner of an element's meshes in its frame, for framing.
     pub(crate) fn mesh_bounds(&self, e: &afrobim_kernel::Element, frame: Frame) -> Option<(V3, V3)> {
         let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
-        for v in self.meshes_of(e)?.iter().flat_map(|m| m.vertices.iter()) {
+        let lines = self.lines3_of(e).unwrap_or(&[]).iter().flat_map(|l| l.pts.iter());
+        let meshes = self.meshes_of(e).unwrap_or(&[]).iter().flat_map(|m| m.vertices.iter());
+        for v in meshes.chain(lines) {
             let p = frame.at(v[0], v[1], v[2]);
             for i in 0..3 {
                 lo[i] = lo[i].min(p[i]);
@@ -370,6 +521,29 @@ impl AfroBimApp {
         let selected = self.doc.is_selected(e.id);
         let both_sides = is_site_solid(&e.category);
         for mesh in solids {
+            // A large mesh (a ground surface of tens of thousands of triangles) is one batched
+            // mesh, sorted and culled, instead of one shape per triangle (see `big_mesh`).
+            if mesh.triangles.len() > BIG_MESH_TRIANGLES {
+                let base = [r_of(mesh.colour[0], record_rgb), g_of(mesh.colour[1], record_rgb), b_of(mesh.colour[2], record_rgb)];
+                let tint = |c: Color32| -> Color32 {
+                    let mut colour = c;
+                    if selected {
+                        colour = Color32::from_rgb(colour.r() / 2 + 0x26, colour.g() / 2 + 0x51, colour.b() / 2 + 0x7F);
+                    }
+                    match style {
+                        crate::schedule_ui::FourD::Active => colour = Color32::from_rgb(colour.r() / 3 + 0xA0, colour.g() / 3 + 0x70, colour.b() / 6 + 0x10),
+                        crate::schedule_ui::FourD::Ghost => colour = Color32::from_rgba_unmultiplied(colour.r(), colour.g(), colour.b(), 70),
+                        _ => {}
+                    }
+                    if highlighted {
+                        colour = Color32::from_rgb(0xE0, 0x3C, 0xC8);
+                    }
+                    colour
+                };
+                let backdrop = if crate::modules_glue::is_surface(&e.category) { 1.0e12 } else { 0.0 };
+                self.big_mesh(mesh, base, &tint, frame, rect, light, backdrop, items);
+                continue;
+            }
             for t in &mesh.triangles {
                 let p: Vec<V3> = t.iter().map(|i| mesh.vertices[*i as usize]).map(|v| frame.at(v[0], v[1], v[2])).collect();
                 let normal = norm(cross(sub(p[1], p[0]), sub(p[2], p[0])));
@@ -384,7 +558,7 @@ impl AfroBimApp {
                 // Clipped to the near plane, so a slab with a vertex behind the camera still shows
                 // the part in front (one or two triangles); see `clip_triangle_near`.
                 let view = [cam.to_view(p[0]), cam.to_view(p[1]), cam.to_view(p[2])];
-                for piece in clip_triangle_near(view, NEAR) {
+                for piece in clip_triangle_near(view, cam.near()) {
                 let projected: Vec<(Pos2, f64)> = piece.iter().map(|v| (cam.view_to_screen(*v, rect), v[2])).collect();
                 // The ground is a backdrop: its triangles are large, so sorting them by centre
                 // against the small things that stand on them goes wrong. They are painted
@@ -419,6 +593,149 @@ impl AfroBimApp {
         }
     }
 
+    /// A mesh of many triangles as a few batched egui meshes. The vertices are put in view space
+    /// once; a triangle wholly outside the view, or smaller than a fraction of a pixel, is left
+    /// out (the level of detail follows the zoom without a second mesh); a triangle that reaches
+    /// behind the near plane is clipped as the per-triangle path does. The rest are sorted far to
+    /// near and flat-shaded, both sides lit as if facing the viewer.
+    #[allow(clippy::too_many_arguments)]
+    fn big_mesh(&self, mesh: &afrobim_draw::Mesh3, base: [u8; 3], tint: &dyn Fn(Color32) -> Color32, frame: Frame, rect: Rect, light: V3, backdrop: f64, items: &mut Vec<(f64, Vec<Shape>)>) {
+        let cam = &self.camera;
+        let near = cam.near();
+        let world: Vec<V3> = mesh.vertices.iter().map(|v| frame.at(v[0], v[1], v[2])).collect();
+        let view: Vec<V3> = world.iter().map(|w| cam.to_view(*w)).collect();
+        let screen: Vec<Option<Pos2>> = view.iter().map(|v| (v[2] > near).then(|| cam.view_to_screen(*v, rect))).collect();
+        let margin = rect.expand(40.0);
+        // (depth, triangle index) of what is drawn whole; the clipped ones go to `pieces`.
+        let mut order: Vec<(f32, u32)> = Vec::with_capacity(mesh.triangles.len());
+        let mut pieces: Vec<(f64, [Pos2; 3], u32)> = Vec::new();
+        let mut smalls: Vec<(f32, u32, Pos2)> = Vec::new();
+        for (ti, t) in mesh.triangles.iter().enumerate() {
+            let (i0, i1, i2) = (t[0] as usize, t[1] as usize, t[2] as usize);
+            match (screen[i0], screen[i1], screen[i2]) {
+                (Some(a), Some(b), Some(c)) => {
+                    let (lo_x, hi_x) = (a.x.min(b.x).min(c.x), a.x.max(b.x).max(c.x));
+                    let (lo_y, hi_y) = (a.y.min(b.y).min(c.y), a.y.max(b.y).max(c.y));
+                    if hi_x < margin.left() || lo_x > margin.right() || hi_y < margin.top() || lo_y > margin.bottom() {
+                        continue;
+                    }
+                    let area2 = ((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)).abs();
+                    if area2 < 0.25 {
+                        // Smaller than a quarter of a pixel: it is drawn as one pixel of its own, at most one per pixel (see below).
+                        smalls.push((((view[i0][2] + view[i1][2] + view[i2][2]) / 3.0) as f32, ti as u32, pos2((a.x + b.x + c.x) / 3.0, (a.y + b.y + c.y) / 3.0)));
+                        continue;
+                    }
+                    order.push((((view[i0][2] + view[i1][2] + view[i2][2]) / 3.0) as f32, ti as u32));
+                }
+                _ => {
+                    for piece in clip_triangle_near([view[i0], view[i1], view[i2]], near) {
+                        let pos: Vec<Pos2> = piece.iter().map(|v| cam.view_to_screen(*v, rect)).collect();
+                        let depth = (piece[0][2] + piece[1][2] + piece[2][2]) / 3.0;
+                        // Sorted with the whole triangles, by its own depth.
+                        order.push((depth as f32, PIECE_BASE + pieces.len() as u32));
+                        pieces.push((depth, [pos[0], pos[1], pos[2]], ti as u32));
+                    }
+                }
+            }
+        }
+        order.sort_by(|a, b| b.0.total_cmp(&a.0));
+        let eye = cam.eye();
+        let shade_of = |ti: u32| -> Color32 {
+            let t = mesh.triangles[ti as usize];
+            let (p0, p1, p2) = (world[t[0] as usize], world[t[1] as usize], world[t[2] as usize]);
+            let mut n = norm(cross(sub(p1, p0), sub(p2, p0)));
+            if dot(n, sub(eye, p0)) < 0.0 {
+                n = [-n[0], -n[1], -n[2]];
+            }
+            let shade = (0.45 + 0.55 * dot(n, light).max(0.0)) as f32;
+            tint(Color32::from_rgb((base[0] as f32 * shade) as u8, (base[1] as f32 * shade) as u8, (base[2] as f32 * shade) as u8))
+        };
+        let mut shapes: Vec<Shape> = Vec::new();
+        let mut batch = egui::Mesh::default();
+        let flush = |batch: &mut egui::Mesh, shapes: &mut Vec<Shape>| {
+            if !batch.vertices.is_empty() {
+                shapes.push(Shape::mesh(std::mem::take(batch)));
+            }
+        };
+        let push = |batch: &mut egui::Mesh, shapes: &mut Vec<Shape>, pts: [Pos2; 3], colour: Color32| {
+            let at = batch.vertices.len() as u32;
+            for q in pts {
+                batch.vertices.push(egui::epaint::Vertex { pos: q, uv: egui::epaint::WHITE_UV, color: colour });
+            }
+            batch.indices.extend_from_slice(&[at, at + 1, at + 2]);
+            if batch.vertices.len() > 60_000 {
+                flush(batch, shapes);
+            }
+        };
+        // The level of detail: a surface seen from far away is thousands of triangles of a fraction
+        // of a pixel. Each pixel they cover gets one 1 px square in the colour of the nearest one.
+        smalls.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let (w, h) = (rect.width().ceil().max(1.0) as usize, rect.height().ceil().max(1.0) as usize);
+        let mut taken = vec![false; w * h];
+        for (_, ti, c) in &smalls {
+            let (px, py) = ((c.x - rect.left()).floor(), (c.y - rect.top()).floor());
+            if px < 0.0 || py < 0.0 || px as usize >= w || py as usize >= h {
+                continue;
+            }
+            let k = py as usize * w + px as usize;
+            if taken[k] {
+                continue;
+            }
+            taken[k] = true;
+            let colour = shade_of(*ti);
+            let (x0, y0) = (rect.left() + px, rect.top() + py);
+            push(&mut batch, &mut shapes, [pos2(x0, y0), pos2(x0 + 1.0, y0), pos2(x0, y0 + 1.0)], colour);
+            push(&mut batch, &mut shapes, [pos2(x0 + 1.0, y0), pos2(x0 + 1.0, y0 + 1.0), pos2(x0, y0 + 1.0)], colour);
+        }
+        for (_, k) in &order {
+            if *k >= PIECE_BASE {
+                let (_, pts, ti) = &pieces[(*k - PIECE_BASE) as usize];
+                let c = shade_of(*ti);
+                push(&mut batch, &mut shapes, *pts, c);
+                continue;
+            }
+            let t = mesh.triangles[*k as usize];
+            let pts = [screen[t[0] as usize].unwrap_or_default(), screen[t[1] as usize].unwrap_or_default(), screen[t[2] as usize].unwrap_or_default()];
+            let c = shade_of(*k);
+            push(&mut batch, &mut shapes, pts, c);
+        }
+        flush(&mut batch, &mut shapes);
+        if !shapes.is_empty() {
+            items.push((backdrop + 1.0e6, shapes));
+        }
+    }
+
+    /// The centreline of an alignment element in the site view, millimetres: at the design profile's
+    /// level where it has one, else on the ground surface that covers it (decoded TINs of the
+    /// surfaces), else at zero. Kept per element until the element or the builds change.
+    fn centreline_3d(&self, e: &afrobim_kernel::Element) -> std::rc::Rc<Vec<V3>> {
+        let key = format!("{:x}:{:x}:{}:{}:{}:{}", e.origin.x.to_bits(), e.origin.y.to_bits(), e.data.get("elements").and_then(|v| v.as_array()).map_or(0, |a| a.len()), e.data.get("profile").map_or(0, |p| p.get("pvis").and_then(|v| v.as_array()).map_or(1, |a| a.len() + 1)), self.civil.applied, self.civil.imported.len());
+        if let Some((k, pts)) = self.centre_cache.borrow().get(&e.id) {
+            if *k == key {
+                return pts.clone();
+            }
+        }
+        let pts = match crate::alignment_glue::alignment_of(&self.doc, e.id) {
+            Some(a) => {
+                let mut pts = centreline_points(&a, 5.0);
+                if a.profile.is_none() {
+                    // Draped on the first surface that has a level there.
+                    let tins: Vec<std::sync::Arc<afrobim_corridor::Tin>> = self.doc.elements().iter().filter_map(|x| self.civil.imported.get(&x.id).map(|(_, t)| t.clone()).or_else(|| self.civil.tin_of(x.id))).collect();
+                    for p in &mut pts {
+                        if let Some(z) = tins.iter().find_map(|t| t.elevation_at(p[0] / 1000.0, p[1] / 1000.0)) {
+                            p[2] = z * 1000.0;
+                        }
+                    }
+                }
+                pts
+            }
+            None => Vec::new(),
+        };
+        let pts = std::rc::Rc::new(pts);
+        self.centre_cache.borrow_mut().insert(e.id, (key, pts.clone()));
+        pts
+    }
+
     /// World-space corners of everything the current mode shows, for framing and the ground grid.
     pub(crate) fn shown_points(&self, site_mode: bool) -> Vec<V3> {
         let mut points = Vec::new();
@@ -427,30 +744,86 @@ impl AfroBimApp {
                 // Frame the alignments that carry signs; one far away with nothing on it would
                 // shrink the signs to a dot.
                 let used = self.doc.elements().iter().any(|x| x.site.as_ref().and_then(|p| p.alignment.as_deref()) == Some(e.name.as_str()));
-                if site_mode && used {
+                // With no sign on site there is nothing for a far alignment to shrink: frame them all.
+                let signs_on_site = self.doc.elements().iter().any(|x| x.category == crate::signs_glue::CATEGORY && x.site.is_some());
+                if site_mode && (used || !signs_on_site) {
                     if let Some(a) = crate::alignment_glue::alignment_of(&self.doc, e.id) {
                         points.extend(centreline_points(&a, 50.0));
                     }
                 }
                 continue;
             }
-            let Some(frame) = self.frame_of(e, site_mode) else { continue };
-            if is_site_solid(&e.category) {
-                // The corners of the solids themselves, so that levels well above zero are framed.
-                match self.mesh_bounds(e, frame) {
-                    Some((lo, hi)) => points.extend([lo, hi]),
-                    None => points.extend([frame.at(0.0, 0.0, 0.0), frame.at(e.width, e.height, 0.0)]),
-                }
-            } else if crate::supports_glue::is_support(&e.category) {
-                points.push(frame.at(0.0, 0.0, 0.0));
-            } else {
-                points.extend([frame.at(0.0, 0.0, 0.0), frame.at(e.width, 0.0, e.height)]);
-            }
+            points.extend(self.element_points(e, site_mode));
         }
         if let Some((lo, hi)) = self.refs.world_bounds() {
             points.extend([lo, hi]);
         }
         points
+    }
+
+    /// World points that frame one element (its solids' corners, or the corners of its plate).
+    pub(crate) fn element_points(&self, e: &afrobim_kernel::Element, site_mode: bool) -> Vec<V3> {
+        // Records at the model origin (project and annotation settings) are not geometry.
+        if e.category == afrobim_kernel::PROJECT_SETTINGS_CATEGORY || e.category == afrobim_annotate::SETTINGS_CATEGORY {
+            return Vec::new();
+        }
+        // An assembly or a ground profile has no place in the plan: it sits at the origin and must not widen the framing.
+        if crate::civil::is_civil(&e.category) && !crate::civil::has_plan_position(&e.category) {
+            return Vec::new();
+        }
+        let Some(frame) = self.frame_of(e, site_mode) else { return Vec::new() };
+        if e.category == crate::civil::POINTCLOUD {
+            // The box of the opened cloud, so that the view frames it with its levels.
+            return match self.civil_ui.cloud.loaded.get(&e.id).map(|l| l.index.bounds()) {
+                Some(b) => vec![frame.at(b.min[0] * 1000.0 - e.origin.x, b.min[1] * 1000.0 - e.origin.y, b.min[2] * 1000.0), frame.at(b.max[0] * 1000.0 - e.origin.x, b.max[1] * 1000.0 - e.origin.y, b.max[2] * 1000.0)],
+                None => Vec::new(),
+            };
+        }
+        if is_site_solid(&e.category) {
+            // The corners of the solids themselves, so that levels well above zero are framed.
+            match self.mesh_bounds(e, frame) {
+                Some((lo, hi)) => vec![lo, hi],
+                // A civil object with no solid (points, parcels, sections) is at no level in 3D: it must not stretch the framing down to zero.
+                None if crate::civil::is_civil(&e.category) => Vec::new(),
+                None => vec![frame.at(0.0, 0.0, 0.0), frame.at(e.width, e.height, 0.0)],
+            }
+        } else if crate::supports_glue::is_support(&e.category) {
+            vec![frame.at(0.0, 0.0, 0.0)]
+        } else {
+            vec![frame.at(0.0, 0.0, 0.0), frame.at(e.width, 0.0, e.height)]
+        }
+    }
+
+    /// Frames the given elements in the 3D view, remembering the view it leaves. False when none
+    /// of them has anything to show.
+    pub(crate) fn zoom_3d_to(&mut self, ids: &[afrobim_kernel::ElementId]) -> bool {
+        self.sync_generated();
+        let site_mode = self.site_mode();
+        let mut points = Vec::new();
+        for id in ids {
+            let Some(e) = self.doc.find(*id) else { continue };
+            if e.category == crate::alignment_glue::CATEGORY {
+                if let Some(a) = crate::alignment_glue::alignment_of(&self.doc, e.id) {
+                    points.extend(centreline_points(&a, 5.0));
+                }
+            } else {
+                points.extend(self.element_points(e, site_mode));
+            }
+        }
+        if points.is_empty() {
+            return false;
+        }
+        let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+        for p in &points {
+            for i in 0..3 {
+                lo[i] = lo[i].min(p[i]);
+                hi[i] = hi[i].max(p[i]);
+            }
+        }
+        self.camera_history.push(self.camera.clone());
+        let centre = [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, (lo[2] + hi[2]) / 2.0];
+        self.camera.fit_sphere(centre, dot(sub(hi, lo), sub(hi, lo)).sqrt() / 2.0);
+        true
     }
 }
 
@@ -468,32 +841,52 @@ impl AfroBimApp {
             self.fitted_3d = true;
             self.fit_3d();
             // `--camera distance,yaw,pitch[,station]`: a chosen viewpoint, for screenshots.
-            if let Some(spec) = self.options.camera.take() {
-                self.apply_camera_option(&spec);
+            if let Some(spec) = self.options.camera.clone() {
+                // After an import the framing is done again once the builds are in: the viewpoint waits for that.
+                if !self.zoom_extents_pending && !self.bg.busy() {
+                    self.options.camera = None;
+                    self.apply_camera_option(&spec);
+                }
             }
         }
 
         // Left drag orbits, middle or Shift + left drag pans, the wheel zooms, double-click fits.
-        let (delta, primary, middle, shift, scroll) = ui.input(|i| {
+        let (delta, primary, middle, shift, scroll, hover) = ui.input(|i| {
             (
                 i.pointer.delta(),
                 i.pointer.button_down(egui::PointerButton::Primary),
                 i.pointer.button_down(egui::PointerButton::Middle),
                 i.modifiers.shift,
                 i.raw_scroll_delta.y,
+                i.pointer.latest_pos(),
             )
         });
+        if response.drag_started() {
+            // The point under the pointer is the pivot of the whole drag.
+            self.orbit_pivot = hover.map(|h| self.camera.pivot_at(h, rect));
+        }
         if response.dragged() || (response.contains_pointer() && middle) {
             if middle || (primary && shift) {
                 self.camera.pan(delta.x as f64, delta.y as f64, rect);
             } else if primary {
-                self.camera.orbit(delta.x as f64, delta.y as f64);
+                match self.orbit_pivot {
+                    Some(pivot) => self.camera.orbit_about(delta.x as f64, delta.y as f64, pivot),
+                    None => self.camera.orbit(delta.x as f64, delta.y as f64),
+                }
             }
         }
         if response.contains_pointer() && scroll != 0.0 {
-            self.camera.zoom((scroll as f64 * 0.0025).exp());
+            // The wheel zooms about the point under the pointer.
+            let factor = (scroll as f64 * 0.0025).exp();
+            match hover {
+                Some(h) => {
+                    let pivot = self.camera.pivot_at(h, rect);
+                    self.camera.zoom_about(pivot, factor);
+                }
+                None => self.camera.zoom(factor),
+            }
         }
-        if response.double_clicked() {
+        if response.double_clicked() || (response.contains_pointer() && ui.input(|i| i.pointer.button_double_clicked(egui::PointerButton::Middle))) {
             self.fit_3d();
         } else if response.clicked() {
             if let Some(at) = response.interact_pointer_pos() {
@@ -508,6 +901,11 @@ impl AfroBimApp {
             self.construction.sync(&self.doc);
             self.construction.refresh_percents(self.sched.date);
         }
+        // The decoded TINs the alignments are draped on (decoded once, see `tin_for`).
+        let surfaces: Vec<afrobim_kernel::ElementId> = self.doc.elements().iter().filter(|e| e.category == afrobim_corridor::SURFACE_CATEGORY).map(|e| e.id).collect();
+        for id in surfaces {
+            let _ = self.tin_for(id);
+        }
         self.paint_3d(&painter, rect);
     }
 
@@ -517,7 +915,7 @@ impl AfroBimApp {
         if v.len() < 3 {
             return;
         }
-        self.camera.distance = v[0].max(50.0);
+        self.camera.distance = guard_distance(v[0]);
         self.camera.yaw = v[1].to_radians();
         self.camera.pitch = v[2].to_radians();
         if let Some(station) = v.get(3) {
@@ -627,17 +1025,23 @@ impl AfroBimApp {
         let label = if dark { Color32::from_rgb(0xA8, 0xB0, 0xBA) } else { Color32::from_rgb(0x50, 0x55, 0x5C) };
         let mut items: Vec<(f64, Vec<Shape>)> = Vec::new();
 
-        for e in self.doc.elements() {
+        for e in self.doc.elements().iter().filter(|e| e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY) {
             if e.category == crate::alignment_glue::CATEGORY {
-                // The centreline on the ground, in the site view only.
+                // The centreline on the ground, in the site view only. It is an item of its own, nearer than
+                // the ground, so that the ground (painted first) does not cover it.
                 if site_mode {
-                    if let Some(a) = crate::alignment_glue::alignment_of(&self.doc, e.id) {
-                        let centre = Stroke::new(2.0_f32, Color32::from_rgb(0xE8, 0xC5, 0x47));
-                        // At the profile's level where the alignment has one, else on z = 0.
-                        let pts = centreline_points(&a, 5.0);
-                        for w in pts.windows(2) {
-                            line(w[0], w[1], centre);
+                    let pts = self.centreline_3d(e);
+                    let centre = Stroke::new(2.0_f32, Color32::from_rgb(0xE8, 0xC5, 0x47));
+                    let mut shapes = Vec::new();
+                    for w in pts.windows(2) {
+                        if let (Some((p, _)), Some((q, _))) = (cam.project(w[0], rect), cam.project(w[1], rect)) {
+                            if rect.expand(100.0).intersects(Rect::from_two_pos(p, q)) {
+                                shapes.push(Shape::line_segment([p, q], centre));
+                            }
                         }
+                    }
+                    if !shapes.is_empty() {
+                        items.push((0.0, shapes));
                     }
                 }
                 continue;
@@ -647,8 +1051,16 @@ impl AfroBimApp {
                 continue;
             }
             let Some(frame) = self.frame_of(e, site_mode) else { continue };
+            if crate::civil::is_civil(&e.category) && crate::civil::hidden(e) {
+                continue;
+            }
+            if e.category == crate::civil::POINTCLOUD {
+                self.cloud_points_3d(e, frame, rect, &mut items);
+                continue;
+            }
             if crate::supports_glue::is_support(&e.category) || is_site_solid(&e.category) {
                 self.support_triangles(e, frame, rect, &mut items);
+                self.civil_lines_3d(e, frame, rect, &mut items);
                 continue;
             }
             let style = if self.by_record() { crate::schedule_ui::FourD::Normal } else { self.sched.fourd_style(e.id) };
@@ -819,13 +1231,13 @@ mod tests {
         let slab = [[-50_000.0, -50_000.0, 0.0], [50_000.0, -50_000.0, 0.0], [50_000.0, 50_000.0, 0.0]];
         // The eye is at x = 300 looking towards -x, so the two corners at x = 50 000 are behind it.
         let view = [cam.to_view(slab[0]), cam.to_view(slab[1]), cam.to_view(slab[2])];
-        assert!(view.iter().any(|v| v[2] < NEAR), "a vertex is behind the camera");
-        let pieces = clip_triangle_near(view, NEAR);
+        assert!(view.iter().any(|v| v[2] < cam.near()), "a vertex is behind the camera");
+        let pieces = clip_triangle_near(view, cam.near());
         assert!(!pieces.is_empty(), "the part in front is kept");
         let rect = Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(800.0, 600.0));
         for t in &pieces {
             for v in t {
-                assert!(v[2] >= NEAR - 1e-9);
+                assert!(v[2] >= cam.near() - 1e-9);
                 let p = cam.view_to_screen(*v, rect);
                 assert!(p.x.is_finite() && p.y.is_finite());
             }
@@ -871,5 +1283,57 @@ mod tests {
     #[test]
     fn the_default_camera_looks_at_the_front_of_the_signs() {
         assert!(Camera::default().eye()[1] < 0.0, "sign faces look towards −Y");
+    }
+    #[test]
+    fn near_plane_scales_with_distance() {
+        let mut cam = Camera::default();
+        let n0 = cam.near();
+        cam.distance = 1.0;
+        assert!((cam.near() - 1.0e-4).abs() < 1e-12);
+        cam.distance = 1.0e10;
+        assert!((cam.near() / n0 - 1.0e10 / 10_000.0).abs() < 1.0);
+        cam.zoom(1.0e-3);
+        assert!(cam.distance.is_finite() && cam.distance > 0.0);
+    }
+
+    #[test]
+    fn zoom_about_a_pivot_keeps_its_screen_position_at_utm_coordinates() {
+        let rect = Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(1000.0, 800.0));
+        let mut cam = Camera { target: [5.0e8, 1.0e10, 100.0], distance: 5000.0, yaw: -1.0, pitch: 0.4 };
+        let at = pos2(700.0, 300.0);
+        let pivot = cam.pivot_at(at, rect);
+        let (before, _) = cam.project(pivot, rect).unwrap();
+        // In to a camera 0.02 mm from the pivot, 1e10 mm from the origin. The pivot is a world
+        // coordinate and f64 spaces those 1.9e-6 mm apart there, so it can move on screen by at
+        // most that fraction of the distance (times the focal length, about 1400 px): 0.1 px.
+        while cam.distance > 0.02 {
+            cam.zoom_about(pivot, 1.6);
+        }
+        let (after, _) = cam.project(pivot, rect).unwrap();
+        let focal = 800.0 / (2.0 * (FOV / 2.0).tan());
+        let limit = 2.0 * 1.9e-6 / cam.distance * focal + 0.01;
+        assert!((after.x - before.x).abs() < limit as f32 && (after.y - before.y).abs() < limit as f32, "{before:?} {after:?} limit {limit}");
+        // No clamp stops it: further in, to a few nanometres, the camera still has a finite view.
+        for _ in 0..40 {
+            cam.zoom_about(pivot, 1.6);
+        }
+        assert!(cam.distance < 1.0e-4 && cam.distance > 0.0, "{}", cam.distance);
+        // And out to 10 000 km.
+        for _ in 0..100 {
+            cam.zoom_about(pivot, 1.0 / 1.6);
+        }
+        assert!(cam.distance > 1.0e9);
+        assert!(cam.project(pivot, rect).is_some());
+    }
+
+    #[test]
+    fn orbiting_about_a_pivot_keeps_the_pivot_in_place() {
+        let rect = Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(1000.0, 800.0));
+        let mut cam = Camera { target: [450_000_000.0, 35_000_000.0, 0.0], distance: 20_000.0, yaw: -1.0, pitch: 0.4 };
+        let pivot = cam.pivot_at(pos2(300.0, 500.0), rect);
+        let (before, _) = cam.project(pivot, rect).unwrap();
+        cam.orbit_about(120.0, -40.0, pivot);
+        let (after, _) = cam.project(pivot, rect).unwrap();
+        assert!((after.x - before.x).abs() < 0.01 && (after.y - before.y).abs() < 0.01, "{before:?} {after:?}");
     }
 }

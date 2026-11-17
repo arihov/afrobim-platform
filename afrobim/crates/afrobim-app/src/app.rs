@@ -7,10 +7,11 @@ use afrobim_kernel::{
     CanvasController, CanvasEvent, Document, Element, ElementId, Generated, ModuleRegistry, Pt, SelectMode, Severity,
     UndoHistory, ViewTransform, FILE_EXTENSION,
 };
-use egui::{Color32, Key, KeyboardShortcut, Modifiers, PointerButton, RichText, Sense};
+use egui::{Key, KeyboardShortcut, Modifiers, PointerButton, RichText, Sense};
 
 use crate::commands::{self, Action, COMMANDS};
-use crate::icons::{self, Icon};
+use crate::icons::{self};
+use crate::ui_kit;
 use crate::render::{ElementMesh, Representation};
 use crate::{alignment_glue, markings_glue, modules_glue, road_dialogs, road_glue, signs_glue, supports_glue, Options};
 use crate::{check_ui::CheckUi, construction_ui::ConstructionUi, coordination_ui::CoordUi, cost_ui::CostUi, schedule_ui::SchedUi};
@@ -69,6 +70,14 @@ pub struct AfroBimApp {
     pub(crate) signsched: crate::signsched::SignSchedUi,
     pub(crate) projset: crate::projset::ProjSetUi,
     pub(crate) survey: crate::survey_ui::SurveyUi,
+    /// The civil objects: built scenes, the toolspace tree and the dialogs of the civil commands.
+    pub(crate) civil: crate::civil_cache::CivilState,
+    pub(crate) civil_ui: crate::civil_ui::CivilUi,
+    pub(crate) defaults_ui: crate::defaults_glue::DefaultsUi,
+    /// A civil command or an action a toolspace row asked for, run at the start of the next frame.
+    pub(crate) civil_run_pending: Option<crate::civil_cmds::Cv>,
+    pub(crate) pending_action: Option<Action>,
+    pub(crate) landxml: crate::landxml_ui::LandXmlUi,
     /// The name of the last IFC file exported, which BCF topics name as their model.
     pub(crate) last_ifc_name: Option<String>,
     signs_ready: bool,
@@ -123,20 +132,41 @@ pub struct AfroBimApp {
     /// typed (0 = not stated, else the region number counted from 1).
     station_dialog: Option<(ElementId, Option<ElementId>, f64, f64, bool, usize)>,
     new_prop_key: String,
+    pub(crate) align_tab: usize,
+    /// The 3D centreline of each alignment, with the key it was made for (see `centreline_3d`).
+    pub(crate) centre_cache: std::cell::RefCell<std::collections::HashMap<ElementId, (String, std::rc::Rc<Vec<[f64; 3]>>)>>,
+    /// Zoom to the extents once the viewport is known and the builds are done (after an import).
+    pub(crate) zoom_extents_pending: bool,
+    /// Update times in milliseconds, kept when AFROBIM_FRAME_STATS is set (performance checks).
+    frame_ms: Vec<f64>,
 
     pub(crate) grid_on: bool,
     pub(crate) grid_spacing: f64,
     pub(crate) dark_canvas: bool,
-    dark_theme: bool,
+    pub(crate) theme: crate::theme::Theme,
+    pub(crate) workspace: usize,
+    pub(crate) show_left: bool,
+    pub(crate) show_right: bool,
+    pub(crate) appearance_open: bool,
+    pub(crate) palette_open: bool,
+    hook_frames: u32,
+    /// Frames drawn so far: `--run` waits for the first layouts so that view commands see the canvas.
+    update_frames: u32,
+    pub(crate) palette: crate::palette::PaletteState,
+    pub(crate) prefs: crate::prefs::Prefs,
     pub(crate) rep: Representation,
     pub(crate) show_labels: bool,
 
     path: Option<PathBuf>,
     pub(crate) drops: crate::dropped::DropUi,
     pub(crate) status: String,
-    fitted: bool,
+    pub(crate) fitted: bool,
     pub(crate) view_3d: bool,
     pub(crate) camera: crate::view3d::Camera,
+    /// World point under the pointer where a 3D drag began: the pivot of the orbit.
+    pub(crate) orbit_pivot: Option<[f64; 3]>,
+    /// Cameras ZOOM Previous returns to in the 3D view (the plan view keeps its own in the controller).
+    pub(crate) camera_history: Vec<crate::view3d::Camera>,
     pub(crate) fitted_3d: bool,
     canvas_drag: bool,
     quit: bool,
@@ -148,8 +178,26 @@ pub struct AfroBimApp {
 const CMD_ID: &str = "afrobim-command-line";
 
 impl AfroBimApp {
+    /// The options the application runs with (the headless dialog test sets `run` through this).
+    #[cfg(test)]
+    pub fn options_mut(&mut self) -> &mut Options {
+        &mut self.options
+    }
+
     pub fn new(cc: &eframe::CreationContext<'_>, options: Options) -> Self {
-        cc.egui_ctx.set_visuals(egui::Visuals::dark());
+        let mut prefs = if options.screenshot.is_some() { crate::prefs::Prefs::default() } else { crate::prefs::load() };
+        let mut theme = prefs.theme();
+        if let Some(t) = options.theme.as_deref() {
+            theme = crate::theme::parse_theme(t).unwrap_or(theme);
+        }
+        if let Some(s) = options.scale {
+            theme.scale = s.clamp(0.7, 2.0);
+        }
+        prefs.set_theme(&theme);
+        let ws_index = options.workspace.as_deref().and_then(crate::workspace::index_of).or_else(|| crate::workspace::index_of(&prefs.workspace)).unwrap_or(0);
+        crate::win::load_positions(prefs.window_pos.clone());
+        crate::theme::install_fonts(&cc.egui_ctx);
+        crate::theme::apply(&cc.egui_ctx, &theme);
         let mut modules = crate::background::worker_registry();
         let standard = options.standard.clone().unwrap_or_else(|| signs_glue::DEFAULT_STANDARD.to_string());
         let (signs_ready, module_status, library, engine, fonts_dir) = match signs_glue::load_module(&standard) {
@@ -173,7 +221,7 @@ impl AfroBimApp {
             checks: CheckUi::default(),
             design: Default::default(),
             issues: Default::default(),
-            refs: Default::default(),
+            refs: crate::reference_models::RefUi::new(),
             vis: Default::default(),
             photo: Default::default(),
             pack: Default::default(),
@@ -182,6 +230,12 @@ impl AfroBimApp {
             signsched: Default::default(),
             projset: Default::default(),
             survey: Default::default(),
+            civil: Default::default(),
+            civil_ui: Default::default(),
+            defaults_ui: Default::default(),
+            civil_run_pending: None,
+            pending_action: None,
+            landxml: Default::default(),
             last_ifc_name: None,
             signs_ready,
             module_status,
@@ -216,10 +270,23 @@ impl AfroBimApp {
             corridors_held: false,
             station_dialog: None,
             new_prop_key: String::new(),
+            align_tab: 0,
+            centre_cache: Default::default(),
+            zoom_extents_pending: false,
+            frame_ms: Vec::new(),
             grid_on: true,
             grid_spacing: 100.0,
-            dark_canvas: true,
-            dark_theme: true,
+            dark_canvas: theme.is_dark(),
+            theme,
+            workspace: ws_index,
+            show_left: crate::workspace::WORKSPACES[ws_index].show_left,
+            show_right: crate::workspace::WORKSPACES[ws_index].show_right,
+            appearance_open: false,
+            palette_open: false,
+            hook_frames: 0,
+            update_frames: 0,
+            palette: Default::default(),
+            prefs,
             rep: Representation::Real,
             show_labels: true,
             path: None,
@@ -228,6 +295,8 @@ impl AfroBimApp {
             fitted: false,
             view_3d: false,
             camera: crate::view3d::Camera::default(),
+            orbit_pivot: None,
+            camera_history: Vec::new(),
             fitted_3d: false,
             canvas_drag: false,
             quit: false,
@@ -235,6 +304,10 @@ impl AfroBimApp {
             frames: 0,
         };
 
+        app.civil_ui.tree.tab = crate::workspace::WORKSPACES[app.workspace.min(crate::workspace::WORKSPACES.len() - 1)].toolspace_tab;
+        if app.options.civil_demo {
+            app.civil_demo();
+        }
         if let Some(path) = app.options.open.clone() {
             app.open_path(path);
         } else if app.options.demo && app.signs_ready {
@@ -543,6 +616,15 @@ impl AfroBimApp {
                 app.design_finish_create();
             }
         }
+        if let Some(path) = app.options.landxml_dialog.clone() {
+            app.landxml_open(path, false);
+        }
+        if let Some(path) = app.options.landxml_all.clone() {
+            app.landxml_import_all(&path);
+        }
+        if let Some(path) = app.options.survey_dialog.clone() {
+            app.survey_open(path);
+        }
         app.frames_setup();
         if let Some(path) = app.options.export_ifc.clone() {
             app.export_ifc(path);
@@ -583,12 +665,14 @@ impl AfroBimApp {
         any |= self.cache.len() != before;
         for id in ids {
             let Some(e) = self.doc.find(id) else { continue };
-            let fresh = self.cache.get(&id).is_some_and(|c| c.key.0 == e.name && c.key.1 == e.data);
+            // A civil element's data can be huge (100 000 points): its revision stands for it.
+            let key_data = if crate::civil::is_civil(&e.category) { serde_json::Value::String(crate::civil::rev_of(e)) } else { e.data.clone() };
+            let fresh = self.cache.get(&id).is_some_and(|c| c.key.0 == e.name && c.key.1 == key_data);
             if fresh {
                 continue;
             }
             let generated = self.modules.generate(e);
-            let key = (e.name.clone(), e.data.clone());
+            let key = (e.name.clone(), key_data);
             let mesh = generated.as_ref().map(|g| ElementMesh::build(&g.drawing)).unwrap_or_default();
             if let Ok(g) = &generated {
                 let (w, h) = (g.drawing.extents.width(), g.drawing.extents.height());
@@ -629,6 +713,48 @@ impl AfroBimApp {
 
     // ─── undo ────────────────────────────────────────────────────────────────
 
+    /// Applies a new look or scale and keeps it in the preferences.
+    pub(crate) fn set_theme(&mut self, ctx: &egui::Context, theme: crate::theme::Theme) {
+        if theme.is_dark() != self.theme.is_dark() {
+            self.dark_canvas = theme.is_dark();
+        }
+        self.theme = theme;
+        crate::theme::apply(ctx, &theme);
+        self.prefs.set_theme(&theme);
+        self.save_prefs();
+    }
+
+    /// Switches workspace: the ribbon tabs and palettes it shows and its panel visibility.
+    pub(crate) fn set_workspace(&mut self, index: usize) {
+        let index = index.min(crate::workspace::WORKSPACES.len() - 1);
+        let ws = &crate::workspace::WORKSPACES[index];
+        self.workspace = index;
+        self.show_left = ws.show_left;
+        self.civil_ui.tree.tab = ws.toolspace_tab;
+        self.show_right = ws.show_right;
+        if !ws.shows_tab(self.ribbon_tab) {
+            self.ribbon_tab = crate::ribbon::Tab::Home;
+        }
+        self.prefs.workspace = ws.name.to_string();
+        self.save_prefs();
+        self.status = format!("Workspace: {}.", ws.name);
+    }
+
+    /// Puts a file at the top of the recent files.
+    fn remember_recent(&mut self, path: &std::path::Path) {
+        if self.options.screenshot.is_none() {
+            self.prefs.add_recent(&path.display().to_string());
+            self.save_prefs();
+        }
+    }
+
+    /// Writes the preferences (never while taking a screenshot).
+    pub(crate) fn save_prefs(&self) {
+        if self.options.screenshot.is_none() {
+            crate::prefs::save(&self.prefs);
+        }
+    }
+
     pub(crate) fn request_quit(&mut self) {
         self.quit = true;
     }
@@ -640,11 +766,21 @@ impl AfroBimApp {
 
     pub(crate) fn flush_commit(&mut self) {
         self.commit_due = None;
+        // A referenced object is read-only: whatever edit reached it is undone here, at the one
+        // place every edit passes through (unless a synchronise or a promote just changed it).
+        if std::mem::take(&mut self.civil_ui.shortcuts.bypass) {
+            // The operation that set this is the one change that may touch references.
+        } else {
+            let notes = crate::shortcuts_ui::guard(&mut self.doc, self.history.current());
+            if let Some(first) = notes.first() {
+                self.status = first.clone();
+            }
+        }
         self.sync_generated();
         self.history.commit(self.doc.snapshot());
     }
 
-    fn undo(&mut self) {
+    pub(crate) fn undo(&mut self) {
         self.flush_commit();
         match self.history.undo().cloned() {
             Some(state) => {
@@ -666,6 +802,11 @@ impl AfroBimApp {
             }
             None => self.status = "Nothing to redo.".into(),
         }
+    }
+
+    /// The file the document was opened from or saved to, if it has one.
+    pub(crate) fn doc_path(&self) -> Option<&std::path::Path> {
+        self.path.as_deref()
     }
 
     pub(crate) fn log(&mut self, line: impl Into<String>) {
@@ -720,6 +861,7 @@ impl AfroBimApp {
                 self.history.reset(self.doc.snapshot());
                 self.drops.saved = Some(crate::background::fingerprint(&self.doc));
                 self.status = format!("Opened {} ({} elements).", path.display(), self.doc.elements().len());
+                self.remember_recent(&path);
                 self.path = Some(path);
                 self.fitted = false;
             }
@@ -733,6 +875,7 @@ impl AfroBimApp {
             Ok(()) => {
                 self.status = format!("Saved {}.", path.display());
                 self.drops.saved = Some(crate::background::fingerprint(&self.doc));
+                self.remember_recent(&path);
                 self.path = Some(path);
             }
             Err(e) => self.status = format!("Could not save {}: {e}", path.display()),
@@ -793,13 +936,20 @@ impl AfroBimApp {
     /// Elements not placed on site stand upright as on the sheet (see the afrobim-ifc README).
     pub(crate) fn export_ifc(&mut self, path: PathBuf) {
         self.sync_generated();
-        let inputs: Vec<afrobim_ifc::IfcElementInput> = self
+        // Civil surfaces are written as terrain through the existing surface exporter; the other
+        // civil objects are not mapped (see `civil_ifc`).
+        let synth = self.civil_terrain_inputs();
+        let (packages, package_notes) = self.civil_packages();
+        let unmapped = self.civil_unmapped_note();
+        let mut inputs: Vec<afrobim_ifc::IfcElementInput> = self
             .doc
             .elements()
             .iter()
-            .filter(|e| e.category != crate::reference_models::CATEGORY)
+            .filter(|e| e.category != crate::reference_models::CATEGORY && !crate::civil::is_civil(&e.category))
             .map(|e| afrobim_ifc::IfcElementInput { element: e, generated: self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()) })
             .collect();
+        inputs.extend(synth.iter().map(|(e, g)| afrobim_ifc::IfcElementInput { element: e, generated: g.as_ref() }));
+        inputs.extend(packages.iter().map(|p| afrobim_ifc::IfcElementInput { element: &p.element, generated: Some(&p.generated) }));
         // The project name scopes the GlobalIds, so use the document's file name: re-exporting
         // the same saved document keeps every element's identity.
         let project = self.ifc_project_name();
@@ -807,6 +957,7 @@ impl AfroBimApp {
             project_name: project,
             application: format!("AfroBIM {}", env!("CARGO_PKG_VERSION")),
             alignment: crate::ifc_options::mode_of(&self.doc),
+            georeference: crate::crs_ui::georeference_of(afrobim_kernel::project_crs(&self.doc).as_ref()),
             ..afrobim_ifc::IfcOptions::default()
         };
         let export = afrobim_ifc::export_ifc_model(&self.doc, &inputs, &options);
@@ -816,6 +967,12 @@ impl AfroBimApp {
                 self.status = format!("Exported {} element(s) to {}.", inputs.len(), path.display());
                 for note in export.notes.iter().take(5) {
                     self.log(format!("IFC: {note}"));
+                }
+                for n in &package_notes {
+                    self.log(format!("IFC: {n}"));
+                }
+                if let Some(n) = unmapped {
+                    self.log(format!("IFC: {n}"));
                 }
                 if !export.notes.is_empty() {
                     self.status.push_str(&format!(" {} note(s) in the command history.", export.notes.len()));
@@ -987,6 +1144,9 @@ impl AfroBimApp {
             }
             Action::Undo => self.undo(),
             Action::Redo => self.redo(),
+            Action::CopyClip if crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).is_some() => {
+                self.status = crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).unwrap_or_default();
+            }
             Action::CopyClip => {
                 self.clipboard = self.doc.selection().iter().filter_map(|id| self.doc.find(*id).cloned()).collect();
                 self.paste_count = 0;
@@ -1007,12 +1167,23 @@ impl AfroBimApp {
                     self.schedule_commit(ctx);
                 }
             }
+            Action::Move | Action::Copy | Action::Erase if crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).is_some() => {
+                self.status = crate::shortcuts_ui::refuse_if_referenced(&self.doc, self.doc.selection()).unwrap_or_default();
+            }
             Action::Move => self.ctl.start_move(&mut self.doc),
             Action::Copy => self.ctl.start_copy(&mut self.doc),
             Action::Erase => self.ctl.start_erase(&mut self.doc),
             Action::SelectAll => self.doc.select_all(),
-            Action::ZoomExtents if self.view_3d => self.fit_3d(),
-            Action::ZoomExtents => self.zoom_extents_visible(),
+            Action::ZoomExtents if self.view_3d => {
+                self.camera_history.push(self.camera.clone());
+                self.fit_3d()
+            }
+            Action::ZoomExtents => {
+                self.ctl.remember_view(&self.view);
+                self.zoom_extents_visible()
+            }
+            Action::ZoomSelection => self.zoom_selection(),
+            Action::ZoomPrevious => self.zoom_previous_view(),
             Action::ZoomWindow => self.ctl.start_zoom_window(),
             Action::ZoomIn if self.view_3d => self.camera.zoom(1.5),
             Action::ZoomOut if self.view_3d => self.camera.zoom(1.0 / 1.5),
@@ -1026,8 +1197,7 @@ impl AfroBimApp {
             Action::ToggleCanvas => self.dark_canvas = !self.dark_canvas,
             Action::ToggleMarks => self.show_labels = !self.show_labels,
             Action::ToggleTheme => {
-                self.dark_theme = !self.dark_theme;
-                ctx.set_visuals(if self.dark_theme { egui::Visuals::dark() } else { egui::Visuals::light() });
+                self.set_theme(ctx, self.theme.toggled());
             }
             Action::Toggle3d => {
                 self.view_3d = !self.view_3d;
@@ -1040,7 +1210,11 @@ impl AfroBimApp {
                 }
             }
             Action::Arrange => {
-                self.doc.arrange();
+                // Imported alignments and surfaces, corridors and underlays sit at the
+                // coordinates of their source and are never moved by a tidy-up of the sheet.
+                self.doc.arrange_where(|e| {
+                    ![crate::alignment_glue::CATEGORY, afrobim_corridor::SURFACE_CATEGORY, afrobim_corridor::CORRIDOR_CATEGORY, crate::underlay::CATEGORY, afrobim_kernel::PROJECT_SETTINGS_CATEGORY].contains(&e.category.as_str())
+                });
                 self.zoom_extents_visible();
                 self.schedule_commit(ctx);
             }
@@ -1054,7 +1228,7 @@ impl AfroBimApp {
             Action::Library => self.show_library = true,
             Action::ImportLandXml => {
                 if let Some(path) = rfd::FileDialog::new().add_filter("LandXML", &["xml"]).pick_file() {
-                    self.import_landxml(ctx, path);
+                    self.landxml_open(path, false);
                 }
             }
             Action::PlaceOnAlignment => match (self.selected_sign(), alignment_glue::alignments(&self.doc).first().map(|a| a.0)) {
@@ -1145,7 +1319,7 @@ impl AfroBimApp {
             },
             Action::ImportSurface => {
                 if let Some(path) = rfd::FileDialog::new().add_filter("LandXML", &["xml"]).pick_file() {
-                    self.import_surface(ctx, path);
+                    self.landxml_open(path, true);
                 }
             }
             Action::ImportSurvey => {
@@ -1356,12 +1530,22 @@ impl AfroBimApp {
             }
             Action::OsnapSettings => self.anno.osnap_open = true,
             Action::Layers => self.anno.layers_open = true,
-            Action::Units => self.anno.units_open = true,
-            Action::ProjectSettings => self.projset.open = true,
+            Action::Units => {
+                self.projset.open = true;
+                self.projset.tab = crate::projset::UNITS_TAB;
+            }
+            Action::CoordSystem => self.open_crs_tab(),
+            Action::Civil(cv) => self.civil_run(ctx, cv),
+            Action::ProjectSettings => {
+                self.projset.open = true;
+                self.projset.tab = 0;
+            }
             Action::Underlay => self.under.window_open = true,
             Action::SignSchedule => self.signsched_pick(),
             Action::SignScheduleOut => self.signsched_out(),
             Action::SignScheduleTemplate => self.signsched_template(),
+            Action::Appearance => self.appearance_open = true,
+            Action::Palette => self.palette_open = true,
             Action::Help => self.show_help = true,
             Action::About => self.show_about = true,
             Action::Quit => self.quit = true,
@@ -1375,7 +1559,7 @@ impl AfroBimApp {
             .doc
             .elements()
             .iter()
-            .filter(|e| self.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY)
+            .filter(|e| self.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY && crate::civil::has_plan_position(&e.category))
             .map(|e| e.bounds())
             .reduce(|a, b| a.union(&b))
             .unwrap_or(afrobim_kernel::BBox::new(0.0, 0.0, 5000.0, 3000.0));
@@ -1398,25 +1582,6 @@ impl AfroBimApp {
                 if !notes.is_empty() {
                     self.status.push_str(&format!(" {} note(s) in the command history.", notes.len()));
                 }
-                self.schedule_commit(ctx);
-            }
-            Err(e) => self.status = format!("Could not import {}: {e}", path.display()),
-        }
-    }
-
-    /// Imports the TIN surfaces of a LandXML file as ground surface elements.
-    pub(crate) fn import_surface(&mut self, ctx: &egui::Context, path: PathBuf) {
-        match road_glue::import_surfaces(&mut self.doc, &path) {
-            Ok((added, notes)) => {
-                self.sync_generated();
-                self.status = format!("Imported {added} surface(s) from {}.", path.display());
-                for note in notes.iter().take(6) {
-                    self.log(format!("LandXML: {note}"));
-                }
-                if !notes.is_empty() {
-                    self.status.push_str(&format!(" {} note(s) in the command history.", notes.len()));
-                }
-                self.fitted_3d = false;
                 self.schedule_commit(ctx);
             }
             Err(e) => self.status = format!("Could not import {}: {e}", path.display()),
@@ -1478,7 +1643,7 @@ impl AfroBimApp {
             // A typed point or offset is read in the document's length unit (a bare number is in
             // that unit); the controller works in millimetres, so it is handed the millimetres.
             let units = crate::anno_ui::units_of(&self.doc);
-            let text = match crate::anno_glue::parse_point(&text, self.ctl.base_point(), &units) {
+            let text = match crate::anno_glue::parse_point_crs(&text, self.ctl.base_point(), &units, afrobim_kernel::project_crs(&self.doc).as_ref()) {
                 Some(p) if text.chars().any(|c| c.is_ascii_digit()) => format!("{},{}", p.x, p.y),
                 _ => text,
             };
@@ -1533,6 +1698,8 @@ impl AfroBimApp {
             (Modifiers::COMMAND, Key::O, Action::Open),
             (Modifiers::COMMAND | Modifiers::SHIFT, Key::S, Action::SaveAs),
             (Modifiers::COMMAND, Key::S, Action::Save),
+            (Modifiers::COMMAND, Key::K, Action::Palette),
+            (Modifiers::COMMAND | Modifiers::SHIFT, Key::P, Action::Palette),
             (Modifiers::COMMAND, Key::Y, Action::Redo),
             (Modifiers::NONE, Key::F7, Action::ToggleGrid),
             (Modifiers::NONE, Key::F8, Action::ToggleOrtho),
@@ -1587,205 +1754,6 @@ impl AfroBimApp {
 
     // ─── panels ──────────────────────────────────────────────────────────────
 
-    fn menu_bar(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("menu").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                let mut pick: Option<Action> = None;
-                let mut item = |ui: &mut egui::Ui, label: &str, shortcut: &str, a: Action| {
-                    if ui.add(egui::Button::new(label).shortcut_text(shortcut)).clicked() {
-                        pick = Some(a);
-                        ui.close_menu();
-                    }
-                };
-                ui.menu_button("File", |ui| {
-                    item(ui, "New", "Ctrl+N", Action::New);
-                    item(ui, "Open…", "Ctrl+O", Action::Open);
-                    item(ui, "Save", "Ctrl+S", Action::Save);
-                    item(ui, "Save as…", "Ctrl+Shift+S", Action::SaveAs);
-                    ui.separator();
-                    item(ui, "Import LandXML alignments…", "LANDXML", Action::ImportLandXml);
-                    ui.separator();
-                    item(ui, "Export DXF…", "DXFOUT", Action::ExportDxf);
-                    item(ui, "Export IFC 4.3…", "IFCOUT", Action::ExportIfc);
-                    item(ui, "Export quantities (BoQ)…", "QUANTITIES", Action::ExportQuantities);
-                    item(ui, "Export fabrication sheets…", "SHEETS", Action::ExportSheets);
-                    ui.separator();
-                    item(ui, "Quit", "", Action::Quit);
-                });
-                ui.menu_button("Edit", |ui| {
-                    item(ui, "Undo", "Ctrl+Z", Action::Undo);
-                    item(ui, "Redo", "Ctrl+Y", Action::Redo);
-                    ui.separator();
-                    item(ui, "Copy", "Ctrl+C", Action::CopyClip);
-                    item(ui, "Paste", "Ctrl+V", Action::PasteClip);
-                    item(ui, "Erase", "Del", Action::Erase);
-                    ui.separator();
-                    item(ui, "Select all", "Ctrl+A", Action::SelectAll);
-                });
-                ui.menu_button("View", |ui| {
-                    item(ui, "Zoom extents", "Z", Action::ZoomExtents);
-                    item(ui, "Zoom window", "ZW", Action::ZoomWindow);
-                    item(ui, "Zoom in", "", Action::ZoomIn);
-                    item(ui, "Zoom out", "", Action::ZoomOut);
-                    ui.separator();
-                    item(ui, "Grid", "F7", Action::ToggleGrid);
-                    item(ui, "Snap", "F9", Action::ToggleSnap);
-                    item(ui, "Ortho", "F8", Action::ToggleOrtho);
-                    ui.separator();
-                    item(ui, "2D model space / 3D view", "3D", Action::Toggle3d);
-                    ui.separator();
-                    item(ui, "Real (full colour)", "", Action::RepReal);
-                    item(ui, "Outlined", "", Action::RepOutlined);
-                    ui.separator();
-                    item(ui, "Dark / light model space", "", Action::ToggleCanvas);
-                    item(ui, "Dark / light theme", "", Action::ToggleTheme);
-                });
-                ui.menu_button("Insert", |ui| {
-                    for (i, t) in signs_glue::templates(&self.standard).iter().enumerate() {
-                        item(ui, t.label, t.command, Action::InsertSign(i as u8));
-                    }
-                    ui.separator();
-                    item(ui, "Standard signs…", "LIBRARY", Action::Library);
-                    ui.separator();
-                    item(ui, "Sign schedule from CSV…", "SIGNSCHEDULE", Action::SignSchedule);
-                    item(ui, "Export the sign schedule (CSV)…", "SIGNSCHEDULEOUT", Action::SignScheduleOut);
-                    item(ui, "Blank sign schedule template…", "SIGNSCHEDULETEMPLATE", Action::SignScheduleTemplate);
-                    ui.separator();
-                    item(ui, "Survey points (CSV)…", "SURVEY", Action::ImportSurvey);
-                    item(ui, "DXF underlay…", "UNDERLAY", Action::Underlay);
-                });
-                ui.menu_button("Annotate", |ui| {
-                    item(ui, "Show / hide element marks", "MARKS", Action::ToggleMarks);
-                    ui.separator();
-                    item(ui, "Text", "TEXT", Action::Anno(crate::anno_glue::Kind::Text));
-                    item(ui, "Multiline text", "MTEXT", Action::Anno(crate::anno_glue::Kind::MText));
-                    item(ui, "Edit text", "TEXTEDIT", Action::TextEdit);
-                    ui.separator();
-                    item(ui, "Dimension", "DIM", Action::Anno(crate::anno_glue::Kind::Dim));
-                    item(ui, "Linear", "DIMLINEAR", Action::Anno(crate::anno_glue::Kind::DimLinear));
-                    item(ui, "Aligned", "DIMALIGNED", Action::Anno(crate::anno_glue::Kind::DimAligned));
-                    item(ui, "Angular", "DIMANGULAR", Action::Anno(crate::anno_glue::Kind::DimAngular));
-                    item(ui, "Radius", "DIMRADIUS", Action::Anno(crate::anno_glue::Kind::DimRadius));
-                    item(ui, "Diameter", "DIMDIAMETER", Action::Anno(crate::anno_glue::Kind::DimDiameter));
-                    item(ui, "Arc length", "DIMARC", Action::Anno(crate::anno_glue::Kind::DimArc));
-                    item(ui, "Continue", "DIMCONTINUE", Action::Anno(crate::anno_glue::Kind::DimContinue));
-                    item(ui, "Baseline", "DIMBASELINE", Action::Anno(crate::anno_glue::Kind::DimBaseline));
-                    item(ui, "Station and offset", "DIMSTATION", Action::Anno(crate::anno_glue::Kind::DimStation));
-                    item(ui, "Level", "DIMLEVEL", Action::Anno(crate::anno_glue::Kind::DimLevel));
-                    ui.separator();
-                    item(ui, "Leader", "LEADER", Action::Anno(crate::anno_glue::Kind::Leader));
-                    item(ui, "Mark leader", "MLEADER", Action::Anno(crate::anno_glue::Kind::MLeader));
-                    ui.separator();
-                    item(ui, "Distance", "DIST", Action::Anno(crate::anno_glue::Kind::Dist));
-                    item(ui, "Angle", "MEASUREANGLE", Action::Anno(crate::anno_glue::Kind::MeasureAngle));
-                    item(ui, "Radius of three points", "MEASURERADIUS", Action::Anno(crate::anno_glue::Kind::MeasureRadius));
-                    item(ui, "Area", "AREA", Action::Anno(crate::anno_glue::Kind::Area));
-                    item(ui, "ID point", "ID", Action::Anno(crate::anno_glue::Kind::Id));
-                    item(ui, "Measure results…", "MEASURERESULTS", Action::MeasureResults);
-                    ui.separator();
-                    item(ui, "Text styles…", "STYLE", Action::TextStyles);
-                    item(ui, "Dimension styles…", "DIMSTYLE", Action::DimStyles);
-                    item(ui, "Object snap on / off", "OSNAP", Action::ToggleOsnap);
-                    item(ui, "Object snap settings…", "OSNAPSETTINGS", Action::OsnapSettings);
-                });
-                ui.menu_button("Format", |ui| {
-                    for (i, (id, label, _)) in signs_glue::STANDARDS.iter().enumerate() {
-                        let mark = if *id == self.standard { "● " } else { "   " };
-                        item(ui, &format!("{mark}{label}"), id, Action::Standard(i as u8));
-                    }
-                });
-                ui.menu_button("Modify", |ui| {
-                    item(ui, "Place the sign on an alignment…", "STATION", Action::PlaceOnAlignment);
-                    item(ui, "Add supports to the sign…", "SUPPORTS", Action::AddSupports);
-                    item(ui, "Design the sign's supports…", "DESIGN", Action::DesignSupports);
-                    item(ui, "Remove the sign's supports", "NOSUPPORTS", Action::RemoveSupports);
-                    ui.separator();
-                    item(ui, "Move", "M", Action::Move);
-                    item(ui, "Copy", "CO", Action::Copy);
-                    item(ui, "Erase", "E", Action::Erase);
-                    ui.separator();
-                    item(ui, "Arrange", "", Action::Arrange);
-                });
-                ui.menu_button("Manage", |ui| {
-                    for (i, (id, label, _)) in signs_glue::STANDARDS.iter().enumerate() {
-                        let mark = if *id == self.standard { "● " } else { "   " };
-                        item(ui, &format!("{mark}Design standard: {label}"), id, Action::Standard(i as u8));
-                    }
-                    ui.separator();
-                    item(ui, "Check the whole model…", "CHECKALL", Action::CheckAll);
-                    item(ui, "Rational method…", "RATIONAL", Action::Rational);
-                    ui.separator();
-                    item(ui, "Layer manager…", "LAYER", Action::Layers);
-                    item(ui, "Units…", "UNITS", Action::Units);
-                    item(ui, "Project settings…", "PROJECTSETTINGS", Action::ProjectSettings);
-                    ui.separator();
-                    item(ui, "Dark / light theme", "THEME", Action::ToggleTheme);
-                    item(ui, "Dark / light model space", "CANVAS", Action::ToggleCanvas);
-                });
-                ui.menu_button("Coordination", |ui| {
-                    item(ui, "Clash tests…", "CLASHTESTS", Action::ClashTests);
-                    item(ui, "Run the clash tests", "CLASH", Action::ClashRun);
-                    item(ui, "Clash results…", "CLASHES", Action::ClashResults);
-                    item(ui, "Show / hide clash markers", "CLASHMARKERS", Action::ClashMarkers);
-                    item(ui, "Export clashes (CSV)…", "CLASHCSV", Action::ClashCsv);
-                    ui.separator();
-                    item(ui, "Issues…", "ISSUES", Action::Issues);
-                    item(ui, "Export issues as BCF…", "BCFOUT", Action::BcfOut);
-                    item(ui, "Import issues from BCF…", "BCFIN", Action::BcfIn);
-                    ui.separator();
-                    item(ui, "IFC reference model…", "IFCREF", Action::IfcRef);
-                    item(ui, "Reference models…", "REFMODELS", Action::RefModels);
-                });
-                ui.menu_button("4D", |ui| {
-                    item(ui, "Activities and logic…", "PROGRAMME", Action::Programme);
-                    item(ui, "Calendar…", "CALENDAR", Action::Calendar);
-                    item(ui, "Schedule (critical path)", "SCHEDULE", Action::ScheduleRun);
-                    item(ui, "Gantt chart", "GANTT", Action::Gantt);
-                    ui.separator();
-                    item(ui, "Set baseline…", "BASELINE", Action::SetBaseline);
-                    item(ui, "Variance", "VARIANCE", Action::Variance);
-                    item(ui, "Progress and data date…", "PROGRESS", Action::Progress);
-                    ui.separator();
-                    item(ui, "Link elements to activities…", "LINK4D", Action::Link4d);
-                    item(ui, "Link report", "LINKREPORT", Action::LinkReport);
-                    item(ui, "4D date control", "FOURD", Action::FourD);
-                    ui.separator();
-                    item(ui, "Import MS Project XML…", "MSPIN", Action::MspIn);
-                    item(ui, "Export MS Project XML…", "MSPOUT", Action::MspOut);
-                    item(ui, "Export programme reports (CSV)…", "PROGCSV", Action::ProgCsv);
-                });
-                ui.menu_button("5D", |ui| {
-                    item(ui, "Bill and mapping rules…", "BILL", Action::Bill);
-                    item(ui, "Rate library…", "RATES", Action::Rates);
-                    item(ui, "Currency…", "CURRENCY", Action::Currency);
-                    item(ui, "Estimate…", "ESTIMATE", Action::Estimate);
-                    item(ui, "Cash flow…", "CASHFLOW", Action::CashFlow);
-                    item(ui, "Interim payment certificate…", "CERTIFICATE", Action::Certificate);
-                    ui.separator();
-                    item(ui, "Export cost reports (CSV)…", "COSTCSV", Action::CostCsv);
-                });
-                ui.menu_button("Construction", |ui| {
-                    item(ui, "Record site progress…", "SITEREC", Action::SiteRecord);
-                    item(ui, "Site records…", "SITELOG", Action::SiteLog);
-                    ui.separator();
-                    item(ui, "Roll up and update the programme…", "ROLLUP", Action::RollUp);
-                    item(ui, "Look-ahead and delays…", "LOOKAHEAD", Action::LookAhead);
-                    item(ui, "Earned value…", "EVM", Action::Evm);
-                    ui.separator();
-                    item(ui, "Colour the 3D view by recorded progress", "SITEVIEW", Action::SiteView);
-                    item(ui, "Export earned value tables (CSV)…", "EVMCSV", Action::EvmCsv);
-                });
-                ui.menu_button("Help", |ui| {
-                    item(ui, "Command list", "?", Action::Help);
-                    item(ui, "About AfroBIM", "", Action::About);
-                });
-                if let Some(a) = pick {
-                    self.run(ctx, a);
-                }
-            });
-        });
-    }
-
     /// The ribbon: every command as an icon button, grouped in tabs and panels.
     fn toolbar(&mut self, ctx: &egui::Context) {
         let (grid, snap, ortho, marks, three_d, real) = (self.grid_on, self.ctl.snap_on, self.ctl.ortho_on, self.show_labels, self.view_3d, self.rep == Representation::Real);
@@ -1812,12 +1780,17 @@ impl AfroBimApp {
         };
         let mut tab = self.ribbon_tab;
         let mut pick = None;
+        let mut workspace = self.workspace;
+        let mut switched = false;
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.add_space(2.0);
-            pick = crate::ribbon::show(ui, &mut tab, &self.standard, self.signs_ready, &is_on);
+            (pick, switched) = crate::ribbon::show(ui, &mut tab, &self.standard, self.signs_ready, &is_on, &mut workspace);
             ui.add_space(1.0);
         });
         self.ribbon_tab = tab;
+        if switched {
+            self.set_workspace(workspace);
+        }
         if let Some(a) = pick {
             self.run(ctx, a);
         }
@@ -1826,20 +1799,29 @@ impl AfroBimApp {
     fn status_bar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
                 let w = self.ctl.cursor_world();
                 let units = crate::anno_ui::units_of(&self.doc);
-                ui.add_sized([210.0, 16.0], egui::Label::new(RichText::new(format!("{} , {}", units.length(w.x), units.length_u(w.y))).monospace()));
+                let crs = afrobim_kernel::project_crs(&self.doc);
+                // Easting and northing in metres of the project system, at true magnitude; the
+                // model's own numbers when the document has no coordinate system.
+                let position = match &crs {
+                    Some(_) => crate::crs_ui::en_text(w, crs.as_ref()),
+                    None => format!("{} , {}", units.length(w.x), units.length_u(w.y)),
+                };
+                ui.add_sized([if crs.is_some() { 290.0 } else { 210.0 }, 16.0], egui::Label::new(RichText::new(position).monospace().size(12.0)))
+                    .on_hover_text(if crs.is_some() { "Easting and northing of the cursor in metres, in the project coordinate system" } else { "Model coordinates of the cursor. No coordinate system is set" });
                 ui.separator();
-                if ui.selectable_label(self.grid_on, "GRID").on_hover_text("Grid display (F7)").clicked() {
+                if ui.selectable_label(self.grid_on, RichText::new("GRID").size(11.5).strong()).on_hover_text("Grid display (F7)").clicked() {
                     self.grid_on = !self.grid_on;
                 }
-                if ui.selectable_label(self.ctl.snap_on, "SNAP").on_hover_text("Snap picked points to a 50 mm grid (F9)").clicked() {
+                if ui.selectable_label(self.ctl.snap_on, RichText::new("SNAP").size(11.5).strong()).on_hover_text("Snap picked points to a 50 mm grid (F9)").clicked() {
                     self.ctl.snap_on = !self.ctl.snap_on;
                 }
-                if ui.selectable_label(self.ctl.ortho_on, "ORTHO").on_hover_text("Hold moves to the X or Y axis (F8)").clicked() {
+                if ui.selectable_label(self.ctl.ortho_on, RichText::new("ORTHO").size(11.5).strong()).on_hover_text("Hold moves to the X or Y axis (F8)").clicked() {
                     self.ctl.ortho_on = !self.ctl.ortho_on;
                 }
-                if ui.selectable_label(self.anno.osnap.on, "OSNAP").on_hover_text("Object snap for annotation commands, MOVE, COPY, grips and placing a sign (F3). OSNAPSETTINGS says which modes and what provides them").clicked() {
+                if ui.selectable_label(self.anno.osnap.on, RichText::new("OSNAP").size(11.5).strong()).on_hover_text("Object snap for annotation commands, MOVE, COPY, grips and placing a sign (F3). OSNAPSETTINGS says which modes and what provides them").clicked() {
                     self.anno.osnap.on = !self.anno.osnap.on;
                 }
                 if crate::anno_ui::scale_control(ui, &mut self.doc) {
@@ -1865,7 +1847,10 @@ impl AfroBimApp {
                     (1, Some(e)) => format!("{}  {} × {}", e.name, units.length(e.width), units.length_u(e.height)),
                     (n, _) => format!("{n} elements selected"),
                 };
-                let zoom_text = format!("1 px = {:.1} mm", 1.0 / self.view.scale);
+                let zoom_text = crate::zoom_cmds::pixel_size_text(self.view.scale);
+                let crs_text = crs.as_ref().map(|c| c.label()).unwrap_or_else(|| "No coordinate system".to_string());
+                let latlon_text = crs.as_ref().and_then(|c| crate::crs_ui::lat_lon_text(w, c));
+                let wgs_text = crs.as_ref().and_then(|c| crate::crs_ui::wgs84_text(w, c));
                 let standard_text = self.module_status.clone();
                 let body = egui::TextStyle::Body.resolve(ui.style());
                 let mono = egui::TextStyle::Monospace.resolve(ui.style());
@@ -1875,7 +1860,12 @@ impl AfroBimApp {
                     (Segment::Selection, text_w(ui, &sel_text, &body) + gap),
                     (Segment::Standard, text_w(ui, &standard_text, &body) + gap),
                     (Segment::Zoom, text_w(ui, &zoom_text, &mono) + gap),
-                ];
+                    (Segment::Crs, text_w(ui, &crs_text, &body) + gap),
+                ]
+                .into_iter()
+                .chain(latlon_text.as_ref().map(|t| (Segment::LatLon, text_w(ui, t, &mono) + gap)))
+                .chain(wgs_text.as_ref().map(|t| (Segment::Wgs84, text_w(ui, t, &mono) + gap)))
+                .collect::<Vec<_>>();
                 let plan = layout(ui.available_width(), &widths);
                 let msg_w = plan.message_w;
                 let full = self.status.clone();
@@ -1897,6 +1887,35 @@ impl AfroBimApp {
                         ui.label(RichText::new(&zoom_text).monospace().weak());
                         ui.separator();
                     }
+                    if plan.shown.contains(&Segment::Crs) {
+                        // Plainly said when there is none; either way a click opens the setting.
+                        let text = RichText::new(&crs_text).weak();
+                        let text = if crs.is_none() { text.color(crate::theme::warn()) } else { text };
+                        let tip = match &crs {
+                            None => "No coordinate system is set. Click to set one (CRS). A new document asks nothing, and nothing is moved when you do".to_string(),
+                            Some(c) => format!("{}\nClick to change it (CRS)", crate::crs_ui::kind_text(c.kind)),
+                        };
+                        if ui.add(egui::Label::new(text).sense(egui::Sense::click())).on_hover_text(tip).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                            self.open_crs_tab();
+                        }
+                        ui.separator();
+                    }
+                    if plan.shown.contains(&Segment::Wgs84) {
+                        if let Some(t) = &wgs_text {
+                            ui.label(RichText::new(t).monospace().weak()).on_hover_text("A second reading through the registry transformation named, to its stated accuracy (not survey accuracy). The datum's own latitude and longitude are the primary reading.");
+                            ui.separator();
+                        }
+                    }
+                    if plan.shown.contains(&Segment::LatLon) {
+                        if let (Some(t), Some(c)) = (&latlon_text, &crs) {
+                            let r = ui.label(RichText::new(t).monospace().weak());
+                            // Grid convergence and point scale factor, on hover.
+                            if let Some(extra) = crate::crs_ui::convergence_text(w, c) {
+                                r.on_hover_text(format!("{extra}\nOn the datum of the system. A WGS 84 reading, where the registry has a transformation, is the second reading."));
+                            }
+                            ui.separator();
+                        }
+                    }
                     if plan.shown.contains(&Segment::Selection) {
                         ui.label(&sel_text);
                     }
@@ -1906,67 +1925,53 @@ impl AfroBimApp {
     }
 
     fn left_panel(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::left("tools").resizable(true).default_width(220.0).min_width(180.0).show(ctx, |ui| {
+        if !self.show_left {
+            return;
+        }
+        let palettes = crate::workspace::WORKSPACES[self.workspace].palettes;
+        egui::SidePanel::left("tools").resizable(true).default_width(250.0).min_width(180.0).max_width(420.0).show(ctx, |ui| {
             let mut pick = None;
             ui.add_space(4.0);
-            ui.label(RichText::new("TOOL SETS").small().strong().weak());
-            ui.separator();
-            ui.label(RichText::new("Traffic signs").small().weak());
-            ui.add_enabled_ui(self.signs_ready, |ui| {
-                for (i, t) in signs_glue::templates(&self.standard).iter().enumerate() {
-                    if icons::palette_button(ui, t.icon, t.label, t.tip).clicked() {
-                        pick = Some(Action::InsertSign(i as u8));
+            if palettes.signs || palettes.modify {
+                ui.label(RichText::new("TOOL SETS").small().strong().weak());
+                ui.separator();
+            }
+            if palettes.signs {
+                crate::ui_kit::note(ui, "Traffic signs");
+                ui.add_enabled_ui(self.signs_ready, |ui| {
+                    for (i, t) in signs_glue::templates(&self.standard).iter().enumerate() {
+                        if icons::palette_button(ui, t.icon, t.label, t.tip).clicked() {
+                            pick = Some(Action::InsertSign(i as u8));
+                        }
+                    }
+                });
+                ui.add_enabled_ui(self.signs_ready, |ui| {
+                    if icons::palette_glyph(ui, crate::glyphs::by_name("LIBRARY"), "Standard signs…", "Warning, regulatory, information and other catalogued signs").clicked() {
+                        pick = Some(Action::Library);
+                    }
+                });
+                ui.add_space(6.0);
+            }
+            if palettes.modify {
+                crate::ui_kit::note(ui, "Modify");
+                for (label, tip, a) in [("Move", "MOVE (M)", Action::Move), ("Copy", "COPY (CO)", Action::Copy), ("Erase", "ERASE (E or Delete)", Action::Erase), ("Arrange", "Arrange every element in rows", Action::Arrange)] {
+                    if icons::palette_glyph(ui, crate::glyphs::glyph(a).unwrap_or(""), label, tip).clicked() {
+                        pick = Some(a);
                     }
                 }
-            });
-            ui.add_enabled_ui(self.signs_ready, |ui| {
-                if icons::palette_button(ui, Icon::Warning, "Standard signs…", "Warning, regulatory, information and other catalogued signs").clicked() {
-                    pick = Some(Action::Library);
-                }
-            });
-            ui.add_space(6.0);
-            ui.label(RichText::new("Modify").small().weak());
-            for (icon, label, tip, a) in [
-                (Icon::Move, "Move", "MOVE (M)", Action::Move),
-                (Icon::Copy, "Copy", "COPY (CO)", Action::Copy),
-                (Icon::Erase, "Erase", "ERASE (E or Delete)", Action::Erase),
-                (Icon::Arrange, "Arrange", "Arrange every element in rows", Action::Arrange),
-            ] {
-                if icons::palette_button(ui, icon, label, tip).clicked() {
-                    pick = Some(a);
-                }
-            }
-            ui.add_space(6.0);
-            ui.label(RichText::new("Zoom").small().weak());
-            for (icon, label, tip, a) in [
-                (Icon::ZoomExtents, "Extents", "Zoom extents (Z)", Action::ZoomExtents),
-                (Icon::ZoomWindow, "Window", "Zoom window (ZW)", Action::ZoomWindow),
-            ] {
-                if icons::palette_button(ui, icon, label, tip).clicked() {
-                    pick = Some(a);
+                ui.add_space(6.0);
+                crate::ui_kit::note(ui, "Zoom");
+                for (label, tip, a) in [("Extents", "Zoom extents (Z)", Action::ZoomExtents), ("Window", "Zoom window (ZW)", Action::ZoomWindow), ("Selection", "Zoom to selection (ZS)", Action::ZoomSelection), ("Previous", "Previous view (ZP)", Action::ZoomPrevious)] {
+                    if icons::palette_glyph(ui, crate::glyphs::glyph(a).unwrap_or(""), label, tip).clicked() {
+                        pick = Some(a);
+                    }
                 }
             }
 
             ui.add_space(10.0);
-            ui.label(RichText::new("MODEL").small().strong().weak());
+            ui.label(RichText::new("TOOLSPACE").small().strong().weak());
             ui.separator();
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                let categories: Vec<(String, String)> = self.modules.categories().map(|(c, n)| (c.to_string(), n.to_string())).collect();
-                let mut select = None;
-                for (category, title) in categories {
-                    let count = self.doc.elements().iter().filter(|e| e.category == category).count();
-                    egui::CollapsingHeader::new(format!("{title} ({count})")).default_open(true).show(ui, |ui| {
-                        for e in self.doc.elements().iter().filter(|e| e.category == category) {
-                            if ui.selectable_label(self.doc.is_selected(e.id), &e.name).clicked() {
-                                select = Some(e.id);
-                            }
-                        }
-                    });
-                }
-                if let Some(id) = select {
-                    self.doc.select(&[id], SelectMode::Replace);
-                }
-            });
+            self.toolspace(ui);
             if let Some(a) = pick {
                 self.run(ctx, a);
             }
@@ -1974,13 +1979,29 @@ impl AfroBimApp {
     }
 
     fn right_panel(&mut self, ctx: &egui::Context) {
+        if !self.show_right {
+            return;
+        }
         egui::SidePanel::right("properties").resizable(true).default_width(330.0).min_width(260.0).show(ctx, |ui| {
             ui.add_space(4.0);
             ui.label(RichText::new("PROPERTIES").small().strong().weak());
             ui.separator();
             let mut definition_edited: Option<ElementId> = None;
+            let mut civil_open: Option<crate::civil_cmds::Cv> = None;
             let mut changed = false;
-            egui::ScrollArea::vertical().id_salt("props").max_height((ui.available_height() - 170.0).max(120.0)).auto_shrink([false, false]).show(ui, |ui| {
+            let props_h = (ui.available_height() - 170.0).max(120.0);
+            let props_bg = ui.interact(egui::Rect::from_min_size(ui.cursor().min, egui::vec2(ui.available_width(), props_h)), egui::Id::new("props-context"), egui::Sense::click());
+            let mut props_pick = None;
+            props_bg.context_menu(|ui| {
+                props_pick = self.properties_context_menu(ui);
+                if props_pick.is_some() {
+                    ui.close_menu();
+                }
+            });
+            if let Some(a) = props_pick {
+                self.run(ctx, a);
+            }
+            egui::ScrollArea::vertical().id_salt("props").max_height(props_h).auto_shrink([false, false]).show(ui, |ui| {
                 let selected = self.doc.selection().len();
                 let Some(id) = self.doc.primary() else {
                     ui.label(RichText::new("Nothing selected. Click an element in the model.").weak());
@@ -1994,11 +2015,12 @@ impl AfroBimApp {
                 let ann_settings = afrobim_annotate::settings::load(&self.doc);
                 let align_names = crate::anno_ui::alignment_names(&self.doc);
                 let module_name = self.doc.find(id).and_then(|e| self.modules.get(&e.category)).map(|m| m.display_name().to_string());
-                let derived = self.cache.get(&id).and_then(|c| c.generated.as_ref().ok()).map(|g| (g.derived.clone(), g.notes.clone()));
+                let derived = self.civil_derived(id).or_else(|| self.cache.get(&id).and_then(|c| c.generated.as_ref().ok()).map(|g| (g.derived.clone(), g.notes.clone())));
                 let error = self.cache.get(&id).and_then(|c| c.generated.as_ref().err().cloned());
                 let Some(e) = self.doc.find_mut(id) else { return };
+                let cat_now = e.category.clone();
 
-                egui::Grid::new("identity").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "identity", |ui| {
                     ui.label("Mark");
                     changed |= ui.text_edit_singleline(&mut e.name).changed();
                     ui.end_row();
@@ -2024,8 +2046,14 @@ impl AfroBimApp {
                 });
 
                 ui.add_space(8.0);
-                ui.label(RichText::new("Definition").strong());
-                if e.category == signs_glue::CATEGORY {
+                crate::ui_kit::heading(ui, "Definition");
+                if crate::civil::is_civil(&e.category) {
+                    let (c, open) = crate::civil_tree::civil_panel(ui, e);
+                    changed |= c;
+                    civil_open = civil_open.or(open);
+                } else if e.category == alignment_glue::CATEGORY {
+                    changed |= crate::civil_super::alignment_tabs(ui, e, &mut self.align_tab);
+                } else if e.category == signs_glue::CATEGORY {
                     changed |= signs_glue::edit_ui(ui, &mut e.data);
                 } else if afrobim_annotate::is_annotation(e) {
                     changed |= crate::anno_ui::edit_ui(ui, e, &ann_settings, &align_names);
@@ -2037,14 +2065,14 @@ impl AfroBimApp {
                         definition_edited = Some(id);
                     }
                 } else if modules_glue::is_surface(&e.category) {
-                    ui.label(RichText::new("An imported ground surface. Its triangles are not edited here: import it again to change it. Its figures are under Derived.").small().weak());
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An imported ground surface. Its triangles are not edited here: import it again to change it. Its figures are under Derived.");
                 }
 
                 if let Some((derived, notes)) = derived {
                     if !derived.is_empty() {
                         ui.add_space(8.0);
-                        ui.label(RichText::new("Derived").strong());
-                        egui::Grid::new("derived").num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
+                        crate::ui_kit::heading(ui, "Derived");
+                        crate::ui_kit::grid(ui, "derived", |ui| {
                             for (k, v) in &derived {
                                 ui.label(k);
                                 ui.label(v);
@@ -2054,11 +2082,11 @@ impl AfroBimApp {
                     }
                     if !notes.is_empty() {
                         ui.add_space(8.0);
-                        ui.label(RichText::new("Checks").strong());
+                        crate::ui_kit::heading(ui, "Checks");
                         for n in &notes {
                             let colour = match n.severity {
-                                Severity::Error => Color32::from_rgb(0xEF, 0x6C, 0x63),
-                                Severity::Warning => Color32::from_rgb(0xD9, 0x8A, 0x2B),
+                                Severity::Error => crate::theme::danger(),
+                                Severity::Warning => crate::theme::warn(),
                                 Severity::Info => ui.visuals().weak_text_color(),
                             };
                             ui.label(RichText::new(format!("{}  {}", n.code, n.message)).color(colour).small());
@@ -2067,18 +2095,18 @@ impl AfroBimApp {
                 }
                 if let Some(err) = error {
                     ui.add_space(8.0);
-                    ui.label(RichText::new(err).color(Color32::from_rgb(0xEF, 0x6C, 0x63)));
+                    ui.label(RichText::new(err).color(crate::theme::danger()));
                 }
 
                 ui.add_space(8.0);
-                ui.label(RichText::new("Property set").strong());
+                crate::ui_kit::heading(ui, "Property set");
                 let mut remove = None;
                 egui::Grid::new("pset").num_columns(3).spacing([8.0, 4.0]).show(ui, |ui| {
                     // The entries the check dialogs and the construction windows keep are theirs.
-                    for (k, v) in e.properties.iter_mut().filter(|(k, _)| !crate::check_inputs::is_check_key(k) && !k.starts_with("construction.")) {
+                    for (k, v) in e.properties.iter_mut().filter(|(k, _)| !crate::check_inputs::is_check_key(k) && !k.starts_with("construction.") && !k.starts_with("civil.") && !(crate::civil::is_civil(&cat_now) && (k.as_str() == crate::civil::PROP_STATUS || k.as_str() == crate::civil::PROP_SOURCE))) {
                         ui.label(k);
                         changed |= ui.text_edit_singleline(v).changed();
-                        if ui.small_button("x").on_hover_text("Remove this property").clicked() {
+                        if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this property").clicked() {
                             remove = Some(k.clone());
                         }
                         ui.end_row();
@@ -2098,6 +2126,9 @@ impl AfroBimApp {
                     }
                 });
             });
+            if let Some(cv) = civil_open {
+                self.civil_run_pending = Some(cv);
+            }
             if let Some(id) = definition_edited {
                 if let Some(problem) = modules_glue::after_edit(&mut self.doc, id) {
                     self.status = format!("Not applied yet: {problem}");
@@ -2113,12 +2144,22 @@ impl AfroBimApp {
             ui.label(RichText::new("LAYERS").small().strong().weak());
             ui.separator();
             egui::ScrollArea::vertical().id_salt("layers").show(ui, |ui| {
+                let mut layer_pick: Option<(crate::menus::LayerPick, String)> = None;
                 for layer in self.doc.layers_mut().iter_mut().filter(|l| !crate::anno_ui::hidden_layer(&l.name)) {
                     ui.horizontal(|ui| {
                         ui.checkbox(&mut layer.visible, "").on_hover_text("Visible");
                         ui.toggle_value(&mut layer.locked, "Lock").on_hover_text("Locked layers cannot be selected");
-                        ui.label(&layer.name);
+                        let name = layer.name.clone();
+                        ui.add(egui::Label::new(&layer.name).sense(egui::Sense::click())).context_menu(|ui| {
+                            if let Some(p) = AfroBimApp::layer_context_menu(ui, &name) {
+                                layer_pick = Some((p, name.clone()));
+                                ui.close_menu();
+                            }
+                        });
                     });
+                }
+                if let Some((p, name)) = layer_pick {
+                    self.apply_layer_pick(ctx, p, &name);
                 }
                 ui.checkbox(&mut self.show_labels, "Show element marks");
             });
@@ -2138,7 +2179,7 @@ impl AfroBimApp {
                     (None, None, true) => "Command:",
                     (None, None, false) => self.ctl.prompt(),
                 };
-                ui.label(RichText::new(prompt).monospace().strong().color(Color32::from_rgb(0x4D, 0xC0, 0x7A)));
+                ui.label(RichText::new(prompt).monospace().strong().color(crate::theme::success()));
                 let id = egui::Id::new(CMD_ID);
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut self.cmd_input)
@@ -2182,9 +2223,7 @@ impl AfroBimApp {
                     let v: Vec<f64> = spec.split(',').filter_map(|t| t.trim().parse().ok()).collect();
                     if let [x, y, w] = v[..] {
                         let scale = rect.width() as f64 / w.max(1.0);
-                        self.view.scale = scale;
-                        self.view.origin_x = rect.center().x as f64 - x * scale;
-                        self.view.origin_y = rect.center().y as f64 + y * scale;
+                        self.view = ViewTransform::centred_on(Pt::new(x, y), Pt::new(rect.center().x as f64, rect.center().y as f64), scale);
                     }
                 }
             }
@@ -2228,7 +2267,9 @@ impl AfroBimApp {
                         self.zoom_extents_visible();
                     }
                     if pressed {
-                        if self.anno_press(s, shift) {
+                        if self.civil_pick_press(s) {
+                            // A civil dialog asked for a point and took the click.
+                        } else if self.anno_press(s, shift) {
                             // An annotation command took the click (or a grip was picked up).
                             self.canvas_drag = self.anno.grip_drag.is_some();
                         } else {
@@ -2283,19 +2324,9 @@ impl AfroBimApp {
             if !was_busy {
                 let mut pick = None;
                 response.context_menu(|ui| {
-                    for (label, a) in [
-                        ("Move", Action::Move),
-                        ("Copy", Action::Copy),
-                        ("Erase", Action::Erase),
-                        ("Paste", Action::PasteClip),
-                        ("Select all", Action::SelectAll),
-                        ("Zoom extents", Action::ZoomExtents),
-                        ("Zoom window", Action::ZoomWindow),
-                    ] {
-                        if ui.button(label).clicked() {
-                            pick = Some(a);
-                            ui.close_menu();
-                        }
+                    pick = self.canvas_context_menu(ui);
+                    if pick.is_some() {
+                        ui.close_menu();
                     }
                 });
                 if let Some(a) = pick {
@@ -2316,7 +2347,12 @@ impl AfroBimApp {
         self.underlay_window(ctx);
         self.signsched_windows(ctx);
         self.projset_window(ctx);
+        self.defaults_window(ctx);
         self.survey_window(ctx);
+        self.civil_windows(ctx);
+        self.landxml_window(ctx);
+        self.appearance_window(ctx);
+        self.palette_window(ctx);
         self.issues_windows(ctx);
         self.visibility_windows(ctx);
         self.photometry_windows(ctx);
@@ -2329,54 +2365,74 @@ impl AfroBimApp {
         self.sheets_windows(ctx);
         self.design_windows(ctx);
         let mut help = self.show_help;
-        crate::win::new(ctx, "Commands").open(&mut help).default_width(520.0).show(ctx, |ui| {
-            egui::Grid::new("cmds").num_columns(3).striped(true).spacing([14.0, 4.0]).show(ui, |ui| {
-                for c in COMMANDS {
-                    ui.label(RichText::new(c.name).monospace().strong());
-                    ui.label(RichText::new(c.aliases.join(" ")).monospace().weak());
-                    ui.label(c.help);
+        if help {
+            let dlg = crate::ui_kit::Dialog::titled("Commands").subtitle("Every command, its aliases and what it does").width(780.0).show_body(ctx, |ui| {
+                let fid = egui::Id::new("commands-filter");
+                let mut filter: String = ui.data(|d| d.get_temp(fid)).unwrap_or_default();
+                crate::ui_kit::heading(ui, "Find a command");
+                let r = crate::ui_kit::text_field(ui, &mut filter, "name, alias or words of the help");
+                crate::ui_kit::focus_once(ui, &r, "commands-filter");
+                ui.data_mut(|d| d.insert_temp(fid, filter.clone()));
+                let needle = filter.trim().to_lowercase();
+                crate::ui_kit::heading(ui, "Commands");
+                egui::Grid::new("cmds").num_columns(3).striped(true).spacing([14.0, 4.0]).show(ui, |ui| {
+                    for h in ["Command", "Aliases", "What it does"] {
+                        crate::ui_kit::th(ui, h);
+                    }
                     ui.end_row();
-                }
+                    for c in COMMANDS.iter().filter(|c| needle.is_empty() || c.name.to_lowercase().contains(&needle) || c.aliases.iter().any(|a| a.to_lowercase().contains(&needle)) || c.help.to_lowercase().contains(&needle)) {
+                        ui.label(RichText::new(c.name).monospace().strong());
+                        ui.label(RichText::new(c.aliases.join(" ")).monospace().weak());
+                        ui.add(egui::Label::new(c.help).wrap());
+                        ui.end_row();
+                    }
+                });
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Points: x,y absolute  ·  @dx,dy relative  ·  @distance<angle polar. MOVE, COPY and the signs commands take millimetres; the annotation, dimension and measure commands take the document units (UNITS).");
             });
-            ui.add_space(6.0);
-            ui.label(RichText::new("Points: x,y absolute  ·  @dx,dy relative  ·  @distance<angle polar. MOVE, COPY and the signs commands take millimetres; the annotation, dimension and measure commands take the document units (UNITS).").weak());
-        });
+            if dlg.closed {
+                help = false;
+            }
+        }
         self.show_help = help;
 
         let mut library_open = self.show_library;
         let mut insert: Option<(String, serde_json::Value)> = None;
-        crate::win::new(ctx, "Standard signs").open(&mut library_open).default_width(420.0).default_height(520.0).show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Find");
-                ui.add(egui::TextEdit::singleline(&mut self.library_filter).hint_text("key or name").desired_width(f32::INFINITY));
-            });
-            ui.separator();
-            let filter = self.library_filter.trim().to_lowercase();
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                let mut classes: Vec<&str> = self.library.iter().map(|i| i.class.as_str()).collect();
-                classes.dedup();
-                classes.sort();
-                classes.dedup();
-                for class in classes {
-                    let items: Vec<&signs_glue::LibraryItem> = self
-                        .library
-                        .iter()
-                        .filter(|i| i.class == class)
-                        .filter(|i| filter.is_empty() || i.key.to_lowercase().contains(&filter) || i.name.to_lowercase().contains(&filter))
-                        .collect();
-                    if items.is_empty() {
-                        continue;
-                    }
-                    egui::CollapsingHeader::new(format!("{class} ({})", items.len())).default_open(true).show(ui, |ui| {
-                        for item in items {
-                            if ui.selectable_label(false, format!("{}   {}", item.key, item.name)).on_hover_text("Click to insert, then click in the model to place").clicked() {
-                                insert = Some((item.key.clone(), item.data.clone()));
-                            }
+        if library_open {
+            let dlg = crate::ui_kit::Dialog::titled("Standard signs").subtitle("The sign library of the loaded standard").width(420.0).show_body(ctx, |ui| {
+                crate::ui_kit::heading(ui, "Find a sign");
+                let r = crate::ui_kit::text_field(ui, &mut self.library_filter, "key or name");
+                crate::ui_kit::focus_once(ui, &r, "library-filter");
+                crate::ui_kit::heading(ui, "Signs of the loaded standard");
+                let filter = self.library_filter.trim().to_lowercase();
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                    let mut classes: Vec<&str> = self.library.iter().map(|i| i.class.as_str()).collect();
+                    classes.dedup();
+                    classes.sort();
+                    classes.dedup();
+                    for class in classes {
+                        let items: Vec<&signs_glue::LibraryItem> = self
+                            .library
+                            .iter()
+                            .filter(|i| i.class == class)
+                            .filter(|i| filter.is_empty() || i.key.to_lowercase().contains(&filter) || i.name.to_lowercase().contains(&filter))
+                            .collect();
+                        if items.is_empty() {
+                            continue;
                         }
-                    });
-                }
+                        egui::CollapsingHeader::new(format!("{class} ({})", items.len())).default_open(true).show(ui, |ui| {
+                            for item in items {
+                                if ui.selectable_label(false, format!("{}   {}", item.key, item.name)).on_hover_text("Click to insert, then click in the model to place").clicked() {
+                                    insert = Some((item.key.clone(), item.data.clone()));
+                                }
+                            }
+                        });
+                    }
+                });
             });
-        });
+            if dlg.closed {
+                library_open = false;
+            }
+        }
         self.show_library = library_open;
         if let Some((key, data)) = insert {
             self.show_library = false;
@@ -2386,35 +2442,35 @@ impl AfroBimApp {
         if let Some((sign, mut height, mut posts, mut inset)) = self.supports_dialog.take() {
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let (mut keep, mut add) = (true, false);
-            crate::win::new(ctx, format!("Supports for {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
-                egui::Grid::new("supports").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Mounting height (mm)");
-                    ui.add(egui::TextEdit::singleline(&mut height).hint_text("ground to the sign's lower edge").desired_width(190.0));
-                    ui.end_row();
-                    ui.label("Number of posts");
-                    ui.add(egui::DragValue::new(&mut posts).range(1..=6));
-                    ui.end_row();
-                    ui.label("Edge inset (mm)");
-                    ui.add(egui::DragValue::new(&mut inset).speed(5.0).range(0.0..=5000.0));
-                    ui.end_row();
-                });
-                ui.add_space(6.0);
-                ui.label(
-                    RichText::new("Posts and foundations are added with placeholder dimensions. Set every dimension in Properties, or size them for wind with Modify → Design the sign's supports (DESIGN).")
-                        .small()
-                        .weak(),
-                );
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    let valid = height.trim().parse::<f64>().is_ok_and(|h| h > 0.0);
-                    if ui.add_enabled(valid, egui::Button::new("Add supports")).clicked() {
-                        add = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+            let height_check = ui_kit::check_number(&height, &ui_kit::NumRule::required().above(0.0));
+            let valid = height_check.value().is_some();
+            let out = ui_kit::Dialog::titled(format!("Supports for {mark}")).subtitle("Posts and foundations under the sign").width(440.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::section(ui, "Posts", |ui| {
+                        ui_kit::form(ui, "supports", |fm| {
+                            fm.row("Mounting height", |ui| {
+                                let o = ui_kit::num_field(ui, &mut height, "mm", &ui_kit::NumRule::required().above(0.0));
+                                ui_kit::focus_once(ui, &o.response, "supports-height");
+                            });
+                            fm.row_note("Number of posts", "From 1 to 6", |ui| {
+                                ui.add(egui::DragValue::new(&mut posts).range(1..=6));
+                            });
+                            fm.row("Edge inset", |ui| {
+                                ui_kit::f64_field(ui, &mut inset, "mm", 0.0..=5000.0, 5.0);
+                            });
+                        });
+                    });
+                    ui_kit::callout(ui, ui_kit::Level::Info, "Posts and foundations are added with placeholder dimensions. Set every dimension in Properties, or size them for wind with Modify, Design the sign's supports (DESIGN).");
+                },
+                |ui| ui_kit::Footer::new("Add supports").enabled(valid, "Enter the mounting height, more than 0 mm").show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                add = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if add {
                 let h: f64 = height.trim().parse().unwrap_or(0.0);
                 self.sync_generated(); // the sign's size must be current
@@ -2434,96 +2490,100 @@ impl AfroBimApp {
             use supports_glue::WindChoice;
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let (mut keep, mut run) = (true, false);
-            crate::win::new(ctx, format!("Design supports for {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
-                egui::Grid::new("design").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Mounting height (mm)");
-                    ui.add(egui::TextEdit::singleline(&mut height).hint_text("ground to the sign's lower edge").desired_width(190.0));
-                    ui.end_row();
-                    ui.label("Number of posts");
-                    ui.add(egui::DragValue::new(&mut req.posts).range(1..=6));
-                    ui.end_row();
-                    ui.label("Edge inset (mm)");
-                    ui.add(egui::DragValue::new(&mut req.edge_inset_mm).speed(5.0).range(0.0..=5000.0));
-                    ui.end_row();
-                    ui.label("Basic wind pressure");
-                    ui.vertical(|ui| {
-                        ui.radio_value(&mut req.wind, WindChoice::MowtOpen, "MoWT Vol. 4 Table 2, open terrain");
-                        ui.radio_value(&mut req.wind, WindChoice::MowtBuiltUp, "MoWT Vol. 4 Table 2, built-up area");
-                        ui.horizontal(|ui| {
-                            let is_entered = matches!(req.wind, WindChoice::Entered(_));
-                            if ui.radio(is_entered, "Entered (kN/m²)").clicked() || is_entered {
-                                req.wind = WindChoice::Entered(entered);
-                            }
-                            if ui.add(egui::DragValue::new(&mut entered).speed(0.01).range(0.05..=5.0)).changed() {
-                                req.wind = WindChoice::Entered(entered);
+            let valid = ui_kit::check_number(&height, &ui_kit::NumRule::required().min(0.0)).value().is_some();
+            let out = ui_kit::Dialog::titled(format!("Design supports for {mark}")).subtitle("Size the posts and foundations of a sign for wind").width(520.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::section(ui, "Posts", |ui| {
+                        ui_kit::form(ui, "design-posts", |fm| {
+                            fm.row("Mounting height", |ui| {
+                                let o = ui_kit::num_field(ui, &mut height, "mm", &ui_kit::NumRule::required().min(0.0));
+                                ui_kit::focus_once(ui, &o.response, "design-height");
+                            });
+                            fm.row("Number of posts", |ui| {
+                                ui.add(egui::DragValue::new(&mut req.posts).range(1..=6));
+                            });
+                            fm.row("Edge inset", |ui| {
+                                ui_kit::f64_field(ui, &mut req.edge_inset_mm, "mm", 0.0..=5000.0, 5.0);
+                            });
+                        });
+                    });
+                    ui_kit::section(ui, "Wind", |ui| {
+                        ui_kit::form(ui, "design-wind", |fm| {
+                            fm.row("Basic wind pressure", |ui| {
+                                let mut which = match req.wind {
+                                    WindChoice::MowtOpen => 0,
+                                    WindChoice::MowtBuiltUp => 1,
+                                    WindChoice::Entered(_) => 2,
+                                };
+                                let before = which;
+                                ui_kit::radio_group(ui, &mut which, &["MoWT Vol. 4 Table 2, open terrain", "MoWT Vol. 4 Table 2, built-up area", "Entered"]);
+                                if which != before {
+                                    req.wind = match which {
+                                        0 => WindChoice::MowtOpen,
+                                        1 => WindChoice::MowtBuiltUp,
+                                        _ => WindChoice::Entered(entered),
+                                    };
+                                }
+                                if which == 2 {
+                                    ui_kit::f64_field(ui, &mut entered, "kN/m\u{b2}", 0.05..=5.0, 0.01);
+                                    req.wind = WindChoice::Entered(entered);
+                                }
+                            });
+                        });
+                    });
+                    ui_kit::section(ui, "Foundation", |ui| {
+                        ui_kit::form(ui, "design-foundation", |fm| {
+                            fm.row("Type", |ui| {
+                                ui_kit::segmented_of(ui, &mut req.spread, &[(false, "Planted, one per post"), (true, "Spread, one under the sign")]);
+                            });
+                            if req.spread {
+                                use afrobim_supports::design::AssumedGround;
+                                fm.row_note("Assumed ground", "Table 5.2", |ui| {
+                                    ui_kit::segmented_of(ui, &mut req.spread_ground, &[(AssumedGround::Poor, "Poor"), (AssumedGround::Average, "Average"), (AssumedGround::Good, "Good")]);
+                                });
+                                fm.row("Breadth along the sign", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.spread_breadth_mm, "mm", 300.0..=10000.0, 10.0);
+                                });
+                                fm.row("Thickness", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.spread_thickness_mm, "mm", 200.0..=3000.0, 10.0);
+                                });
+                                fm.row("Top below ground", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.spread_cover_mm, "mm", 0.0..=1000.0, 5.0);
+                                });
+                            } else {
+                                fm.row("Method", |ui| {
+                                    ui_kit::radios_of(ui, &mut req.cd354, &[(false, "PD 6547 (concrete surround resists)"), (true, "CD 354 rev 1 (post alone resists)")]);
+                                });
+                                fm.row("Foundation diameter", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.foundation_diameter_mm, "mm", 100.0..=2000.0, 10.0);
+                                });
+                                fm.row("Ground factor G", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.ground_factor, "kN/m\u{b2} per m", 1.0..=2000.0, 5.0);
+                                });
+                                fm.row("Minimum planting depth", |ui| {
+                                    ui_kit::f64_field(ui, &mut req.min_planting_depth_mm, "mm", 100.0..=3000.0, 10.0);
+                                });
                             }
                         });
                     });
-                    ui.end_row();
-                    ui.label("Foundation");
-                    ui.vertical(|ui| {
-                        ui.radio_value(&mut req.spread, false, "Planted, one per post");
-                        ui.radio_value(&mut req.spread, true, "Spread, one under the sign");
-                    });
-                    ui.end_row();
-                    if req.spread {
-                        use afrobim_supports::design::AssumedGround;
-                        ui.label("Assumed ground (Table 5.2)");
-                        ui.horizontal(|ui| {
-                            ui.radio_value(&mut req.spread_ground, AssumedGround::Poor, "Poor");
-                            ui.radio_value(&mut req.spread_ground, AssumedGround::Average, "Average");
-                            ui.radio_value(&mut req.spread_ground, AssumedGround::Good, "Good");
-                        });
-                        ui.end_row();
-                        ui.label("Breadth along the sign (mm)");
-                        ui.add(egui::DragValue::new(&mut req.spread_breadth_mm).speed(10.0).range(300.0..=10000.0));
-                        ui.end_row();
-                        ui.label("Thickness (mm)");
-                        ui.add(egui::DragValue::new(&mut req.spread_thickness_mm).speed(10.0).range(200.0..=3000.0));
-                        ui.end_row();
-                        ui.label("Top below ground (mm)");
-                        ui.add(egui::DragValue::new(&mut req.spread_cover_mm).speed(5.0).range(0.0..=1000.0));
-                        ui.end_row();
-                    } else {
-                        ui.label("Method");
-                        ui.vertical(|ui| {
-                            ui.radio_value(&mut req.cd354, false, "PD 6547 (concrete surround resists)");
-                            ui.radio_value(&mut req.cd354, true, "CD 354 rev 1 (post alone resists)");
-                        });
-                        ui.end_row();
-                        ui.label("Foundation diameter (mm)");
-                        ui.add(egui::DragValue::new(&mut req.foundation_diameter_mm).speed(10.0).range(100.0..=2000.0));
-                        ui.end_row();
-                        ui.label("Ground factor G (kN/m² per m)");
-                        ui.add(egui::DragValue::new(&mut req.ground_factor).speed(5.0).range(1.0..=2000.0));
-                        ui.end_row();
-                        ui.label("Minimum planting depth (mm)");
-                        ui.add(egui::DragValue::new(&mut req.min_planting_depth_mm).speed(10.0).range(100.0..=3000.0));
-                        ui.end_row();
-                    }
-                });
-                ui.add_space(6.0);
-                ui.label(
-                    RichText::new(
+                    ui_kit::callout(
+                        ui,
+                        ui_kit::Level::Info,
                         "Steel S355 CHS posts on level ground, to the IHE Sign Structures Guide 2021 (BS EN 12899-1). \
                          Planted: G = 230 is the guide's value for poor ground, and the minimum planting depth is from BS EN 40-2 Table 7, which AfroBIM does not hold. \
                          Spread: the length is sized for the breadth and thickness given; the ground is assumed and must be proved by testing; concrete and reinforcement are not designed. \
                          The result is a calculation for an engineer to check.",
-                    )
-                    .small()
-                    .weak(),
-                );
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    let valid = height.trim().parse::<f64>().is_ok_and(|h| h >= 0.0);
-                    if ui.add_enabled(valid, egui::Button::new("Design")).clicked() {
-                        run = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+                    );
+                },
+                |ui| ui_kit::Footer::new("Design").enabled(valid, "Enter the mounting height, 0 mm or more").show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                run = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if run {
                 req.mounting_height_mm = height.trim().parse().unwrap_or(0.0);
                 self.sync_generated(); // the sign's size must be current
@@ -2551,125 +2611,120 @@ impl AfroBimApp {
             let choices = alignment_glue::alignments(&self.doc);
             let types = markings_glue::line_types();
             let (mut keep, mut lay) = (true, false);
-            crate::win::new(ctx, "Road marking").collapsible(false).resizable(false).show(ctx, |ui| {
-                let spec = &types[req.line.min(types.len() - 1)];
-                egui::Grid::new("marking").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Alignment");
-                    let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
-                    egui::ComboBox::from_id_salt("marking-alignment").selected_text(current).show_ui(ui, |ui| {
-                        for (id, name) in &choices {
-                            ui.selectable_value(&mut alignment, Some(*id), name);
-                        }
-                    });
-                    ui.end_row();
-                    ui.label("Line type");
-                    egui::ComboBox::from_id_salt("marking-type").width(330.0).selected_text(format!("{} (diagram {})", spec.name, spec.diagram)).show_ui(ui, |ui| {
-                        for (i, t) in types.iter().enumerate() {
-                            if ui.selectable_value(&mut req.line, i, format!("{} (diagram {}, {})", t.name, t.diagram, t.speed.label())).clicked() {
-                                req.width_mm = None;
-                            }
-                        }
-                    });
-                    ui.end_row();
-                    ui.label("Basis");
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.selectable_value(&mut req.basis_uganda, false, afrobim_markings::Basis::Uk.label());
-                            ui.selectable_value(&mut req.basis_uganda, true, afrobim_markings::Basis::Uganda.label());
+            let spec = &types[req.line.min(types.len() - 1)];
+            let can_lay = alignment.is_some();
+            let out = ui_kit::Dialog::titled("Road marking").subtitle("A longitudinal line laid along an alignment").width(560.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::section(ui, "Line", |ui| {
+                        ui_kit::form(ui, "marking-line", |fm| {
+                            fm.row("Alignment", |ui| {
+                                let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
+                                egui::ComboBox::from_id_salt("marking-alignment").selected_text(current).show_ui(ui, |ui| {
+                                    for (id, name) in &choices {
+                                        ui.selectable_value(&mut alignment, Some(*id), name);
+                                    }
+                                });
+                            });
+                            fm.row("Line type", |ui| {
+                                egui::ComboBox::from_id_salt("marking-type").width(330.0).selected_text(format!("{} (diagram {})", spec.name, spec.diagram)).show_ui(ui, |ui| {
+                                    for (i, t) in types.iter().enumerate() {
+                                        if ui.selectable_value(&mut req.line, i, format!("{} (diagram {}, {})", t.name, t.diagram, t.speed.label())).clicked() {
+                                            req.width_mm = None;
+                                        }
+                                    }
+                                });
+                            });
+                            fm.row("Pattern", |ui| {
+                                ui.add(egui::Label::new(format!("{}; {}", spec.pattern.label(), spec.citation)).wrap());
+                            });
+                            fm.row("Basis", |ui| {
+                                ui.vertical(|ui| {
+                                    ui_kit::segmented_of(ui, &mut req.basis_uganda, &[(false, afrobim_markings::Basis::Uk.label()), (true, afrobim_markings::Basis::Uganda.label())]);
+                                    if req.basis_uganda {
+                                        ui_kit::callout(ui, ui_kit::Level::Warning, format!("{}: not defined in the Uganda manual (the longitudinal catalogue here is the UK diagrams; the Uganda lines are under Uganda lines).", spec.name));
+                                        let mut on = req.uk_fallback.is_some();
+                                        if ui_kit::toggle(ui, &mut on, "Use the UK value").changed() {
+                                            req.uk_fallback = on.then(String::new);
+                                        }
+                                        if let Some(reason) = &mut req.uk_fallback {
+                                            ui.add(egui::TextEdit::multiline(reason).desired_rows(2).desired_width(330.0).hint_text("required: the reason is stored with the marking"));
+                                        }
+                                    } else {
+                                        req.uk_fallback = None;
+                                    }
+                                });
+                            });
+                            fm.row("Width", |ui| {
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.selectable_value(&mut req.width_mm, None, "From the table");
+                                    for w in spec.widths_mm {
+                                        ui.selectable_value(&mut req.width_mm, Some(*w), format!("{w} mm"));
+                                    }
+                                });
+                            });
+                            fm.row("Material", |ui| {
+                                ui.add(egui::TextEdit::singleline(&mut req.material).hint_text("not stated").desired_width(190.0));
+                            });
                         });
-                        if req.basis_uganda {
-                            ui.label(RichText::new(format!("{}: not defined in the Uganda manual (the longitudinal catalogue here is the UK diagrams; the Uganda lines are under Uganda lines).", spec.name)).small().color(Color32::from_rgb(0xD9, 0x8A, 0x2B)));
-                            let mut on = req.uk_fallback.is_some();
-                            if ui.checkbox(&mut on, "use the UK value").changed() {
-                                req.uk_fallback = on.then(String::new);
-                            }
-                            if let Some(reason) = &mut req.uk_fallback {
-                                ui.add(egui::TextEdit::multiline(reason).desired_rows(2).desired_width(330.0).hint_text("required: the reason is stored with the marking"));
-                            }
-                        } else {
-                            req.uk_fallback = None;
-                        }
                     });
-                    ui.end_row();
-                    ui.label("Pattern");
-                    ui.label(format!("{}; {}", spec.pattern.label(), spec.citation));
-                    ui.end_row();
-                    ui.label("Speed limit");
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            let mut kmh = req.speed_kmh.is_some();
-                            ui.selectable_value(&mut kmh, false, "mph");
-                            ui.selectable_value(&mut kmh, true, "km/h");
-                            if kmh != req.speed_kmh.is_some() {
-                                req.speed_kmh = kmh.then(|| (afrobim_markings::kmh(req.speed_mph).round(), None));
-                            }
-                            match &mut req.speed_kmh {
+                    ui_kit::section(ui, "Speed limit", |ui| {
+                        ui_kit::form(ui, "marking-speed", |fm| {
+                            fm.row("Unit", |ui| {
+                                let mut kmh = req.speed_kmh.is_some();
+                                ui_kit::segmented_of(ui, &mut kmh, &[(false, "mph"), (true, "km/h")]);
+                                if kmh != req.speed_kmh.is_some() {
+                                    req.speed_kmh = kmh.then(|| (afrobim_markings::kmh(req.speed_mph).round(), None));
+                                }
+                            });
+                            fm.row("Limit", |ui| match &mut req.speed_kmh {
                                 Some((v, _)) => {
-                                    ui.add(egui::DragValue::new(v).range(5.0..=130.0).suffix(" km/h"));
+                                    ui_kit::f64_field(ui, v, "km/h", 5.0..=130.0, 1.0);
                                 }
                                 None => {
-                                    ui.add(egui::DragValue::new(&mut req.speed_mph).range(5..=70));
-                                    ui.label(RichText::new(afrobim_markings::speed_label(req.speed_mph)).small().weak());
+                                    ui.horizontal(|ui| {
+                                        ui.add(egui::DragValue::new(&mut req.speed_mph).range(5..=70));
+                                        ui.label("mph");
+                                        ui_kit::note(ui, afrobim_markings::speed_label(req.speed_mph));
+                                    });
                                 }
-                            }
+                            });
                         });
                         // A km/h limit meets the manual's mph tables through the project's rule.
                         if let Some((v, answer)) = &mut req.speed_kmh {
                             let r = crate::projset::resolve_answered(&self.doc, *v, false, &crate::projset::marking_thresholds(), *answer);
-                            ui.label(RichText::new(&r.band_note).small());
+                            ui_kit::note(ui, r.band_note.clone());
                             if let Some(ask) = r.ask {
-                                ui.label(RichText::new(format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph)).small().color(Color32::from_rgb(0xD9, 0x8A, 0x2B)));
-                                ui.horizontal(|ui| {
-                                    ui.selectable_value(answer, Some(true), "Yes, take the band");
-                                    ui.selectable_value(answer, Some(false), "No, keep the exact value");
-                                });
+                                ui_kit::callout(ui, ui_kit::Level::Warning, format!("The project rule asks each time: treat {:.2} mph as {} mph?", ask.exact_mph, ask.band_mph));
+                                ui_kit::segmented_of(ui, answer, &[(None, "Not answered"), (Some(true), "Yes, take the band"), (Some(false), "No, keep the exact value")]);
                             } else {
-                                ui.label(RichText::new(format!("The tables are read at {} mph.", r.mph_used.round())).small().weak());
+                                ui_kit::note(ui, format!("The tables are read at {} mph.", r.mph_used.round()));
                             }
                         }
                     });
-                    ui.end_row();
-                    ui.label("Width (mm)");
-                    ui.horizontal(|ui| {
-                        ui.selectable_value(&mut req.width_mm, None, "From the table");
-                        for w in spec.widths_mm {
-                            ui.selectable_value(&mut req.width_mm, Some(*w), w.to_string());
-                        }
+                    ui_kit::section(ui, "Position", |ui| {
+                        ui_kit::form(ui, "marking-position", |fm| {
+                            fm.raw(|ui| crate::station_input::station_row(ui, &self.doc, alignment, "marking-start", "Start station", &mut req.start_station_m));
+                            fm.raw(|ui| crate::station_input::station_row(ui, &self.doc, alignment, "marking-end", "End station", &mut req.end_station_m));
+                            fm.row("Offset from the alignment", |ui| {
+                                ui.horizontal(|ui| {
+                                    ui_kit::f64_field(ui, &mut req.distance_m, "m", 0.0..=50.0, 0.05);
+                                    ui_kit::segmented_of(ui, &mut req.right, &[(false, "Left"), (true, "Right")]);
+                                });
+                            });
+                        });
+                        ui_kit::note(ui, crate::station_input::note(&self.doc, alignment));
                     });
-                    ui.end_row();
-                    crate::station_input::station_row(ui, &self.doc, alignment, "marking-start", "Start station", &mut req.start_station_m);
-                    crate::station_input::station_row(ui, &self.doc, alignment, "marking-end", "End station", &mut req.end_station_m);
-                    ui.label("Offset from the alignment (m)");
-                    ui.horizontal(|ui| {
-                        ui.add(egui::DragValue::new(&mut req.distance_m).speed(0.05).range(0.0..=50.0));
-                        ui.selectable_value(&mut req.right, false, "Left");
-                        ui.selectable_value(&mut req.right, true, "Right");
-                    });
-                    ui.end_row();
-                    ui.label("Material");
-                    ui.add(egui::TextEdit::singleline(&mut req.material).hint_text("not stated").desired_width(190.0));
-                    ui.end_row();
-                });
-                ui.add_space(4.0);
-                ui.label(
-                    RichText::new(
-                        "Patterns and widths are from the Traffic Signs Manual Chapter 5 (2018). Its tables are in mph: how a km/h limit maps to them is the engineer's decision. \
-                         The line is shown in the 3D site view and measured under Export quantities.",
-                    )
-                    .small()
-                    .weak(),
-                );
-                ui.label(RichText::new(crate::station_input::note(&self.doc, alignment)).small().weak());
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(alignment.is_some(), egui::Button::new("Lay the line")).clicked() {
-                        lay = true;
-                    }
-                    if ui.button("Close").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+                    ui_kit::note(ui, "Patterns and widths are from the Traffic Signs Manual Chapter 5 (2018). Its tables are in mph: how a km/h limit maps to them is the engineer's decision. The line is shown in the 3D site view and measured under Export quantities.");
+                },
+                |ui| ui_kit::Footer::new("Lay the line").enabled(can_lay, "Choose the alignment").cancel(Some("Close")).show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                lay = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if lay {
                 if let Some(a) = alignment {
                     match markings_glue::add(&mut self.doc, a, &req) {
@@ -2700,47 +2755,38 @@ impl AfroBimApp {
             let info = &modules_glue::KINDS[kind.min(modules_glue::KINDS.len() - 1)];
             let choices = alignment_glue::alignments(&self.doc);
             let (mut keep, mut add) = (true, false);
-            crate::win::new(ctx, format!("Add a {}", info.label.to_lowercase())).collapsible(false).resizable(false).show(ctx, |ui| {
-                egui::Grid::new("road-element").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Alignment");
-                    let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
-                    egui::ComboBox::from_id_salt("road-alignment").selected_text(current).show_ui(ui, |ui| {
-                        for (id, name) in &choices {
-                            ui.selectable_value(&mut alignment, Some(*id), name);
+            let can_add = alignment.is_some();
+            let out = ui_kit::Dialog::titled(format!("Add a {}", info.label.to_lowercase())).subtitle("Placed along an alignment with placeholder dimensions").width(460.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::form(ui, "road-element", |fm| {
+                        fm.row("Alignment", |ui| {
+                            ui_kit::element_combo(ui, "road-alignment", &choices, &mut alignment);
+                        });
+                        fm.raw(|ui| crate::station_input::station_row(ui, &self.doc, alignment, "road-start", if info.span { "Start station" } else { "Station" }, &mut start));
+                        if info.span {
+                            fm.raw(|ui| crate::station_input::station_row(ui, &self.doc, alignment, "road-end", "End station", &mut end));
+                        }
+                        if info.offset {
+                            fm.row("Offset from the alignment", |ui| {
+                                ui.horizontal(|ui| {
+                                    ui_kit::f64_field(ui, &mut distance, "m", 0.0..=200.0, 0.1);
+                                    ui_kit::segmented_of(ui, &mut right, &[(false, "Left"), (true, "Right")]);
+                                });
+                            });
                         }
                     });
-                    ui.end_row();
-                    crate::station_input::station_row(ui, &self.doc, alignment, "road-start", if info.span { "Start station" } else { "Station" }, &mut start);
-                    if info.span {
-                        crate::station_input::station_row(ui, &self.doc, alignment, "road-end", "End station", &mut end);
-                    }
-                    if info.offset {
-                        ui.label("Offset from the alignment (m)");
-                        ui.horizontal(|ui| {
-                            ui.add(egui::DragValue::new(&mut distance).speed(0.1).range(0.0..=200.0));
-                            ui.selectable_value(&mut right, false, "Left");
-                            ui.selectable_value(&mut right, true, "Right");
-                        });
-                        ui.end_row();
-                    }
-                });
-                ui.add_space(4.0);
-                ui.label(
-                    RichText::new("It is added with placeholder dimensions that are not design values: select it and set every dimension in Properties, then run CHECK.")
-                        .small()
-                        .weak(),
-                );
-                ui.label(RichText::new(crate::station_input::note(&self.doc, alignment)).small().weak());
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(alignment.is_some(), egui::Button::new("Add")).clicked() {
-                        add = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+                    ui_kit::note(ui, crate::station_input::note(&self.doc, alignment));
+                    ui_kit::callout(ui, ui_kit::Level::Info, "It is added with placeholder dimensions that are not design values: select it and set every dimension in Properties, then run CHECK.");
+                },
+                |ui| ui_kit::Footer::new("Add").enabled(can_add, "Choose the alignment").show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                add = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if add {
                 let offset = if right { distance } else { -distance };
                 match alignment.ok_or_else(|| "Choose an alignment.".to_string()).and_then(|a| modules_glue::add(&mut self.doc, kind, a, start, end, offset)) {
@@ -2786,52 +2832,46 @@ impl AfroBimApp {
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let choices = modules_glue::gantries(&self.doc);
             let (mut keep, mut hang) = (true, false);
-            crate::win::new(ctx, format!("Hang {mark} on a gantry")).collapsible(false).resizable(false).show(ctx, |ui| {
-                egui::Grid::new("hang").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Gantry");
-                    let current = choices.iter().find(|c| Some(c.0) == gantry).map(|c| c.1.clone()).unwrap_or_default();
-                    egui::ComboBox::from_id_salt("hang-gantry").selected_text(current).show_ui(ui, |ui| {
-                        for (id, name) in &choices {
-                            ui.selectable_value(&mut gantry, Some(*id), name);
+            let can_hang = gantry.is_some();
+            let out = ui_kit::Dialog::titled(format!("Hang {mark} on a gantry")).subtitle("Fix the sign under a gantry boom").width(480.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::form(ui, "hang", |fm| {
+                        fm.row("Gantry", |ui| {
+                            ui_kit::element_combo(ui, "hang-gantry", &choices, &mut gantry);
+                        });
+                        fm.row("Position", |ui| {
+                            ui.vertical(|ui| {
+                                ui_kit::segmented_of(ui, &mut by_lane, &[(false, "By offset"), (true, "Over a lane")]);
+                                if by_lane {
+                                    ui.horizontal(|ui| {
+                                        ui.add(egui::DragValue::new(&mut lane).range(1..=12));
+                                        ui.label("lane number, from 1 at the left");
+                                    });
+                                } else {
+                                    ui_kit::f64_field(ui, &mut offset, "m from the centreline", -200.0..=200.0, 0.1);
+                                }
+                            });
+                        });
+                        if !by_lane {
+                            fm.row("Faces traffic travelling", |ui| {
+                                ui_kit::segmented_of(ui, &mut up, &[(true, "Up-station"), (false, "Down-station")]);
+                            });
                         }
-                    });
-                    ui.end_row();
-                    ui.label("Position");
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.radio_value(&mut by_lane, false, "Offset from the centreline (m)");
-                            ui.add_enabled(!by_lane, egui::DragValue::new(&mut offset).speed(0.1));
-                        });
-                        ui.horizontal(|ui| {
-                            ui.radio_value(&mut by_lane, true, "Over lane number");
-                            ui.add_enabled(by_lane, egui::DragValue::new(&mut lane).range(1..=12));
+                        fm.row_note("Lower edge", "Above the boom underside; negative hangs it below the boom", |ui| {
+                            ui_kit::f64_field(ui, &mut bottom, "mm", -100000.0..=100000.0, 10.0);
                         });
                     });
-                    ui.end_row();
-                    if !by_lane {
-                        ui.label("Faces traffic travelling");
-                        ui.horizontal(|ui| {
-                            ui.selectable_value(&mut up, true, "Up-station");
-                            ui.selectable_value(&mut up, false, "Down-station");
-                        });
-                        ui.end_row();
-                    }
-                    ui.label("Lower edge above the boom underside (mm)");
-                    ui.add(egui::DragValue::new(&mut bottom).speed(10.0));
-                    ui.end_row();
-                });
-                ui.add_space(4.0);
-                ui.label(RichText::new("Lanes are those entered on the gantry, numbered from 1 at the left. A negative level hangs the sign below the boom. Run CHECK on the gantry afterwards for headroom.").small().weak());
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(gantry.is_some(), egui::Button::new("Hang")).clicked() {
-                        hang = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+                    ui_kit::note(ui, "Lanes are those entered on the gantry, numbered from 1 at the left. Run CHECK on the gantry afterwards for headroom.");
+                },
+                |ui| ui_kit::Footer::new("Hang").enabled(can_hang, "Choose the gantry").show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                hang = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if hang {
                 match gantry.ok_or_else(|| "Choose a gantry.".to_string()).and_then(|g| modules_glue::hang_sign(&mut self.doc, g, sign, by_lane.then_some(lane), offset, bottom, up)) {
                     Ok(note) => {
@@ -2850,27 +2890,41 @@ impl AfroBimApp {
         }
 
         if let Some(command) = self.options.preview.clone() {
-            crate::win::new(ctx, "Command preview").collapsible(false).resizable(false).title_bar(false).default_pos([420.0, 190.0]).show(ctx, |ui| {
+            let dlg = ui_kit::Dialog::titled("Command preview").subtitle(format!("What the ribbon shows for {command}")).width(420.0).resizable(false).default_pos(egui::pos2(420.0, 190.0)).show_body(ctx, |ui| {
                 if !crate::ribbon::preview_of(ui, &command) {
-                    ui.label(format!("No ribbon button runs {command}."));
+                    ui_kit::callout(ui, ui_kit::Level::Info, format!("No ribbon button runs {command}."));
                 }
             });
+            if dlg.closed {
+                self.options.preview = None;
+            }
         }
 
         if let Some((mark, lines)) = self.design_report.take() {
             let mut open = true;
-            crate::win::new(ctx, format!("Calculation for {mark}")).open(&mut open).default_width(640.0).show(ctx, |ui| {
-                egui::ScrollArea::vertical().max_height(460.0).show(ui, |ui| {
+            let dlg = ui_kit::Dialog::titled(format!("Calculation for {mark}")).subtitle("Read it and check it: it is a calculation for an engineer to review").width(640.0).show(
+                ctx,
+                |ui| {
                     for line in &lines {
-                        let text = RichText::new(line).small();
                         let flagged = line.contains("FAILS") || line.contains("NOT ENOUGH") || ["Check:", "Note:", "WARNING"].iter().any(|p| line.starts_with(p));
-                        ui.label(if flagged { text.color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)) } else { text });
+                        let t = crate::theme::tokens_ui(ui);
+                        ui.add(egui::Label::new(RichText::new(line).size(crate::theme::FONT_SMALL + 1.0).color(if flagged { t.warning } else { t.text })).wrap());
                     }
-                });
-                if ui.button("Copy").clicked() {
+                },
+                |ui| ui_kit::Footer::new("Copy to clipboard").cancel(Some("Close")).show(ui),
+            );
+            if let Some((_, f)) = &dlg.inner {
+                if f.primary {
                     ctx.copy_text(lines.join("\n"));
+                    self.status = "Copied the calculation.".into();
                 }
-            });
+                if f.cancel {
+                    open = false;
+                }
+            }
+            if dlg.closed {
+                open = false;
+            }
             if open {
                 self.design_report = Some((mark, lines));
             }
@@ -2880,52 +2934,43 @@ impl AfroBimApp {
             let mark = self.doc.find(sign).map(|e| e.name.clone()).unwrap_or_default();
             let choices = alignment_glue::alignments(&self.doc);
             let (mut keep, mut place) = (true, false);
-            crate::win::new(ctx, format!("Place {mark} on an alignment")).collapsible(false).resizable(false).show(ctx, |ui| {
-                egui::Grid::new("station").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                    ui.label("Alignment");
-                    let current = choices.iter().find(|c| Some(c.0) == alignment).map(|c| c.1.clone()).unwrap_or_default();
-                    egui::ComboBox::from_id_salt("alignment").selected_text(current).show_ui(ui, |ui| {
-                        for (id, name) in &choices {
-                            ui.selectable_value(&mut alignment, Some(*id), name);
-                        }
-                    });
-                    ui.end_row();
-                    ui.label("Station (m)");
-                    ui.add(egui::DragValue::new(&mut station).speed(1.0));
-                    ui.end_row();
-                    let regions = alignment.map(|a| alignment_glue::region_count(&self.doc, a)).unwrap_or(1);
-                    if regions > 1 {
-                        ui.label("Stationing region");
-                        ui.horizontal(|ui| {
-                            ui.add(egui::DragValue::new(&mut region).range(0..=regions));
-                            ui.label(RichText::new(format!("1 to {regions}; 0 if the station occurs once")).small().weak());
+            let can_place = alignment.is_some();
+            let regions = alignment.map(|a| alignment_glue::region_count(&self.doc, a)).unwrap_or(1);
+            if regions <= 1 {
+                region = 0;
+            }
+            let out = ui_kit::Dialog::titled(format!("Place {mark} on an alignment")).subtitle("Set the sign out by station and offset").width(460.0).resizable(false).show(
+                ctx,
+                |ui| {
+                    ui_kit::form(ui, "station", |fm| {
+                        fm.row("Alignment", |ui| {
+                            ui_kit::element_combo(ui, "alignment", &choices, &mut alignment);
                         });
-                        ui.end_row();
-                    } else {
-                        region = 0;
-                    }
-                    ui.label("Offset from centreline (m)");
-                    ui.add(egui::DragValue::new(&mut offset).speed(0.1).range(0.0..=200.0));
-                    ui.end_row();
-                    ui.label("Side, looking up-station");
-                    ui.horizontal(|ui| {
-                        ui.selectable_value(&mut right, false, "Left");
-                        ui.selectable_value(&mut right, true, "Right");
+                        fm.row("Station", |ui| {
+                            ui_kit::f64_field(ui, &mut station, "m", -1.0e9..=1.0e9, 1.0);
+                        });
+                        if regions > 1 {
+                            fm.row_note("Stationing region", &format!("1 to {regions}; 0 if the station occurs once"), |ui| {
+                                ui.add(egui::DragValue::new(&mut region).range(0..=regions));
+                            });
+                        }
+                        fm.row("Offset from the centreline", |ui| {
+                            ui_kit::f64_field(ui, &mut offset, "m", 0.0..=200.0, 0.1);
+                        });
+                        fm.row("Side, looking up-station", |ui| {
+                            ui_kit::segmented_of(ui, &mut right, &[(false, "Left"), (true, "Right")]);
+                        });
                     });
-                    ui.end_row();
-                });
-                ui.add_space(4.0);
-                ui.label(RichText::new("The sign faces the traffic on its own side of the road, for traffic keeping left.").small().weak());
-                ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    if ui.add_enabled(alignment.is_some(), egui::Button::new("Place")).clicked() {
-                        place = true;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        keep = false;
-                    }
-                });
-            });
+                    ui_kit::note(ui, "The sign faces the traffic on its own side of the road, for traffic keeping left.");
+                },
+                |ui| ui_kit::Footer::new("Place").enabled(can_place, "Choose the alignment").show(ui),
+            );
+            if let Some((_, f)) = &out.inner {
+                place = f.primary;
+                keep = !(f.cancel || out.closed);
+            } else if out.closed {
+                keep = false;
+            }
             if place {
                 if let Some(a) = alignment {
                     match alignment_glue::place_sign(&mut self.doc, sign, a, station, region.checked_sub(1), offset, right) {
@@ -2946,15 +2991,22 @@ impl AfroBimApp {
         }
 
         let mut about = self.show_about;
-        crate::win::new(ctx, "About AfroBIM").open(&mut about).collapsible(false).resizable(false).show(ctx, |ui| {
-            ui.heading("AfroBIM");
-            ui.label(format!("Version {}", env!("CARGO_PKG_VERSION")));
-            ui.add_space(6.0);
-            ui.label("Building information modelling for roads and infrastructure.");
-            ui.label("Traffic signs module: UK Traffic Signs Manual Chapter 7.");
-            ui.add_space(6.0);
-            ui.label(RichText::new(&self.module_status).weak());
-        });
+        if about {
+            let dlg = crate::ui_kit::Dialog::titled("About AfroBIM").subtitle("Version and licence of this build").resizable(false).show_body(ctx, |ui| {
+                crate::ui_kit::heading(ui, "This build");
+                crate::ui_kit::form(ui, "about-form", |f| {
+                    f.row("Product", |ui| ui.label("AfroBIM"));
+                    f.row("Version", |ui| ui.label(env!("CARGO_PKG_VERSION")));
+                    f.row("Purpose", |ui| ui.label("Building information modelling for roads and infrastructure."));
+                    f.row("Traffic signs module", |ui| ui.label("UK Traffic Signs Manual Chapter 7"));
+                });
+                crate::ui_kit::heading(ui, "Modules loaded");
+                crate::ui_kit::note(ui, self.module_status.clone());
+            });
+            if dlg.closed {
+                about = false;
+            }
+        }
         self.show_about = about;
     }
 
@@ -2981,7 +3033,7 @@ impl AfroBimApp {
             return;
         }
         self.frames += 1;
-        if self.frames == 8 {
+        if self.frames == std::env::var("AFROBIM_FRAMES").ok().and_then(|v| v.parse::<u32>().ok()).unwrap_or(8) + 4 * self.options.click.as_deref().map_or(0, |c| c.split(';').count() as u32) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(Default::default()));
         }
         let shot = ctx.input(|i| {
@@ -3001,12 +3053,61 @@ impl AfroBimApp {
 }
 
 impl eframe::App for AfroBimApp {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        // Opaque, whatever the translucency of the panels.
+        let c = crate::theme::Tokens::of(&self.theme).surface;
+        egui::Rgba::from(c).to_array()
+    }
+
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        // `--click`: pointer actions for screenshots, one every four frames from the fourth.
+        let Some(spec) = self.options.click.clone() else { return };
+        self.hook_frames += 1;
+        let f = self.hook_frames;
+        for (k, part) in spec.split(';').enumerate() {
+            let start = 4 + 4 * k as u32;
+            let hover = part.trim().ends_with('h');
+            let button = if part.trim().ends_with('r') { egui::PointerButton::Secondary } else { egui::PointerButton::Primary };
+            let nums: Vec<f32> = part.trim().trim_end_matches(['h', 'r']).split(',').filter_map(|v| v.trim().parse().ok()).collect();
+            let [x, y] = nums[..] else { continue };
+            let pos = egui::pos2(x, y);
+            if f == start {
+                raw_input.events.push(egui::Event::PointerMoved(pos));
+                if !hover {
+                    raw_input.events.push(egui::Event::PointerButton { pos, button, pressed: true, modifiers: Default::default() });
+                }
+            } else if f == start + 1 && !hover {
+                raw_input.events.push(egui::Event::PointerButton { pos, button, pressed: false, modifiers: Default::default() });
+            }
+        }
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let started = std::time::Instant::now();
+        self.update_inner(ctx);
+        if std::env::var_os("AFROBIM_FRAME_STATS").is_some() {
+            self.frame_ms.push(started.elapsed().as_secs_f64() * 1000.0);
+            if self.quit {
+                let mut v: Vec<f64> = self.frame_ms.iter().skip(self.frame_ms.len().saturating_sub(40)).copied().collect();
+                v.sort_by(f64::total_cmp);
+                let rss = std::fs::read_to_string("/proc/self/status").ok().map(|t| t.lines().filter(|l| l.starts_with("VmRSS") || l.starts_with("VmHWM")).map(|l| l.split_whitespace().collect::<Vec<_>>().join(" ")).collect::<Vec<_>>().join("; ")).unwrap_or_default();
+                eprintln!("FRAMESTATS frames={} last40 median={:.1}ms p95={:.1}ms max={:.1}ms slowest_ever={:.1}ms {rss}", self.frame_ms.len(), v.get(v.len() / 2).copied().unwrap_or(0.0), v.get(v.len() * 95 / 100).copied().unwrap_or(0.0), v.last().copied().unwrap_or(0.0), self.frame_ms.iter().cloned().fold(0.0, f64::max));
+            }
+        }
+    }
+}
+
+impl AfroBimApp {
+    fn update_inner(&mut self, ctx: &egui::Context) {
+        crate::theme::paint_backdrop(ctx);
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.title()));
         self.shortcuts(ctx);
         // `--run COMMAND`: runs a command once at start-up (on the element named by `--focus`, when
         // given), to look at a dialog or window without a pointer.
-        if let Some(command) = self.options.run.take() {
+        self.update_frames = self.update_frames.saturating_add(1);
+        if self.options.run.is_some() && (self.update_frames < 3 || self.bg.busy()) {
+            ctx.request_repaint();
+        } else if let Some(command) = self.options.run.take() {
             if let Some(mark) = self.options.focus.clone() {
                 if let Some(id) = self.doc.elements().iter().find(|e| e.name == mark).map(|e| e.id) {
                     self.doc.select(&[id], SelectMode::Replace);
@@ -3021,6 +3122,29 @@ impl eframe::App for AfroBimApp {
             }
         }
 
+        if self.zoom_extents_pending && self.update_frames >= 3 && !self.bg.busy() {
+            self.zoom_extents_pending = false;
+            self.zoom_extents_visible();
+            self.fitted_3d = false;
+            if let Some(spec) = self.options.view.take() {
+                let n: Vec<f64> = spec.split(',').filter_map(|v| v.trim().parse().ok()).collect();
+                if let [e, nn, w] = n[..] {
+                    let (l, t, vw, vh) = self.ctl.viewport;
+                    let half_h = w / 2.0 * (vh as f64 / (vw as f64).max(1.0));
+                    self.view.fit(&afrobim_kernel::BBox::new((e - w / 2.0) * 1000.0, (nn - half_h) * 1000.0, (e + w / 2.0) * 1000.0, (nn + half_h) * 1000.0), l, t, vw, vh, 0.0);
+                }
+            }
+        }
+        if let Some(a) = self.pending_action.take() {
+            self.run(ctx, a);
+        }
+        if let Some(cv) = self.civil_run_pending.take() {
+            self.run(ctx, Action::Civil(cv));
+        }
+        let mut lap = Lap::new();
+        crate::defaults_glue::sync(&self.doc, false);
+        self.civil_sync();
+        lap.mark("sync");
         self.drop_tick(ctx);
         self.sched_tick(ctx);
         self.under.sync(&mut self.doc, self.view.scale);
@@ -3030,14 +3154,28 @@ impl eframe::App for AfroBimApp {
         if self.under.busy() {
             ctx.request_repaint_after(std::time::Duration::from_millis(60));
         }
+        lap.mark("ticks");
         self.menu_bar(ctx);
         self.toolbar(ctx);
         self.status_bar(ctx);
+        lap.mark("bars");
         self.left_panel(ctx);
+        lap.mark("left");
         self.right_panel(ctx);
+        lap.mark("right");
         self.command_line(ctx);
         self.canvas(ctx);
+        lap.mark("canvas");
         self.windows(ctx);
+        lap.mark("windows");
+        crate::win::end_frame(ctx);
+        lap.print(self.update_frames);
+        if !ctx.input(|i| i.pointer.any_down()) {
+            if let Some(map) = crate::win::take_changed_positions() {
+                self.prefs.window_pos = map;
+                self.save_prefs();
+            }
+        }
 
         // Commit once input has settled, so a drag or a burst of typing is one undo step.
         let pointer_down = ctx.input(|i| i.pointer.any_down());
@@ -3049,6 +3187,32 @@ impl eframe::App for AfroBimApp {
         self.screenshot_mode(ctx);
         if self.quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+    }
+}
+
+/// Times the parts of a frame when AFROBIM_FRAME_STATS is set, to find what is slow.
+struct Lap {
+    on: bool,
+    at: std::time::Instant,
+    parts: Vec<(&'static str, f64)>,
+}
+
+impl Lap {
+    fn new() -> Lap {
+        Lap { on: std::env::var_os("AFROBIM_FRAME_STATS").is_some(), at: std::time::Instant::now(), parts: Vec::new() }
+    }
+
+    fn mark(&mut self, name: &'static str) {
+        if self.on {
+            self.parts.push((name, self.at.elapsed().as_secs_f64() * 1000.0));
+            self.at = std::time::Instant::now();
+        }
+    }
+
+    fn print(&self, frame: u32) {
+        if self.on && self.parts.iter().map(|p| p.1).sum::<f64>() > 20.0 {
+            eprintln!("FRAMEPARTS #{frame} {}", self.parts.iter().map(|(n, ms)| format!("{n}={ms:.0}")).collect::<Vec<_>>().join(" "));
         }
     }
 }

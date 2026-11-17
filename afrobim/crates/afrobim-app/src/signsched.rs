@@ -93,9 +93,21 @@ pub struct SignSchedUi {
     pub note: String,
 }
 
-const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
+#[allow(non_snake_case)]
+
+fn BAD() -> egui::Color32 {
+
+    crate::theme::danger()
+
+}
+#[allow(non_snake_case)]
+fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+fn GOOD() -> egui::Color32 {
+    crate::theme::success()
+}
 
 fn field_label(f: &Field) -> String {
     match f {
@@ -214,16 +226,17 @@ impl AfroBimApp {
         let mut open = true;
         let (mut changed, mut load_mapping, mut save_mapping, mut other_file) = (false, false, false, false);
         let work = crate::win::work_rect(ctx);
-        crate::win::new(ctx, "Sign schedule: columns").open(&mut open).default_width(620.0).default_pos(crate::win::first_position(work)).show(ctx, |ui| {
+        let dlg = crate::ui_kit::Dialog::titled("Sign schedule: columns").subtitle("Match the columns of the file to the schedule fields").width(620.0).default_pos(crate::win::first_position(work)).show(ctx, |ui| {
             let ui_state = &mut self.signsched;
-            ui.label(RichText::new(ui_state.path.as_ref().map(|p| p.display().to_string()).unwrap_or_default()).small().weak());
+            crate::ui_kit::heading(ui, "File");
+            crate::ui_kit::note(ui, ui_state.path.as_ref().map(|p| p.display().to_string()).unwrap_or_default());
             let Some(table) = ui_state.table.clone() else {
-                ui.label("No file chosen.");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No file chosen.");
                 return;
             };
             ui.label(format!("{} columns, {} data rows, delimiter '{}'.", table.headers.len(), table.rows.len(), if table.delimiter == '\t' { "tab".to_string() } else { table.delimiter.to_string() }));
-            ui.label(RichText::new("Each column of the file is matched to a field of the schedule by its header (synonyms such as Chainage for Station). Correct any that are wrong.").small().weak());
-            ui.add_space(4.0);
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Each column of the file is matched to a field of the schedule by its header (synonyms such as Chainage for Station). Correct any that are wrong.");
+            crate::ui_kit::heading(ui, "Columns");
             let fields: Vec<Field> = {
                 let mut v: Vec<Field> = Field::FIXED.to_vec();
                 v.extend(afrobim_fabrication::sign_schedule::PARAMS.iter().map(|p| Field::Param(p.name.to_string())));
@@ -231,10 +244,10 @@ impl AfroBimApp {
             };
             egui::ScrollArea::vertical().max_height(130.0).show(ui, |ui| {
                 egui::Grid::new("sched-map").num_columns(4).spacing([10.0, 4.0]).striped(true).show(ui, |ui| {
-                    ui.label(RichText::new("File column").strong());
-                    ui.label(RichText::new("Schedule field").strong());
-                    ui.label(RichText::new("Unit").strong());
-                    ui.label(RichText::new("First value").strong());
+                    crate::ui_kit::th(ui, "File column");
+                    crate::ui_kit::th(ui, "Schedule field");
+                    crate::ui_kit::th(ui, "Unit");
+                    crate::ui_kit::th(ui, "First value");
                     ui.end_row();
                     for (i, h) in table.headers.iter().enumerate() {
                         ui.label(h);
@@ -290,33 +303,37 @@ impl AfroBimApp {
             if let Some(p) = &ui_state.proposal {
                 let missing: Vec<String> = Field::REQUIRED.iter().filter(|f| !ui_state.mapping.has(f)).map(field_label).collect();
                 if missing.is_empty() {
-                    ui.label(RichText::new("Every required field is mapped.").color(GOOD).small());
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Success, "Every required field is mapped.");
                 } else {
-                    ui.label(RichText::new(format!("Required fields not mapped: {}", missing.join(", "))).color(BAD));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("Required fields not mapped: {}", missing.join(", ")));
                 }
                 if !p.unmapped_headers.is_empty() {
-                    ui.label(RichText::new(format!("Not matched by the synonyms (and so not read unless you map them): {}", p.unmapped_headers.join(", "))).small().color(WARN));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("Not matched by the synonyms (and so not read unless you map them): {}", p.unmapped_headers.join(", ")));
                 }
                 if !p.duplicate_headers.is_empty() {
-                    ui.label(RichText::new(format!("Headers that repeat a field another column took: {}", p.duplicate_headers.iter().map(|(h, f)| format!("{h} ({})", field_label(f))).collect::<Vec<_>>().join(", "))).small().color(WARN));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, format!("Headers that repeat a field another column took: {}", p.duplicate_headers.iter().map(|(h, f)| format!("{h} ({})", field_label(f))).collect::<Vec<_>>().join(", ")));
                 }
             }
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                if ui.button("Save mapping...").clicked() {
-                    save_mapping = true;
-                }
-                if ui.button("Load mapping...").clicked() {
-                    load_mapping = true;
-                }
-                if ui.button("Other file...").clicked() {
-                    other_file = true;
-                }
-            });
             if !ui_state.note.is_empty() {
-                ui.label(RichText::new(&ui_state.note).small());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, ui_state.note.clone());
             }
-        });
+        }, |ui| crate::ui_kit::Footer::new("Save mapping...").secondary(&["Load mapping...", "Other file..."]).cancel(Some("Close")).show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                save_mapping = true;
+            }
+            match out.secondary {
+                Some(0) => load_mapping = true,
+                Some(1) => other_file = true,
+                _ => {}
+            }
+        }
         if save_mapping {
             if let Some(path) = rfd::FileDialog::new().add_filter("Column mapping (JSON)", &["json"]).set_file_name("sign-schedule-mapping.json").save_file() {
                 self.signsched.note = match std::fs::write(&path, self.signsched.mapping.to_json()) {
@@ -350,37 +367,36 @@ impl AfroBimApp {
         let mut open = true;
         let (mut apply_now, mut replan) = (false, false);
         let work = crate::win::work_rect(ctx);
-        crate::win::new(ctx, "Sign schedule: import plan").open(&mut open).default_width(700.0).default_pos(crate::win::first_position(work) + egui::vec2(0.0, 392.0)).show(ctx, |ui| {
+        let valid = std::cell::Cell::new(0usize);
+        let dlg = crate::ui_kit::Dialog::titled("Sign schedule: import plan").subtitle("What the import will add and change").width(700.0).default_pos(crate::win::first_position(work) + egui::vec2(0.0, 392.0)).show(ctx, |ui| {
             let st = &mut self.signsched;
             let Some(plan) = &st.plan else {
-                ui.label("No plan yet: choose a file with SIGNSCHEDULE.");
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No plan yet: choose a file with SIGNSCHEDULE.");
                 return;
             };
             let plan = match plan {
                 Ok(p) => p,
                 Err(e) => {
-                    ui.label(RichText::new(e).color(BAD));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, e);
                     return;
                 }
             };
             let dups = plan.duplicates().count();
             ui.horizontal_wrapped(|ui| {
-                ui.label(RichText::new(format!("{} rows to create or update", plan.valid_count())).color(GOOD).strong());
-                ui.label(RichText::new(format!("{} rows with problems", plan.invalid_count())).color(if plan.invalid_count() > 0 { BAD } else { Color32::GRAY }).strong());
-                ui.label(RichText::new(format!("{dups} duplicate marks")).color(if dups > 0 { WARN } else { Color32::GRAY }).strong());
+                crate::ui_kit::heading(ui, &format!("{} rows to create or update", plan.valid_count()));
+                ui.label(RichText::new(format!("{} rows with problems", plan.invalid_count())).color(if plan.invalid_count() > 0 { BAD() } else { Color32::GRAY }).strong());
+                ui.label(RichText::new(format!("{dups} duplicate marks")).color(if dups > 0 { WARN() } else { Color32::GRAY }).strong());
             });
             if dups > 0 {
-                ui.horizontal(|ui| {
-                    ui.label("Duplicate marks:");
-                    ui.radio_value(&mut st.policy, DuplicatePolicy::Skip, "skip (keep the existing sign)");
-                    ui.radio_value(&mut st.policy, DuplicatePolicy::Update, "update (replace its definition and site placement)");
+                crate::ui_kit::form(ui, "sched-dups", |f| {
+                    f.row_note("Duplicate marks", "Skip keeps the existing sign; update replaces its definition and site placement.", |ui| crate::ui_kit::segmented_of(ui, &mut st.policy, &[(DuplicatePolicy::Skip, "Skip"), (DuplicatePolicy::Update, "Update")]));
                 });
             }
-            ui.add_space(4.0);
-            egui::ScrollArea::vertical().max_height(110.0).show(ui, |ui| {
+            crate::ui_kit::heading(ui, "Rows");
+            egui::ScrollArea::both().max_height(180.0).show(ui, |ui| {
                 egui::Grid::new("sched-plan").num_columns(5).spacing([10.0, 3.0]).striped(true).show(ui, |ui| {
                     for h in ["Line", "Mark", "What", "Where", "Result"] {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for r in &plan.rows {
@@ -391,14 +407,14 @@ impl AfroBimApp {
                                 ui.label(&p.catalog_name);
                                 ui.label(format!("{} {}, {:.2} m {}", p.placement.alignment, afrobim_alignment::format_station(p.placement.station_m, 3), p.placement.offset_m, if matches!(p.placement.side, afrobim_alignment::SignSide::Right) { "right" } else { "left" }));
                                 match p.existing {
-                                    Some(_) => ui.label(RichText::new(if st.policy == DuplicatePolicy::Update { "duplicate: will update" } else { "duplicate: will skip" }).color(WARN)),
-                                    None => ui.label(RichText::new("will create").color(GOOD)),
+                                    Some(_) => ui.label(RichText::new(if st.policy == DuplicatePolicy::Update { "duplicate: will update" } else { "duplicate: will skip" }).color(WARN())),
+                                    None => ui.label(RichText::new("will create").color(GOOD())),
                                 };
                             }
                             RowOutcome::Invalid(issues) => {
                                 ui.label("");
                                 ui.label("");
-                                ui.label(RichText::new(issues.iter().map(|i| i.message.as_str()).collect::<Vec<_>>().join("; ")).color(BAD));
+                                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, issues.iter().map(|i| i.message.as_str()).collect::<Vec<_>>().join("; "));
                             }
                         }
                         ui.end_row();
@@ -408,23 +424,32 @@ impl AfroBimApp {
             if !plan.unread_headers.is_empty() {
                 ui.label(RichText::new(format!("Columns not read: {}", plan.unread_headers.join(", "))).small().weak());
             }
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                if ui.add_enabled(plan.valid_count() > 0, egui::Button::new(format!("Apply {} row(s)", plan.valid_count()))).on_hover_text("One undo step").clicked() {
-                    apply_now = true;
-                }
-                if ui.button("Plan again").clicked() {
-                    replan = true;
-                }
-            });
+            valid.set(plan.valid_count());
             if !st.report.is_empty() {
-                ui.separator();
-                ui.label(RichText::new("Report").strong());
+                crate::ui_kit::heading(ui, "Report");
                 for l in &st.report {
                     ui.label(RichText::new(l).small());
                 }
             }
+        }, |ui| {
+            let n = valid.get();
+            let label = format!("Apply {n} row(s)");
+            crate::ui_kit::Footer::new(&label).enabled(n > 0, "No row can be applied").secondary(&["Plan again"]).cancel(Some("Close")).note("One undo step").show(ui)
         });
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                apply_now = true;
+            }
+            if out.secondary == Some(0) {
+                replan = true;
+            }
+        }
         if apply_now {
             self.signsched_apply(ctx);
         }
@@ -463,7 +488,7 @@ mod tests {
             "Sign No.;Diagram;Road Name;Chainage;L/R;Offset (m);Remarks;Legend Text;Contractor\n\
              ADS-1;{stack};{align_name};1+100;R;3.5;first;Kasese@Ahead;ACME\n\
              ADS-2;{stack};{align_name};1+200;L;4;second;Masaka@Left;ACME\n\
-             BAD-1;NOPE;{align_name};1+300;L;4;a row with an unknown code;Kasese@Ahead;ACME\n"
+             BAD()-1;NOPE;{align_name};1+300;L;4;a row with an unknown code;Kasese@Ahead;ACME\n"
         );
         let (table, proposal) = read_text(&foreign).unwrap();
         assert!(proposal.missing_required.is_empty(), "{:?}", proposal.missing_required);

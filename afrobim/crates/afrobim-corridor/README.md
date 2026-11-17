@@ -126,13 +126,28 @@ Reads `LandXML/Surfaces/Surface/Definition`. These names were checked against
 | `F@i` | `1` means "part of the triangulation but invisible" (schema). Such faces are **skipped** |
 
 A `Definition` may hold several `Faces` groups; all are read. Not read: `F@n` (neighbours),
-`F@b` (breakline sides), `SourceData`, `Watersheds`, `SurfVolumes`. `Units@elevationUnit` is not
-applied (by the schema it is for elevation attributes; the alignment reader does the same).
-Faces without exactly three ids, naming a missing point, or with no plan area are dropped and
-counted in the import notes.
+`F@b` (breakline sides; both derivable from the faces), `Watersheds`, `SurfVolumes`,
+`SourceData/Chain`. `Units@elevationUnit` is not applied (by the schema it is for elevation
+attributes; the alignment reader does the same). Faces without exactly three ids, naming a missing
+point, or with no plan area are dropped and counted in the import notes.
+
+Also read, and kept on `ImportedSurface`: `SourceData` (`Breaklines`, `Contours`, `Boundaries`,
+`DataPoints` and the external `PointFiles`, named and not opened) as `source_data`; the statistics
+`Definition` states (`area2DSurf`, `area3DSurf`, `elevMin`, `elevMax`) as `stated`; and
+`outlier_points`, the indices of points that lie 100 times the median distance or more from the
+middle of the surface. Such a point (a stray or untransformed survey point) is in the TIN as the file
+gives it and is named in the notes; it makes the plan extent of the TIN much larger than the
+surface. **Civil 3D states `area2DSurf` as the plan area of the visible faces**: the TIN read here
+has exactly that area (checked to 1e-3 m2 on four surfaces of a real Civil 3D 2025 file, with 581
+invisible faces skipped out of about 41 000), which is the check that skipping `F i="1"` is right.
 
 `tests/landxml/surface.xml` and `surface_feet.xml` validate against the schema
-(`xmllint --noout --schema LandXML-1.2.xsd`). They were written by hand.
+(`xmllint --noout --schema LandXML-1.2.xsd`). They were written by hand. The surface of
+`afrobim-alignment/tests/landxml/civil3d_like.xml` has the structure Civil 3D writes (invisible hull
+faces with `n` lists, a stray point, `PointFiles`, `Definition` statistics; made-up numbers) and is
+read by `tests/landxml.rs`; the same file also holds a test against a private real export, which
+runs only when `AFROBIM_PRIVATE_LANDXML` names it and otherwise prints a note and passes. Reading
+the four surfaces of that export (about 20 000 points) takes 0.6 s in a debug build.
 
 ### Storage in a document
 
@@ -246,6 +261,155 @@ Station,Cut area (m2),Fill area (m2),Cut volume (m3),Fill volume (m3),Cumulative
 
 Each row's volumes are for the length from the row before.
 
+## Assemblies, the corridor model, sample lines and quantities (round 5)
+
+The object model of Civil 3D, tuned to BIM, **beside** the template engine above. Old documents
+and `Corridor::build` are unchanged; an old `Template` maps to an assembly with
+`Assembly::from_template`, and an assembly that is a plain template maps back with
+`Assembly::to_template` (anything else is refused, naming the part).
+
+**No built-in values.** Every width, slope, depth, run, height, spacing and factor is a
+parameter. Defaults exist only for structural zeros (baseline offset and elevation 0, no
+benching, no layers). The library constructors in `library` take all dimensions as arguments.
+
+### Subassemblies and assemblies
+
+A `Subassembly` has a name, a `SubKind` with typed parameters, a `Classification` and an optional
+`code_map` that renames output codes. Parts are described going outward from their attachment
+point (`u` outward, `v` up), so the same part serves both sides. Output: points with point codes,
+links with link codes, shapes with shape codes, and the datum line the earthworks are measured to.
+
+| Part (`library::`) | Parameters | Codes out |
+|---|---|---|
+| `lane`, `shoulder`, `footway` | width (fixed or to an offset target), slope, layers (shape code, depth) | point `ETW`, `ESh` or `EFw`; links `Top`, `Pave`, `Datum`; shapes are the layer codes |
+| `verge` | width, slope | point `EVg`; link `Top` |
+| `kerb` | height, top width, bed depth | `Face`, `Top`, `Datum`; shape `Kerb`; the next part attaches at the top of the back |
+| `kerb_and_channel` | channel width and slope, kerb as above | as kerb, plus `Channel` |
+| `median_raised` (half) | height, half width, bed depth | as kerb, plus `Back`; the next part attaches at the foot of the back |
+| `median_depressed` (half) | half bottom width, depth, side run | `Median_Bottom`, `Median_Slope`; the baseline point is the invert |
+| `side_ditch_v`, `side_ditch_trapezoid` | depth, (bottom width), inner and outer run | `Top`, `Ditch_In`, `Ditch_Bottom`, `Ditch_Out` |
+| `lined_drain` | ditch, lining thickness (vertical) | as ditch, plus `Datum`; shape `Lining` |
+| `retaining_edge` | thickness, depth below | `Wall_Top`, `Datum`; shape `Wall` |
+| `link_width_slope`, `link_to_elevation`, `link_to_offset` | your own link and point codes; width and slope, or an elevation target, or an offset target | as entered |
+| `daylight`, `daylight_benched` | cut and fill run per rise; optional bench (step height, width, slope) in cut and in fill | links `Daylight`, `Daylight_Cut` or `Daylight_Fill`; point `Daylight` |
+
+`Assembly` is a baseline point (offset and elevation from the alignment and profile) and
+`left` and `right` lists of parts from the baseline outward. `Assembly::symmetric` and
+`mirror_right_to_left` copy a side. Daylight, if present, must be last on its side. A target given
+as a fixed signed offset is not mirrored.
+
+**Classification.** `Classification { ifc_entity, predefined_type, material, cost_item_code }`
+on every subassembly and on every layer; a shape carries the classification of its layer, or of
+its subassembly when the layer has none. Nothing is validated against a schema. **IFC names:** the
+IFC 4.3 documentation site could not be fetched from the build environment (it refused the
+request), so only names that `afrobim-ifc` already writes are provided as constants
+(`ifc::PAVEMENT` is `IfcPavement`, `ifc::COURSE` is `IfcCourse` with `PAVEMENT`;
+`Layer::as_course` sets the latter). Names such as `IfcKerb`, `IfcEarthworksCut` and
+`IfcEarthworksFill` are **not verified here**: type them into the classification after checking
+the standard.
+
+### Targets and superelevation
+
+`OffsetTarget`: `Fixed`, `Table` of (station, offset), or a plan `Polyline` (use
+`polyline_from_alignment` to sample another alignment). `ElevationTarget`: `Fixed`, `Table`, or a
+`Profile`. A table gives no value outside its stations (an error, not an extrapolation). A strip
+width can run to an offset target (lane widening); a link can run to an offset or an elevation, or
+(`LinkMode::ToOffsetAndElevation`, `library::link_to_offset_and_elevation`) to **both together**: the
+end point is fixed in plan and in level and the slope is whatever joins it to the attachment point
+(the slope is not entered). `ElevationTarget::NearestOnAlignment` reads the profile of another
+alignment at the station of that alignment nearest the **section point**, not at the baseline
+station: the section point is the link's attachment point for a link to an elevation, and the end
+point (at the offset target) for a link to an offset and an elevation. It needs the perpendicular
+foot of that point on the target alignment (a point beyond its ends is an error that says so) and a
+profile on the target alignment. The ground ("surface target") is the corridor's ground TIN, used by `Daylight`.
+
+A strip with `follows_superelevation` takes the alignment's stored cross-fall for its side at the
+station (`Superelevation::cross_fall_at`); where the alignment has none for that side, the
+baseline's `crossfall_table` (station, left and right percent) is read the same way; where neither
+has one, the entered slope is kept. No rate is computed.
+
+### Corridor model
+
+`CorridorModel { baselines, volumes }`; `Baseline { alignment name, regions, crossfall_table }`;
+`AssemblyRegion { start, end, assembly, frequency }`; regions are contiguous. `Frequency` holds
+the spacing on tangents, curves and spirals (each optional, **none defaulted**; a kind with no
+spacing has no regular sections), `at_geometry_points` (element starts, PVIs, vertical curve
+ends), `at_superelevation_critical` (every station where cross-fall is stored) and
+`extra_stations`. Regular sections stand on whole multiples of the spacing inside the elements of
+that kind. A region boundary has two sections. `build_model`, `build_baseline` and
+`design_section_at` give `ModelSection { section, design, region }`, where `section` is the
+ordinary `Section` (so `section_drawing` and the volume code work on it) and `design` is the
+`DesignGeometry`.
+
+- `corridor_surface(built, &["Top"], boundary)`: a surface from the points of links with those
+  codes. Between consecutive sections the two rows of points, in offset order, are joined in a
+  triangle strip; zero-area triangles are dropped. A vertical link left out of the codes is
+  bridged by a sloping face. `SurfaceBoundary::Daylight` removes triangles whose centre is
+  outside the ring of daylight points (`daylight_boundary`).
+- `feature_lines(built, "ETW")`: a 3D line per side through the points with a point code, broken
+  where a section lacks the point.
+
+### Sample lines and section views
+
+`SampleLineGroup` on an alignment: `add_stations` with `SampleStations::Interval` (from the start,
+every interval, and the end), `Listed`, `GeometryPoints` (element starts and the end) or
+`SuperelevationStations`; `add_line`, `set_swath`, `rename_line`, `remove_line`. Each line has its
+own left and right swath. `section_views(group, alignment, surfaces, corridor)` returns a
+`SectionView` per line: the ground runs of each named surface cut to the swath, the profile level,
+and, when a baseline is given, the `DesignView` (design points, links and shapes with offsets and
+elevations, the finished surface, earthworks line, daylight and areas). The design is not cut to
+the swath. A surface that does not cover the line gives no run and a note.
+
+### Quantities
+
+- `earthwork_table(ends, mids, options)`: average end area `V = L (A1 + A2) / 2` or, with
+  `VolumeMethod::Prismoidal`, `V = L (A1 + 4 Am + A2) / 6` where `Am` is the area of a section
+  built at the middle station of the interval (`baseline_earthworks` and `surface_earthworks`
+  build them). The prismoidal formula is exact for areas that vary at most as a quadratic along
+  the interval; the test shows `A = 2 s^2` over 10 m: 666.667 against 1000 by average end area.
+  Factors and the Pappus curvature correction are those of `VolumeOptions` (see Volumes above).
+- `surface_earthworks`: cut and fill between an existing and a proposed TIN over the swaths of
+  the sample lines (cut where the existing surface is above the proposed one).
+- `material_volumes`: volume per shape code between consecutive sections or views by average end
+  area on the centreline length, with a cumulative column and totals carrying each code's
+  classification and cost item code. No curvature correction and no prismoidal option here.
+- `mass_haul(stations, ordinates, free_haul_m)`: for a piecewise linear mass curve, the slice of
+  volume `dc` at ordinate `c` is hauled the width `L(c)` of the loop of the curve at that level
+  (the balance line). Crossings of a level are paired from the start (first with second ...);
+  the last unpaired crossing is the net volume leaving or entering. Because station is linear in
+  `c` between vertex ordinates the integrals are exact: total moment `sum dc (L0 + L1) / 2` and
+  overhaul moment `sum dc * integral of max(L - F, 0)`. Outputs: balanced volume, free-haul and
+  overhaul volumes, both moments, residual. The pairing from the start is a convention: a curve
+  that could be balanced either way is balanced the forward way. `F` is the entered free haul
+  distance.
+
+### Limits of this part
+
+- **No region bounded by an outline.** A corridor region is a range of stations along a baseline;
+  a section-based model cannot represent a closed outline (an island), because it has no station
+  along it. Round 6 looked at it and did not build it: an island is made as a grading (a feature
+  line footprint with infill, `afrobim-grading`) or as an outline the junction crate returns.
+- A link to a level and an offset together has no slope input, so a kerb return sliver is as steep
+  as the two targets make it; where the two targets are far apart in level the link is steep and
+  the section says so only through its geometry.
+
+- Everything is straight links in section; no curved or variable-width transitions except by
+  targets, and a target is evaluated at each section only (between sections the surface is the
+  straight strip).
+- The earthworks line is the datum chain of the parts with the side slope; a part with no layers
+  has its surface as datum. A datum with a vertical step (kerb bed, layer depth change) is
+  followed exactly; there is no sub-base carried out to the side slope.
+- Daylight benches are in the side slope only (cut and fill each their own).
+- A kerb or median is a rectangle; no batter, no radius, no kerb type library.
+- Shape polygons overlap if the parts overlap; nothing checks.
+- The corridor surface bridges vertical links; it is not a closed solid, and quantities do not
+  come from it.
+- Not stored in a kernel document: the new objects have serde and are meant to be held by the
+  caller; the document element (`CorridorElement`) still holds the old `CorridorDefinition`.
+- Nothing here was compared with Civil 3D. Hand calculations are in `tests/assembly.rs` with the
+  working in comments, all with arbitrary example numbers.
+- No IFC export of shapes yet; the classification slots are ready for it.
+
 ## Outputs
 
 - **`section_drawing(section, vertical_exaggeration)`**: hairlines in millimetres at full size
@@ -273,8 +437,8 @@ called.** Nothing detects that automatically.
 - The ground is a TIN from LandXML or triangulated from survey points. No breaklines, no contours.
 - Sections are straight lines square to the alignment. On tight curves with wide sections,
   neighbouring section lines can cross on the inside; nothing checks for that.
-- The daylight is the first meeting of slope and ground. There are no benches, no slope
-  rounding, no variable slopes by height, no ditch added in cut only.
+- The daylight is the first meeting of slope and ground. (Benches exist in the assembly model
+  only.) No slope rounding, no variable slopes by height, no ditch added in cut only.
 - A side with no links daylights from the centreline.
 - The cut or fill decision is made at the outer end of the template only.
 - Template changes are steps. No width or slope transitions.
@@ -283,14 +447,14 @@ called.** Nothing detects that automatically.
 
 ## Not in this cut
 
-Subassemblies beyond the link list (kerbs, medians, benches, retaining walls); widening and
-intersections; pavement layer volumes (the pavement crate does layers); surface creation from
-survey points or contours; material strata; haul and haul cost; slope staking reports;
-prismoidal correction; an external (out-of-document) surface store.
+Intersections and lane transitions beyond targets; the new assembly objects as a kernel
+document element; IFC export of shapes; material strata; haul cost and the choice of borrow and
+waste sites; slope staking reports; breaklines and contours in surfaces; an external
+(out-of-document) surface store.
 
 ## Tests
 
-`cargo test -p afrobim-corridor`: 32 tests. A timing test is ignored by default:
+`cargo test -p afrobim-corridor`: 68 tests (22 of them for assemblies, the model, sample lines and quantities, in `tests/assembly.rs`). A timing test is ignored by default:
 
 ```text
 cargo test -p afrobim-corridor --release --test module -- --ignored --nocapture

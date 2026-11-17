@@ -19,6 +19,10 @@ use afrobim_kernel::{Document, ElementId, SelectMode};
 use egui::RichText;
 
 use crate::app::AfroBimApp;
+use crate::ui_kit::{self, Col, Dialog, Footer, Level, NumRule};
+
+/// The units a point file can be in, and the metres in one of each (international foot, US survey foot).
+const UNITS: [(&str, f64); 3] = [("Metres", 1.0), ("International feet", 0.3048), ("US survey feet", 1200.0 / 3937.0)];
 
 const CRS_HINT: &str = "for example WGS 84 / UTM zone 36S, or EPSG:32736";
 
@@ -27,6 +31,11 @@ const CRS_HINT: &str = "for example WGS 84 / UTM zone 36S, or EPSG:32736";
 /// `crs` blank is no coordinate system; `max_side` blank is no limit. `exclude` is a list of
 /// descriptions separated by commas.
 pub fn request(name: &str, order: ColumnOrder, crs: &str, max_side: &str, exclude: &str) -> Result<SurveyImportRequest, String> {
+    request_in(name, SurveyFormat::metres(order), crs, max_side, exclude)
+}
+
+/// As [`request`], for a file whose coordinates and levels are in another unit (`format.unit_m`).
+pub fn request_in(name: &str, format: SurveyFormat, crs: &str, max_side: &str, exclude: &str) -> Result<SurveyImportRequest, String> {
     let crs = match crs.trim() {
         "" => None,
         typed => Some(CoordinateSystem::parse(typed).ok_or_else(|| {
@@ -41,12 +50,18 @@ pub fn request(name: &str, order: ColumnOrder, crs: &str, max_side: &str, exclud
         },
     };
     let exclude = exclude.split(',').map(str::trim).filter(|c| !c.is_empty()).map(str::to_string).collect();
-    Ok(SurveyImportRequest { name: name.trim().to_string(), format: SurveyFormat::metres(order), options: SurfaceOptions { exclude, max_side_m }, crs })
+    if !(format.unit_m.is_finite() && format.unit_m > 0.0) {
+        return Err("The file's unit must be a length in metres greater than 0.".into());
+    }
+    Ok(SurveyImportRequest { name: name.trim().to_string(), format, options: SurfaceOptions { exclude, max_side_m }, crs })
 }
 
 /// Imports the file and returns the surface and the account of the import.
 pub fn import(doc: &mut Document, path: &Path, request: &SurveyImportRequest) -> Result<(ElementId, Vec<String>), String> {
-    afrobim_corridor::import_survey_surface(doc, path, request)
+    let (id, report) = afrobim_corridor::import_survey_surface(doc, path, request)?;
+    // At the coordinates of the file, as for LandXML: the element sits at its drawing's origin.
+    crate::alignment_glue::place_at_source(doc, id);
+    Ok((id, report))
 }
 
 /// The open dialog.
@@ -54,8 +69,18 @@ pub struct SurveyForm {
     path: PathBuf,
     name: String,
     order: ColumnOrder,
+    /// 0 metres, 1 international feet, 2 US survey feet.
+    unit: usize,
+    /// Descriptions typed as patterns (a trailing * matches any ending), besides the ticked ones.
+    patterns: String,
+    utm_zone: u8,
+    utm_south: bool,
     crs: String,
     max_side: String,
+    /// The project's coordinate system when the dialog opened: the default for `crs`.
+    project: Option<afrobim_kernel::ProjectCrs>,
+    /// With no project system: also make the one entered here the project's.
+    set_project: bool,
     /// Descriptions ticked to be left out, in capitals.
     excluded: BTreeSet<String>,
     /// The file as read in `order`, or why it cannot be.
@@ -64,37 +89,55 @@ pub struct SurveyForm {
     /// every frame.
     codes: Vec<(String, usize)>,
     problem: Option<String>,
+    /// Keep, transform or cancel, when the file's stated system differs from the project's.
+    xform: crate::transform_ui::ImportCrs,
 }
 
 impl SurveyForm {
-    fn new(path: PathBuf) -> SurveyForm {
+    fn new(path: PathBuf, project: Option<afrobim_kernel::ProjectCrs>) -> SurveyForm {
+        let order = ColumnOrder::Pnezd;
+        // The file is taken to be in the project's system unless it is told otherwise.
+        let crs = project.as_ref().map(|p| p.code().unwrap_or_else(|| p.name.clone())).unwrap_or_default();
         let mut form = SurveyForm {
             name: path.file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(),
-            read: Err(String::new()),
+            read: read_survey_points(&path, &SurveyFormat::metres(order)).map_err(|e| e.to_string()),
             codes: Vec::new(),
             path,
-            order: ColumnOrder::Pnezd,
-            crs: String::new(),
+            order,
+            unit: 0,
+            patterns: String::new(),
+            utm_zone: 1,
+            utm_south: false,
+            crs,
             max_side: String::new(),
+            project,
+            set_project: true,
             excluded: BTreeSet::new(),
             problem: None,
+            xform: crate::transform_ui::ImportCrs::default(),
         };
-        form.read_again();
+        form.codes = form.read.as_ref().map(SurveyPoints::codes).unwrap_or_default();
         form
     }
 
+    fn format(&self) -> SurveyFormat {
+        SurveyFormat { order: self.order, unit_m: UNITS[self.unit.min(2)].1 }
+    }
+
     fn read_again(&mut self) {
-        self.read = read_survey_points(&self.path, &SurveyFormat::metres(self.order)).map_err(|e| e.to_string());
+        self.read = read_survey_points(&self.path, &self.format()).map_err(|e| e.to_string());
         self.codes = self.read.as_ref().map(SurveyPoints::codes).unwrap_or_default();
         self.problem = None;
     }
 
     /// The request of the form. The ticked descriptions go in as they are, one entry each: a
     /// description may hold a comma (a tab-delimited file allows it), and the entry with nothing
-    /// in it stands for the points with no description.
+    /// in it stands for the points with no description. The typed patterns are separated by commas.
     fn request(&self) -> Result<SurveyImportRequest, String> {
-        let mut r = request(&self.name, self.order, &self.crs, &self.max_side, "")?;
-        r.options.exclude = self.excluded.iter().cloned().collect();
+        let mut r = request_in(&self.name, self.format(), &self.crs, &self.max_side, &self.patterns)?;
+        let mut exclude: Vec<String> = self.excluded.iter().cloned().collect();
+        exclude.append(&mut r.options.exclude);
+        r.options.exclude = exclude;
         Ok(r)
     }
 }
@@ -108,7 +151,7 @@ pub struct SurveyUi {
 impl AfroBimApp {
     /// Opens the SURVEY dialog on a file.
     pub(crate) fn survey_open(&mut self, path: PathBuf) {
-        self.survey.form = Some(SurveyForm::new(path));
+        self.survey.form = Some(SurveyForm::new(path, afrobim_kernel::project_crs(&self.doc)));
     }
 
     /// Imports a point file with a ready request: the surface is added, selected and reported in
@@ -131,144 +174,231 @@ impl AfroBimApp {
 
     pub(crate) fn survey_window(&mut self, ctx: &egui::Context) {
         let Some(mut form) = self.survey.form.take() else { return };
-        let mut open = true;
-        let (mut go, mut cancel) = (false, false);
-        let title = format!("Survey points: {}", form.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default());
-        crate::win::new(ctx, title).id(egui::Id::new("survey-points")).open(&mut open).default_width(560.0).show(ctx, |ui| {
-            ui.label(RichText::new("A ground surface is made from the points by triangulation. Coordinates and levels are read as metres.").small().weak());
-            ui.add_space(4.0);
-            egui::Grid::new("survey-form").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
-                ui.label("Surface name");
-                ui.add(egui::TextEdit::singleline(&mut form.name).desired_width(260.0));
-                ui.end_row();
-
-                ui.label("Columns");
-                let before = form.order;
-                egui::ComboBox::from_id_salt("survey-order").selected_text(format!("{}: {}", form.order.code(), form.order.label())).show_ui(ui, |ui| {
-                    for order in ColumnOrder::ALL {
-                        ui.selectable_value(&mut form.order, order, format!("{}: {}", order.code(), order.label()));
-                    }
-                });
-                if form.order != before {
-                    form.read_again();
-                }
-                ui.end_row();
-
-                ui.label("Coordinate system");
-                ui.add(egui::TextEdit::singleline(&mut form.crs).hint_text(CRS_HINT).desired_width(260.0));
-                ui.end_row();
-
-                ui.label("Longest triangle side (m)");
-                ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut form.max_side).hint_text("blank: no limit").desired_width(90.0));
-                    ui.label(RichText::new("Triangles with a longer side are removed, so the surface does not span ground that was not surveyed.").small().weak());
-                });
-                ui.end_row();
-            });
-
-            ui.add_space(6.0);
-            match &form.read {
-                Err(why) => {
-                    ui.colored_label(egui::Color32::from_rgb(0xB0, 0x60, 0x00), format!("The file cannot be read in this column order: {why}"));
-                }
-                Ok(survey) => {
-                    ui.label(RichText::new(format!("{} points. The first as they are read:", survey.points.len())).strong());
-                    for p in survey.points.iter().take(3) {
-                        ui.label(
-                            RichText::new(format!(
-                                "{}  easting {:.3}  northing {:.3}  level {:.3}  {}",
-                                if p.id.is_empty() { format!("line {}", p.line) } else { p.id.clone() },
-                                p.easting,
-                                p.northing,
-                                p.level,
-                                p.code
-                            ))
-                            .monospace(),
-                        );
-                    }
-                    for note in &survey.notes {
-                        ui.label(RichText::new(note).small().weak());
-                    }
-                    // The coordinate system, as understood, and whether the coordinates can be in it.
-                    if !form.crs.trim().is_empty() {
-                        match CoordinateSystem::parse(&form.crs) {
-                            None => {
-                                ui.colored_label(egui::Color32::from_rgb(0xB0, 0x60, 0x00), "That coordinate system is not known. The WGS 84 / UTM zones are, with N or S.");
-                            }
-                            Some(crs) => {
-                                let extent = survey.plan_extent();
-                                let doubts = extent.map(|(min, max)| crs.doubts(min, max)).unwrap_or_default();
-                                if doubts.is_empty() {
-                                    let centre = extent.and_then(|(min, max)| crs.to_geographic((min.0 + max.0) / 2.0, (min.1 + max.1) / 2.0));
-                                    let place = centre.map(|(lat, lon)| format!(" The middle of the points is at latitude {lat:.5}, longitude {lon:.5}.")).unwrap_or_default();
-                                    ui.label(RichText::new(format!("{}.{place}", crs.label())).small());
-                                } else {
-                                    for doubt in doubts {
-                                        ui.colored_label(egui::Color32::from_rgb(0xB0, 0x60, 0x00), doubt);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    ui.add_space(6.0);
-                    let codes = &form.codes;
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(format!("Descriptions ({})", codes.len())).strong());
-                        ui.label(RichText::new("Tick those that are not ground levels (inverts, tops of walls) to leave their points out.").small().weak());
-                    });
-                    ui.horizontal(|ui| {
-                        if ui.small_button("Untick all").clicked() {
-                            form.excluded.clear();
-                        }
-                        let out: usize = codes.iter().filter(|(c, _)| form.excluded.contains(&c.to_ascii_uppercase())).map(|(_, n)| n).sum();
-                        ui.label(RichText::new(format!("{out} point(s) left out.")).small());
-                    });
-                    egui::ScrollArea::vertical().max_height(220.0).auto_shrink([false, true]).show(ui, |ui| {
-                        egui::Grid::new("survey-codes").num_columns(4).spacing([18.0, 2.0]).show(ui, |ui| {
-                            for (i, (code, count)) in codes.iter().enumerate() {
-                                let key = code.to_ascii_uppercase();
-                                let mut out = form.excluded.contains(&key);
-                                let shown = if code.is_empty() { "(no description)" } else { code.as_str() };
-                                if ui.checkbox(&mut out, format!("{shown}  ({count})")).changed() {
-                                    if out {
-                                        form.excluded.insert(key);
-                                    } else {
-                                        form.excluded.remove(&key);
-                                    }
-                                }
-                                if i % 4 == 3 {
-                                    ui.end_row();
-                                }
-                            }
-                        });
-                    });
-                }
+        let file = form.path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let max_side = ui_kit::check_number(&form.max_side, &NumRule::default().above(0.0));
+        let crs_ok = form.crs.trim().is_empty() || CoordinateSystem::parse(&form.crs).is_some();
+        let read_ok = form.read.is_ok();
+        let (enabled, reason) = match (read_ok, max_side.is_bad(), crs_ok) {
+            (false, _, _) => (false, "The file cannot be read in this column order"),
+            (_, true, _) => (false, "Correct the longest triangle side"),
+            (_, _, false) => (false, "The coordinate system is not known"),
+            _ => (true, ""),
+        };
+        let file_crs = CoordinateSystem::parse(&form.crs);
+        let differs = crate::transform_ui::differs(file_crs.as_ref(), form.project.as_ref());
+        if differs {
+            if let Some(c) = &file_crs {
+                form.xform.seed(c);
             }
-
-            if let Some(problem) = &form.problem {
-                ui.add_space(4.0);
-                ui.colored_label(egui::Color32::from_rgb(0xB0, 0x30, 0x30), problem);
-            }
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                if ui.add_enabled(form.read.is_ok(), egui::Button::new("Make the surface")).clicked() {
-                    go = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    cancel = true;
-                }
-            });
-        });
-        if go {
+        }
+        let xform_state = std::cell::Cell::new((true, ""));
+        let (enabled, reason) = if differs && !form.xform.ready() && enabled { (false, form.xform.why_not()) } else { (enabled, reason) };
+        let out = Dialog::new("Survey points", crate::glyphs::by_name("SURVEY"))
+            .id_title(format!("Survey points: {file}"))
+            .subtitle(file.clone())
+            .width(620.0)
+            .help("A ground surface is made from the points by triangulation. Coordinates and levels are read in the unit you choose and kept in metres. Nothing here is a design value: the column order starts at PNEZD because surveyors' files usually come that way, and the first points are shown as they are read so you can check it by eye.")
+            .show(
+                ctx,
+                |ui| {
+                    survey_body(ui, &mut form);
+                    if differs {
+                        if let (Some(p), Ok(sp)) = (form.project.clone(), &form.read) {
+                            let extent = crate::transform_ui::extent_of_points(sp.points.iter().map(|q| (q.easting, q.northing)));
+                            form.xform.show(ui, "sv-crs", &p, extent);
+                        }
+                        xform_state.set((form.xform.ready(), form.xform.why_not()));
+                    }
+                },
+                |ui| {
+                    let (ok, why) = xform_state.get();
+                    Footer::new("Make the surface").icon(crate::glyphs::by_name("SURVEY")).enabled(enabled && ok, if ok { reason } else { why }).show(ui)
+                },
+            );
+        if out.closed || out.inner.is_some_and(|(_, f)| f.cancel) {
+            return;
+        }
+        if out.inner.is_some_and(|(_, f)| f.primary) {
+            let before: Vec<afrobim_kernel::ElementId> = self.doc.elements().iter().map(|e| e.id).collect();
             match form.request().and_then(|request| self.survey_import(Some(ctx), &form.path, &request)) {
-                Ok(_) => return,
+                Ok(_) => {
+                    self.finish_import_transform(&form.xform, &before, &file);
+                    // With no project system, the one stated for this file becomes the project's, when ticked.
+                    if form.project.is_none() && form.set_project {
+                        if let Some(mut c) = CoordinateSystem::parse(&form.crs) {
+                            c.source = afrobim_kernel::CrsSource::Survey;
+                            self.apply_project_crs(c);
+                        }
+                    }
+                    return;
+                }
                 Err(why) => form.problem = Some(why),
             }
         }
-        if open && !cancel {
-            self.survey.form = Some(form);
+        self.survey.form = Some(form);
+    }
+}
+
+fn survey_body(ui: &mut egui::Ui, form: &mut SurveyForm) {
+    ui_kit::section(ui, "Surface", |ui| {
+        ui_kit::form(ui, "survey-name", |f| {
+            f.row("Name", |ui| {
+                let r = ui_kit::text_field(ui, &mut form.name, "the file name when blank");
+                ui_kit::focus_once(ui, &r, "survey-name");
+            });
+        });
+    });
+    ui_kit::section(ui, "The file", |ui| {
+        ui_kit::form(ui, "survey-file", |f| {
+            f.row("Columns", |ui| {
+                let before = form.order;
+                let labels: Vec<String> = ColumnOrder::ALL.iter().map(|o| format!("{}: {}", o.code(), o.label())).collect();
+                let mut i = ColumnOrder::ALL.iter().position(|o| *o == form.order).unwrap_or(0);
+                let refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+                if ui_kit::combo(ui, "survey-order", &mut i, &refs) {
+                    form.order = ColumnOrder::ALL[i];
+                }
+                if form.order != before {
+                    form.read_again();
+                }
+            });
+            f.row_note("Units of the file", "coordinates and levels are converted to metres", |ui| {
+                let labels: Vec<&str> = UNITS.iter().map(|u| u.0).collect();
+                let before = form.unit;
+                ui_kit::segmented(ui, &mut form.unit, &labels);
+                if form.unit != before {
+                    form.read_again();
+                }
+            });
+        });
+        ui.add_space(4.0);
+        match &form.read {
+            Err(why) => {
+                ui_kit::callout(ui, Level::Warning, format!("The file cannot be read in this column order: {why}"));
+            }
+            Ok(survey) => {
+                ui.label(RichText::new(format!("{} points. The first, as they are read:", survey.points.len())).strong());
+                let rows: Vec<Vec<String>> = survey
+                    .points
+                    .iter()
+                    .take(3)
+                    .map(|p| vec![if p.id.is_empty() { format!("line {}", p.line) } else { p.id.clone() }, format!("{:.3}", p.easting), format!("{:.3}", p.northing), format!("{:.3}", p.level), p.code.clone()])
+                    .collect();
+                ui_kit::results_table(ui, "survey-first", &["Point", "Easting", "Northing", "Level", "Description"], &[Col::Text, Col::Num, Col::Num, Col::Num, Col::Text], &rows);
+                for note in &survey.notes {
+                    ui.label(RichText::new(note).small().weak());
+                }
+            }
         }
+    });
+    ui_kit::section(ui, "Coordinate system", |ui| {
+        ui_kit::form(ui, "survey-crs", |f| {
+            f.row_note("System", CRS_HINT, |ui| {
+                ui_kit::text_field(ui, &mut form.crs, "blank: not stated");
+            });
+            f.row("Or a WGS 84 UTM zone", |ui| {
+                ui.horizontal(|ui| {
+                    let mut zone = form.utm_zone as u32;
+                    ui.add(egui::DragValue::new(&mut zone).range(1..=60).prefix("zone "));
+                    form.utm_zone = zone as u8;
+                    let mut i = usize::from(form.utm_south);
+                    if ui_kit::segmented(ui, &mut i, &["North", "South"]) {
+                        form.utm_south = i == 1;
+                    }
+                    if ui.button("Use").clicked() {
+                        if let Some(c) = CoordinateSystem::utm_wgs84(form.utm_zone, form.utm_south) {
+                            form.crs = c.code().unwrap_or_default();
+                        }
+                    }
+                });
+            });
+        });
+        if let (false, Ok(survey)) = (form.crs.trim().is_empty(), &form.read) {
+            match CoordinateSystem::parse(&form.crs) {
+                None => {
+                    ui_kit::callout(ui, Level::Error, "That coordinate system is not known. The WGS 84 / UTM zones are, with N or S.");
+                }
+                Some(crs) => {
+                    let extent = survey.plan_extent();
+                    let doubts = extent.map(|(min, max)| crs.doubts(min, max)).unwrap_or_default();
+                    if doubts.is_empty() {
+                        let centre = extent.and_then(|(min, max)| crs.to_geographic((min.0 + max.0) / 2.0, (min.1 + max.1) / 2.0));
+                        let place = centre.map(|(lat, lon)| format!(" The middle of the points is at latitude {lat:.5}, longitude {lon:.5}.")).unwrap_or_default();
+                        ui_kit::callout(ui, Level::Success, format!("{}.{place}", crs.label()));
+                    } else {
+                        for doubt in doubts {
+                            ui_kit::callout(ui, Level::Warning, doubt);
+                        }
+                    }
+                }
+            }
+        }
+    });
+    if let (Ok(survey), Some(crs)) = (&form.read, CoordinateSystem::parse(&form.crs)) {
+        match &form.project {
+            Some(p) => {
+                // Same or different from the project: said plainly. The file comes in at its own coordinates either way.
+                let extent = survey.plan_extent().map(|(min, max)| afrobim_kernel::PlanExtent { min_easting: min.0, min_northing: min.1, max_easting: max.0, max_northing: max.1 });
+                let findings: Vec<_> = crate::crs_ui::dataset_check(Some(p), &form.name, Some(&crs), extent)
+                    .into_iter()
+                    .filter(|f| matches!(f.kind, afrobim_kernel::FindingKind::SameSystem | afrobim_kernel::FindingKind::DifferentSystem))
+                    .collect();
+                crate::crs_ui::show_findings(ui, &findings);
+            }
+            None => {
+                ui_kit::toggle(ui, &mut form.set_project, &format!("Also use {} for the project", crs.label()));
+            }
+        }
+    }
+    ui_kit::section(ui, "Triangulation", |ui| {
+        ui_kit::form(ui, "survey-tri", |f| {
+            f.row_note("Longest triangle side", "triangles with a longer side are removed, so the surface does not span ground that was not surveyed; blank keeps every triangle", |ui| {
+                ui_kit::num_field(ui, &mut form.max_side, "m", &NumRule::default().above(0.0));
+            });
+        });
+    });
+    if form.read.is_ok() {
+        let codes = form.codes.clone();
+        ui_kit::section(ui, &format!("Points left out ({} descriptions)", codes.len()), |ui| {
+            crate::ui_kit::note(ui, "Tick the descriptions that are not ground levels (inverts, tops of walls) to leave their points out.");
+            ui.horizontal(|ui| {
+                if ui.small_button("Untick all").clicked() {
+                    form.excluded.clear();
+                }
+                let out: usize = codes.iter().filter(|(c, _)| form.excluded.contains(&c.to_ascii_uppercase())).map(|(_, n)| n).sum();
+                ui.label(RichText::new(format!("{out} point(s) left out by ticks.")).small());
+            });
+            egui::ScrollArea::vertical().max_height(150.0).auto_shrink([false, true]).show(ui, |ui| {
+                egui::Grid::new("survey-codes").num_columns(4).spacing([18.0, 2.0]).show(ui, |ui| {
+                    for (i, (code, count)) in codes.iter().enumerate() {
+                        let key = code.to_ascii_uppercase();
+                        let mut out = form.excluded.contains(&key);
+                        let shown = if code.is_empty() { "(no description)" } else { code.as_str() };
+                        if ui.checkbox(&mut out, format!("{shown}  ({count})")).changed() {
+                            if out {
+                                form.excluded.insert(key);
+                            } else {
+                                form.excluded.remove(&key);
+                            }
+                        }
+                        if i % 4 == 3 {
+                            ui.end_row();
+                        }
+                    }
+                });
+            });
+            ui_kit::advanced(ui, "survey-patterns", |ui| {
+                ui_kit::form(ui, "survey-patterns-form", |f| {
+                    f.row_note("Also leave out", "descriptions or patterns, separated by commas; a trailing * matches any ending (CULV-*)", |ui| {
+                        ui_kit::text_field_wide(ui, &mut form.patterns, "for example CULV-*, WW");
+                    });
+                });
+            });
+        });
+    }
+    if let Some(problem) = &form.problem {
+        ui.add_space(4.0);
+        ui_kit::callout(ui, Level::Error, problem.as_str());
     }
 }
 
@@ -281,17 +411,25 @@ mod tests {
         let r = request(" EG ", ColumnOrder::Pnezd, "wgs 84 / utm zone 36s", "40", "CULV-INV, clvt-*,,").unwrap();
         assert_eq!(r.name, "EG");
         assert_eq!(r.format, SurveyFormat::metres(ColumnOrder::Pnezd));
-        assert_eq!(r.crs.as_ref().map(|c| c.epsg), Some(32736));
+        assert_eq!(r.crs.as_ref().and_then(|c| c.epsg), Some(32736));
         assert_eq!(r.options, SurfaceOptions { exclude: vec!["CULV-INV".into(), "clvt-*".into()], max_side_m: Some(40.0) });
         // Blank is none, for both.
         let r = request("", ColumnOrder::Enzd, "  ", "", "").unwrap();
         assert!(r.crs.is_none() && r.options.max_side_m.is_none() && r.options.exclude.is_empty());
         // What cannot be understood is said, never guessed.
         assert!(request("", ColumnOrder::Pnezd, "UTM 36", "", "").unwrap_err().contains("with N or S"));
-        assert!(request("", ColumnOrder::Pnezd, "Arc 1960 / UTM zone 36S", "", "").unwrap_err().contains("not a coordinate system AfroBIM knows"));
+        assert!(request("", ColumnOrder::Pnezd, "Arc 1960 / UTM zone 38S", "", "").unwrap_err().contains("not a coordinate system AfroBIM knows"));
         for bad in ["0", "-5", "ten", "inf"] {
             assert!(request("", ColumnOrder::Pnezd, "", bad, "").unwrap_err().contains("greater than 0"), "{bad}");
         }
+    }
+
+    #[test]
+    fn a_file_in_feet_is_read_with_its_unit_and_a_bad_unit_is_refused() {
+        let r = request_in("", SurveyFormat { order: ColumnOrder::Enzd, unit_m: UNITS[1].1 }, "", "", "").unwrap();
+        assert_eq!(r.format.unit_m, 0.3048);
+        assert!((UNITS[2].1 - 0.304_800_609_6).abs() < 1e-9);
+        assert!(request_in("", SurveyFormat { order: ColumnOrder::Enzd, unit_m: 0.0 }, "", "", "").is_err());
     }
 
     #[test]
@@ -301,13 +439,14 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("tabs.txt");
         std::fs::write(&path, "1\t0\t0\t10\tWALL, TOP\n2\t0\t10\t10\tSH\n3\t10\t0\t10\tSH\n4\t10\t10\t10\tSH\n5\t5\t5\t3\n").unwrap();
-        let mut form = SurveyForm::new(path);
+        let mut form = SurveyForm::new(path, None);
         assert_eq!(form.codes, vec![("SH".to_string(), 3), ("".to_string(), 1), ("WALL, TOP".to_string(), 1)]);
         form.excluded.insert("WALL, TOP".to_string());
         form.excluded.insert(String::new());
+        form.patterns = "CULV-*, WW".to_string();
         let r = form.request().unwrap();
-        assert_eq!(r.options.exclude, vec![String::new(), "WALL, TOP".to_string()]);
-        assert!(r.options.excludes("wall, top") && r.options.excludes("") && !r.options.excludes("SH") && !r.options.excludes("WALL"));
+        assert_eq!(r.options.exclude, vec![String::new(), "WALL, TOP".to_string(), "CULV-*".to_string(), "WW".to_string()]);
+        assert!(r.options.excludes("wall, top") && r.options.excludes("") && r.options.excludes("culv-inv") && !r.options.excludes("SH") && !r.options.excludes("WALL"));
         // Changing the column order reads the file again and counts again.
         form.order = ColumnOrder::Penzd;
         form.read_again();

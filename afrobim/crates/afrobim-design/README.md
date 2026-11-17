@@ -153,11 +153,61 @@ writes the sample.) Written: `Units/Metric`, `Application`, `Alignments/Alignmen
 (`name`, `length`, `staStart`), `CoordGeom` with `Line`, `Curve` (`Start`, `Center`, `End`,
 `PI`), `Spiral` (`Start`, `PI`, `End`: the schema requires all three, the PI being the
 intersection of the end tangents), `StaEquation`, `Profile/ProfAlign` with `PVI`, `ParaCurve`,
-`UnsymParaCurve`, `CircCurve`. Not written: superelevation, existing-ground profiles,
-cross-sections, `dir`/`dirStart`/`dirEnd` attributes. Round trip through the
+`UnsymParaCurve`, `CircCurve`. Not written by `write_landxml`: `dir`/`dirStart`/`dirEnd` attributes
+(see below for the whole-file writer). Round trip through the
 `afrobim-alignment` importer (`tests/landxml.rs`): element starts, headings, lengths and
 curvatures agree to **2.8e-11** on a test alignment with spirals; the test asserts 1e-6 (m,
 rad, 1/m); PVIs, curve lengths and levels agree to 1e-9.
+
+#### Whole-file export
+
+`write_landxml_file(&LandXmlFile, &LandXmlOptions)` returns `LandXmlOutput { text, warnings }` for
+a file as `afrobim_alignment::parse_landxml_file` reads it: `CoordinateSystem` (every schema
+attribute), `Project`, `CgPoints` (nested groups), alignments with `ProfAlign`, existing-ground
+`ProfSurf`, `CrossSects` (`CrossSectSurf`, `DesignCrossSectSurf/CrossSectPnt`), `StaEquation` and
+`Superelevation` (the six stations, `FullSuperelev`, `AdverseSE`), `Parcels` (area in square metres,
+`Center`, `CoordGeom`, nested parcels), `PlanFeatures`, and `Surfaces` with `Definition` (`Pnts/P`,
+`Faces/F`) and `SourceData` (`DataPoints`, `Breaklines`, `Contours`, `Boundaries`).
+`surface_from_tin(name, &Tin)` makes a surface from a corridor TIN. The written file is metric;
+**numbers are printed in Rust's shortest round-trip form, so no coordinate is rounded** (UTM-sized
+values such as 450123.4567 and 9960012.3456 are written with exactly their digits, and the tests
+compare them for equality after a read, write, read). The files the tests write validate against
+`LandXML-1.2.xsd` (`AFROBIM_LANDXML_OUT=dir cargo test -p afrobim-design --test landxml_file`
+leaves them in `dir`).
+
+**A file that was read comes back as it was stated.** An alignment read by `parse_landxml_file` is
+written from the points the file stated (`LandXmlAlignmentInfo::coord_geoms`), not recomputed from
+the engine elements, so coordinates, radii and lengths come back bit for bit; so do the design
+profiles as written (also one with a vertical step, which the engine `Profile` cannot hold), the
+cross-sections with the attributes of `CrossSects` and `CrossSect`, `Feature` property bags, the
+coordinate system's `FieldNote`, a surface's `PointFiles` and `Definition` statistics, and every
+`Superelevation` record (stations, rates with their signs, `AdverseSE`). That holds only while the
+engine alignment, profile and superelevation are still the ones built from what was read (compared by
+element count, length, start and end; the profile and superelevation by equality with what the
+records give); an edited one is written from the engine with a warning saying so. Superelevation
+that was edited is written only when LandXML's single rate can hold it: its full-super stations hold
+one rate with opposite signs on the two sides and the curve tells the inside; a crown, a different
+rate per side, or a section with no cross-fall is left out with a warning.
+
+Not carried over: the `Application` elements of a source file (the output was not made by them),
+`LandXML@readOnly`, `Alignments@name`, the date and time (taken from the options), the redundant
+attributes the reader does not read (`Line@dir`, `Curve@chord`, `delta`, `dirStart`, `Spiral@theta`,
+`totalX`, ..., `Faces/F@n`, and the stated `length` of a line), the order of the elements inside a
+`Superelevation` (stations first, then the rates, then `AdverseSE`), and `Feature` or `FieldNote`
+elements that hang on an object the writer does not write one for (a warning counts them). A ground
+profile or cross-section whose alignment is not in the file is reported and dropped (the schema nests
+them in an alignment).
+
+**Checked on a real Civil 3D 2025 export** (`tests/landxml_civil.rs`; the file is private and the
+test runs only when `AFROBIM_PRIVATE_LANDXML` names it): read, written (8.5 MB), validated with
+`xmllint --noout --schema LandXML-1.2.xsd` (set `AFROBIM_LANDXML_XSD` to the schema file, which is
+kept outside the repository), read again, and the two readings compared part by part for equality
+(alignments, their stated geometry, design and ground profiles, cross-sections, superelevation
+tables, features, field notes, surfaces with their points and faces bit for bit, coordinate system),
+with no writer warning; writing the second reading again gives the same text. An independent reading
+in Python of the written file agrees with the one of the original except for what is listed above.
+`civil3d_like.xml` (made-up numbers, in `afrobim-alignment/tests/landxml/`) does the same in the
+public test suite. Nothing here has been opened by Civil 3D itself.
 
 ### Checks against a standard
 

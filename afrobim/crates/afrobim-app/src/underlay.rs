@@ -522,13 +522,14 @@ impl UnderlayState {
             let colour = ink.gamma_multiply(def.opacity.clamp(0.05, 1.0) * 0.8);
             let stroke = Stroke::new(1.0_f32, colour);
             let mut shapes: Vec<Shape> = Vec::new();
-            let at = |x: f32, y: f32| {
-                let s = view.to_screen(Pt::new(b.origin[0] + x as f64, b.origin[1] + y as f64));
-                pos2(s.x as f32, s.y as f32)
-            };
+            // Placed from the difference between the underlay origin and the view anchor, in f64,
+            // then clipped to the screen in f64 before the f32 conversion (see `render::CLIP_PX`).
+            let at = |x: f32, y: f32| view.to_screen_local(Pt::new(b.origin[0], b.origin[1]), x as f64, y as f64);
+            let (lo, hi) = (Pt::new(rect.left() as f64 - 50.0, rect.top() as f64 - 50.0), Pt::new(rect.right() as f64 + 50.0, rect.bottom() as f64 + 50.0));
             let mut drawn = 0usize;
             for s in &b.segs {
-                let (p, q) = (at(s[0], s[1]), at(s[2], s[3]));
+                let Some((p, q)) = crate::render::clip_segment_box(at(s[0], s[1]), at(s[2], s[3]), lo, hi) else { continue };
+                let (p, q) = (pos2(p.x as f32, p.y as f32), pos2(q.x as f32, q.y as f32));
                 if (p.x < rect.left() && q.x < rect.left()) || (p.x > rect.right() && q.x > rect.right()) || (p.y < rect.top() && q.y < rect.top()) || (p.y > rect.bottom() && q.y > rect.bottom()) {
                     continue;
                 }
@@ -590,17 +591,14 @@ impl crate::app::AfroBimApp {
         let mut open = true;
         let (mut attach, mut detach, mut accept, mut zoom) = (false, None, None, None);
         let mut changes: Vec<(ElementId, UnderlayDef)> = Vec::new();
-        crate::win::new(ctx, "DXF underlays").open(&mut open).default_width(660.0).default_height(560.0).show(ctx, |ui| {
-            ui.label(egui::RichText::new("A DXF drawing attached here is a read-only background reference. The document stores its path and a hash, not the drawing: it is read again whenever the document opens, with a warning if the file is missing or has changed. AfroBIM ships no underlay: you supply the DXF. A DWG must be converted to DXF first (save it as DXF from AutoCAD or Civil 3D).").small());
-            if ui.button("Attach a DXF...").clicked() {
-                attach = true;
-            }
-            ui.separator();
+        let dlg = crate::ui_kit::Dialog::titled("DXF underlays").subtitle("Drawings attached behind the model, read only").width(660.0).show(ctx, |ui| {
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "A DXF drawing attached here is a read-only background reference. The document stores its path and a hash, not the drawing: it is read again whenever the document opens, with a warning if the file is missing or has changed. AfroBIM ships no underlay: you supply the DXF. A DWG must be converted to DXF first (save it as DXF from AutoCAD or Civil 3D).");
+            crate::ui_kit::heading(ui, "Attached drawings");
             let ids: Vec<(ElementId, String)> = self.doc.elements().iter().filter(|e| e.category == CATEGORY).map(|e| (e.id, e.name.clone())).collect();
             if ids.is_empty() {
-                ui.label(egui::RichText::new("No underlay attached.").weak());
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No underlay attached. Attach a DXF with the button below.");
             }
-            egui::ScrollArea::vertical().show(ui, |ui| {
+            {
                 for (id, name) in ids {
                     let Some(mut def) = self.doc.find(id).and_then(def_of) else { continue };
                     let before = def.clone();
@@ -610,9 +608,9 @@ impl crate::app::AfroBimApp {
                         ui.label(egui::RichText::new(&def.path).small().weak());
                         if let Some(s) = &status {
                             let colour = match s {
-                                FileStatus::Ok => egui::Color32::from_rgb(0x4D, 0xC0, 0x7A),
+                                FileStatus::Ok => crate::theme::success(),
                                 FileStatus::Reading => egui::Color32::GRAY,
-                                _ => egui::Color32::from_rgb(0xEF, 0x6C, 0x63),
+                                _ => crate::theme::danger(),
                             };
                             ui.label(egui::RichText::new(s.line()).color(colour));
                             if let FileStatus::Changed { was, now } = s {
@@ -622,12 +620,18 @@ impl crate::app::AfroBimApp {
                                 }
                             }
                         }
-                        ui.horizontal(|ui| {
-                            ui.checkbox(&mut def.visible, "Visible");
-                            ui.label("Fade");
-                            ui.add(egui::Slider::new(&mut def.opacity, 0.05..=1.0).show_value(false)).on_hover_text("Opacity of the drawing");
-                            ui.label(format!("{:.0} % opaque", def.opacity * 100.0));
+                        egui::Grid::new(("underlay-look", id.0)).num_columns(2).spacing([10.0, 5.0]).show(ui, |ui| {
+                            ui.label("Visible");
+                            crate::ui_kit::toggle(ui, &mut def.visible, "Shown behind the model");
+                            ui.end_row();
+                            ui.label("Opacity");
+                            ui.horizontal(|ui| {
+                                ui.add(egui::Slider::new(&mut def.opacity, 0.05..=1.0).show_value(false)).on_hover_text("Opacity of the drawing");
+                                ui.label(format!("{:.0} %", def.opacity * 100.0));
+                            });
+                            ui.end_row();
                         });
+                        crate::ui_kit::heading(ui, "Placement");
                         egui::Grid::new(("underlay-grid", id.0)).num_columns(2).spacing([10.0, 5.0]).show(ui, |ui| {
                             ui.label("File units");
                             ui.label(if def.units_name.is_empty() { "not read yet".to_string() } else { format!("{}{}", def.units_name, if def.units_assumed { " (assumed: the file does not say)" } else { "" }) });
@@ -647,21 +651,23 @@ impl crate::app::AfroBimApp {
                                 ui.add(egui::DragValue::new(&mut def.offset_mm[1]).speed(100.0).prefix("Y "));
                             });
                             ui.end_row();
-                            ui.label("Rotation (degrees)");
-                            ui.add(egui::DragValue::new(&mut def.rotation_deg).speed(0.5));
+                            ui.label("Rotation");
+                            crate::ui_kit::f64_field(ui, &mut def.rotation_deg, "degrees", -360.0..=360.0, 0.5);
                             ui.end_row();
                             ui.label("Scale");
                             ui.add(egui::DragValue::new(&mut def.scale).speed(0.01).range(1e-6..=1e6));
                             ui.end_row();
                             ui.label("3D site view");
-                            ui.horizontal(|ui| {
-                                ui.checkbox(&mut def.drape_3d, "Draped flat at");
-                                ui.add(egui::DragValue::new(&mut def.drape_level_mm).speed(100.0).suffix(" mm"));
+                            ui.vertical(|ui| {
+                                crate::ui_kit::toggle(ui, &mut def.drape_3d, "Draped flat");
+                                if def.drape_3d {
+                                    crate::ui_kit::f64_field(ui, &mut def.drape_level_mm, "mm level", -1e9..=1e9, 100.0);
+                                }
                             });
                             ui.end_row();
                         });
                         if let Some(u) = &under {
-                            ui.label(egui::RichText::new("Layers of the file").strong());
+                            crate::ui_kit::heading(ui, "Layers of the file");
                             egui::ScrollArea::vertical().id_salt(("underlay-layers", id.0)).max_height(120.0).show(ui, |ui| {
                                 for l in &u.layers {
                                     let mut on = !def.hidden_layers.iter().any(|h| h.eq_ignore_ascii_case(&l.name));
@@ -682,7 +688,7 @@ impl crate::app::AfroBimApp {
                                 if !u.report.unread.is_empty() {
                                     ui.label(egui::RichText::new("Not read, by type").strong());
                                     for (k, v) in &u.report.unread {
-                                        ui.label(egui::RichText::new(format!("{k}: {v}")).color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                                        ui.label(egui::RichText::new(format!("{k}: {v}")).color(crate::theme::warn()));
                                     }
                                 }
                                 if u.report.paper_space_skipped > 0 {
@@ -697,7 +703,7 @@ impl crate::app::AfroBimApp {
                         if let Some(b) = self.under.built(id) {
                             ui.label(egui::RichText::new(format!("Drawn at this zoom: {} segments from {} items, {} texts. {}", b.segs.len(), b.items, b.labels.len(), if b.truncated { "The file hit the item limit: part of it is not drawn." } else { "" })).small().weak());
                             for w in b.warnings.iter().take(5) {
-                                ui.label(egui::RichText::new(w).small().color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                                ui.label(egui::RichText::new(w).small().color(crate::theme::warn()));
                             }
                         }
                         ui.horizontal(|ui| {
@@ -713,11 +719,22 @@ impl crate::app::AfroBimApp {
                         changes.push((id, def));
                     }
                 }
-            });
-            if self.under.left_out.get() > 0 {
-                ui.label(egui::RichText::new(format!("{} segments are left out of the last picture (the cap is {DRAW_CAP}): zoom in.", self.under.left_out.get())).small().color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)));
             }
-        });
+            if self.under.left_out.get() > 0 {
+                ui.label(egui::RichText::new(format!("{} segments are left out of the last picture (the cap is {DRAW_CAP}): zoom in.", self.under.left_out.get())).small().color(crate::theme::warn()));
+            }
+        }, |ui| crate::ui_kit::Footer::new("Attach a DXF...").cancel(Some("Close")).show(ui));
+        if dlg.closed {
+            open = false;
+        }
+        if let Some((_, out)) = &dlg.inner {
+            if out.cancel {
+                open = false;
+            }
+            if out.primary {
+                attach = true;
+            }
+        }
         for (id, def) in changes {
             set_def(&mut self.doc, id, &def);
             self.schedule_commit_now();
@@ -857,5 +874,36 @@ mod tests {
             Some(FileStatus::Failed(m)) => assert!(m.contains("Convert it to DXF first"), "{m}"),
             other => panic!("{other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod true_coordinate_tests {
+    use super::*;
+
+    /// A DXF written in metres at UTM size (easting 450 123.456, northing 9 960 012.345) is placed
+    /// at those numbers times 1000, with no offset added and nothing re-based.
+    #[test]
+    fn a_dxf_underlay_in_metres_lands_at_source_coordinates() {
+        let mut dxf = afrobim_dxf::DxfDocument::new();
+        dxf.add_line("ROAD", 7, Pt::new(450_123.456, 9_960_012.345), Pt::new(450_223.456, 9_960_112.345));
+        let dir = std::env::temp_dir().join(format!("afrobim-u2-underlay-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("true.dxf");
+        std::fs::write(&path, dxf.finish()).unwrap();
+        let mut doc = Document::default();
+        let mut st = UnderlayState::default();
+        let id = st.attach(&mut doc, &path).unwrap();
+        st.wait(&mut doc, 0.1);
+        let mut def = def_of(doc.find(id).unwrap()).unwrap();
+        assert_eq!(def.offset_mm, [0.0, 0.0], "attaching adds no offset");
+        // The file is in metres: say so (1000 mm per unit), as the dialog's unit choice does.
+        def.unit_scale_mm = 1000.0;
+        let built = build(st.underlay(id).unwrap(), &def, 0);
+        let (lo, hi) = built.bounds.expect("the line is drawn");
+        for (got, want) in [(lo.x, 450_123_456.0), (lo.y, 9_960_012_345.0), (hi.x, 450_223_456.0), (hi.y, 9_960_112_345.0)] {
+            assert!((got - want).abs() < 0.001, "{got} != {want}");
+        }
+        assert_eq!(built.origin, [lo.x, lo.y]);
     }
 }

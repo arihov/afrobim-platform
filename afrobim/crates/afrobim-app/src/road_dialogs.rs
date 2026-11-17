@@ -173,7 +173,13 @@ impl RoadDialogs {
 
 // ─── small widgets ──────────────────────────────────────────────────────────────────────
 
-const NOTE: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
+#[allow(non_snake_case)]
+
+fn NOTE() -> egui::Color32 {
+
+    crate::theme::warn()
+
+}
 
 fn number(ui: &mut Ui, value: &mut f64, speed: f64, suffix: &str) {
     ui.add(egui::DragValue::new(value).speed(speed).suffix(suffix));
@@ -226,18 +232,6 @@ fn index_options(labels: Vec<String>) -> Vec<(usize, String)> {
     labels.into_iter().enumerate().collect()
 }
 
-fn buttons(ui: &mut Ui, ok: &str, enabled: bool, add: &mut bool, keep: &mut bool) {
-    ui.add_space(6.0);
-    ui.horizontal(|ui| {
-        if ui.add_enabled(enabled, egui::Button::new(ok)).clicked() {
-            *add = true;
-        }
-        if ui.button("Cancel").clicked() {
-            *keep = false;
-        }
-    });
-}
-
 fn column_fields(ui: &mut Ui, f: &mut ColumnFields) {
     ui.label("Mounting height");
     number(ui, &mut f.mounting_height_m, 0.1, " m");
@@ -284,7 +278,7 @@ fn layer_list(ui: &mut Ui, salt: &str, rows: &mut Vec<LayerRow>) {
             text(ui, &mut row.name, "layer name", 150.0);
             pick(ui, &format!("{salt}-material-{i}"), &mut row.material, &materials);
             number(ui, &mut row.thickness_mm, 5.0, " mm");
-            if ui.small_button("x").on_hover_text("Remove this layer").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove this layer").clicked() {
                 remove = Some(i);
             }
             ui.end_row();
@@ -300,6 +294,7 @@ fn layer_list(ui: &mut Ui, salt: &str, rows: &mut Vec<LayerRow>) {
 
 /// What the "fill from MoWT class" button read, with where each figure is printed.
 #[derive(Clone)]
+#[allow(dead_code)] // the citation is shown by the row itself; the caller may want it too
 struct MowtFill {
     lane_width_m: f64,
     carriageway_width_m: f64,
@@ -355,7 +350,7 @@ fn mowt_fill_row(ui: &mut Ui, salt: &str) -> Option<MowtFill> {
         }
     });
     if let Some(note) = &filled {
-        ui.label(RichText::new(format!("Filled from: {note} Check them against your project before using them.")).small().weak());
+        crate::ui_kit::note(ui, format!("Filled from: {note} Check them against your project before using them."));
     }
     ui.data_mut(|d| {
         match class {
@@ -371,7 +366,7 @@ fn mowt_fill_row(ui: &mut Ui, salt: &str) -> Option<MowtFill> {
 
 fn not_a_design(ui: &mut Ui, what: &str) {
     ui.add_space(4.0);
-    ui.label(RichText::new(what).small().color(NOTE));
+    ui.label(RichText::new(what).small().color(NOTE()));
 }
 
 // ─── street lighting ────────────────────────────────────────────────────────────────────
@@ -380,9 +375,10 @@ fn lighting_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add) = (true, false);
-    crate::win::new(ctx, "Street lighting installation").collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
-            egui::Grid::new("lighting").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+    let footer_ok = alignment.is_some();
+    let dlg = crate::ui_kit::Dialog::titled("Street lighting installation").subtitle("An installation of lighting columns along an alignment").width(480.0).resizable(false).show(ctx, |ui| {
+        ui.scope(|ui| {
+            crate::ui_kit::grid(ui, "lighting", |ui| {
                 alignment_row(ui, "lighting-alignment", &choices, &mut alignment);
                 ui.label("Reference");
                 text(ui, &mut req.reference, "e.g. LZ-01", 120.0);
@@ -423,8 +419,16 @@ fn lighting_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
         });
         not_a_design(ui, "Nothing here is a design value: spacing, set-back, mounting height and the class are the engineer's. AfroBIM does no photometric, structural or electrical design. The offset is positive to the right.");
         ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
-        buttons(ui, "Add", alignment.is_some(), &mut add, &mut keep);
-    });
+    }, |ui| crate::ui_kit::Footer::new("Add").enabled(footer_ok, "Choose the alignment").show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        add = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if add {
         match alignment.ok_or_else(|| "Choose an alignment.".to_string()).and_then(|a| road_glue::add_lighting(doc, a, &req)) {
             Ok(mark) => out.push(Outcome::Added(mark.clone(), format!("Added {mark}. Select it and run CHECK to see which requirements need your input."))),
@@ -442,8 +446,9 @@ fn column_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Opt
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add) = (true, false);
-    crate::win::new(ctx, "Lighting column").collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::Grid::new("column").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+    let footer_ok = alignment.is_some();
+    let dlg = crate::ui_kit::Dialog::titled("Lighting column").subtitle("A single column at a junction or conflict area").width(480.0).resizable(false).show(ctx, |ui| {
+        crate::ui_kit::grid(ui, "column", |ui| {
             alignment_row(ui, "column-alignment", &choices, &mut alignment);
             ui.label("Mark");
             text(ui, &mut req.mark, "e.g. LC-001", 120.0);
@@ -477,8 +482,16 @@ fn column_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Opt
         });
         not_a_design(ui, "For a junction or conflict area. Mounting height, outreach and the luminaire are entered, not designed.");
         ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
-        buttons(ui, "Add", alignment.is_some(), &mut add, &mut keep);
-    });
+    }, |ui| crate::ui_kit::Footer::new("Add").enabled(footer_ok, "Choose the alignment").show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        add = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if add {
         match alignment.ok_or_else(|| "Choose an alignment.".to_string()).and_then(|a| road_glue::add_light_column(doc, a, &req)) {
             Ok(mark) => out.push(Outcome::Added(mark.clone(), format!("Added {mark}."))),
@@ -498,9 +511,10 @@ fn barrier_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Op
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add) = (true, false);
-    crate::win::new(ctx, "Safety barrier run").collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
-            egui::Grid::new("barrier").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+    let footer_ok = alignment.is_some();
+    let dlg = crate::ui_kit::Dialog::titled("Safety barrier run").subtitle("A vehicle restraint system along an alignment").width(480.0).resizable(false).show(ctx, |ui| {
+        ui.scope(|ui| {
+            crate::ui_kit::grid(ui, "barrier", |ui| {
                 alignment_row(ui, "barrier-alignment", &choices, &mut alignment);
                 ui.label("Mark");
                 text(ui, &mut req.name, "e.g. VRS-001", 120.0);
@@ -558,8 +572,16 @@ fn barrier_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Op
         });
         not_a_design(ui, "The class, working width and severity are what the engineer chooses (CD 377 and the risk assessment). Run CHECK for the requirement checks.");
         ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
-        buttons(ui, "Add", alignment.is_some(), &mut add, &mut keep);
-    });
+    }, |ui| crate::ui_kit::Footer::new("Add").enabled(footer_ok, "Choose the alignment").show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        add = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if add {
         match alignment.ok_or_else(|| "Choose an alignment.".to_string()).and_then(|a| road_glue::add_restraint(doc, a, &req)) {
             Ok(mark) => out.push(Outcome::Added(mark.clone(), format!("Added {mark}. Run CHECK for its requirement checks."))),
@@ -583,8 +605,9 @@ fn speed_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Elem
     let Some((id, mut speed)) = slot.take() else { return };
     let mark = doc.find(id).map(|e| e.name.clone()).unwrap_or_default();
     let (mut keep, mut run) = (true, false);
-    crate::win::new(ctx, format!("Check {mark}")).collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::Grid::new("speed").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+    let footer_ok = true;
+    let dlg = crate::ui_kit::Dialog::titled(format!("Check {mark}")).width(480.0).resizable(false).show(ctx, |ui| {
+        crate::ui_kit::grid(ui, "speed", |ui| {
             ui.label("Speed limit");
             ui.horizontal(|ui| {
                 number(ui, &mut speed.value, 1.0, "");
@@ -598,7 +621,7 @@ fn speed_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Elem
             let r = crate::projset::resolve_answered(doc, speed.value, speed.mph, &crate::projset::restraint_thresholds(), speed.answer);
             ui.label(egui::RichText::new(format!("Speed band: {}", r.band_note)).small());
             if let Some(ask) = r.ask {
-                ui.label(egui::RichText::new(format!("The project rule asks each time. Treat {:.2} mph as the {} mph band?", ask.exact_mph, ask.band_mph)).color(egui::Color32::from_rgb(0xD9, 0x8A, 0x2B)));
+                ui.label(egui::RichText::new(format!("The project rule asks each time. Treat {:.2} mph as the {} mph band?", ask.exact_mph, ask.band_mph)).color(crate::theme::warn()));
                 ui.horizontal(|ui| {
                     ui.selectable_value(&mut speed.answer, Some(true), format!("Yes, treat it as {} mph", ask.band_mph));
                     ui.selectable_value(&mut speed.answer, Some(false), "No, keep the exact value");
@@ -606,8 +629,16 @@ fn speed_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Elem
             }
         }
         not_a_design(ui, "The checks need the speed limit. Every other input is left not entered, and the report says which checks it stops.");
-        buttons(ui, "Check", true, &mut run, &mut keep);
-    });
+    }, |ui| crate::ui_kit::Footer::new("Check").enabled(footer_ok, "Complete the inputs").show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        run = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if run {
         match road_glue::check_restraint(doc, id, speed) {
             Ok(lines) => {
@@ -631,9 +662,10 @@ fn pavement_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut add, mut design_first) = (true, false, false);
-    crate::win::new(ctx, "Pavement").collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::ScrollArea::vertical().max_height(560.0).show(ui, |ui| {
-            egui::Grid::new("pavement").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+    let footer_ok = alignment.is_some();
+    let dlg = crate::ui_kit::Dialog::titled("Pavement").subtitle("A pavement structure along an alignment").width(520.0).resizable(false).show(ctx, |ui| {
+        ui.scope(|ui| {
+            crate::ui_kit::grid(ui, "pavement", |ui| {
                 alignment_row(ui, "pavement-alignment", &choices, &mut alignment);
                 ui.label("Mark");
                 text(ui, &mut req.name, "e.g. PV-001", 120.0);
@@ -667,24 +699,22 @@ fn pavement_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(O
                 shoulder_row(ui, "Right shoulder", &mut req.right_shoulder);
             });
             ui.add_space(6.0);
-            ui.label(RichText::new("Layers, top first").strong());
+            crate::ui_kit::heading(ui, "Layers, top first");
             layer_list(ui, "pavement", &mut req.layers);
         });
         not_a_design(ui, "Enter the layers, or run a design method first. Shoulders take the layers of the carriageway; edit them in Properties.");
         ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui.add_enabled(alignment.is_some(), egui::Button::new("Add")).clicked() {
-                add = true;
-            }
-            if ui.button("Design the layers first…").clicked() {
-                design_first = true;
-            }
-            if ui.button("Cancel").clicked() {
-                keep = false;
-            }
-        });
-    });
+    }, |ui| crate::ui_kit::Footer::new("Add").enabled(footer_ok, "Choose the alignment").secondary(&["Design the layers first..."]).show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        add = f.primary;
+        design_first = f.secondary == Some(0);
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if design_first {
         if design.is_none() {
             *design = Some(DesignDialog { form: DesignForm::default(), element: None, layers: None, make: None });
@@ -710,7 +740,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
     let Some(mut d) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let (mut keep, mut run, mut create) = (true, false, false);
-    crate::win::new(ctx, "Pavement design").collapsible(false).resizable(true).default_width(560.0).show(ctx, |ui| {
+    let dlg = crate::ui_kit::Dialog::titled("Pavement design").subtitle("Layers from a design method, as a calculation for an engineer to check").width(560.0).show(ctx, |ui| {
         ui.horizontal_wrapped(|ui| {
             ui.label("Method");
             for (i, m) in road_glue::methods().iter().enumerate() {
@@ -729,9 +759,9 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
                 }
             });
         });
-        ui.label(RichText::new("Inputs kept on a pavement are used by CHECKALL, which compares the method's layers with the pavement's own.").small().weak());
+        crate::ui_kit::note(ui, "Inputs kept on a pavement are used by CHECKALL, which compares the method's layers with the pavement's own.");
         ui.separator();
-        egui::ScrollArea::vertical().max_height(480.0).show(ui, |ui| match d.form.method {
+        ui.scope(|ui| match d.form.method {
             0 => mowt_form(ui, &mut d.form.mowt),
             1 => dmrb_form(ui, &mut d.form.dmrb),
             road_glue::SA_METHOD => trh4_form(ui, &mut d.form.trh4),
@@ -740,12 +770,12 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
         not_a_design(ui, "Every figure is the engineer's: traffic, strength, climate and the AASHTO coefficients are not defaulted. The methods are not interchangeable. The result is a calculation for an engineer to check, not a certified design; the warnings of the method are in the calculation.");
         if let Some(layers) = &d.layers {
             ui.separator();
-            ui.label(RichText::new("The method arrives at these layers").strong());
+            crate::ui_kit::heading(ui, "The method arrives at these layers");
             for l in layers {
                 ui.label(format!("{}: {} mm", l.name, l.thickness_mm));
             }
             if let Some((alignment, req)) = &mut d.make {
-                egui::Grid::new("design-make").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+                crate::ui_kit::grid(ui, "design-make", |ui| {
                     alignment_row(ui, "design-alignment", &choices, alignment);
                     ui.label("Mark");
                     text(ui, &mut req.name, "e.g. PV-001", 120.0);
@@ -764,18 +794,18 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
         } else if d.form.method == road_glue::SA_METHOD {
             ui.separator();
             ui.add_enabled(false, egui::Button::new("Make a pavement from these layers")).on_disabled_hover_text(road_glue::SA_NO_LAYERS);
-            ui.label(RichText::new(road_glue::SA_NO_LAYERS).small().color(NOTE));
+            ui.label(RichText::new(road_glue::SA_NO_LAYERS).small().color(NOTE()));
         }
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui.button("Run the method").clicked() {
-                run = true;
-            }
-            if ui.button("Close").clicked() {
-                keep = false;
-            }
-        });
-    });
+    }, |ui| crate::ui_kit::Footer::new("Run the method").cancel(Some("Close")).show(ui));
+    if let Some((_, f)) = &dlg.inner {
+        run = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
+    if dlg.closed {
+        keep = false;
+    }
     if run {
         match d.form.run() {
             Ok(result) => {
@@ -813,7 +843,7 @@ fn design_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<Desi
 }
 
 fn mowt_form(ui: &mut Ui, f: &mut MowtForm) {
-    ui.label(RichText::new("Traffic, one direction (the other is taken to carry the same)").strong());
+    crate::ui_kit::heading(ui, "Traffic, one direction (the other is taken to carry the same)");
     let mut remove = None;
     egui::Grid::new("mowt-classes").num_columns(4).spacing([8.0, 4.0]).show(ui, |ui| {
         ui.label(RichText::new("Vehicle category").small());
@@ -825,7 +855,7 @@ fn mowt_form(ui: &mut Ui, f: &mut MowtForm) {
             text(ui, &mut c.name, "e.g. buses", 120.0);
             number(ui, &mut c.daily_first_year, 1.0, "");
             number(ui, &mut c.esa_per_vehicle, 0.01, "");
-            if ui.small_button("x").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                 remove = Some(i);
             }
             ui.end_row();
@@ -837,8 +867,8 @@ fn mowt_form(ui: &mut Ui, f: &mut MowtForm) {
     if ui.button("Add a vehicle category").clicked() {
         f.classes.push(ClassRow { name: String::new(), daily_first_year: 0.0, esa_per_vehicle: 0.0 });
     }
-    ui.label(RichText::new("The damage factor is entered as ESAs per vehicle from an axle load survey. Entering axle loads is not offered here.").small().weak());
-    egui::Grid::new("mowt").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::note(ui, "The damage factor is entered as ESAs per vehicle from an axle load survey. Entering axle loads is not offered here.");
+    crate::ui_kit::grid(ui, "mowt", |ui| {
         ui.label("Growth rate");
         number(ui, &mut f.growth_percent, 0.1, " % a year");
         ui.end_row();
@@ -893,14 +923,14 @@ fn mowt_form(ui: &mut Ui, f: &mut MowtForm) {
 }
 
 fn dmrb_form(ui: &mut Ui, f: &mut DmrbForm) {
-    ui.label(RichText::new("Commercial vehicle flows, one direction, at opening").strong());
+    crate::ui_kit::heading(ui, "Commercial vehicle flows, one direction, at opening");
     let groups = index_options(dmrb::VehicleGroup::ALL.iter().map(|g| g.label().to_string()).collect());
     let mut remove = None;
     egui::Grid::new("dmrb-flows").num_columns(3).spacing([8.0, 4.0]).show(ui, |ui| {
         for (i, (group, aadf)) in f.flows.iter_mut().enumerate() {
             pick(ui, &format!("dmrb-group-{i}"), group, &groups);
             number(ui, aadf, 1.0, " cv/day");
-            if ui.small_button("x").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                 remove = Some(i);
             }
             ui.end_row();
@@ -912,7 +942,7 @@ fn dmrb_form(ui: &mut Ui, f: &mut DmrbForm) {
     if ui.button("Add a flow").clicked() {
         f.flows.push((0, 0.0));
     }
-    egui::Grid::new("dmrb").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "dmrb", |ui| {
         ui.label("Scheme");
         ui.horizontal(|ui| {
             ui.selectable_value(&mut f.maintenance, false, "New (WN)");
@@ -936,13 +966,13 @@ fn dmrb_form(ui: &mut Ui, f: &mut DmrbForm) {
         pick(ui, "dmrb-pavement", &mut f.pavement, &kinds);
         ui.end_row();
     });
-    ui.label(RichText::new("This method gives design traffic and, over an HBGM base, the asphalt thickness. It gives no layer stack, so no pavement can be made from it.").small().weak());
+    crate::ui_kit::note(ui, "This method gives design traffic and, over an HBGM base, the asphalt thickness. It gives no layer stack, so no pavement can be made from it.");
 }
 
 fn trh4_form(ui: &mut Ui, f: &mut road_glue::Trh4Form) {
-    ui.label(RichText::new(road_glue::SA_E80_NOTE).strong().color(NOTE));
+    ui.label(RichText::new(road_glue::SA_E80_NOTE).strong().color(NOTE()));
     ui.add_space(4.0);
-    egui::Grid::new("trh4").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "trh4", |ui| {
         ui.label("Road category");
         let shown = f.category.map(|c| road_glue::SA_ROAD_CATEGORIES[c.min(3)].to_string()).unwrap_or_else(|| "choose".to_string());
         egui::ComboBox::from_id_salt("trh4-category").selected_text(shown).show_ui(ui, |ui| {
@@ -1005,11 +1035,11 @@ fn trh4_form(ui: &mut Ui, f: &mut road_glue::Trh4Form) {
         optional(ui, &mut f.subgrade_cbr_percent, 0.5, " %");
         ui.end_row();
     });
-    ui.label(RichText::new("Growth rates are entered in per cent a year. The run gives the design traffic, the traffic class (ES0.003 to ES100), the climatic class and the action on the subgrade, with the engine's warnings. It gives no layers.").small().weak());
+    crate::ui_kit::note(ui, "Growth rates are entered in per cent a year. The run gives the design traffic, the traffic class (ES0.003 to ES100), the climatic class and the action on the subgrade, with the engine's warnings. It gives no layers.");
 }
 
 fn aashto_form(ui: &mut Ui, f: &mut AashtoForm) {
-    egui::Grid::new("aashto").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
+    crate::ui_kit::grid(ui, "aashto", |ui| {
         ui.label("Design lane 18-kip ESALs (W18)");
         number(ui, &mut f.w18, 1000.0, "");
         ui.end_row();
@@ -1027,7 +1057,7 @@ fn aashto_form(ui: &mut Ui, f: &mut AashtoForm) {
         ui.end_row();
     });
     ui.add_space(4.0);
-    ui.label(RichText::new("Structure to check, top first").strong());
+    crate::ui_kit::heading(ui, "Structure to check, top first");
     let materials = index_options(road_glue::materials().iter().map(|m| m.label().to_string()).collect());
     let mut remove = None;
     egui::Grid::new("aashto-layers").num_columns(7).spacing([8.0, 4.0]).show(ui, |ui| {
@@ -1042,7 +1072,7 @@ fn aashto_form(ui: &mut Ui, f: &mut AashtoForm) {
             number(ui, &mut l.layer_coefficient, 0.005, "");
             number(ui, &mut l.drainage_coefficient, 0.05, "");
             optional(ui, &mut l.resilient_modulus_psi, 100.0, "");
-            if ui.small_button("x").clicked() {
+            if crate::ui_kit::icon_button(ui, crate::glyphs::ui::TRASH, "Remove").clicked() {
                 remove = Some(i);
             }
             ui.end_row();
@@ -1054,89 +1084,161 @@ fn aashto_form(ui: &mut Ui, f: &mut AashtoForm) {
     if ui.button("Add a layer").clicked() {
         f.layers.push(SnRow { name: String::new(), material: 0, thickness_mm: 0.0, layer_coefficient: 0.0, drainage_coefficient: 1.0, resilient_modulus_psi: None });
     }
-    ui.label(RichText::new("The layer and drainage coefficients are entered; drainage coefficient 1 applies to bound layers. With no layers the required structural number is all that is computed.").small().weak());
+    crate::ui_kit::note(ui, "The layer and drainage coefficients are entered; drainage coefficient 1 applies to bound layers. With no layers the required structural number is all that is computed.");
 }
 
 // ─── corridor ───────────────────────────────────────────────────────────────────────────
 
 fn corridor_dialog(ctx: &egui::Context, doc: &mut Document, slot: &mut Option<(Option<ElementId>, CorridorRequest)>, out: &mut Vec<Outcome>) {
+    use crate::ui_kit::{self, Dialog, Footer, Level};
     let Some((mut alignment, mut req)) = slot.take() else { return };
     let choices = alignment_glue::alignments(doc);
     let surfaces = afrobim_corridor::surfaces(doc);
-    let (mut keep, mut add) = (true, false);
-    crate::win::new(ctx, "Corridor").collapsible(false).resizable(false).show(ctx, |ui| {
-        egui::Grid::new("corridor").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-            alignment_row(ui, "corridor-alignment", &choices, &mut alignment);
-            ui.label("Ground surface");
-            let current = surfaces.iter().find(|s| Some(s.0) == req.surface).map(|s| s.1.clone()).unwrap_or_default();
-            egui::ComboBox::from_id_salt("corridor-surface").selected_text(current).show_ui(ui, |ui| {
-                for (id, name) in &surfaces {
-                    ui.selectable_value(&mut req.surface, Some(*id), name);
-                }
-            });
-            ui.end_row();
-            ui.label("Name");
-            text(ui, &mut req.name, "e.g. Corridor", 140.0);
-            ui.end_row();
-            ui.label("");
-            ui.vertical(|ui| {
-                if let Some(fill) = mowt_fill_row(ui, "corridor") {
-                    req.lane_width_m = fill.lane_width_m;
-                    if let Some(f) = fill.crossfall_percent {
-                        req.lane_crossfall_percent = f;
+    let problem: Option<String> = if alignment.is_none() {
+        Some("Choose an alignment".into())
+    } else if req.surface.is_none() {
+        Some("Choose a ground surface".into())
+    } else if req.name.trim().is_empty() {
+        Some("Give the corridor a name".into())
+    } else {
+        req.definition().check().err().map(|e| {
+            let mut e = e;
+            if let Some(c) = e.get_mut(0..1) {
+                c.make_ascii_uppercase();
+            }
+            e
+        })
+    };
+    let reason = problem.clone().unwrap_or_default();
+    let ctx_doc: &Document = doc;
+    let result = Dialog::new("Corridor", crate::glyphs::by_name("CORRIDOR"))
+        .subtitle("A typical section built along an alignment, down to a ground surface")
+        .width(560.0)
+        .resizable(false)
+        .help("Every width, slope, depth and interval is yours: the corridor holds no design values. It needs an alignment with a vertical profile; the same template is used on both sides over the whole length (more regions are edited in Properties). Volumes are by average end area; the factors under Advanced multiply the cut and fill of the mass ordinate (1 changes nothing).")
+        .show(
+            ctx,
+            |ui| {
+                ui_kit::section(ui, "Built on", |ui| {
+                    ui_kit::form(ui, "corridor-on", |f| {
+                        f.row("Alignment", |ui| {
+                            let mut i = choices.iter().position(|c| Some(c.0) == alignment).unwrap_or(usize::MAX);
+                            let names: Vec<&str> = choices.iter().map(|c| c.1.as_str()).collect();
+                            let mut shown = i.min(names.len());
+                            let before = shown;
+                            egui::ComboBox::from_id_salt("corridor-alignment").selected_text(names.get(i).copied().unwrap_or("choose one")).width(220.0).show_ui(ui, |ui| {
+                                for (k, n) in names.iter().enumerate() {
+                                    ui.selectable_value(&mut shown, k, *n);
+                                }
+                            });
+                            if shown != before {
+                                i = shown;
+                                alignment = choices.get(i).map(|c| c.0);
+                            }
+                        });
+                        f.row("Ground surface", |ui| {
+                            let current = surfaces.iter().find(|s| Some(s.0) == req.surface).map(|s| s.1.clone()).unwrap_or_else(|| "choose one".into());
+                            egui::ComboBox::from_id_salt("corridor-surface").selected_text(current).width(220.0).show_ui(ui, |ui| {
+                                for (id, name) in &surfaces {
+                                    ui.selectable_value(&mut req.surface, Some(*id), name);
+                                }
+                            });
+                        });
+                        f.row("Name", |ui| {
+                            ui_kit::text_field(ui, &mut req.name, "e.g. Corridor");
+                        });
+                    });
+                });
+                ui_kit::section(ui, "Typical section, each side", |ui| {
+                    if let Some(fill) = mowt_fill_row(ui, "corridor") {
+                        req.lane_width_m = fill.lane_width_m;
+                        if let Some(c) = fill.crossfall_percent {
+                            req.lane_crossfall_percent = c;
+                        }
+                        req.shoulder = Some(ShoulderRequest { width_m: fill.shoulder_width_m, crossfall_percent: fill.shoulder_crossfall_percent.unwrap_or(0.0) });
                     }
-                    req.shoulder = Some(ShoulderRequest { width_m: fill.shoulder_width_m, crossfall_percent: fill.shoulder_crossfall_percent.unwrap_or(0.0) });
-                    let _ = &fill.citation;
-                }
-            });
-            ui.end_row();
-            ui.label("Lane width, each side");
-            number(ui, &mut req.lane_width_m, 0.05, " m");
-            ui.end_row();
-            ui.label("Lane cross-fall (falling away)");
-            ui.horizontal(|ui| {
-                number(ui, &mut req.lane_crossfall_percent, 0.1, " %");
-                ui.checkbox(&mut req.follow_superelevation, "take the alignment's stored cross-fall where there is one");
-            });
-            ui.end_row();
-            shoulder_row(ui, "Shoulder, each side", &mut req.shoulder);
-            if req.shoulder.is_some() {
-                ui.label("Formation under the shoulder");
-                ui.checkbox(&mut req.shoulder_paved, "the shoulder is paved");
-                ui.end_row();
-            }
-            ui.label("Formation depth below paved links");
-            number(ui, &mut req.formation_depth_m, 0.01, " m");
-            ui.end_row();
-            ui.label("Cut slope (horizontal for 1 vertical)");
-            number(ui, &mut req.cut_run_per_rise, 0.05, "");
-            ui.end_row();
-            ui.label("Fill slope (horizontal for 1 vertical)");
-            number(ui, &mut req.fill_run_per_rise, 0.05, "");
-            ui.end_row();
-            ui.label("Section interval");
-            number(ui, &mut req.interval_m, 1.0, " m");
-            ui.end_row();
-            ui.label("Stretch");
-            ui.horizontal(|ui| {
-                let mut limited = req.stretch.is_some();
-                if ui.checkbox(&mut limited, "limit to a stretch of the alignment").changed() {
-                    req.stretch = if limited { alignment.and_then(|a| alignment_glue::alignment_of(doc, a)).map(|a| (a.start_station_m, a.end_station_m())) } else { None };
-                }
-                if !limited {
-                    ui.label(RichText::new("the whole alignment").weak());
-                }
-            });
-            ui.end_row();
-            if let Some((start, end)) = &mut req.stretch {
-                station_row(ui, doc, alignment, "corridor-start", "Stretch start station", start);
-                station_row(ui, doc, alignment, "corridor-end", "Stretch end station", end);
-            }
-        });
-        ui.label(RichText::new(station_input::note(doc, alignment)).small().weak());
-        not_a_design(ui, "The corridor holds no design values: every width, slope, depth and interval is yours. It needs an alignment with a vertical profile, and the same template is used both sides over the whole length. More regions are edited in Properties. Volumes are by average end area, with no bulking or shrinkage factor (both 1).");
-        buttons(ui, "Build", alignment.is_some() && req.surface.is_some(), &mut add, &mut keep);
-    });
+                    ui.add_space(4.0);
+                    ui_kit::form(ui, "corridor-section", |f| {
+                        f.row("Lane width", |ui| {
+                            ui_kit::f64_field(ui, &mut req.lane_width_m, "m", 0.0..=60.0, 0.05);
+                        });
+                        f.row("Lane cross-fall", |ui| {
+                            ui.vertical(|ui| {
+                                ui_kit::f64_field(ui, &mut req.lane_crossfall_percent, "% falling away", -50.0..=50.0, 0.1);
+                                ui_kit::toggle(ui, &mut req.follow_superelevation, "take the alignment's stored cross-fall where there is one");
+                            });
+                        });
+                        f.row("Shoulder", |ui| {
+                            ui.vertical(|ui| {
+                                let mut on = req.shoulder.is_some();
+                                if ui_kit::toggle(ui, &mut on, "a shoulder on each side").changed() {
+                                    req.shoulder = on.then(ShoulderRequest::default);
+                                }
+                                if let Some(s) = &mut req.shoulder {
+                                    ui_kit::f64_field(ui, &mut s.width_m, "m wide", 0.0..=30.0, 0.1);
+                                    ui_kit::f64_field(ui, &mut s.crossfall_percent, "% falling away", -50.0..=50.0, 0.1);
+                                    ui_kit::toggle(ui, &mut req.shoulder_paved, "the shoulder is paved");
+                                }
+                            });
+                        });
+                        f.row("Formation depth", |ui| {
+                            ui_kit::f64_field(ui, &mut req.formation_depth_m, "m below the paved links", 0.0..=10.0, 0.01);
+                        });
+                    });
+                });
+                ui_kit::section(ui, "Cut and fill slopes", |ui| {
+                    ui_kit::form(ui, "corridor-slopes", |f| {
+                        f.row("Cut slope", |ui| {
+                            ui_kit::f64_field(ui, &mut req.cut_run_per_rise, "horizontal to 1 vertical", 0.0..=50.0, 0.05);
+                        });
+                        f.row("Fill slope", |ui| {
+                            ui_kit::f64_field(ui, &mut req.fill_run_per_rise, "horizontal to 1 vertical", 0.0..=50.0, 0.05);
+                        });
+                    });
+                });
+                ui_kit::section(ui, "Sections", |ui| {
+                    ui_kit::form(ui, "corridor-sections", |f| {
+                        f.row("Section interval", |ui| {
+                            ui_kit::f64_field(ui, &mut req.interval_m, "m", 0.0..=1000.0, 1.0);
+                        });
+                        f.row("Stretch", |ui| {
+                            let mut limited = req.stretch.is_some();
+                            if ui_kit::toggle(ui, &mut limited, "limit to a stretch of the alignment").changed() {
+                                req.stretch = if limited { alignment.and_then(|a| alignment_glue::alignment_of(ctx_doc, a)).map(|a| (a.start_station_m, a.end_station_m())) } else { None };
+                            }
+                        });
+                        if let Some((start, end)) = &mut req.stretch {
+                            f.raw(|ui| station_row(ui, ctx_doc, alignment, "corridor-start", "Stretch start", start));
+                            f.raw(|ui| station_row(ui, ctx_doc, alignment, "corridor-end", "Stretch end", end));
+                        }
+                    });
+                    ui.label(RichText::new(station_input::note(ctx_doc, alignment)).small().weak());
+                });
+                ui_kit::advanced(ui, "corridor-volumes", |ui| {
+                    ui_kit::form(ui, "corridor-volume-options", |f| {
+                        f.row_note("Cut factor", "multiplies every cut volume in the mass ordinate; 1 changes nothing", |ui| {
+                            ui_kit::f64_field(ui, &mut req.cut_factor, "", 0.01..=10.0, 0.01);
+                        });
+                        f.row_note("Fill factor", "multiplies every fill volume in the mass ordinate; 1 changes nothing", |ui| {
+                            ui_kit::f64_field(ui, &mut req.fill_factor, "", 0.01..=10.0, 0.01);
+                        });
+                        f.row_note("Curvature correction", "the Pappus correction of each end area", |ui| {
+                            ui_kit::toggle(ui, &mut req.curvature_correction, "apply it");
+                        });
+                    });
+                });
+                ui.add_space(4.0);
+                ui_kit::callout(ui, Level::Info, "Volumes are by average end area. The corridor needs an alignment with a vertical profile.");
+            },
+            |ui| Footer::new("Build").icon(crate::glyphs::by_name("CORRIDOR")).enabled(problem.is_none(), &reason).show(ui),
+        );
+    let (mut keep, mut add) = (!result.closed, false);
+    if let Some((_, f)) = result.inner {
+        add = f.primary;
+        if f.cancel {
+            keep = false;
+        }
+    }
     if add {
         match alignment.ok_or_else(|| "Choose an alignment.".to_string()).and_then(|a| road_glue::add_corridor(doc, a, &req)) {
             Ok((mark, summary)) => out.push(Outcome::Added(mark.clone(), format!("Built {mark}: {summary}. SECTIONS shows the cross-sections."))),
@@ -1167,24 +1269,27 @@ fn sections_window(ctx: &egui::Context, slot: &mut Option<SectionsView>) {
     let Some(mut v) = slot.take() else { return };
     let mut open = true;
     let dark = ctx.style().visuals.dark_mode;
-    crate::win::new(ctx, format!("Cross-sections of {}", v.mark)).open(&mut open).default_width(700.0).show(ctx, |ui| {
+    let dlg = crate::ui_kit::Dialog::titled(format!("Cross-sections of {}", v.mark)).width(700.0).show_body(ctx, |ui| {
         let last = v.corridor.sections.len() - 1;
-        ui.horizontal(|ui| {
-            ui.label("Station");
-            let current = v.corridor.sections[v.index.min(last)].label.clone();
-            egui::ComboBox::from_id_salt("section-station").selected_text(current).show_ui(ui, |ui| {
-                for (i, s) in v.corridor.sections.iter().enumerate() {
-                    ui.selectable_value(&mut v.index, i, &s.label);
-                }
+        crate::ui_kit::heading(ui, "Section");
+        crate::ui_kit::form(ui, "section-view-form", |f| {
+            f.row("Station", |ui| {
+                ui.horizontal(|ui| {
+                    let current = v.corridor.sections[v.index.min(last)].label.clone();
+                    egui::ComboBox::from_id_salt("section-station").selected_text(current).show_ui(ui, |ui| {
+                        for (i, s) in v.corridor.sections.iter().enumerate() {
+                            ui.selectable_value(&mut v.index, i, &s.label);
+                        }
+                    });
+                    if ui.add_enabled(v.index > 0, egui::Button::new("Previous")).clicked() {
+                        v.index -= 1;
+                    }
+                    if ui.add_enabled(v.index < last, egui::Button::new("Next")).clicked() {
+                        v.index += 1;
+                    }
+                });
             });
-            if ui.add_enabled(v.index > 0, egui::Button::new("Previous")).clicked() {
-                v.index -= 1;
-            }
-            if ui.add_enabled(v.index < last, egui::Button::new("Next")).clicked() {
-                v.index += 1;
-            }
-            ui.label("Vertical exaggeration");
-            ui.add(egui::DragValue::new(&mut v.exaggeration).speed(0.1).range(1.0..=20.0));
+            f.row("Vertical exaggeration", |ui| crate::ui_kit::f64_field(ui, &mut v.exaggeration, "times", 1.0..=20.0, 0.1));
         });
         let section = &v.corridor.sections[v.index.min(last)];
         let drawn = corridor::section_drawing(section, v.exaggeration);
@@ -1205,7 +1310,8 @@ fn sections_window(ctx: &egui::Context, slot: &mut Option<SectionsView>) {
                 painter.circle_filled(map(l.at), 2.5, colour(None, dark));
             }
         }
-        ui.label(RichText::new("Ground green, earthworks line red, finished surface black, centreline grey. Looking up-station, left on the left.").small().weak());
+        crate::ui_kit::note(ui, "Ground green, earthworks line red, finished surface black, centreline grey. Looking up-station, left on the left.");
+        crate::ui_kit::heading(ui, "Areas and notes");
         for l in &drawn.labels {
             match l.kind {
                 corridor::LabelKind::Title | corridor::LabelKind::Areas => {
@@ -1217,9 +1323,12 @@ fn sections_window(ctx: &egui::Context, slot: &mut Option<SectionsView>) {
             }
         }
         for n in &section.notes {
-            ui.label(RichText::new(n).small().color(NOTE));
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, n.clone());
         }
     });
+    if dlg.closed {
+        open = false;
+    }
     if open {
         *slot = Some(v);
     }

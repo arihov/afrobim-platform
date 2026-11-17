@@ -4,9 +4,16 @@ Road alignments for AfroBIM: horizontal geometry and stationing, the vertical pr
 superelevation, station equations, LandXML import of all four, the rules for standing a sign
 beside an alignment, and the alignment as a kernel element drawn in plan.
 
-**None of the LandXML import has been tested against a file exported by Civil 3D.** The test
-files were written by hand to the LandXML 1.2 schema. That applies to the horizontal geometry and
-equally to the profile, station equations and superelevation described below.
+**What the LandXML reader has been tested against.** Hand-made files written to the LandXML 1.2
+schema; one small public Civil 3D 2023 export (`tests/landxml/civil3d_sr15_export.xml`, US survey
+feet, one alignment, design and ground profiles, 14 feature lines); a synthetic file with the
+structure that Civil 3D 2025 writes and made-up numbers (`tests/landxml/civil3d_like.xml`: clothoids
+with their `PI`, partial and empty `Superelevation`, a profile with a vertical step, `CrossSects`,
+`Feature`, `FieldNote`, a TIN with invisible faces, `PointFiles`; it validates against the schema);
+and, in `tests/private_landxml.rs`, a real Civil 3D 2025 export of a road project (many alignments
+with clothoids, existing-ground and design profiles, superelevation, cross-sections, TIN surfaces)
+that is **not in this repository** and is read only when `AFROBIM_PRIVATE_LANDXML` names it. See
+"Checked against a real Civil 3D 2025 export" at the end of the LandXML section.
 
 ## Conventions
 
@@ -144,6 +151,62 @@ a displayed station wherever that matters. The profile, the superelevation, the 
 
 `read_landxml(path)` / `parse_landxml(text)` return `LandXmlImport { alignments, notes }`.
 
+### Whole file
+
+`read_landxml_file(path)` / `parse_landxml_file(text)` return a `LandXmlFile`:
+
+| Field | What it holds (LandXML 1.2 element) |
+|---|---|
+| `header`, `units` | `LandXML` attributes; `Units/Metric` or `Imperial`, every attribute, with the schema defaults for the angular, direction, lat-long and elevation units, and the metres-per-unit factor that was applied |
+| `coordinate_system` | `CoordinateSystem`, every attribute of the schema as an optional string (`epsg_code`, `ogc_wkt_code`, `horizontal_datum`, `vertical_datum`, `datum`, `ellipsoid_name`, the `*_coordinate_system_name`s, `file_location`, `desc`, `name`) and `rotation_angle` as a number in the file's angular unit. No CRS type is involved; the application maps it |
+| `project`, `applications` | `Project`, `Application` (`LandXmlFile::is_civil_3d()` tests the text for "Civil 3D": a heuristic, not proof) |
+| `alignments` | `Alignment`, as `parse_landxml`; an `IrregularLine` or `Chain` in a `CoordGeom` is now read as straight segments between its points, with a note |
+| `ground_profiles` | `Profile/ProfSurf`, the `PntList2D` runs of station and elevation, with name, state and the `Profile` it is in |
+| `design_profiles` | every `Profile/ProfAlign` as written (`PVI`, `ParaCurve`, `UnsymParaCurve`, `CircCurve` with their lengths and radius, in order). The engine `Profile` on the `Alignment` cannot hold two PVIs at one station (a vertical step, which Civil 3D writes); that profile is left off the alignment with a warning naming the step and is still here whole. `LandXmlDesignProfile::steps()`, `to_profile()` and `segments()` (cuts it at the steps into valid profiles) |
+| `cross_sections` | `CrossSects/CrossSect` per station, `CrossSectSurf` (named surfaces: offset and elevation runs) and `DesignCrossSectSurf/CrossSectPnt` (`dataFormat="Offset Elevation"` only). `LandXmlCrossSectSurf::points()`, `offset_range()`, `elevation_at(offset)`; `LandXmlCrossSection::surface(name)` |
+| `cross_sect_groups`, `cross_sect_details` | the attributes of `CrossSects` (`calcMethod`, `curveCorrection`, `swellFactor`, `shrinkFactor`, ...) and of each `CrossSect` beyond `sta`, `name`, `desc` (`angleSkew`, `areaCut`, `areaFill`, `centroidCut`, `centroidFill`, `sectType`, `volumeCut`, `volumeFill`; areas and volumes in m2 and m3 when the units are known) |
+| `superelevation_tables` | every `Superelevation` element as written per alignment: `staStart`, `staEnd`, each critical station in file order, every `FullSuperelev` (percent, with its sign) and `AdverseSE`, and the direction of the horizontal curve there from the geometry (`turn`). Nothing is reduced to one rate; `rows()` flattens it to one row per critical station |
+| `alignment_infos` | the `Alignment` attributes (`desc`, `state`, `oID`, stated `length` and `staStart`) and the `CoordGeom` **as the file states it** (every `Start`, `Center`, `PI`, `End`), with a fingerprint of the engine alignment built from it, so a writer can write the stated points back exactly |
+| `object_features`, `field_notes` | every `Feature` (name, code, source, `Property` label/value, `DocFileRef`, nested `Feature`) with the object it hangs on (kind, name, alignment, station, ordinal), and every `FieldNote` (Civil 3D writes the local-to-grid transformation of the drawing there as text, parsed into key and value items; nothing is applied to any coordinate) |
+| `cg_points` | `CgPoints` groups, nested as the schema nests them, with `CgPoint` name, code, desc, state, oID, `pointGeometry`, `DTMAttribute`, latitude, longitude, northing, easting, elevation |
+| `parcels` | `Parcels/Parcel`: name, `area` and `area_m2` (by `areaUnit`), desc, state, owner, `parcelType`, class, `Center`, `CoordGeom` (lines, curves, spirals, irregular lines, chains), nested `Parcels` |
+| `plan_features` | `PlanFeatures/PlanFeature` with its `CoordGeom`s |
+| `surfaces` | `Surfaces/Surface`: `Definition@surfType` (`TIN` or `grid`), the statistics `Definition` states (`stated`: `area2DSurf`, `area3DSurf`, `elevMin`, `elevMax`), `Pnts/P`, `Faces/F` (three or four ids, `i="1"` kept as `invisible`), and `SourceData`: `Breaklines`, `Contours`, `Boundaries`, `DataPoints` (`PntList3D`), `PointFiles` (the external files the surface was built from, named, not opened). `outlier_points()` and `core_extent()` find points far from the rest |
+| `summary` | per class (`alignments`, `cg_points`, `parcels`, `plan_features`, `surfaces`): count and plan extent (min and max easting and northing, metres); counts of ground profiles, cross-sections and sub-objects; `overall_extent()`; `surfaces_core_extent` (without outlier points); `skipped` (elements not read, by path, with how many); `ignored_attributes` (redundant attributes not read, as `path@name`, with how many) |
+| `warnings` | the alignment notes, everything dropped or assumed, and one line per kind of skipped element |
+
+The whole-file entry point is in this crate because `afrobim-corridor` and `afrobim-design` both
+depend on it, so no dependency cycle arises. It carries raw surface points and faces; the corridor
+crate turns them into a `Tin` (`parse_landxml_surfaces`) and the design crate writes a
+`LandXmlFile` back (`write_landxml_file`, and `surface_from_tin`).
+
+**Coordinates are kept exactly as the file gives them.** Point text is `northing easting
+[elevation]` and becomes X = east, Y = north; the only arithmetic is the multiplication by the
+metres per `linearUnit` (1 for a metric file, so nothing happens to the numbers). Nothing is
+shifted, normalised or rounded. `Units/@elevationUnit` is reported; if it differs from the linear
+unit a warning is made and elevations are still read in the linear unit. Angles
+(`rotationAngle`, the direction units) are never converted. The tests check UTM-sized values
+(easting about 450 000 m; northing about 35 000 m and about 9 960 000 m) for exact equality.
+
+Unknown elements are never an error. Every element the reader does not read (`Roadways`,
+`PipeNetworks`, `Survey`, `Alignment/Start`, `AlignPIs`, `Cant`, `Parcel/Title`, ...) is
+counted in `warnings` and `summary.skipped`; a value that cannot be read is dropped with a warning.
+`Feature` and `FieldNote` are read wherever they stand. The attributes that are not read because the
+points and elements say the same (`Line@dir`, `Curve@chord`, `delta`, `dirStart`, `dirEnd`,
+`tangent`, `midOrd`, `external`, `crvType`, `Spiral@theta`, `totalX`, `totalY`, `tanLong`,
+`tanShort`, `Faces/F@n`, ...) are counted in `summary.ignored_attributes` and named in one warning.
+Text that is not UTF-8 (a UTF-8 byte order mark, UTF-16, ISO 8859-1) is decoded and a warning says so.
+
+**Reading a file for the application.** `LandXmlFile::alignment_names()`, `surface_names()`,
+`alignment(name)`, `alignment_view(name)` and `alignment_views()` give each alignment with
+everything the file holds for it: `cross_sections()`, `cross_sect_groups()`, `ground_profile()` (and
+`ground_profiles()`), `design_profile()` (and `design_profiles()`), `superelevation_table()`,
+`features()` and `info()`. The same are on `LandXmlFile` by name (`cross_sections_of`,
+`ground_profile`, `design_profile`, `superelevation_table`, `features_of(kind, name)`), and
+`field_note_value(key)` reads an item of a field note.
+It errors only for a file that is not XML, whose root is not `LandXML`, or whose `linearUnit` is
+not in the schema's list.
+
 Every element and attribute name below was checked against `LandXML-1.2.xsd` (elements are
 matched by local name, so the 1.0, 1.1 and 2.0 namespaces read the same way). Everything in the
 file's linear unit is converted to metres.
@@ -164,7 +227,10 @@ file's linear unit is converted to metres.
   `PVI`, `ParaCurve@length`, `UnsymParaCurve@lengthIn @lengthOut`, `CircCurve@radius`.
   `CircCurve@length` is only compared with the curve the radius gives (the schema does not say
   whether it is the arc or its plan length). Elevations are in the linear unit. Only the first
-  `ProfAlign` is read; others are named in a note. `ProfSurf` (existing ground) is not read.
+  `ProfAlign` becomes the engine `Profile` (others are named in a note); `parse_landxml_file` keeps
+  every one in `design_profiles`, and `ProfSurf` (existing ground) in `ground_profiles`. A profile
+  with two PVIs at one station (a vertical step) is not an engine profile; the warning names the
+  step and its two levels, and `design_profiles` has it whole.
 - `Alignment/Superelevation`, one per curve: `BeginRunoutSta`, `BeginRunoffSta`, `FullSuperSta`,
   `RunoffSta`, `StartofRunoutSta`, `EndofRunoutSta`, `FullSuperelev` (percent), `AdverseSE`.
 
@@ -180,7 +246,17 @@ each `Superelevation` becomes one section holding its stations, and:
 - the other four stations are stored with their `kind` and **no cross-fall**. Through the runoff
   and runout, and on the tangents, the cross-fall is therefore absent, not guessed.
 - if the alignment is straight there, the rate is negative (the schema defines no sign) or
-  `FullSuperelev` is missing, no side gets a value and a note says why.
+  `FullSuperelev` is missing, no side gets a value and a note says why. **One exception, decided
+  from the file itself:** when, on every section of the file that has one rate and a curve under it,
+  the sign of `FullSuperelev` is positive on right-hand curves and negative on left-hand ones, with
+  no exception and at least three such sections, the sign is read as the direction of the curve and
+  its magnitude is applied as above; a section whose sign disagrees with its curve is then left
+  without cross-fall. The warning says how many sections decided it. Nothing is assumed for a file
+  that does not show it. In all cases `LandXmlFile::superelevation_tables` has the stations and
+  the signed rates exactly as written.
+- a `Superelevation` with no station and no rate (only `staStart` and `staEnd`), or whose stations
+  are not in ascending order (a curve run through backwards), is not applied as cross-fall, says
+  so, and is kept in `superelevation_tables`.
 
 Assumptions the schema leaves open, each made explicit: **PVI stations are taken to be internal
 stations** (a note is made when the alignment also has station equations); superelevation
@@ -201,10 +277,44 @@ The test files in `tests/landxml/` were written by hand to the schema and valida
 `LandXML-1.2.xsd`: `site.xml` and `unsupported.xml` (horizontal), `corridor.xml` (profile with all
 four PVI kinds, a gap and an overlap in the station equations, superelevation on left, right and
 adverse curves) and `corridor_feet.xml` (feet; a profile, equation and superelevation with faults).
-**No file exported by Civil 3D was available to test against**, so how the importer copes with
-what Civil 3D actually writes — in particular which stations it puts in a profile when there are
-station equations, what it writes in `CircCurve@length`, and whether it writes `Superelevation`
-in this form at all — is not yet proven.
+The small public Civil 3D file (taken from the public MIT-licensed repository RustedGeom/rusted-geom,
+`showcase/public/landxml/C3DProfileExample2.xml`, unmodified) is the only Civil 3D file in the
+repository. Still unproven: which stations Civil 3D puts in a profile when there are station
+equations, what it writes in `CircCurve@length`, and parcels, points and `Slope Distance` cross-section
+points from Civil 3D. The element and attribute names come from the schema file, which was fetched
+(`LandXML-1.2.xsd` dated 2008-07-29 in its header) and used to validate every test file here.
+
+### Checked against a real Civil 3D 2025 export
+
+`tests/private_landxml.rs` (skipped, with a printed note, unless `AFROBIM_PRIVATE_LANDXML` names the
+file; `AFROBIM_PRIVATE_LANDXML_EXPECT` names a JSON file written by an independent Python reading
+with the standard library only, kept outside the repository). The file is a Civil 3D 2025 export in
+metres (UTM, `linearUnit="meter"`, `angularUnit` and `directionUnit` decimal degrees) of a road
+project: many alignments with clothoids, `ProfSurf` and `ProfAlign` for each, `Superelevation`,
+`CrossSects` of named `CrossSectSurf`, TIN surfaces with invisible faces and `PointFiles`, `Feature`
+on the alignments, a `FieldNote` on the coordinate system. It validates against the schema. The
+tests assert the headline facts without writing its names or coordinates in the repository (names
+and lengths come from a second, simple reading inside the test), then compare the reader with the
+independent reading: counts exactly, coordinates and levels to 1e-9 m.
+
+What the checks found, each fixed (see the commit messages) and covered by the synthetic file:
+
+- Geometry: the stated joins, curve radii, lengths and spiral end points are consistent to a few
+  nanometres, and the engine reproduces every stated spiral end point (worst miss 2e-9 m; an
+  independent integration of the heading from `Start` and the direction `Start` to `PI` agrees to
+  4e-9 m). The start heading of each element agrees with the stated points to 1.2e-10 rad. One joint
+  of the file is a real 4.6 degree corner between two straights, and is reported.
+- `station_offset` failed on UTM-sized coordinates (see the geometry test); fixed.
+- A design profile with a vertical step was dropped; superelevation elements that are empty,
+  descending or negative were dropped or left without cross-fall; `Feature`, `FieldNote`,
+  `PointFiles`, `Alignment@desc` and the `Definition` statistics were skipped silently; one surface
+  has a few survey points thousands of kilometres from the rest. All are now read or reported.
+- Civil 3D states `area2DSurf` as the plan area of the **visible** faces; the TIN read here has
+  exactly that area, which confirms that skipping `F i="1"` is right (the invisible faces are the
+  convex hull around the surface).
+- The whole-file reader parsed the document twice; it parses once. An 8.7 MB one-line file reads in
+  0.7 to 1.1 s in a debug build (1.2 s before) and 0.11 s in a release build, with a peak of about
+  40 MB for the process.
 
 ## Sign placement
 
@@ -278,10 +388,21 @@ origin as numbers (`PlanDrawing`), which is easier than parsing the derived stri
 - The location report (`location_report::write`) is the C# port and prints the station it is
   given; choosing internal or displayed stations for a schedule is the caller's.
 - A step in cross-fall at one station (two values at the same station in one section).
-- Spirals that are not clothoids (Bloss, cubic parabola, sinusoid, …), and LandXML
-  `IrregularLine` and `Chain`.
+- Spirals that are not clothoids (Bloss, cubic parabola, sinusoid, …) in an alignment (parcel and
+  plan-feature spirals of any type are read as data). An `IrregularLine` or `Chain` in an
+  alignment becomes straight segments.
+- LandXML elements the whole-file reader does not read (they are counted, never an error):
+  `Roadways`, `PipeNetworks`, `Survey`, `Monuments`, `GradeModel`, `Amendment`, `FeatureDictionary`,
+  `Alignment/Start`, `AlignPIs`, `Cant`, `Surface/Watersheds`, `SurfVolumes`, `SourceData/Chain`,
+  `Parcel/Title`, `Exclusions`, `LocationAddress`, `VolumeGeom`, `CrossSectPnt` in `Slope Distance`
+  format; and the redundant attributes listed above (counted in `summary.ignored_attributes`).
+- A profile with a vertical step as an engine `Profile` (it is kept whole in `design_profiles`).
+- The meaning of the sign of `FullSuperelev` in general: it is read from the file's own curves when
+  the file is consistent, not from the schema.
+- A `grid` surface is read as raw points and four-point faces only; converting it to a TIN is the
+  corridor crate's option.
 - Station labels and any other text in the plan drawing.
-- Writing LandXML.
+- Writing LandXML (it is `afrobim-design`'s `write_landxml_file`).
 - `station_offset` for a point as far from a curve as its centre has no single answer and
   returns one of the candidates; a point that close to the evolute of a sharp curve may be
   matched to a neighbouring foot.

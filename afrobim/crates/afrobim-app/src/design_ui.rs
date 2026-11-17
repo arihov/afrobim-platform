@@ -20,9 +20,21 @@ use crate::app::AfroBimApp;
 use crate::design_glue::{self as glue, HEdit};
 use crate::disp::{cell_changed, cell_text, parse_cell, Cell};
 
-pub const BAD: Color32 = Color32::from_rgb(0xEF, 0x6C, 0x63);
-pub const WARN: Color32 = Color32::from_rgb(0xD9, 0x8A, 0x2B);
-pub const GOOD: Color32 = Color32::from_rgb(0x4D, 0xC0, 0x7A);
+#[allow(non_snake_case)]
+
+pub fn BAD() -> egui::Color32 {
+
+    crate::theme::danger()
+
+}
+#[allow(non_snake_case)]
+pub fn WARN() -> egui::Color32 {
+    crate::theme::warn()
+}
+#[allow(non_snake_case)]
+pub fn GOOD() -> egui::Color32 {
+    crate::theme::success()
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PlanTool {
@@ -43,6 +55,21 @@ pub struct NewDialog {
     pub name: String,
     pub start: String,
     pub problem: String,
+    /// 0 picks the PIs on the plan, 1 types them: one a line, `x,y` or `@dx,dy` after the first.
+    pub mode: usize,
+    pub pis_text: String,
+}
+
+/// The PIs typed in the dialog: the points, or the first line that is not one.
+pub fn parse_typed_pis(units: &DisplayUnits, text: &str) -> Result<Vec<(f64, f64)>, String> {
+    let mut points: Vec<(f64, f64)> = Vec::new();
+    for (i, line) in text.lines().enumerate().filter(|(_, l)| !l.trim().is_empty()) {
+        match crate::disp::parse_point(units, line.trim(), points.last().copied()) {
+            Some(p) => points.push(p),
+            None => return Err(format!("Line {}: '{}' is not a point. Write x,y, or @dx,dy from the PI before.", i + 1, line.trim())),
+        }
+    }
+    Ok(points)
 }
 
 /// A PI being dragged. `working` is the last design the engine accepted, `refused` the engine's
@@ -88,6 +115,21 @@ pub fn labels_in(design: &AlignmentDesign, units: &DisplayUnits) -> Vec<PlanLabe
     plan_labels_with(design, &station, Some(&length)).unwrap_or_default()
 }
 
+fn ui_kit_trim(v: f64) -> String {
+    let t = format!("{v:.3}");
+    t.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+/// The superelevation cases of the radius default: the key of the basis and its label.
+const RADIUS_CASES: [(&str, &str); 6] = [
+    ("link.horizontal.desirable_min_radius_superelevation_5", "Desirable minimum, superelevation 5 %"),
+    ("link.horizontal.min_radius_superelevation_2_5", "Superelevation 2.5 %"),
+    ("link.horizontal.min_radius_superelevation_3_5", "Superelevation 3.5 %"),
+    ("link.horizontal.one_step_below_radius_superelevation_7", "One step below, superelevation 7 %"),
+    ("link.horizontal.two_steps_below_radius_superelevation_7", "Two steps below, superelevation 7 %"),
+    ("link.horizontal.min_radius_adverse_camber_no_transition", "Adverse camber, no transition"),
+];
+
 pub struct DesignUi {
     pub plan_on: bool,
     pub view: ViewTransform,
@@ -99,6 +141,9 @@ pub struct DesignUi {
     pub new_dialog: Option<NewDialog>,
     drag: Option<Drag>,
     pub sel_pi: Option<usize>,
+    /// The design speed row (0 not chosen) and the superelevation case of the radius default shown in the PI table.
+    pub pi_speed: usize,
+    pub pi_basis: usize,
     pub labels_on: bool,
     pub table_open: bool,
     pub bufs: HashMap<(usize, u8), String>,
@@ -130,6 +175,8 @@ impl Default for DesignUi {
             new_dialog: None,
             drag: None,
             sel_pi: None,
+            pi_speed: 0,
+            pi_basis: 0,
             labels_on: true,
             table_open: false,
             bufs: HashMap::new(),
@@ -588,7 +635,7 @@ impl AfroBimApp {
             // Curves with no radius yet.
             for (i, q) in p.pis.iter().enumerate() {
                 if q.radius == 0.0 && deflection_deg(&p.pis, i).is_some_and(|d| d.abs() > 0.05) {
-                    plan_text(&painter, to_screen((q.x, q.y)) + Vec2::new(10.0, 12.0), Align2::LEFT_TOP, "radius needed", 10.5, WARN, dark);
+                    plan_text(&painter, to_screen((q.x, q.y)) + Vec2::new(10.0, 12.0), Align2::LEFT_TOP, "radius needed", 10.5, WARN(), dark);
                 }
             }
             // Grips.
@@ -602,17 +649,17 @@ impl AfroBimApp {
                 painter.rect_stroke(r, 0.0, Stroke::new(1.0_f32, Color32::WHITE), egui::StrokeKind::Inside);
             }
         } else if let Some((_, Err(e), _)) = &self.design.active_plan {
-            plan_text(&painter, rect.left_top() + Vec2::new(14.0, 60.0), Align2::LEFT_TOP, &format!("This design cannot be drawn: {e}"), 12.0, BAD, dark);
+            plan_text(&painter, rect.left_top() + Vec2::new(14.0, 60.0), Align2::LEFT_TOP, &format!("This design cannot be drawn: {e}"), 12.0, BAD(), dark);
         }
 
         // A move the engine refuses: the cursor, in red, with the engine's reason.
         if let Some(d) = &self.design.drag {
             if let Some(reason) = &d.refused {
                 let s = to_screen(d.cursor);
-                painter.circle_stroke(s, 9.0, Stroke::new(2.0_f32, BAD));
-                painter.line_segment([s + Vec2::new(-6.0, -6.0), s + Vec2::new(6.0, 6.0)], Stroke::new(2.0_f32, BAD));
-                painter.line_segment([s + Vec2::new(-6.0, 6.0), s + Vec2::new(6.0, -6.0)], Stroke::new(2.0_f32, BAD));
-                plan_text(&painter, s + Vec2::new(14.0, 14.0), Align2::LEFT_TOP, &format!("Refused: {reason}"), 11.0, BAD, dark);
+                painter.circle_stroke(s, 9.0, Stroke::new(2.0_f32, BAD()));
+                painter.line_segment([s + Vec2::new(-6.0, -6.0), s + Vec2::new(6.0, 6.0)], Stroke::new(2.0_f32, BAD()));
+                painter.line_segment([s + Vec2::new(-6.0, 6.0), s + Vec2::new(6.0, -6.0)], Stroke::new(2.0_f32, BAD()));
+                plan_text(&painter, s + Vec2::new(14.0, 14.0), Align2::LEFT_TOP, &format!("Refused: {reason}"), 11.0, BAD(), dark);
             }
         }
 
@@ -643,7 +690,7 @@ impl AfroBimApp {
         // What was resynchronised by the last edit.
         if let Some(r) = &self.design.last {
             let text = r.note();
-            plan_text(&painter, rect.right_bottom() + Vec2::new(-12.0, -26.0), Align2::RIGHT_BOTTOM, &text, 10.5, if r.problems.is_empty() { GOOD } else { WARN }, dark);
+            plan_text(&painter, rect.right_bottom() + Vec2::new(-12.0, -26.0), Align2::RIGHT_BOTTOM, &text, 10.5, if r.problems.is_empty() { GOOD() } else { WARN() }, dark);
         }
 
         // The plan toolbar, on top of the canvas.
@@ -655,7 +702,7 @@ impl AfroBimApp {
     fn plan_toolbar(&mut self, ui: &mut Ui) {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Plan").strong());
+                crate::ui_kit::heading(ui, "Plan");
                 for (tool, label, tip) in [
                     (PlanTool::Select, "Select and drag PIs", "Drag a PI grip. A move the engine refuses shows its reason and the PI goes back."),
                     (PlanTool::Insert, "Insert PI", "Click on a tangent to add a PI there."),
@@ -836,55 +883,103 @@ impl AfroBimApp {
     }
 
     fn new_alignment_window(&mut self, ctx: &egui::Context) {
+        use crate::ui_kit::{self, Col, Dialog, Footer, Level};
         if self.design.new_dialog.is_none() {
             return;
         }
-        let mut open = true;
-        let mut go = false;
-        let mut cancel = false;
         let units = crate::anno_ui::units_of(&self.doc);
+        let existing: Vec<String> = crate::alignment_glue::alignments(&self.doc).into_iter().map(|a| a.1).collect();
         let nd = self.design.new_dialog.as_mut().expect("checked above");
-        crate::win::new(ctx, "ALIGNDESIGN: new alignment").open(&mut open).default_width(420.0).show(ctx, |ui| {
-            ui.label("Name the alignment and give the station at its first PI. Then pick the PIs on the plan: click, or type x,y on the command line (in the document's length unit; @dx,dy is relative to the last PI). Curves start with no radius: you enter each one afterwards in the PI table.");
-            egui::Grid::new("new-align").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
-                ui.label("Name");
-                ui.add_sized([240.0, 20.0], egui::TextEdit::singleline(&mut nd.name));
-                ui.end_row();
-                ui.label("Start station");
-                ui.add_sized([120.0, 20.0], egui::TextEdit::singleline(&mut nd.start).hint_text("for example 1+000.000"));
-                ui.end_row();
-            });
-            ui.label(RichText::new("The start station is the station at the first PI. Enter it as 1+250.000 or as a number of metres (1250).").small().weak());
-            if !nd.problem.is_empty() {
-                ui.label(RichText::new(&nd.problem).color(BAD));
-            }
-            ui.horizontal(|ui| {
-                if ui.button("Pick the PIs on the plan").clicked() {
-                    go = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    cancel = true;
-                }
-            });
-        });
-        if go {
-            let nd = self.design.new_dialog.as_mut().expect("checked above");
-            let name = nd.name.trim().to_string();
-            match (name.is_empty(), crate::disp::parse_station(&units, &nd.start)) {
-                (true, _) => nd.problem = "Give the alignment a name.".into(),
-                (_, None) => nd.problem = "Enter the start station as 1+250.000 or as a number of metres.".into(),
-                (false, Some(start)) => {
-                    self.design.create = Some(Create { name, start_m: start, points: Vec::new() });
-                    self.design.new_dialog = None;
-                    self.design.plan_on = true;
-                    self.design.fitted = false;
-                    self.view_3d = false;
-                    self.design.invalidate();
-                    self.status = "Pick the first PI on the plan, or type x,y on the command line.".into();
-                }
-            }
-        } else if cancel || !open {
+        let start = crate::disp::parse_station(&units, &nd.start);
+        let name_ok = !nd.name.trim().is_empty();
+        let typed = parse_typed_pis(&units, &nd.pis_text);
+        let (enabled, reason, primary) = match (name_ok, start, nd.mode, &typed) {
+            (false, _, _, _) => (false, "Give the alignment a name".to_string(), "Pick the PIs on the plan"),
+            (_, None, _, _) => (false, "Enter the start station as 1+250.000 or as metres".to_string(), "Pick the PIs on the plan"),
+            (_, _, 0, _) => (true, String::new(), "Pick the PIs on the plan"),
+            (_, _, _, Err(e)) => (false, e.clone(), "Create the alignment"),
+            (_, _, _, Ok(p)) if p.len() < 2 => (false, "An alignment needs at least two PIs".to_string(), "Create the alignment"),
+            _ => (true, String::new(), "Create the alignment"),
+        };
+        let name_taken = name_ok && existing.iter().any(|n| n.eq_ignore_ascii_case(nd.name.trim()));
+        let length_unit = if crate::disp::suffix(&units) == "m" { "metres" } else { "millimetres" };
+        let out = Dialog::new("ALIGNDESIGN: new alignment", crate::glyphs::by_name("ALIGNDESIGN"))
+            .id_title("ALIGNDESIGN: new alignment")
+            .subtitle("Name it, say where it starts, then give its PIs")
+            .width(500.0)
+            .resizable(false)
+            .help("A PI is a point where the alignment changes direction. Curves start with no radius: you enter each one afterwards in the PI table, and the engine tells you the radii that are possible. The start station is the station at the first PI.")
+            .show(
+                ctx,
+                |ui| {
+                    ui_kit::section(ui, "Alignment", |ui| {
+                        ui_kit::form(ui, "newalign", |f| {
+                            f.row("Name", |ui| {
+                                let r = ui_kit::text_field(ui, &mut nd.name, "for example MC10");
+                                ui_kit::focus_once(ui, &r, "newalign-name");
+                            });
+                            f.row_note("Start station", &match start {
+                                Some(m) => format!("{} m internal, shown as {}", ui_kit_trim(m), crate::disp::station(&units, m)),
+                                None => "enter 1+250.000 or a number of metres".to_string(),
+                            }, |ui| {
+                                ui_kit::text_field(ui, &mut nd.start, "for example 1+000.000");
+                            });
+                        });
+                        if name_taken {
+                            ui.add_space(2.0);
+                            ui_kit::callout(ui, Level::Warning, "An alignment with this name is already in the document. Names should be unique: change this one, or the two will be hard to tell apart.");
+                        }
+                    });
+                    ui_kit::section(ui, "Points of intersection", |ui| {
+                        ui_kit::segmented(ui, &mut nd.mode, &["Pick on the plan", "Type the coordinates"]);
+                        ui.add_space(4.0);
+                        if nd.mode == 0 {
+                            ui.label(format!("Click each PI on the plan, or type x,y on the command line (in {length_unit}; @dx,dy is relative to the last PI). Enter or C finishes, U removes the last."));
+                        } else {
+                            crate::ui_kit::note(ui, format!("One PI a line, in {length_unit}: easting, northing. A line that starts with @ is relative to the PI before it."));
+                            ui.add(egui::TextEdit::multiline(&mut nd.pis_text).font(egui::TextStyle::Monospace).desired_rows(5).desired_width(f32::INFINITY).hint_text("0, 0\n250, 40\n@300, -20"));
+                            match &typed {
+                                Err(e) => {
+                                    ui_kit::callout(ui, Level::Error, e.as_str());
+                                }
+                                Ok(p) if !p.is_empty() => {
+                                    let rows: Vec<Vec<String>> = p.iter().enumerate().map(|(i, (x, y))| vec![format!("{}", i + 1), crate::disp::len_u(&units, *x), crate::disp::len_u(&units, *y)]).collect();
+                                    ui_kit::results_table(ui, "newalign-pis", &["PI", "Easting", "Northing"], &[Col::Num, Col::Num, Col::Num], &rows);
+                                }
+                                _ => {}
+                            }
+                        }
+                    });
+                    if !nd.problem.is_empty() {
+                        ui.add_space(4.0);
+                        ui_kit::callout(ui, Level::Error, nd.problem.clone());
+                    }
+                },
+                |ui| Footer::new(primary).icon(crate::glyphs::by_name("ALIGNDESIGN")).enabled(enabled, &reason).show(ui),
+            );
+        let mode = nd.mode;
+        let (name, pis) = (nd.name.trim().to_string(), typed.clone());
+        if out.closed || out.inner.is_some_and(|(_, f)| f.cancel) {
             self.design.new_dialog = None;
+            return;
+        }
+        if out.inner.is_some_and(|(_, f)| f.primary) {
+            let Some(start) = start else { return };
+            self.design.new_dialog = None;
+            if mode == 0 {
+                self.design.create = Some(Create { name, start_m: start, points: Vec::new() });
+                self.design.plan_on = true;
+                self.design.fitted = false;
+                self.view_3d = false;
+                self.design.invalidate();
+                self.status = "Pick the first PI on the plan, or type x,y on the command line.".into();
+            } else if let Ok(points) = pis {
+                self.design.create = Some(Create { name, start_m: start, points });
+                self.design.plan_on = true;
+                self.design.fitted = false;
+                self.view_3d = false;
+                self.design_finish_create();
+            }
         }
     }
 
@@ -917,17 +1012,41 @@ impl AfroBimApp {
         let units = crate::anno_ui::units_of(&self.doc);
         let u = &units;
         let work = crate::win::work_rect(ctx);
-        crate::win::new(ctx, "PI table").default_pos(egui::pos2(work.min.x + 16.0, (work.max.y - 250.0).max(work.min.y + 40.0))).open(&mut open).default_width(900.0).default_height(230.0).show(ctx, |ui| {
-            ui.label(RichText::new(format!("{name}: start station {}", units.station(design.horizontal.start_station_m))).strong());
-            ui.label(RichText::new("Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.").small().weak());
+        let radius_speeds = crate::defaults_glue::speeds_of("link.horizontal.desirable_min_radius_superelevation_5");
+        let mut pi_speed = self.design.pi_speed;
+        let mut pi_basis = self.design.pi_basis.min(RADIUS_CASES.len() - 1);
+        let radius_default = (pi_speed > 0).then(|| radius_speeds.get(pi_speed - 1).copied()).flatten().and_then(|sp| crate::defaults_glue::get(RADIUS_CASES[pi_basis].0, &afrobim_defaults::Conditions::none().design_speed(sp))).and_then(|v| v.number().map(|n| (n, v)));
+        let dlg = crate::ui_kit::Dialog::titled("PI table").subtitle("The points of intersection of the horizontal geometry").help("Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve; a blank radius is no curve. Feasible R is the radius that fits now with the spirals shown, from the engine. The radius default is a starting value of the defaults basis for the design speed and the superelevation case chosen, not a requirement of the project.").width(900.0).default_pos(egui::pos2(work.min.x + 16.0, (work.max.y - 250.0).max(work.min.y + 40.0))).show_body(ctx, |ui| {
+            crate::ui_kit::section(ui, &format!("{name}: start station {}", units.station(design.horizontal.start_station_m)), |ui| {
+                crate::ui_kit::form(ui, "pi-basis", |fm| {
+                    fm.row_note("Design speed for the radius default", "Choose a speed to see the radius of the defaults basis with its citation; a Use button then fills a radius", |ui| {
+                        ui.horizontal(|ui| {
+                            let mut labels: Vec<String> = vec!["Speed: not chosen".into()];
+                            labels.extend(radius_speeds.iter().map(|v| format!("{} km/h", afrobim_defaults::fmt_num(*v))));
+                            crate::ui_kit::combo_owned(ui, "pi-speed", &mut pi_speed, &labels);
+                            let names: Vec<&str> = RADIUS_CASES.iter().map(|c| c.1).collect();
+                            crate::ui_kit::combo(ui, "pi-basis", &mut pi_basis, &names);
+                        });
+                    });
+                });
+                match &radius_default {
+                    Some((r, v)) => {
+                        crate::ui_kit::note(ui, format!("{} m: {}", afrobim_defaults::fmt_num(*r), crate::defaults_glue::citation_line(v)));
+                    }
+                    None if pi_speed > 0 => {
+                        crate::ui_kit::note(ui, "The basis has no radius for this speed and case: enter a radius.");
+                    }
+                    None => {}
+                }
+            });
             if let Err(e) = &solution {
-                ui.label(RichText::new(format!("The design cannot be solved: {e}")).color(BAD));
+                crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("The design cannot be solved: {e}"));
             }
             egui::ScrollArea::both().auto_shrink([false, true]).max_height(260.0).show(ui, |ui| {
                 egui::Grid::new("pi-table").num_columns(12).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
                     let heads = ["PI".to_string(), "Station".to_string(), crate::disp::head(u, "East"), crate::disp::head(u, "North"), "Deflection".to_string(), crate::disp::head(u, "Radius"), crate::disp::head(u, "Feasible R"), crate::disp::head(u, "Spiral in"), crate::disp::head(u, "Spiral out"), crate::disp::head(u, "T"), crate::disp::head(u, "L"), String::new()];
                     for h in heads {
-                        ui.label(RichText::new(h).strong());
+                        crate::ui_kit::th(ui, &h);
                     }
                     ui.end_row();
                     for (i, pi) in pis.iter().enumerate() {
@@ -937,7 +1056,7 @@ impl AfroBimApp {
                             (Ok(s), None) => s.alignment.station_offset(pi.x, pi.y).map(|x| x.0),
                             _ => None,
                         };
-                        let label = if sel_now == Some(i) { RichText::new(format!("{i}")).strong().color(WARN) } else { RichText::new(format!("{i}")) };
+                        let label = if sel_now == Some(i) { RichText::new(format!("{i}")).strong().color(WARN()) } else { RichText::new(format!("{i}")) };
                         if ui.selectable_label(sel_now == Some(i), label).clicked() {
                             sel = Some(i);
                         }
@@ -970,7 +1089,13 @@ impl AfroBimApp {
                             ui.horizontal(|ui| {
                                 let r = ui.add_sized([62.0, 20.0], egui::TextEdit::singleline(&mut radius_text).hint_text("needed"));
                                 if pi.radius == 0.0 {
-                                    ui.label(RichText::new("needed").small().color(WARN));
+                                    ui.label(RichText::new("needed").size(crate::theme::FONT_SMALL).color(WARN()));
+                                }
+                                if let Some((rv, _)) = &radius_default {
+                                    let shown = crate::disp::len(u, *rv);
+                                    if ui.small_button("Use").on_hover_text(format!("Radius {shown} of the defaults basis ({})", RADIUS_CASES[pi_basis].1)).clicked() {
+                                        edit = Some(HEdit::SetRadius(i, *rv));
+                                    }
                                 }
                                 if r.lost_focus() {
                                     let t = radius_text.clone();
@@ -1036,14 +1161,19 @@ impl AfroBimApp {
             });
             if let Ok(s) = &solution {
                 for w in &s.warnings {
-                    ui.label(RichText::new(w).small().color(WARN));
+                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, w);
                 }
                 ui.label(RichText::new(format!("Length {}, end station {}.", crate::disp::len_u(u, s.alignment.length()), crate::disp::station(u, s.alignment.end_station_m()))).small());
             }
             if let Some(r) = &last {
-                ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD } else { WARN }));
+                ui.label(RichText::new(r.note()).small().color(if r.problems.is_empty() { GOOD() } else { WARN() }));
             }
         });
+        if dlg.closed {
+            open = false;
+        }
+        self.design.pi_speed = pi_speed;
+        self.design.pi_basis = pi_basis;
         self.design.bufs = bufs;
         if !bad_input.is_empty() {
             self.status = bad_input;
@@ -1096,4 +1226,20 @@ pub fn plan_text(painter: &egui::Painter, at: egui::Pos2, align: Align2, text: &
     let rect = align.anchor_size(at, galley.size());
     painter.rect_filled(rect.expand2(Vec2::new(3.0, 1.0)), 2.0, if dark { Color32::from_rgba_unmultiplied(20, 22, 26, 190) } else { Color32::from_rgba_unmultiplied(246, 246, 242, 200) });
     painter.galley(rect.min, galley, colour);
+}
+
+#[cfg(test)]
+mod new_dialog_tests {
+    use super::*;
+
+    #[test]
+    fn typed_pis_are_read_one_a_line_with_relative_points() {
+        let u = DisplayUnits::default();
+        let p = parse_typed_pis(&u, "0, 0\n\n250, 40\n@300,-20\n").unwrap();
+        assert_eq!(p.len(), 3);
+        assert!((p[1].0 - 250.0).abs() < 1e-9 && (p[2].0 - 550.0).abs() < 1e-9 && (p[2].1 - 20.0).abs() < 1e-9, "{p:?}");
+        let e = parse_typed_pis(&u, "0,0\nnot a point").unwrap_err();
+        assert!(e.starts_with("Line 2:"), "{e}");
+        assert!(parse_typed_pis(&u, "").unwrap().is_empty());
+    }
 }
