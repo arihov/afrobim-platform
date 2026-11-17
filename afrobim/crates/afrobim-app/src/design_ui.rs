@@ -120,6 +120,16 @@ fn ui_kit_trim(v: f64) -> String {
     t.trim_end_matches('0').trim_end_matches('.').to_string()
 }
 
+/// The superelevation cases of the radius default: the key of the basis and its label.
+const RADIUS_CASES: [(&str, &str); 6] = [
+    ("link.horizontal.desirable_min_radius_superelevation_5", "Desirable minimum, superelevation 5 %"),
+    ("link.horizontal.min_radius_superelevation_2_5", "Superelevation 2.5 %"),
+    ("link.horizontal.min_radius_superelevation_3_5", "Superelevation 3.5 %"),
+    ("link.horizontal.one_step_below_radius_superelevation_7", "One step below, superelevation 7 %"),
+    ("link.horizontal.two_steps_below_radius_superelevation_7", "Two steps below, superelevation 7 %"),
+    ("link.horizontal.min_radius_adverse_camber_no_transition", "Adverse camber, no transition"),
+];
+
 pub struct DesignUi {
     pub plan_on: bool,
     pub view: ViewTransform,
@@ -131,6 +141,9 @@ pub struct DesignUi {
     pub new_dialog: Option<NewDialog>,
     drag: Option<Drag>,
     pub sel_pi: Option<usize>,
+    /// The design speed row (0 not chosen) and the superelevation case of the radius default shown in the PI table.
+    pub pi_speed: usize,
+    pub pi_basis: usize,
     pub labels_on: bool,
     pub table_open: bool,
     pub bufs: HashMap<(usize, u8), String>,
@@ -162,6 +175,8 @@ impl Default for DesignUi {
             new_dialog: None,
             drag: None,
             sel_pi: None,
+            pi_speed: 0,
+            pi_basis: 0,
             labels_on: true,
             table_open: false,
             bufs: HashMap::new(),
@@ -997,9 +1012,33 @@ impl AfroBimApp {
         let units = crate::anno_ui::units_of(&self.doc);
         let u = &units;
         let work = crate::win::work_rect(ctx);
-        let dlg = crate::ui_kit::Dialog::titled("PI table").subtitle("The points of intersection of the horizontal geometry").width(900.0).default_pos(egui::pos2(work.min.x + 16.0, (work.max.y - 250.0).max(work.min.y + 40.0))).show_body(ctx, |ui| {
-            crate::ui_kit::heading(ui, &format!("{name}: start station {}", units.station(design.horizontal.start_station_m)));
-            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve. A blank radius is no curve. Feasible range is the radius that fits now with the spirals shown, from the engine.");
+        let radius_speeds = crate::defaults_glue::speeds_of("link.horizontal.desirable_min_radius_superelevation_5");
+        let mut pi_speed = self.design.pi_speed;
+        let mut pi_basis = self.design.pi_basis.min(RADIUS_CASES.len() - 1);
+        let radius_default = (pi_speed > 0).then(|| radius_speeds.get(pi_speed - 1).copied()).flatten().and_then(|sp| crate::defaults_glue::get(RADIUS_CASES[pi_basis].0, &afrobim_defaults::Conditions::none().design_speed(sp))).and_then(|v| v.number().map(|n| (n, v)));
+        let dlg = crate::ui_kit::Dialog::titled("PI table").subtitle("The points of intersection of the horizontal geometry").help("Stations are the stations shown on the drawings; a designed alignment has no station equations, so they are the internal stations. Lengths are in the document's display unit (a trailing m or mm overrides it when typing). Enter a radius to make a curve; a blank radius is no curve. Feasible R is the radius that fits now with the spirals shown, from the engine. The radius default is a starting value of the defaults basis for the design speed and the superelevation case chosen, not a requirement of the project.").width(900.0).default_pos(egui::pos2(work.min.x + 16.0, (work.max.y - 250.0).max(work.min.y + 40.0))).show_body(ctx, |ui| {
+            crate::ui_kit::section(ui, &format!("{name}: start station {}", units.station(design.horizontal.start_station_m)), |ui| {
+                crate::ui_kit::form(ui, "pi-basis", |fm| {
+                    fm.row_note("Design speed for the radius default", "Choose a speed to see the radius of the defaults basis with its citation; a Use button then fills a radius", |ui| {
+                        ui.horizontal(|ui| {
+                            let mut labels: Vec<String> = vec!["Speed: not chosen".into()];
+                            labels.extend(radius_speeds.iter().map(|v| format!("{} km/h", afrobim_defaults::fmt_num(*v))));
+                            crate::ui_kit::combo_owned(ui, "pi-speed", &mut pi_speed, &labels);
+                            let names: Vec<&str> = RADIUS_CASES.iter().map(|c| c.1).collect();
+                            crate::ui_kit::combo(ui, "pi-basis", &mut pi_basis, &names);
+                        });
+                    });
+                });
+                match &radius_default {
+                    Some((r, v)) => {
+                        crate::ui_kit::note(ui, format!("{} m: {}", afrobim_defaults::fmt_num(*r), crate::defaults_glue::citation_line(v)));
+                    }
+                    None if pi_speed > 0 => {
+                        crate::ui_kit::note(ui, "The basis has no radius for this speed and case: enter a radius.");
+                    }
+                    None => {}
+                }
+            });
             if let Err(e) = &solution {
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Error, format!("The design cannot be solved: {e}"));
             }
@@ -1050,7 +1089,13 @@ impl AfroBimApp {
                             ui.horizontal(|ui| {
                                 let r = ui.add_sized([62.0, 20.0], egui::TextEdit::singleline(&mut radius_text).hint_text("needed"));
                                 if pi.radius == 0.0 {
-                                    crate::ui_kit::callout(ui, crate::ui_kit::Level::Warning, "needed");
+                                    ui.label(RichText::new("needed").size(crate::theme::FONT_SMALL).color(WARN()));
+                                }
+                                if let Some((rv, _)) = &radius_default {
+                                    let shown = crate::disp::len(u, *rv);
+                                    if ui.small_button("Use").on_hover_text(format!("Radius {shown} of the defaults basis ({})", RADIUS_CASES[pi_basis].1)).clicked() {
+                                        edit = Some(HEdit::SetRadius(i, *rv));
+                                    }
                                 }
                                 if r.lost_focus() {
                                     let t = radius_text.clone();
@@ -1127,6 +1172,8 @@ impl AfroBimApp {
         if dlg.closed {
             open = false;
         }
+        self.design.pi_speed = pi_speed;
+        self.design.pi_basis = pi_basis;
         self.design.bufs = bufs;
         if !bad_input.is_empty() {
             self.status = bad_input;

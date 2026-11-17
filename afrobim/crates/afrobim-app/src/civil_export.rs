@@ -92,7 +92,13 @@ pub fn build_file(doc: &Document, ctx: &Ctx) -> (LandXmlFile, Vec<String>) {
             }
             SAMPLES => {
                 if let Some(d) = get::<SampleData>(doc, e.id, SAMPLES) {
-                    if let Some(al) = ctx.alignment_named(&d.group.alignment) {
+                    if !d.imported.is_empty() {
+                        // Sections that came from a file go back as the file's own lines, under their own names.
+                        for sec in &d.imported {
+                            let surfaces = sec.surfaces.iter().map(|s| LandXmlCrossSectSurf { name: s.name.clone(), desc: None, state: None, point_lists: s.runs.clone() }).collect();
+                            file.cross_sections.push(LandXmlCrossSection { alignment: d.group.alignment.clone(), station_m: sec.station_m, name: Some(sec.line.clone()), desc: None, surfaces, design_surfaces: vec![] });
+                        }
+                    } else if let Some(al) = ctx.alignment_named(&d.group.alignment) {
                         let tins: Vec<(String, std::sync::Arc<afrobim_corridor::Tin>)> = d.surfaces.iter().filter_map(|id| ctx.element(*id).and_then(|el| ctx.tin(*id).map(|t| (el.name.clone(), t)))).collect();
                         let refs: Vec<(&str, &afrobim_corridor::Tin)> = tins.iter().map(|(n, t)| (n.as_str(), t.as_ref())).collect();
                         match afrobim_corridor::section_views(&d.group, &al, &refs, None) {
@@ -107,7 +113,7 @@ pub fn build_file(doc: &Document, ctx: &Ctx) -> (LandXmlFile, Vec<String>) {
                     }
                 }
             }
-            ASSEMBLY | PROFILE_VIEW | CORRIDOR => {}
+            ASSEMBLY | PROFILE_VIEW | CORRIDOR | PIPENET | PIPEPROFILE => {}
             _ => {}
         }
     }
@@ -154,7 +160,26 @@ pub fn landxml_text(doc: &Document, ctx: &Ctx) -> (String, Vec<String>) {
     let (file, mut notes) = build_file(doc, ctx);
     let out = write_landxml_file(&file, &LandXmlOptions::default());
     notes.extend(out.warnings);
-    (out.text, notes)
+    let mut text = out.text;
+    // The pipe networks are written by the pipes crate and spliced in before the closing tag.
+    let nets: Vec<afrobim_pipes::PipeNetwork> = doc.elements().iter().filter(|e| e.category == PIPENET && !hidden(e)).filter_map(|e| get::<crate::civil_pipes::PipeNetData>(doc, e.id, PIPENET).map(|d| {
+        let mut n = d.network;
+        n.name = e.name.clone();
+        n
+    })).collect();
+    if !nets.is_empty() {
+        match afrobim_pipes::write_landxml_pipes(&nets, &afrobim_pipes::WriteOptions::now()) {
+            Ok(xml) => match (xml.find("<PipeNetworks"), xml.rfind("</PipeNetworks>")) {
+                (Some(a), Some(b)) => match text.rfind("</LandXML>") {
+                    Some(at) => text.insert_str(at, &format!("{}\n", &xml[a..b + "</PipeNetworks>".len()])),
+                    None => notes.push("The pipe networks could not be added: the LandXML text has no closing tag.".into()),
+                },
+                _ => notes.push("The pipe networks could not be added: the pipes writer gave no PipeNetworks element.".into()),
+            },
+            Err(e) => notes.push(format!("Pipe networks are left out of the LandXML: {e}")),
+        }
+    }
+    (text, notes)
 }
 
 impl crate::app::AfroBimApp {

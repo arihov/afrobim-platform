@@ -199,7 +199,10 @@ fn summarises_counts_and_extents_per_class_and_counts_what_it_skips() {
             ("cg_point_groups", 2),
             ("chains", 1),
             ("contours", 1),
+            ("cross_sect_groups", 1),
             ("data_point_sets", 1),
+            ("design_profiles", 1),
+            ("features", 1),
             ("irregular_lines", 1),
             ("surface_faces", 3),
             ("surface_points", 4)
@@ -226,9 +229,13 @@ fn summarises_counts_and_extents_per_class_and_counts_what_it_skips() {
 
     // Skipped elements, counted by path and named in the warnings.
     let skipped: Vec<(&str, usize)> = s.skipped.iter().map(|(k, v)| (k.as_str(), *v)).collect();
-    assert_eq!(skipped, [("LandXML/Alignments/Alignment/Feature", 1), ("LandXML/Roadways", 1)]);
+    assert_eq!(skipped, [("LandXML/Roadways", 1)]);
     assert!(f.warnings.contains(&"1 element at LandXML/Roadways was not read.".to_string()), "{:#?}", f.warnings);
-    assert!(f.warnings.contains(&"1 element at LandXML/Alignments/Alignment/Feature was not read.".to_string()));
+    // The Feature on the alignment is read into a property bag, not skipped.
+    assert_eq!(f.object_features.len(), 1);
+    assert_eq!((f.object_features[0].owner.kind.as_str(), f.object_features[0].owner.name.as_deref()), ("Alignment", Some("CL1")));
+    assert_eq!(f.object_features[0].features[0].code.as_deref(), Some("alignment-feature"));
+    assert!(f.warnings.iter().all(|w| !w.contains("Feature was not") && !w.contains("Feature were not")), "{:#?}", f.warnings);
 }
 
 #[test]
@@ -296,8 +303,9 @@ fn reads_a_real_civil_3d_export_in_us_survey_feet_at_its_true_coordinates() {
         }
         other => panic!("{other:?}"),
     }
-    // Civil 3D's Feature/Property elements are skipped and counted, not an error.
-    assert!(f.summary.skipped.keys().any(|k| k.ends_with("/Feature")), "{:?}", f.summary.skipped);
+    // Civil 3D's Feature/Property elements are read into property bags and not counted as skipped.
+    assert!(f.summary.skipped.keys().all(|k| !k.ends_with("/Feature")), "{:?}", f.summary.skipped);
+    assert!(!f.object_features.is_empty());
     assert!(f.summary.alignments.extent.is_some() && f.summary.plan_features.extent.is_some());
     let e = f.summary.plan_features.extent.unwrap();
     assert!(e.min_easting > 450_000.0 * ft && e.max_northing > 1_000_000.0 * ft);

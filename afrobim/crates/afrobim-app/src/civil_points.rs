@@ -144,6 +144,12 @@ impl AfroBimApp {
                     f.set(e, n);
                 }
             }
+            PickFor::Queue => {
+                self.civil_ui.queue.push((e, n));
+                if self.civil_ui.pick_repeat {
+                    self.civil_ui.pick = Some(PickFor::Queue);
+                }
+            }
             PickFor::ParcelCorner => {
                 self.parcel_pick_vertex(e, n);
                 // Corners are picked one after another until the dialog closes.
@@ -186,6 +192,8 @@ pub struct ImportForm {
     parsed: Result<ParsedPoints, String>,
     key: (usize, usize, usize),
     findings: Vec<afrobim_kernel::CrsFinding>,
+    /// Keep, transform or cancel, when the project has a coordinate system.
+    crs: crate::transform_ui::ImportCrs,
 }
 
 impl ImportForm {
@@ -195,7 +203,7 @@ impl ImportForm {
         let delim = DELIMS.iter().position(|d| d.1 == report.delimiter).unwrap_or(0);
         let file = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         let name = path.file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "Points".into());
-        let mut f = ImportForm { file, text, report, order, delim, unit: 0, policy: 0, target, name, parsed: Err(String::new()), key: (usize::MAX, 0, 0), findings: vec![] };
+        let mut f = ImportForm { file, text, report, order, delim, unit: 0, policy: 0, target, name, parsed: Err(String::new()), key: (usize::MAX, 0, 0), findings: vec![], crs: crate::transform_ui::ImportCrs::default() };
         f.reparse(None);
         f
     }
@@ -229,6 +237,7 @@ impl AfroBimApp {
         }
         let sets = self.point_sets();
         let ok = f.parsed.as_ref().is_ok_and(|p| !p.points.is_empty());
+        let crs_state = std::cell::Cell::new((true, ""));
         let out = Dialog::new("Import points", crate::glyphs::by_name("POINTS"))
             .id_title(format!("Import points: {}", f.file))
             .subtitle(f.file.clone())
@@ -282,6 +291,11 @@ impl AfroBimApp {
                             ui_kit::callout(ui, if fd.warning { Level::Warning } else { Level::Info }, fd.message.clone());
                         }
                     });
+                    if let Some(p) = project.as_ref() {
+                        let extent = f.parsed.as_ref().ok().and_then(|p| crate::transform_ui::extent_of_points(p.points.iter().map(|q| (q.easting, q.northing))));
+                        f.crs.show(ui, "pt-crs", p, extent);
+                    }
+                    crs_state.set((f.crs.ready(), f.crs.why_not()));
                     ui_kit::section(ui, "Into", |ui| {
                         ui_kit::form(ui, "pt-into", |fm| {
                             fm.row("Point set", |ui| target_combo(ui, "target", &sets, &mut f.target));
@@ -295,7 +309,7 @@ impl AfroBimApp {
                         });
                     });
                 },
-                |ui| Footer::new("Import points").icon(crate::glyphs::by_name("POINTS")).enabled(ok, "No point can be read in this format").show(ui),
+                |ui| Footer::new("Import points").icon(crate::glyphs::by_name("POINTS")).enabled(ok && crs_state.get().0, if ok { crs_state.get().1 } else { "No point can be read in this format" }).show(ui),
             );
         if out.closed || out.inner.as_ref().is_some_and(|(_, fo)| fo.cancel) {
             return;
@@ -315,7 +329,31 @@ impl AfroBimApp {
         } else {
             (None, PointsData::default())
         };
-        match import_into(&mut data.store, parsed.points.clone(), POLICIES[f.policy].1) {
+        let mut incoming = parsed.points.clone();
+        let mut moved = String::new();
+        if let (true, Some(plan)) = (f.crs.wants_transform(), f.crs.plan()) {
+            let mut failed = 0;
+            for q in &mut incoming {
+                match plan.apply(q.easting, q.northing, q.elevation.unwrap_or(0.0)) {
+                    Ok(t) => {
+                        q.easting = t.first;
+                        q.northing = t.second;
+                    }
+                    Err(_) => failed += 1,
+                }
+            }
+            if failed > 0 {
+                self.status = format!("Nothing was imported: {failed} point(s) could not be transformed.");
+                return;
+            }
+            if let Some(to) = project_crs(&self.doc) {
+                let log = afrobim_kernel::crs_plan::TransformLog::with_counts(&format!("Import of {}", f.file), &plan, Some(crate::transform_doc::now_iso()), incoming.len(), incoming.len(), 0);
+                let entry = crate::transform_doc::LogEntry { what: log.what.clone(), transform: Some(log), calibration: None, elements: 1, positions: incoming.len(), notes: vec!["Transformed at import; the project system was not changed.".into()], when: Some(crate::transform_doc::now_iso()) };
+                crate::transform_doc::push_log_entry(&mut self.doc, entry.clone());
+                moved = format!(" Transformed to {}: {}", to.name, entry.summary());
+            }
+        }
+        match import_into(&mut data.store, incoming, POLICIES[f.policy].1) {
             Ok(r) => {
                 let n = r.added.len();
                 let id = match id {
@@ -329,7 +367,7 @@ impl AfroBimApp {
                     }
                 };
                 self.doc.select(&[id], SelectMode::Replace);
-                self.status = format!("Imported {n} point(s) from {} ({} skipped, {} renumbered).", f.file, r.skipped.len(), r.renumbered.len());
+                self.status = format!("Imported {n} point(s) from {} ({} skipped, {} renumbered).{moved}", f.file, r.skipped.len(), r.renumbered.len());
                 self.log(format!("POINTS: {}", self.status));
                 self.sync_generated();
                 self.zoom_to_element(id);

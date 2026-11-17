@@ -84,6 +84,14 @@ pub fn build(e: &Element, ctx: &Ctx) -> Built {
         ASSEMBLY => build_assembly(e),
         CORRIDOR => crate::civil_build2::build_corridor(e, ctx),
         SAMPLES => crate::civil_build2::build_samples(e, ctx),
+        PIPENET => crate::civil_pipes::build_pipenet(e, ctx),
+        FEATURELINE => crate::civil_grading::build_featureline(e),
+        GRADING => crate::civil_grading::build_grading(e, ctx),
+        INTERSECTION => crate::civil_junction::build_intersection_scene(e, ctx),
+        ROUNDABOUT => crate::civil_junction::build_roundabout_scene(e),
+        FIGURES => crate::survey_db::build_figures_scene(e),
+        POINTCLOUD => crate::cloud_ui::build_cloud_scene(e),
+        PIPEPROFILE => crate::civil_pipes::build_pipe_profile(e, ctx),
         _ => Ok(Built::default()),
     };
     result.unwrap_or_else(|msg| {
@@ -107,6 +115,11 @@ fn build_points(e: &Element) -> Result<Built, String> {
             desc: if p.full_description.is_empty() { p.raw_description.clone() } else { p.full_description.clone() },
         })
         .collect();
+    if let Some(l) = e.properties.get(crate::survey_db::LINK_PROP).and_then(|t| serde_json::from_str::<crate::survey_db::Link>(t).ok()) {
+        scene.derived.push(("Survey network".into(), l.network.clone()));
+        scene.derived.push(("Survey database".into(), l.db_name.clone()));
+        scene.derived.push(("Last update".into(), format!("coordinates as of hash {} (no time is kept)", l.hash.chars().take(8).collect::<String>())));
+    }
     scene.derived.push(("Points".into(), d.store.len().to_string()));
     scene.derived.push(("Groups".into(), d.groups.groups().len().to_string()));
     let with_z = d.store.iter().filter(|p| p.elevation.is_some()).count();
@@ -438,6 +451,13 @@ fn build_profile(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         s.derived.push(("Lowest (m)".into(), format!("{lo:.3}")));
         s.derived.push(("Highest (m)".into(), format!("{hi:.3}")));
     }
+    if !d.imported.is_empty() && d.surface != 0 {
+        if let (Some(tin), Some(al)) = (ctx.tin(d.surface), ctx.alignment_named(&d.alignment)) {
+            let c = crate::civil_sections::compare_profile(&al, &d.imported, &tin);
+            let name = ctx.element(d.surface).map(|e| e.name.clone()).unwrap_or_default();
+            s.derived.push(("Against AfroBIM's own profile".into(), format!("largest difference {:.1} mm at station {:.3} ({} stations compared, {} off the surface {name})", c.max_diff_m * 1000.0, c.at_station_m, c.compared, c.off_surface)));
+        }
+    }
     let off = pts.iter().filter(|p| p.1.is_none()).count();
     if off > 0 {
         s.notes.push(format!("{off} sample station(s) are off the surface and have no level."));
@@ -478,6 +498,7 @@ fn build_profile_view(e: &Element, ctx: &Ctx) -> Result<Built, String> {
     }
     let design = |s: f64| al.profile.as_ref().and_then(|p| p.elevation_at(s).ok());
     let mut zs: Vec<f64> = grounds.iter().flat_map(|g| g.1.iter().filter_map(|p| p.1)).collect();
+    zs.extend(d.cloud.iter().flat_map(|c| c.points.iter().map(|p| p[1])));
     if d.show_design {
         let n = 200;
         zs.extend((0..=n).filter_map(|i| design(s0 + (s1 - s0) * i as f64 / n as f64)));
@@ -512,6 +533,11 @@ fn build_profile_view(e: &Element, ctx: &Ctx) -> Result<Built, String> {
         stations.push(s);
         sc.lines.push(SLine::new(vec![[px(s), y0], [px(s), y1]], C_GRID, 0.5));
         s += sstep;
+    }
+    for c in &d.cloud {
+        for p in &c.points {
+            sc.points.push(PMark { at: [px(p[0]), py(p[1])], number: 0, z: None, desc: String::new() });
+        }
     }
     for g in &grounds {
         let mut run: Vec<[f64; 2]> = Vec::new();

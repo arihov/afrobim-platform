@@ -281,9 +281,45 @@ impl AfroBimApp {
                             a(ui, &mut pick, c(cv), l);
                         }
                     });
+                    submenu(ui, egui_phosphor::regular::PIPE, "Pipe networks", |ui| {
+                        for (cv, l) in [(PipeNew, "Create network…"), (PipeParts, "Parts list…"), (PipeProps, "Properties and rules…"), (PipeEdit, "Edit network…"), (PipeCheck, "Checks…"), (PipeTables, "Tables…"), (PipeQty, "Quantities and trenches…"), (PipeProfile, "Profile of a run…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::VECTOR_TWO, "Grading", |ui| {
+                        for (cv, l) in [(FeatureLine, "Create feature line…"), (FeatureLineEdit, "Edit feature line…"), (GradeSite, "Sites and crossings…"), (GradeCreate, "Create grading…"), (GradeGroup, "Grading groups and volumes…"), (GradeHelpers, "Pad, pond, ditch…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::ARROWS_SPLIT, "Intersections", |ui| {
+                        for (cv, l) in [(Intersection, "Intersection…"), (Roundabout, "Roundabout…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::LINK_SIMPLE, "Data shortcuts", |ui| {
+                        for (cv, l) in [(ShortcutsManager, "Shortcuts manager…"), (ShortcutFolder, "Working project folder…"), (ShortcutPublish, "Publish objects…"), (ShortcutReference, "Create a reference…"), (ShortcutSync, "Synchronise references…"), (ShortcutPromote, "Promote to an editable copy…"), (ShortcutRepair, "Repair paths…"), (ShortcutValidate, "Validate the project…"), (ShortcutUnderlay, "Attach a document as an underlay…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::CLOUD, "Point clouds", |ui| {
+                        for (cv, l) in [(CloudAttach, "Attach a point cloud…"), (CloudProps, "Properties and display…"), (CloudClip, "Clip…"), (CloudSlice, "Slices in sections and profiles…"), (CloudSurface, "Surface from the cloud…"), (CloudCompare, "Compare with a surface…"), (CloudExport, "Export a subset…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::CHART_SCATTER, "Survey database", |ui| {
+                        for (cv, l) in [(SurveyNew, "New database…"), (SurveyOpen, "Open database…"), (SurveySettings, "Settings…"), (SurveyImport, "Import field data…"), (SurveyObs, "Observations…"), (SurveyTraverse, "Traverse analysis…"), (SurveyAdjust, "Network adjustment…"), (SurveyApply, "Apply adjusted coordinates…"), (SurveyFigures, "Figures…"), (SurveyInsert, "Insert points…"), (SurveyUpdate, "Update linked points…"), (SurveyEvents, "Import events…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
+                    submenu(ui, egui_phosphor::regular::GLOBE_HEMISPHERE_WEST, "Reprojection", |ui| {
+                        for (cv, l) in [(Transform, "Transform coordinates…"), (Calibrate, "Site calibration…")] {
+                            a(ui, &mut pick, c(cv), l);
+                        }
+                    });
                     a(ui, &mut pick, c(Earthworks), "Earthworks and mass haul…");
                     sep(ui);
                     a(ui, &mut pick, c(CivilLandXml), "Export civil data as LandXML…");
+                    a(ui, &mut pick, c(Defaults), "Engineering defaults…");
                     a(ui, &mut pick, c(CivilDemo), "Demonstration data");
                 });
                 ui.menu_button("Modify", |ui| {

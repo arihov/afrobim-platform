@@ -1,0 +1,21 @@
+[package]
+name = "afrobim-pointcloud"
+description = "Point cloud engine: LAS/LAZ, E57 and text readers, spatial index and level of detail, filters, ground extraction, surfaces and section slices"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-corridor = { path = "../afrobim-corridor" }
+afrobim-terrain = { path = "../afrobim-terrain" }
+serde.workspace = true
+# float_roundtrip: coordinates stored in a reference must come back bit for bit.
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+thiserror.workspace = true
+# LAS 1.0 to 1.4 and LAZ (through the pure Rust `laz` crate). MIT.
+las = { version = "0.11", features = ["laz"] }
+# E57 (ASTM E2807) reader and writer, pure Rust, no unsafe. MIT.
+e57 = "0.11"
+# SHA-256 of the source file for the cache check. MIT OR Apache-2.0.
+sha2 = "0.10"

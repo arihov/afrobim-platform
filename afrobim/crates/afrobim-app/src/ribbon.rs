@@ -183,7 +183,14 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Sections", items: &[Big(Icon::Section, "Sample lines", "SAMPLELINES"), Big(Icon::Section, "Views", "SECTIONVIEWS")] },
         Panel { title: "Corridors", items: &[Big(Icon::Pavement, "Assembly", "ASSEMBLY"), Big(Icon::Corridor, "Corridor", "CORRIDORMODEL")] },
         Panel { title: "Parcels", items: &[Big(Icon::Area, "Create", "PARCELPICK"), Big(Icon::Measure, "Deed", "PARCELDEED"), Small(Icon::Project, "Properties", "PARCELPROPS"), Small(Icon::CheckAll, "Topology", "PARCELTOPOLOGY"), Small(Icon::Design, "Split", "PARCELSPLIT"), Small(Icon::Schedule, "Schedule", "ACQUISITION")] },
-        Panel { title: "Quantities", items: &[Big(Icon::Quantities, "Earthworks", "EARTHWORKS"), Small(Icon::LandXmlOut, "LandXML", "CIVILXML"), Small(Icon::Help, "Demo", "CIVILDEMO")] },
+        Panel { title: "Pipe networks", items: &[Big(Icon::Drainage, "Create", "PIPENEW"), Big(Icon::ResultsList, "Parts", "PIPEPARTS"), Big(Icon::Options, "Rules", "PIPEPROPS"), Big(Icon::AlignEdit, "Edit", "PIPEEDIT"), Big(Icon::CheckAll, "Checks", "PIPECHECK"), Small(Icon::ResultsList, "Tables", "PIPETABLES"), Small(Icon::Quantities, "Quantities", "PIPEQTY"), Small(Icon::ProfileDesign, "Profile", "PIPEPROFILE")] },
+        Panel { title: "Grading", items: &[Big(Icon::Alignment, "Feature line", "FEATURELINE"), Big(Icon::AlignEdit, "Edit line", "FLEDIT"), Big(Icon::Layers, "Sites", "GRADESITE"), Big(Icon::Surface, "Grading", "GRADING"), Big(Icon::Quantities, "Groups", "GRADINGGROUP"), Small(Icon::Area, "Pad, pond", "GRADEHELPERS")] },
+        Panel { title: "Intersections", items: &[Big(Icon::Tee, "Intersection", "INTERSECTION"), Big(Icon::Roundabout, "Roundabout", "ROUNDABOUTDESIGN")] },
+        Panel { title: "Survey database", items: &[Big(Icon::Open, "Open", "SURVEYOPEN"), Big(Icon::Options, "Settings", "SURVEYSETTINGS"), Big(Icon::LandXmlOut, "Import", "SURVEYIMPORT"), Big(Icon::ResultsList, "Observations", "SURVEYOBS"), Big(Icon::Measure, "Adjust", "SURVEYADJUST"), Small(Icon::Alignment, "Traverse", "SURVEYTRAVERSE"), Small(Icon::Alignment, "Figures", "SURVEYFIGURES"), Small(Icon::Project, "Insert points", "SURVEYINSERT"), Small(Icon::Project, "Update", "SURVEYUPDATE"), Small(Icon::ResultsList, "Events", "SURVEYEVENTS"), Small(Icon::New, "New", "SURVEYNEW"), Small(Icon::CheckAll, "Apply", "SURVEYAPPLY")] },
+        Panel { title: "Point clouds", items: &[Big(Icon::Surface, "Attach", "CLOUDATTACH"), Big(Icon::Options, "Display", "CLOUDPROPS"), Big(Icon::Area, "Clip", "CLOUDCLIP"), Big(Icon::Section, "Slices", "CLOUDSLICE"), Big(Icon::Surface, "Surface", "CLOUDSURFACE"), Small(Icon::Quantities, "Compare", "CLOUDCOMPARE"), Small(Icon::LandXmlOut, "Export", "CLOUDEXPORT")] },
+        Panel { title: "Shortcuts", items: &[Big(Icon::RefList, "Manager", "SHORTCUTS"), Big(Icon::LandXmlOut, "Publish", "SHORTCUTPUBLISH"), Big(Icon::RefModel, "Reference", "SHORTCUTREF"), Big(Icon::CheckAll, "Synchronise", "SHORTCUTSYNC"), Small(Icon::Project, "Folder", "SHORTCUTFOLDER"), Small(Icon::Design, "Promote", "SHORTCUTPROMOTE"), Small(Icon::Options, "Repair", "SHORTCUTREPAIR"), Small(Icon::CheckAll, "Validate", "SHORTCUTVALIDATE"), Small(Icon::Dxf, "Underlay", "SHORTCUTUNDERLAY")] },
+        Panel { title: "Reprojection", items: &[Big(Icon::Project, "Transform", "TRANSFORM"), Big(Icon::Measure, "Calibrate", "CALIBRATE")] },
+        Panel { title: "Quantities", items: &[Big(Icon::Quantities, "Earthworks", "EARTHWORKS"), Small(Icon::LandXmlOut, "LandXML", "CIVILXML"), Small(Icon::Help, "Demo", "CIVILDEMO"), Small(Icon::Options, "Defaults", "DEFAULTS")] },
     ];
     const DESIGN: &[Panel] = &[
         Panel { title: "Alignment", items: &[Big(Icon::AlignDesign, "New alignment", "ALIGNDESIGN"), Big(Icon::AlignEdit, "Edit in plan", "ALIGNEDIT"), Big(Icon::PiTable, "PI table", "PITABLE"), Big(Icon::Labels, "Curve labels", "ALIGNLABELS")] },
@@ -285,6 +292,22 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Tab::View => VIEW,
         Tab::Help => HELP,
     }
+}
+
+/// The names of every command that has a button on some tab (for the tests).
+#[cfg(test)]
+pub fn all_commands() -> Vec<&'static str> {
+    let mut out = Vec::new();
+    for (tab, _) in TABS {
+        for p in panels(tab) {
+            for i in p.items {
+                if let Big(_, _, c) | Small(_, _, c) = i {
+                    out.push(*c);
+                }
+            }
+        }
+    }
+    out
 }
 
 /// The titles of the panels of a tab, for the workspaces to name them.

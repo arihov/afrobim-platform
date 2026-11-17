@@ -13,12 +13,14 @@ mod u4_tests;
 #[cfg(test)]
 mod u4_dialogs_test;
 mod civil_assembly;
+mod civil_targets;
 mod civil_cmds;
 mod civil_corridor;
 mod civil_demo;
 mod civil_dlg;
 mod civil_export;
 mod civil_ifc;
+mod civil_ifc_pkg;
 mod civil_landxml;
 mod civil_parcels;
 mod civil_points;
@@ -26,8 +28,34 @@ mod civil_profile;
 mod civil_quantities;
 mod civil_surface;
 mod civil_scene;
+mod civil_super;
+mod civil_check;
+mod civil_sections;
 mod civil_tree;
 mod civil_ui;
+mod civil_pipes;
+mod pipes_ui;
+mod grading_ui;
+mod junction_ui;
+mod civil_grading;
+mod civil_junction;
+mod transform_doc;
+mod transform_ui;
+mod survey_db;
+mod sdb_ui;
+mod sdb_ui2;
+mod cloud;
+mod cloud_ui;
+mod shortcuts_ui;
+mod defaults_glue;
+#[cfg(test)]
+mod a1_tests;
+#[cfg(test)]
+mod a2_tests;
+#[cfg(test)]
+mod a3_tests;
+#[cfg(test)]
+mod a3b_tests;
 mod alignment_glue;
 mod anno_glue;
 mod anno_ui;
@@ -236,6 +264,12 @@ pub struct Options {
     pub click: Option<String>,
     /// Open the LandXML import dialog on this file at start-up (instead of importing at once).
     pub landxml_dialog: Option<PathBuf>,
+    /// Import everything a LandXML file holds, with its coordinate system and without the dialog.
+    pub landxml_all: Option<PathBuf>,
+    /// With `--landxml-all`: switch every imported section group to comparison mode.
+    pub landxml_compare: bool,
+    /// `--view E,N,WIDTH`: frame the plan on this easting and northing (metres), WIDTH metres wide.
+    pub view: Option<String>,
     /// Open the survey points dialog on this file at start-up.
     pub survey_dialog: Option<PathBuf>,
 }
@@ -310,6 +344,9 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--scale" => o.scale = args.next().and_then(|v| v.parse().ok()),
             "--workspace" => o.workspace = args.next(),
             "--click" => o.click = args.next(),
+            "--landxml-compare" => o.landxml_compare = true,
+            "--view" => o.view = args.next(),
+            "--landxml-all" => o.landxml_all = args.next().map(PathBuf::from),
             "--landxml-dialog" => o.landxml_dialog = args.next().map(PathBuf::from),
             "--survey-dialog" => o.survey_dialog = args.next().map(PathBuf::from),
             "--export-pack" => o.export_pack = args.next().map(PathBuf::from),

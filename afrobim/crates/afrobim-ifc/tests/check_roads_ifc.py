@@ -168,6 +168,8 @@ def check_standard_sets(f):
                 continue
             if is_qto:
                 check(m.is_a(QUANTITY_CLASSES[t.TemplateType]), f"{name}.{m.Name}: {m.is_a()} where the template has {t.TemplateType}")
+            elif m.is_a("IfcPropertyEnumeratedValue"):
+                check(t.TemplateType == "P_ENUMERATEDVALUE", f"{name}.{m.Name}: an enumerated value where the template has {t.TemplateType}")
             else:
                 got = m.NominalValue.is_a() if m.NominalValue is not None else None
                 check(got is not None and got.lower() == (t.PrimaryMeasureType or "").lower(), f"{name}.{m.Name}: value type {got}, the template has {t.PrimaryMeasureType}")

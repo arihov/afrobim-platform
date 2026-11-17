@@ -274,13 +274,24 @@ impl AlignmentElement {
 
     /// Root of g in [a, b], where g(a) ≥ 0 ≥ g(b): Newton steps, bisecting whenever one leaves
     /// the bracket. g'(s) = −1 + k(s) · (offset to the left), from T' = k N.
+    ///
+    /// A position cannot be told apart below the spacing of the coordinates that hold it (about
+    /// 2e-9 m at a UTM northing of 10 000 km), so the tolerance on `s` is never finer than a few
+    /// units of that spacing; with a finer one the Newton steps stall on rounding noise and the
+    /// loop ran out with the midpoint of the bracket, which can lie metres from the root. The
+    /// best `s` seen is what an unfinished loop returns.
     fn refine(&self, px: f64, py: f64, mut a: f64, mut b: f64, g: &dyn Fn(f64) -> f64) -> f64 {
-        let tolerance = 1e-13 * self.length.max(1.0);
+        let resolution = 4.0 * f64::EPSILON * px.abs().max(py.abs()).max(self.x.abs()).max(self.y.abs()).max(1.0);
+        let tolerance = (1e-13 * self.length.max(1.0)).max(resolution);
         let mut s = 0.5 * (a + b);
+        let mut best = (f64::INFINITY, s);
         for _ in 0..200 {
             let gs = g(s);
             if gs == 0.0 {
                 return s;
+            }
+            if gs.abs() < best.0 {
+                best = (gs.abs(), s);
             }
             if gs > 0.0 {
                 a = s;
@@ -304,7 +315,7 @@ impl AlignmentElement {
                 s = 0.5 * (a + b);
             }
         }
-        0.5 * (a + b)
+        best.1
     }
 }
 

@@ -128,3 +128,70 @@ fn utm_sized_coordinates_and_source_data_survive_exactly() {
     assert_eq!((src.data_points[0].points[0].x, src.data_points[0].points[0].y, src.data_points[0].points[0].z), (450000.1234, 9960000.5678, Some(1150.25)));
     assert!(file.notes.is_empty(), "{:?}", file.notes);
 }
+
+/// The synthetic fixture with Civil 3D's structure (`afrobim-alignment/tests/landxml/civil3d_like.xml`,
+/// made-up numbers): a TIN whose hull faces are invisible, a stray point, `PointFiles`, and the
+/// statistics `Definition` states.
+#[test]
+fn a_civil_3d_style_surface_keeps_its_statistics_source_files_and_stray_point() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("afrobim-alignment").join("tests").join("landxml").join("civil3d_like.xml");
+    let file = read_landxml_surfaces(&path).unwrap();
+    assert_eq!(file.surfaces.len(), 1, "{:?}", file.notes);
+    let s = &file.surfaces[0];
+    assert_eq!((s.name.as_str(), s.surf_type.as_str()), ("Test OGL", "TIN"));
+    assert_eq!((s.tin.points().len(), s.tin.triangles().len(), s.invisible_faces), (13, 12, 2));
+    // The areas Definition states are those of the visible faces: the TIN has the same plan area.
+    let st = s.stated.unwrap();
+    assert!((s.tin.plan_area() - st.area_2d_m2.unwrap()).abs() < 1e-6, "{} against {:?}", s.tin.plan_area(), st);
+    assert_eq!((st.elev_min_m, st.elev_max_m), (Some(1183.25), Some(1204.0)));
+    // The source files are named, not skipped.
+    assert_eq!(s.source_data.point_files.len(), 1);
+    assert_eq!(s.source_data.point_files[0].file_format, "xyz");
+    // The stray point is in the TIN as written, named in the notes and in outlier_points.
+    assert_eq!(s.outlier_points, [12]);
+    assert_eq!(s.tin.points()[12], [312.25, 10766.5, 1183.25]);
+    assert!(file.notes.iter().any(|n| n.contains("Surface 'Test OGL': 1 of 13 points lie more than 100 times the median distance")), "{:?}", file.notes);
+    assert!(file.notes.iter().any(|n| n.contains("2 face(s) marked invisible")), "{:?}", file.notes);
+}
+
+/// A private LandXML file (not in this repository): skipped unless `AFROBIM_PRIVATE_LANDXML` names it.
+#[test]
+fn the_surfaces_of_the_private_file_are_read_whole() {
+    let Ok(p) = std::env::var("AFROBIM_PRIVATE_LANDXML") else {
+        println!("AFROBIM_PRIVATE_LANDXML is not set: private test skipped.");
+        return;
+    };
+    let path = PathBuf::from(&p);
+    if !path.is_file() {
+        println!("AFROBIM_PRIVATE_LANDXML is set to '{p}', which is not a file: private test skipped.");
+        return;
+    }
+    let t = std::time::Instant::now();
+    let file = read_landxml_surfaces(&path).unwrap();
+    println!("read_landxml_surfaces: {:?}", t.elapsed());
+    let t = std::time::Instant::now();
+    let text = std::fs::read_to_string(&path).unwrap();
+    let again = parse_landxml_surfaces_with(&text, &SurfaceReadOptions { grid_as_tin: true }).unwrap();
+    println!("parse_landxml_surfaces_with: {:?}", t.elapsed());
+    assert_eq!(file.surfaces.len(), 4);
+    assert_eq!(again.surfaces.len(), 4);
+    let (mut points, mut triangles, mut invisible) = (0, 0, 0);
+    for (s, a) in file.surfaces.iter().zip(&again.surfaces) {
+        assert_eq!(s.tin, a.tin);
+        assert_eq!(s.surf_type, "TIN");
+        points += s.tin.points().len();
+        triangles += s.tin.triangles().len();
+        invisible += s.invisible_faces;
+        // Every visible face is a triangle of the TIN, the invisible ones are not; the plan area is what the file states.
+        let st = s.stated.expect("the file states the statistics");
+        let area = s.tin.plan_area();
+        println!("surface with {} points: {} triangles, {} invisible faces, plan area {area:.6} m2, stated {:.6} m2, {} outlier points, {} source file(s)", s.tin.points().len(), s.tin.triangles().len(), s.invisible_faces, st.area_2d_m2.unwrap(), s.outlier_points.len(), s.source_data.point_files.len());
+        assert!((area - st.area_2d_m2.unwrap()).abs() < 1e-3, "{area} against {:?}", st);
+        assert_eq!(s.source_data.point_files.len(), 1);
+    }
+    assert_eq!((points, triangles + invisible), (20_576, 40_915));
+    assert_eq!(invisible, 581);
+    assert_eq!(file.surfaces.iter().filter(|s| !s.outlier_points.is_empty()).count(), 1);
+    // The invisible faces are counted in the notes, surface by surface.
+    assert_eq!(file.notes.iter().filter(|n| n.contains("marked invisible")).count(), 4);
+}

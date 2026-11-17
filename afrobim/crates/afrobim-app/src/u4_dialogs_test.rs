@@ -8,7 +8,7 @@ use crate::app::AfroBimApp;
 use crate::commands::COMMANDS;
 use crate::Options;
 
-fn app_for(theme: &str, civil: bool) -> (egui::Context, AfroBimApp) {
+pub(crate) fn app_for(theme: &str, civil: bool) -> (egui::Context, AfroBimApp) {
     let ctx = egui::Context::default();
     let cc = eframe::CreationContext::_new_kittest(ctx.clone());
     // A screenshot path keeps the application from reading or writing the user's preferences; the
@@ -18,7 +18,7 @@ fn app_for(theme: &str, civil: bool) -> (egui::Context, AfroBimApp) {
     (ctx, app)
 }
 
-fn frame(ctx: &egui::Context, app: &mut AfroBimApp, frames: u32) -> usize {
+pub(crate) fn frame(ctx: &egui::Context, app: &mut AfroBimApp, frames: u32) -> usize {
     let mut shapes = 0;
     let mut f = eframe::Frame::_new_kittest();
     for _ in 0..frames {
@@ -30,7 +30,7 @@ fn frame(ctx: &egui::Context, app: &mut AfroBimApp, frames: u32) -> usize {
 }
 
 /// How many windows the application has open (areas on the middle layer).
-fn windows(ctx: &egui::Context) -> usize {
+pub(crate) fn windows(ctx: &egui::Context) -> usize {
     ctx.memory(|m| m.areas().visible_layer_ids().iter().filter(|l| l.order == egui::Order::Middle).count())
 }
 

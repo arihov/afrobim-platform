@@ -295,13 +295,28 @@ impl Frame {
     pub fn placement(&self) -> afrobim_coordination::Placement {
         afrobim_coordination::Placement::new(self.origin, self.sin.atan2(self.cos).to_degrees())
     }
-    fn at(&self, u: f64, d: f64, v: f64) -> V3 {
+    pub(crate) fn at(&self, u: f64, d: f64, v: f64) -> V3 {
         [self.origin[0] + u * self.cos - d * self.sin, self.origin[1] + u * self.sin + d * self.cos, self.origin[2] + v]
     }
     /// The direction a face in the local XZ plane looks (local −Y), in the world.
     fn facing(&self) -> V3 {
         [self.sin, -self.cos, 0.0]
     }
+}
+
+/// A mesh with more triangles than this is drawn batched (see `AfroBimApp::big_mesh`).
+const BIG_MESH_TRIANGLES: usize = 3000;
+/// Indices from here on in the batched sort are clipped pieces, not triangles of the mesh.
+const PIECE_BASE: u32 = 0x8000_0000;
+
+fn r_of(c: u8, rec: Option<[u8; 3]>) -> u8 {
+    rec.map_or(c, |r| r[0])
+}
+fn g_of(c: u8, rec: Option<[u8; 3]>) -> u8 {
+    rec.map_or(c, |r| r[1])
+}
+fn b_of(c: u8, rec: Option<[u8; 3]>) -> u8 {
+    rec.map_or(c, |r| r[2])
 }
 
 /// Categories whose solids are modelled directly in site coordinates (X east, Y north, Z up from
@@ -506,6 +521,29 @@ impl AfroBimApp {
         let selected = self.doc.is_selected(e.id);
         let both_sides = is_site_solid(&e.category);
         for mesh in solids {
+            // A large mesh (a ground surface of tens of thousands of triangles) is one batched
+            // mesh, sorted and culled, instead of one shape per triangle (see `big_mesh`).
+            if mesh.triangles.len() > BIG_MESH_TRIANGLES {
+                let base = [r_of(mesh.colour[0], record_rgb), g_of(mesh.colour[1], record_rgb), b_of(mesh.colour[2], record_rgb)];
+                let tint = |c: Color32| -> Color32 {
+                    let mut colour = c;
+                    if selected {
+                        colour = Color32::from_rgb(colour.r() / 2 + 0x26, colour.g() / 2 + 0x51, colour.b() / 2 + 0x7F);
+                    }
+                    match style {
+                        crate::schedule_ui::FourD::Active => colour = Color32::from_rgb(colour.r() / 3 + 0xA0, colour.g() / 3 + 0x70, colour.b() / 6 + 0x10),
+                        crate::schedule_ui::FourD::Ghost => colour = Color32::from_rgba_unmultiplied(colour.r(), colour.g(), colour.b(), 70),
+                        _ => {}
+                    }
+                    if highlighted {
+                        colour = Color32::from_rgb(0xE0, 0x3C, 0xC8);
+                    }
+                    colour
+                };
+                let backdrop = if crate::modules_glue::is_surface(&e.category) { 1.0e12 } else { 0.0 };
+                self.big_mesh(mesh, base, &tint, frame, rect, light, backdrop, items);
+                continue;
+            }
             for t in &mesh.triangles {
                 let p: Vec<V3> = t.iter().map(|i| mesh.vertices[*i as usize]).map(|v| frame.at(v[0], v[1], v[2])).collect();
                 let normal = norm(cross(sub(p[1], p[0]), sub(p[2], p[0])));
@@ -555,6 +593,149 @@ impl AfroBimApp {
         }
     }
 
+    /// A mesh of many triangles as a few batched egui meshes. The vertices are put in view space
+    /// once; a triangle wholly outside the view, or smaller than a fraction of a pixel, is left
+    /// out (the level of detail follows the zoom without a second mesh); a triangle that reaches
+    /// behind the near plane is clipped as the per-triangle path does. The rest are sorted far to
+    /// near and flat-shaded, both sides lit as if facing the viewer.
+    #[allow(clippy::too_many_arguments)]
+    fn big_mesh(&self, mesh: &afrobim_draw::Mesh3, base: [u8; 3], tint: &dyn Fn(Color32) -> Color32, frame: Frame, rect: Rect, light: V3, backdrop: f64, items: &mut Vec<(f64, Vec<Shape>)>) {
+        let cam = &self.camera;
+        let near = cam.near();
+        let world: Vec<V3> = mesh.vertices.iter().map(|v| frame.at(v[0], v[1], v[2])).collect();
+        let view: Vec<V3> = world.iter().map(|w| cam.to_view(*w)).collect();
+        let screen: Vec<Option<Pos2>> = view.iter().map(|v| (v[2] > near).then(|| cam.view_to_screen(*v, rect))).collect();
+        let margin = rect.expand(40.0);
+        // (depth, triangle index) of what is drawn whole; the clipped ones go to `pieces`.
+        let mut order: Vec<(f32, u32)> = Vec::with_capacity(mesh.triangles.len());
+        let mut pieces: Vec<(f64, [Pos2; 3], u32)> = Vec::new();
+        let mut smalls: Vec<(f32, u32, Pos2)> = Vec::new();
+        for (ti, t) in mesh.triangles.iter().enumerate() {
+            let (i0, i1, i2) = (t[0] as usize, t[1] as usize, t[2] as usize);
+            match (screen[i0], screen[i1], screen[i2]) {
+                (Some(a), Some(b), Some(c)) => {
+                    let (lo_x, hi_x) = (a.x.min(b.x).min(c.x), a.x.max(b.x).max(c.x));
+                    let (lo_y, hi_y) = (a.y.min(b.y).min(c.y), a.y.max(b.y).max(c.y));
+                    if hi_x < margin.left() || lo_x > margin.right() || hi_y < margin.top() || lo_y > margin.bottom() {
+                        continue;
+                    }
+                    let area2 = ((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)).abs();
+                    if area2 < 0.25 {
+                        // Smaller than a quarter of a pixel: it is drawn as one pixel of its own, at most one per pixel (see below).
+                        smalls.push((((view[i0][2] + view[i1][2] + view[i2][2]) / 3.0) as f32, ti as u32, pos2((a.x + b.x + c.x) / 3.0, (a.y + b.y + c.y) / 3.0)));
+                        continue;
+                    }
+                    order.push((((view[i0][2] + view[i1][2] + view[i2][2]) / 3.0) as f32, ti as u32));
+                }
+                _ => {
+                    for piece in clip_triangle_near([view[i0], view[i1], view[i2]], near) {
+                        let pos: Vec<Pos2> = piece.iter().map(|v| cam.view_to_screen(*v, rect)).collect();
+                        let depth = (piece[0][2] + piece[1][2] + piece[2][2]) / 3.0;
+                        // Sorted with the whole triangles, by its own depth.
+                        order.push((depth as f32, PIECE_BASE + pieces.len() as u32));
+                        pieces.push((depth, [pos[0], pos[1], pos[2]], ti as u32));
+                    }
+                }
+            }
+        }
+        order.sort_by(|a, b| b.0.total_cmp(&a.0));
+        let eye = cam.eye();
+        let shade_of = |ti: u32| -> Color32 {
+            let t = mesh.triangles[ti as usize];
+            let (p0, p1, p2) = (world[t[0] as usize], world[t[1] as usize], world[t[2] as usize]);
+            let mut n = norm(cross(sub(p1, p0), sub(p2, p0)));
+            if dot(n, sub(eye, p0)) < 0.0 {
+                n = [-n[0], -n[1], -n[2]];
+            }
+            let shade = (0.45 + 0.55 * dot(n, light).max(0.0)) as f32;
+            tint(Color32::from_rgb((base[0] as f32 * shade) as u8, (base[1] as f32 * shade) as u8, (base[2] as f32 * shade) as u8))
+        };
+        let mut shapes: Vec<Shape> = Vec::new();
+        let mut batch = egui::Mesh::default();
+        let flush = |batch: &mut egui::Mesh, shapes: &mut Vec<Shape>| {
+            if !batch.vertices.is_empty() {
+                shapes.push(Shape::mesh(std::mem::take(batch)));
+            }
+        };
+        let push = |batch: &mut egui::Mesh, shapes: &mut Vec<Shape>, pts: [Pos2; 3], colour: Color32| {
+            let at = batch.vertices.len() as u32;
+            for q in pts {
+                batch.vertices.push(egui::epaint::Vertex { pos: q, uv: egui::epaint::WHITE_UV, color: colour });
+            }
+            batch.indices.extend_from_slice(&[at, at + 1, at + 2]);
+            if batch.vertices.len() > 60_000 {
+                flush(batch, shapes);
+            }
+        };
+        // The level of detail: a surface seen from far away is thousands of triangles of a fraction
+        // of a pixel. Each pixel they cover gets one 1 px square in the colour of the nearest one.
+        smalls.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let (w, h) = (rect.width().ceil().max(1.0) as usize, rect.height().ceil().max(1.0) as usize);
+        let mut taken = vec![false; w * h];
+        for (_, ti, c) in &smalls {
+            let (px, py) = ((c.x - rect.left()).floor(), (c.y - rect.top()).floor());
+            if px < 0.0 || py < 0.0 || px as usize >= w || py as usize >= h {
+                continue;
+            }
+            let k = py as usize * w + px as usize;
+            if taken[k] {
+                continue;
+            }
+            taken[k] = true;
+            let colour = shade_of(*ti);
+            let (x0, y0) = (rect.left() + px, rect.top() + py);
+            push(&mut batch, &mut shapes, [pos2(x0, y0), pos2(x0 + 1.0, y0), pos2(x0, y0 + 1.0)], colour);
+            push(&mut batch, &mut shapes, [pos2(x0 + 1.0, y0), pos2(x0 + 1.0, y0 + 1.0), pos2(x0, y0 + 1.0)], colour);
+        }
+        for (_, k) in &order {
+            if *k >= PIECE_BASE {
+                let (_, pts, ti) = &pieces[(*k - PIECE_BASE) as usize];
+                let c = shade_of(*ti);
+                push(&mut batch, &mut shapes, *pts, c);
+                continue;
+            }
+            let t = mesh.triangles[*k as usize];
+            let pts = [screen[t[0] as usize].unwrap_or_default(), screen[t[1] as usize].unwrap_or_default(), screen[t[2] as usize].unwrap_or_default()];
+            let c = shade_of(*k);
+            push(&mut batch, &mut shapes, pts, c);
+        }
+        flush(&mut batch, &mut shapes);
+        if !shapes.is_empty() {
+            items.push((backdrop + 1.0e6, shapes));
+        }
+    }
+
+    /// The centreline of an alignment element in the site view, millimetres: at the design profile's
+    /// level where it has one, else on the ground surface that covers it (decoded TINs of the
+    /// surfaces), else at zero. Kept per element until the element or the builds change.
+    fn centreline_3d(&self, e: &afrobim_kernel::Element) -> std::rc::Rc<Vec<V3>> {
+        let key = format!("{:x}:{:x}:{}:{}:{}:{}", e.origin.x.to_bits(), e.origin.y.to_bits(), e.data.get("elements").and_then(|v| v.as_array()).map_or(0, |a| a.len()), e.data.get("profile").map_or(0, |p| p.get("pvis").and_then(|v| v.as_array()).map_or(1, |a| a.len() + 1)), self.civil.applied, self.civil.imported.len());
+        if let Some((k, pts)) = self.centre_cache.borrow().get(&e.id) {
+            if *k == key {
+                return pts.clone();
+            }
+        }
+        let pts = match crate::alignment_glue::alignment_of(&self.doc, e.id) {
+            Some(a) => {
+                let mut pts = centreline_points(&a, 5.0);
+                if a.profile.is_none() {
+                    // Draped on the first surface that has a level there.
+                    let tins: Vec<std::sync::Arc<afrobim_corridor::Tin>> = self.doc.elements().iter().filter_map(|x| self.civil.imported.get(&x.id).map(|(_, t)| t.clone()).or_else(|| self.civil.tin_of(x.id))).collect();
+                    for p in &mut pts {
+                        if let Some(z) = tins.iter().find_map(|t| t.elevation_at(p[0] / 1000.0, p[1] / 1000.0)) {
+                            p[2] = z * 1000.0;
+                        }
+                    }
+                }
+                pts
+            }
+            None => Vec::new(),
+        };
+        let pts = std::rc::Rc::new(pts);
+        self.centre_cache.borrow_mut().insert(e.id, (key, pts.clone()));
+        pts
+    }
+
     /// World-space corners of everything the current mode shows, for framing and the ground grid.
     pub(crate) fn shown_points(&self, site_mode: bool) -> Vec<V3> {
         let mut points = Vec::new();
@@ -591,6 +772,13 @@ impl AfroBimApp {
             return Vec::new();
         }
         let Some(frame) = self.frame_of(e, site_mode) else { return Vec::new() };
+        if e.category == crate::civil::POINTCLOUD {
+            // The box of the opened cloud, so that the view frames it with its levels.
+            return match self.civil_ui.cloud.loaded.get(&e.id).map(|l| l.index.bounds()) {
+                Some(b) => vec![frame.at(b.min[0] * 1000.0 - e.origin.x, b.min[1] * 1000.0 - e.origin.y, b.min[2] * 1000.0), frame.at(b.max[0] * 1000.0 - e.origin.x, b.max[1] * 1000.0 - e.origin.y, b.max[2] * 1000.0)],
+                None => Vec::new(),
+            };
+        }
         if is_site_solid(&e.category) {
             // The corners of the solids themselves, so that levels well above zero are framed.
             match self.mesh_bounds(e, frame) {
@@ -653,8 +841,12 @@ impl AfroBimApp {
             self.fitted_3d = true;
             self.fit_3d();
             // `--camera distance,yaw,pitch[,station]`: a chosen viewpoint, for screenshots.
-            if let Some(spec) = self.options.camera.take() {
-                self.apply_camera_option(&spec);
+            if let Some(spec) = self.options.camera.clone() {
+                // After an import the framing is done again once the builds are in: the viewpoint waits for that.
+                if !self.zoom_extents_pending && !self.bg.busy() {
+                    self.options.camera = None;
+                    self.apply_camera_option(&spec);
+                }
             }
         }
 
@@ -708,6 +900,11 @@ impl AfroBimApp {
         if self.by_record() {
             self.construction.sync(&self.doc);
             self.construction.refresh_percents(self.sched.date);
+        }
+        // The decoded TINs the alignments are draped on (decoded once, see `tin_for`).
+        let surfaces: Vec<afrobim_kernel::ElementId> = self.doc.elements().iter().filter(|e| e.category == afrobim_corridor::SURFACE_CATEGORY).map(|e| e.id).collect();
+        for id in surfaces {
+            let _ = self.tin_for(id);
         }
         self.paint_3d(&painter, rect);
     }
@@ -830,15 +1027,21 @@ impl AfroBimApp {
 
         for e in self.doc.elements().iter().filter(|e| e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY) {
             if e.category == crate::alignment_glue::CATEGORY {
-                // The centreline on the ground, in the site view only.
+                // The centreline on the ground, in the site view only. It is an item of its own, nearer than
+                // the ground, so that the ground (painted first) does not cover it.
                 if site_mode {
-                    if let Some(a) = crate::alignment_glue::alignment_of(&self.doc, e.id) {
-                        let centre = Stroke::new(2.0_f32, Color32::from_rgb(0xE8, 0xC5, 0x47));
-                        // At the profile's level where the alignment has one, else on z = 0.
-                        let pts = centreline_points(&a, 5.0);
-                        for w in pts.windows(2) {
-                            line(w[0], w[1], centre);
+                    let pts = self.centreline_3d(e);
+                    let centre = Stroke::new(2.0_f32, Color32::from_rgb(0xE8, 0xC5, 0x47));
+                    let mut shapes = Vec::new();
+                    for w in pts.windows(2) {
+                        if let (Some((p, _)), Some((q, _))) = (cam.project(w[0], rect), cam.project(w[1], rect)) {
+                            if rect.expand(100.0).intersects(Rect::from_two_pos(p, q)) {
+                                shapes.push(Shape::line_segment([p, q], centre));
+                            }
                         }
+                    }
+                    if !shapes.is_empty() {
+                        items.push((0.0, shapes));
                     }
                 }
                 continue;
@@ -849,6 +1052,10 @@ impl AfroBimApp {
             }
             let Some(frame) = self.frame_of(e, site_mode) else { continue };
             if crate::civil::is_civil(&e.category) && crate::civil::hidden(e) {
+                continue;
+            }
+            if e.category == crate::civil::POINTCLOUD {
+                self.cloud_points_3d(e, frame, rect, &mut items);
                 continue;
             }
             if crate::supports_glue::is_support(&e.category) || is_site_solid(&e.category) {

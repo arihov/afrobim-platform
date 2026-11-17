@@ -21,6 +21,10 @@ enum Act {
     Delete(ElementId),
     ToggleHidden(ElementId),
     Run(Cv, Option<ElementId>),
+    /// Select the element and centre the plan on a point (a structure or a pipe of a network).
+    ZoomPoint(ElementId, f64, f64),
+    /// Open the transform log tab of the project settings.
+    OpenLog,
 }
 
 /// One object row: what the tree needs of an element.
@@ -35,7 +39,7 @@ struct Row {
 
 #[derive(Default)]
 pub struct TreeState {
-    /// 0 Prospector, 1 Settings.
+    /// 0 Prospector, 1 Survey, 2 Settings.
     pub tab: usize,
     pub renaming: Option<(ElementId, String)>,
 }
@@ -50,6 +54,14 @@ fn icon_of(category: &str) -> &'static str {
         CORRIDOR => ph::ROAD_HORIZON,
         SAMPLES => ph::LINE_SEGMENTS,
         PARCEL => ph::POLYGON,
+        PIPENET => ph::PIPE,
+        PIPEPROFILE => ph::CHART_LINE,
+        FEATURELINE => ph::VECTOR_TWO,
+        GRADING => ph::MOUNTAINS,
+        INTERSECTION => ph::ARROWS_SPLIT,
+        ROUNDABOUT => ph::CIRCLE_NOTCH,
+        FIGURES => ph::SHAPES,
+        POINTCLOUD => ph::CLOUD,
         c if c == afrobim_alignment::CATEGORY => ph::PATH,
         _ => ph::SQUARE,
     }
@@ -88,6 +100,12 @@ impl AfroBimApp {
             }
             if resp.double_clicked() {
                 acts.push(Act::Zoom(r.id));
+            }
+            // The state badge of a referenced object.
+            if let Some(e) = self.doc.find(r.id).filter(|e| afrobim_shortcuts::is_reference(e)) {
+                let st = self.civil_ui.shortcuts.statuses.get(&r.id);
+                let (text, colour) = st.map(crate::shortcuts_ui::badge).unwrap_or(("reference", ui.visuals().weak_text_color()));
+                ui.label(RichText::new(format!("{} {text}", ph::LINK_SIMPLE)).small().color(colour)).on_hover_text(crate::shortcuts_ui::reference_line(e, st).unwrap_or_default());
             }
             let tip = format!("{}{}{}", r.name, if r.status.is_empty() { String::new() } else { format!("\nStatus: {}", r.status) }, if r.detail.is_empty() { String::new() } else { format!("\n{}", r.detail) });
             let resp = resp.on_hover_text(tip);
@@ -151,11 +169,15 @@ impl AfroBimApp {
     pub(crate) fn toolspace(&mut self, ui: &mut Ui) {
         let mut tab = self.civil_ui.tree.tab;
         ui.horizontal(|ui| {
-            crate::ui_kit::tabs(ui, &mut tab, &["Prospector", "Settings"]);
+            crate::ui_kit::tabs(ui, &mut tab, &["Prospector", "Survey", "Settings"]);
         });
         self.civil_ui.tree.tab = tab;
         ui.separator();
         if tab == 1 {
+            self.sdb_tab(ui);
+            return;
+        }
+        if tab == 2 {
             self.toolspace_settings(ui);
             return;
         }
@@ -186,6 +208,42 @@ impl AfroBimApp {
                     self.civil_ui.tree.renaming = Some((id, text));
                 }
             }
+            let sc_list: Vec<(String, String, u64)> = self.civil_ui.shortcuts.project.as_ref().map(|p| p.list().iter().map(|s| (s.key.clone(), s.status.label().to_string(), s.revision)).collect()).unwrap_or_default();
+            let sc_refs = self.civil_ui.shortcuts.statuses.len();
+            let sc_stale = self.civil_ui.shortcuts.statuses.values().filter(|s| !matches!(s.state, afrobim_shortcuts::RefState::UpToDate) || s.crs_differs).count();
+            let sc_root = self.civil_ui.shortcuts.root.as_ref().map(|r| r.display().to_string());
+            self.node(ui, "ts-shortcuts", ph::LINK_SIMPLE, "Shortcuts", sc_list.len(), Some(("Shortcuts manager...", Cv::ShortcutsManager)), &mut acts, |ui, acts| {
+                crate::ui_kit::note(ui, sc_root.clone().unwrap_or_else(|| "No working project folder is set.".into()));
+                if sc_refs > 0 {
+                    ui.label(RichText::new(format!("{sc_refs} reference(s) in this document; {sc_stale} need attention")).small().color(if sc_stale > 0 { crate::theme::warn() } else { ui.visuals().weak_text_color() }));
+                }
+                for (key, status, rev) in &sc_list {
+                    ui.label(crate::theme::icon_text(ph::LINK_SIMPLE, &format!("{key}  (rev {rev}, {status})"), 12.0, ui.visuals().text_color()));
+                }
+                ui.horizontal_wrapped(|ui| {
+                    for (cv, l) in [(Cv::ShortcutFolder, "Folder..."), (Cv::ShortcutPublish, "Publish..."), (Cv::ShortcutReference, "Reference..."), (Cv::ShortcutSync, "Synchronise..."), (Cv::ShortcutPromote, "Promote..."), (Cv::ShortcutRepair, "Repair..."), (Cv::ShortcutValidate, "Validate..."), (Cv::ShortcutUnderlay, "Underlay...")] {
+                        if ui.small_button(l).clicked() {
+                            acts.push(Act::Run(cv, None));
+                        }
+                    }
+                });
+            });
+            let log_n = crate::transform_doc::log_of(&self.doc).len();
+            let cals = crate::transform_doc::calibrations_of(&self.doc);
+            self.node(ui, "ts-reproject", ph::GLOBE_HEMISPHERE_WEST, "Reprojection", log_n + cals.len(), Some(("Transform coordinates...", Cv::Transform)), &mut acts, |ui, acts| {
+                if ui.selectable_label(false, crate::theme::icon_text(ph::GLOBE_HEMISPHERE_WEST, "Transform coordinates...", 13.0, ui.visuals().text_color())).clicked() {
+                    acts.push(Act::Run(Cv::Transform, None));
+                }
+                if ui.selectable_label(false, crate::theme::icon_text(ph::CROSSHAIR, "Site calibration...", 13.0, ui.visuals().text_color())).clicked() {
+                    acts.push(Act::Run(Cv::Calibrate, None));
+                }
+                if ui.selectable_label(false, crate::theme::icon_text(ph::CLOCK_COUNTER_CLOCKWISE, &format!("Transform log ({log_n})"), 13.0, ui.visuals().text_color())).clicked() {
+                    acts.push(Act::OpenLog);
+                }
+                for c in &cals {
+                    ui.label(crate::theme::icon_text(ph::CROSSHAIR, &format!("{}: {} points, RMS {:.3} m", c.name, c.points, c.rms_m), 12.0, ui.visuals().weak_text_color()));
+                }
+            });
             let points = self.rows(POINTS);
             self.node(ui, "ts-points", ph::DOTS_NINE, "Points", points.len(), Some(("Import points...", Cv::Points)), &mut acts, |ui, acts| {
                 for r in &points {
@@ -227,7 +285,8 @@ impl AfroBimApp {
                     }
                 }
             }
-            let total = surfaces.len() + corridor_surfaces.len();
+            let grading_surfaces = self.rows(GRADING);
+            let total = surfaces.len() + corridor_surfaces.len() + grading_surfaces.len();
             self.node(ui, "ts-surfaces", ph::MOUNTAINS, "Surfaces", total, Some(("Create surface...", Cv::SurfaceNew)), &mut acts, |ui, acts| {
                 for r in &surfaces {
                     let menu: &[(&str, Cv)] = &[("Definition...", Cv::SurfaceDef), ("Surface style...", Cv::SurfaceStyle), ("Volumes...", Cv::Volumes)];
@@ -238,6 +297,9 @@ impl AfroBimApp {
                         acts.push(Act::Zoom(*id));
                     }
                 }
+                for r in &grading_surfaces {
+                    self.row_ui(ui, r, acts, &[("Volumes and balance...", Cv::GradeGroup), ("New grading...", Cv::GradeCreate)]);
+                }
             });
             let aligns = self.rows(afrobim_alignment::CATEGORY);
             let profiles = self.rows(PROFILE);
@@ -245,13 +307,13 @@ impl AfroBimApp {
             let samples = self.rows(SAMPLES);
             self.node(ui, "ts-align", ph::PATH, "Alignments", aligns.len(), None, &mut acts, |ui, acts| {
                 for r in &aligns {
-                    let name = crate::alignment_glue::alignment_of(&self.doc, r.id).map(|a| a.name).unwrap_or_default();
+                    // Read from the JSON as it is: a full decode of every object per frame is what made the tree slow on a real project.
+                    let (name, has_design) = self.doc.find(r.id).map(|e| (e.data.get("name").and_then(|n| n.as_str()).unwrap_or_default().to_string(), e.data.get("profile").is_some_and(|p| !p.is_null()))).unwrap_or_default();
                     egui::CollapsingHeader::new(crate::theme::icon_text(ph::PATH, &r.name, 13.0, ui.visuals().text_color())).id_salt(("align", r.id.0)).default_open(true).show(ui, |ui| {
                         let mine = |rows: &[Row], f: &dyn Fn(&afrobim_kernel::Element) -> bool| -> Vec<usize> { rows.iter().enumerate().filter(|(_, row)| self.doc.find(row.id).is_some_and(f)).map(|(i, _)| i).collect() };
-                        let ps = mine(&profiles, &|e| civil::get::<ProfileData>(&self.doc, e.id, PROFILE).is_some_and(|d| d.alignment == name));
-                        let vs = mine(&views, &|e| civil::get::<ProfileViewData>(&self.doc, e.id, PROFILE_VIEW).is_some_and(|d| d.alignment == name));
-                        let ss = mine(&samples, &|e| civil::get::<SampleData>(&self.doc, e.id, SAMPLES).is_some_and(|d| d.group.alignment == name));
-                        let has_design = crate::alignment_glue::alignment_of(&self.doc, r.id).is_some_and(|a| a.profile.is_some());
+                        let ps = mine(&profiles, &|e| e.data.get("alignment").and_then(|a| a.as_str()) == Some(name.as_str()));
+                        let vs = mine(&views, &|e| e.data.get("alignment").and_then(|a| a.as_str()) == Some(name.as_str()));
+                        let ss = mine(&samples, &|e| e.data.get("group").and_then(|g| g.get("alignment")).and_then(|a| a.as_str()) == Some(name.as_str()));
                         let mut sub = |title: &str, icon: &str, rows: &[Row], idx: Vec<usize>, extra: Option<&str>| {
                             egui::CollapsingHeader::new(crate::theme::icon_text(icon, &format!("{title} ({})", idx.len() + extra.is_some() as usize), 12.0, ui.visuals().text_color())).id_salt((title, r.id.0)).default_open(true).show(ui, |ui| {
                                 if let Some(x) = extra {
@@ -281,10 +343,103 @@ impl AfroBimApp {
                     self.row_ui(ui, r, acts, &[("Edit assembly...", Cv::Assembly)]);
                 }
             });
+            // Sites (feature lines by site) and grading groups.
+            let site_names = crate::civil_grading::sites(&self.doc);
+            let flines = self.rows(FEATURELINE);
+            self.node(ui, "ts-sites", ph::VECTOR_TWO, "Sites and Feature Lines", flines.len(), Some(("Create feature line...", Cv::FeatureLine)), &mut acts, |ui, acts| {
+                for site in &site_names {
+                    let members = crate::civil_grading::lines_of(&self.doc, site);
+                    egui::CollapsingHeader::new(crate::theme::icon_text(ph::CIRCLES_THREE, &format!("{site} ({})", members.len()), 12.5, ui.visuals().text_color())).id_salt(("site", site.as_str())).default_open(true).show(ui, |ui| {
+                        for (id, _, _) in &members {
+                            if let Some(r) = flines.iter().find(|r| r.id == *id) {
+                                self.row_ui(ui, r, acts, &[("Edit feature line...", Cv::FeatureLineEdit), ("Sites and crossings...", Cv::GradeSite), ("Create grading...", Cv::GradeCreate)]);
+                            }
+                        }
+                    });
+                }
+            });
+            let groups = self.rows(GRADING);
+            self.node(ui, "ts-grading", ph::MOUNTAINS, "Grading Groups", groups.len(), Some(("Create grading...", Cv::GradeCreate)), &mut acts, |ui, acts| {
+                for r in &groups {
+                    self.row_ui(ui, r, acts, &[("Volumes and balance...", Cv::GradeGroup), ("New grading...", Cv::GradeCreate), ("Pad, pond, ditch...", Cv::GradeHelpers)]);
+                }
+            });
+            // Intersections and roundabouts, with the alignments each one made under it.
+            let ints = self.rows(INTERSECTION);
+            let rbs = self.rows(ROUNDABOUT);
+            self.node(ui, "ts-ints", ph::ARROWS_SPLIT, "Intersections", ints.len() + rbs.len(), Some(("Intersection...", Cv::Intersection)), &mut acts, |ui, acts| {
+                for (rows, is_int) in [(&ints, true), (&rbs, false)] {
+                    for r in rows {
+                        self.row_ui(ui, r, acts, &[if is_int { ("Edit intersection...", Cv::Intersection) } else { ("Edit roundabout...", Cv::Roundabout) }]);
+                        let made: Vec<u64> = if is_int { civil::get::<crate::civil_junction::IntersectionData>(&self.doc, r.id, INTERSECTION).map(|d| d.created).unwrap_or_default() } else { civil::get::<crate::civil_junction::RoundaboutData>(&self.doc, r.id, ROUNDABOUT).map(|d| d.created).unwrap_or_default() };
+                        ui.indent(("int-made", r.id.0), |ui| {
+                            egui::CollapsingHeader::new(crate::theme::icon_text(ph::PATH, &format!("Alignments and profiles ({})", made.len()), 12.0, ui.visuals().text_color())).id_salt(("int-al", r.id.0)).default_open(false).show(ui, |ui| {
+                                for id in made {
+                                    if let Some(e) = self.doc.find(ElementId(id)) {
+                                        let resp = ui.selectable_label(false, crate::theme::icon_text(ph::PATH, &e.name, 12.0, ui.visuals().text_color()));
+                                        if resp.clicked() || resp.double_clicked() {
+                                            acts.push(Act::Zoom(e.id));
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                    }
+                }
+            });
+            // Pipe networks, with their structures and pipes under each, and the profiles of runs.
+            let nets = self.rows(PIPENET);
+            let pprofiles = self.rows(PIPEPROFILE);
+            self.node(ui, "ts-pipes", ph::PIPE, "Pipe Networks", nets.len(), Some(("Create pipe network...", Cv::PipeNew)), &mut acts, |ui, acts| {
+                for r in &nets {
+                    self.row_ui(ui, r, acts, &[("Properties and rules...", Cv::PipeProps), ("Edit network...", Cv::PipeEdit), ("Checks...", Cv::PipeCheck), ("Tables...", Cv::PipeTables), ("Quantities...", Cv::PipeQty), ("Profile of a run...", Cv::PipeProfile), ("Parts list...", Cv::PipeParts)]);
+                    let Some(d) = crate::civil_pipes::data_of(&self.doc, r.id) else { continue };
+                    let net = &d.network;
+                    ui.indent(("pipenet-in", r.id.0), |ui| {
+                        egui::CollapsingHeader::new(crate::theme::icon_text(ph::CIRCLE, &format!("Structures ({})", net.structure_count()), 12.0, ui.visuals().text_color())).id_salt(("pn-st", r.id.0)).default_open(net.structure_count() <= 12).show(ui, |ui| {
+                            for st in net.structures() {
+                                let text = format!("{}  ({})  rim {:.2}", st.name, st.kind.label(), st.rim_level_m);
+                                let resp = ui.selectable_label(false, crate::theme::icon_text(ph::CIRCLE, &text, 12.0, ui.visuals().text_color()));
+                                if resp.clicked() || resp.double_clicked() {
+                                    acts.push(Act::ZoomPoint(r.id, st.easting_m, st.northing_m));
+                                }
+                            }
+                        });
+                        egui::CollapsingHeader::new(crate::theme::icon_text(ph::PIPE, &format!("Pipes ({})", net.pipe_count()), 12.0, ui.visuals().text_color())).id_salt(("pn-pp", r.id.0)).default_open(net.pipe_count() <= 12).show(ui, |ui| {
+                            for p in net.pipes() {
+                                let at = net.pipe_path(p.id).map(|pa| pa.point_at(pa.length_m / 2.0)).unwrap_or([0.0, 0.0]);
+                                let text = format!("{}  {}  {:.2} %", p.name, p.shape.size_label(), net.slope(p.id).unwrap_or(0.0) * 100.0);
+                                let resp = ui.selectable_label(false, crate::theme::icon_text(ph::PIPE, &text, 12.0, ui.visuals().text_color()));
+                                if resp.clicked() || resp.double_clicked() {
+                                    acts.push(Act::ZoomPoint(r.id, at[0], at[1]));
+                                }
+                            }
+                        });
+                    });
+                }
+                if !pprofiles.is_empty() {
+                    ui.label(crate::theme::icon_text(ph::CHART_LINE, "Pipe profiles", 12.0, ui.visuals().weak_text_color()));
+                    for r in &pprofiles {
+                        self.row_ui(ui, r, acts, &[("Edit profile...", Cv::PipeProfile)]);
+                    }
+                }
+            });
             let parcels = self.rows(PARCEL);
             self.node(ui, "ts-parcels", ph::POLYGON, "Parcels (Site)", parcels.len(), Some(("Create parcel...", Cv::ParcelPick)), &mut acts, |ui, acts| {
                 for r in &parcels {
                     self.row_ui(ui, r, acts, &[("Parcel properties...", Cv::ParcelProps)]);
+                }
+            });
+            let clouds = self.rows(POINTCLOUD);
+            self.node(ui, "ts-clouds", ph::CLOUD, "Point Clouds", clouds.len(), Some(("Attach a point cloud...", Cv::CloudAttach)), &mut acts, |ui, acts| {
+                for r in &clouds {
+                    self.row_ui(ui, r, acts, &[("Properties and display...", Cv::CloudProps), ("Clip...", Cv::CloudClip), ("Slices...", Cv::CloudSlice), ("Surface from the cloud...", Cv::CloudSurface), ("Compare with a surface...", Cv::CloudCompare), ("Export a subset...", Cv::CloudExport)]);
+                }
+            });
+            let figures = self.rows(FIGURES);
+            self.node(ui, "ts-figures", ph::SHAPES, "Survey Figures", figures.len(), Some(("Survey figures...", Cv::SurveyFigures)), &mut acts, |ui, acts| {
+                for r in &figures {
+                    self.row_ui(ui, r, acts, &[("Figures...", Cv::SurveyFigures)]);
                 }
             });
             ui.separator();
@@ -341,6 +496,11 @@ impl AfroBimApp {
                 }
                 self.schedule_commit_now();
             }
+            Act::ZoomPoint(id, e, n) => {
+                self.doc.select(&[id], SelectMode::Replace);
+                self.civil_zoom_to(e, n, 14.0);
+            }
+            Act::OpenLog => self.open_transform_log(),
             Act::Run(cv, id) => {
                 if let Some(id) = id {
                     self.doc.select(&[id], SelectMode::Replace);
@@ -399,6 +559,14 @@ pub fn edit_command(category: &str) -> Option<Cv> {
         CORRIDOR => Cv::CorridorModel,
         SAMPLES => Cv::SampleLines,
         PARCEL => Cv::ParcelProps,
+        PIPENET => Cv::PipeProps,
+        PIPEPROFILE => Cv::PipeProfile,
+        FEATURELINE => Cv::FeatureLineEdit,
+        GRADING => Cv::GradeGroup,
+        INTERSECTION => Cv::Intersection,
+        ROUNDABOUT => Cv::Roundabout,
+        FIGURES => Cv::SurveyFigures,
+        POINTCLOUD => Cv::CloudProps,
         _ => return None,
     })
 }
@@ -408,6 +576,11 @@ pub fn edit_command(category: &str) -> Option<Cv> {
 pub fn civil_panel(ui: &mut Ui, e: &mut afrobim_kernel::Element) -> (bool, Option<Cv>) {
     let mut changed = false;
     let mut open = None;
+    // A referenced object is read-only here: its editor is that of its source document.
+    if let Some(line) = crate::shortcuts_ui::reference_line(e, None) {
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, format!("{line}. Read-only: promote it to an editable copy (SHORTCUTPROMOTE) to change it."));
+        return (false, None);
+    }
     crate::ui_kit::grid(ui, "civil-props", |ui| {
         ui.label("Status");
         let cur = e.properties.get(PROP_STATUS).cloned().unwrap_or_else(|| STATUSES[0].into());
@@ -429,10 +602,23 @@ pub fn civil_panel(ui: &mut Ui, e: &mut afrobim_kernel::Element) -> (bool, Optio
             changed = true;
         }
         ui.end_row();
-        ui.label("IFC mapping");
-        ui.label(RichText::new(crate::civil_ifc::mapping_note(&e.category)).small().weak());
-        ui.end_row();
     });
+    // Outside the grid: a long note in a grid cell would widen the whole panel.
+    crate::ui_kit::note(ui, format!("IFC mapping: {}", crate::civil_ifc::mapping_note(&e.category)));
+    if e.category == SAMPLES {
+        if let Ok(mut sd) = serde_json::from_value::<crate::civil::SampleData>(e.data.clone()) {
+            if !sd.imported.is_empty() {
+                let before = sd.compare;
+                crate::ui_kit::toggle(ui, &mut sd.compare, "Compare with AfroBIM's own cut of the same surfaces");
+                crate::ui_kit::note(ui, format!("{} imported section(s). The file's lines come from the file; the comparison cuts the document surfaces named like them at the same stations and reports the largest level difference per station under Derived.", sd.imported.len()));
+                if sd.compare != before {
+                    e.data = serde_json::to_value(&sd).unwrap_or_default();
+                    e.properties.insert(PROP_REV.into(), crate::civil::next_rev().to_string());
+                    changed = true;
+                }
+            }
+        }
+    }
     if let Some(cv) = edit_command(&e.category) {
         ui.horizontal(|ui| {
             if ui.button(format!("{}  Edit...", ph::PENCIL_SIMPLE)).clicked() {

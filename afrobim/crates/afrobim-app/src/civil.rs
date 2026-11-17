@@ -32,9 +32,17 @@ pub const ASSEMBLY: &str = "civil-assembly";
 pub const CORRIDOR: &str = "civil-corridor";
 pub const SAMPLES: &str = "civil-samples";
 pub const PARCEL: &str = "civil-parcel";
+pub const PIPENET: &str = "civil-pipenet";
+pub const PIPEPROFILE: &str = "civil-pipeprofile";
+pub const FEATURELINE: &str = "civil-featureline";
+pub const GRADING: &str = "civil-grading";
+pub const INTERSECTION: &str = "civil-intersection";
+pub const ROUNDABOUT: &str = "civil-roundabout";
+pub const POINTCLOUD: &str = "civil-pointcloud";
+pub const FIGURES: &str = "civil-figures";
 
 /// Category, display name and the plural the toolspace shows.
-pub const KINDS: [(&str, &str, &str); 8] = [
+pub const KINDS: [(&str, &str, &str); 16] = [
     (POINTS, "Point set", "Points"),
     (SURFACE, "Surface", "Surfaces"),
     (PROFILE, "Ground profile", "Profiles"),
@@ -43,6 +51,14 @@ pub const KINDS: [(&str, &str, &str); 8] = [
     (CORRIDOR, "Corridor", "Corridors"),
     (SAMPLES, "Sample line group", "Sample Line Groups"),
     (PARCEL, "Parcel", "Parcels"),
+    (PIPENET, "Pipe network", "Pipe Networks"),
+    (PIPEPROFILE, "Pipe profile", "Pipe Profiles"),
+    (FEATURELINE, "Feature line", "Feature Lines"),
+    (GRADING, "Grading group", "Grading Groups"),
+    (INTERSECTION, "Intersection", "Intersections"),
+    (ROUNDABOUT, "Roundabout", "Roundabouts"),
+    (FIGURES, "Survey figures", "Survey Figures"),
+    (POINTCLOUD, "Point cloud", "Point Clouds"),
 ];
 
 pub fn is_civil(category: &str) -> bool {
@@ -58,7 +74,7 @@ pub const STATUSES: [&str; 4] = ["Draft", "For review", "Approved", "Superseded"
 
 static REV: AtomicU64 = AtomicU64::new(1);
 
-fn next_rev() -> u64 {
+pub fn next_rev() -> u64 {
     REV.fetch_add(1, Ordering::Relaxed)
 }
 
@@ -155,6 +171,34 @@ pub struct ProfileViewData {
     pub show_bands: bool,
     /// Height of the plotted ground and design lines above the datum is exaggerated; the bands sit below.
     pub band_height_m: f64,
+    /// Point cloud slices along the alignment, drawn as points (station, level).
+    #[serde(default)]
+    pub cloud: Vec<CloudProfile>,
+}
+
+/// A point cloud sliced along an alignment at a thickness, for a profile view.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CloudProfile {
+    pub cloud: String,
+    pub thickness_m: f64,
+    /// Station (displayed internal station) and level.
+    pub points: Vec<[f64; 2]>,
+}
+
+/// A point cloud sliced at the sample lines, for the section views.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SliceSet {
+    pub cloud: String,
+    pub thickness_m: f64,
+    pub lines: Vec<SliceLine>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SliceLine {
+    /// The name of the sample line.
+    pub name: String,
+    /// Offset from the alignment (left negative) and level.
+    pub points: Vec<[f64; 2]>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -178,6 +222,31 @@ pub struct SampleData {
     pub columns: usize,
     /// Vertical exaggeration of the views.
     pub vertical_exaggeration: f64,
+    /// Point cloud slices drawn in the section views.
+    #[serde(default)]
+    pub slices: Vec<SliceSet>,
+    /// Sections read from a LandXML file: the file's own named section surfaces at each line.
+    #[serde(default)]
+    pub imported: Vec<ImportedSection>,
+    /// Comparison mode for imported sections: AfroBIM's own cut of `surfaces` is drawn over the
+    /// file's lines and the largest level difference per station is reported.
+    #[serde(default)]
+    pub compare: bool,
+}
+
+/// One cross-section of a LandXML file: the sample line it belongs to and its named surfaces, as
+/// runs of (offset, level) in metres, offsets negative to the left.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ImportedSection {
+    pub line: String,
+    pub station_m: f64,
+    pub surfaces: Vec<ImportedSectionSurface>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ImportedSectionSurface {
+    pub name: String,
+    pub runs: Vec<Vec<[f64; 2]>>,
 }
 
 // ─── element helpers ──────────────────────────────────────────────────────
@@ -284,7 +353,7 @@ pub fn of_category(doc: &Document, category: &str) -> Vec<(ElementId, String)> {
 
 /// The surfaces a profile or corridor can use: civil surfaces and imported TIN surfaces.
 pub fn surface_choices(doc: &Document) -> Vec<(ElementId, String)> {
-    doc.elements().iter().filter(|e| e.category == SURFACE || e.category == afrobim_corridor::SURFACE_CATEGORY).map(|e| (e.id, e.name.clone())).collect()
+    doc.elements().iter().filter(|e| e.category == SURFACE || e.category == GRADING || e.category == afrobim_corridor::SURFACE_CATEGORY).map(|e| (e.id, e.name.clone())).collect()
 }
 
 pub fn status_of(e: &Element) -> String {
@@ -313,6 +382,14 @@ fn readable(category: &str, data: &serde_json::Value) -> Result<(), String> {
         CORRIDOR => ok::<CorridorData>(data),
         SAMPLES => ok::<SampleData>(data),
         PARCEL => ok::<afrobim_cogo::Parcel>(data),
+        PIPENET => ok::<crate::civil_pipes::PipeNetData>(data),
+        PIPEPROFILE => ok::<crate::civil_pipes::PipeProfileData>(data),
+        FEATURELINE => ok::<crate::civil_grading::FeatureLineData>(data),
+        GRADING => ok::<crate::civil_grading::GradingData>(data),
+        INTERSECTION => ok::<crate::civil_junction::IntersectionData>(data),
+        ROUNDABOUT => ok::<crate::civil_junction::RoundaboutData>(data),
+        FIGURES => ok::<crate::survey_db::FigureData>(data),
+        POINTCLOUD => ok::<crate::cloud::CloudData>(data),
         _ => Ok(()),
     }
 }

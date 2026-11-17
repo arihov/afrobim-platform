@@ -112,7 +112,7 @@ pub fn build(doc: &mut Document) -> Vec<String> {
     // Existing ground profile and its profile view, placed south of the site.
     let prof = ProfileData { alignment: al_name.clone(), surface: surf_id.0, interval_m: 10.0, imported: vec![] };
     let prof_id = civil::add(doc, PROFILE, "Demo ground profile (example data)", serde_json::to_value(&prof).unwrap_or_default(), None, SOURCE);
-    let pv = ProfileViewData { alignment: al_name.clone(), profiles: vec![prof_id.0], show_design: true, vertical_exaggeration: 5.0, datum: None, insertion: [E0, N0 - 110.0], show_bands: true, band_height_m: 3.0 };
+    let pv = ProfileViewData { alignment: al_name.clone(), profiles: vec![prof_id.0], show_design: true, vertical_exaggeration: 5.0, datum: None, insertion: [E0, N0 - 110.0], show_bands: true, band_height_m: 3.0, cloud: vec![] };
     let pv_b = Bounds { min_e: E0, min_n: N0 - 110.0, max_e: E0 + len, max_n: N0 - 70.0 };
     civil::add(doc, PROFILE_VIEW, "Demo profile view (example values)", serde_json::to_value(&pv).unwrap_or_default(), Some(pv_b), SOURCE);
 
@@ -135,7 +135,7 @@ pub fn build(doc: &mut Document) -> Vec<String> {
     if let Err(e) = grp.add_stations(&al, &SampleStations::Interval { interval_m: 30.0, start_station_m: None, end_station_m: None }, 18.0, 18.0, "SL") {
         notes.push(format!("Sample lines: {e}"));
     }
-    let sd = SampleData { group: grp, corridor: Some(cor_id.0), surfaces: vec![surf_id.0], insertion: [E0 + 330.0, N0 + 250.0], columns: 4, vertical_exaggeration: 2.0 };
+    let sd = SampleData { group: grp, corridor: Some(cor_id.0), surfaces: vec![surf_id.0], insertion: [E0 + 330.0, N0 + 250.0], columns: 4, vertical_exaggeration: 2.0, slices: vec![], imported: vec![], compare: false };
     civil::add(doc, SAMPLES, "Demo sample lines (example values)", serde_json::to_value(&sd).unwrap_or_default(), Some(Bounds { min_e: E0 + 330.0, min_n: N0 + 100.0, max_e: E0 + 500.0, max_n: N0 + 250.0 }), SOURCE);
 
     // Two parcels the road crosses.
@@ -154,8 +154,149 @@ pub fn build(doc: &mut Document) -> Vec<String> {
         Ok(_) => {}
         Err(e) => notes.push(format!("Road reserve split: {e}")),
     }
+    notes.extend(pipe_demo(doc, surf_id, &al));
+    notes.extend(grading_demo(doc, surf_id));
+    notes.extend(junction_demo(doc, surf_id, &al));
+    notes.extend(survey_demo(doc));
+    let (cloud, _) = crate::cloud::synthetic_data(E0, N0);
+    crate::cloud::add(doc, &cloud);
     let _ = pts_id;
     let _: Option<ElementId> = None;
+    notes
+}
+
+/// The survey figures of the synthetic survey database and its points as a linked point set.
+fn survey_demo(doc: &mut Document) -> Vec<String> {
+    let db = crate::survey_db::demo_database(E0, N0);
+    let mut notes = Vec::new();
+    match crate::survey_db::figure_records(&db, "Main", 0.05) {
+        Ok(data) if !data.figures.is_empty() => {
+            crate::survey_db::add_figures(doc, &data);
+        }
+        Ok(_) => notes.push("The synthetic survey made no figure.".into()),
+        Err(e) => notes.push(format!("Survey figures: {e}")),
+    }
+    notes
+}
+
+/// A T junction on the demonstration road (a side road ending on it) and a small roundabout with two
+/// arms, with example values. The side road and the roundabout arms are alignments of their own.
+fn junction_demo(doc: &mut Document, surf_id: ElementId, al: &Alignment) -> Vec<String> {
+    use afrobim_junction::*;
+    let mut notes = Vec::new();
+    let Some(first) = al.elements.first() else { return notes };
+    let (h0, s_cross) = (first.heading_rad, 45.0);
+    let p = al.point_at(s_cross).map(|p| (p.x, p.y)).unwrap_or((first.x, first.y));
+    let z = al.profile.as_ref().and_then(|pr| pr.elevation_at(s_cross).ok()).unwrap_or(1150.0);
+    // The side road starts on the road's centreline and runs away to the north-west (the left of the road).
+    let (sx, sy) = p;
+    let mut side = Alignment::from_elements("Demo side road (example)", 0.0, vec![AlignmentElement::line(sx, sy, h0 + std::f64::consts::FRAC_PI_2, 70.0)]).expect("a straight alignment");
+    side.profile = Profile::new("Demo side road profile (example values)", vec![Pvi::point(0.0, z), Pvi::point(70.0, z + 1.4)]).ok();
+    if crate::alignment_glue::add(doc, &side).is_none() {
+        notes.push("The demonstration side road could not be added.".into());
+        return notes;
+    }
+    let simple = |q: Quadrant| ReturnSpec { quadrant: q, kind: ReturnKind::Simple { radius_m: 8.0 } };
+    let inputs = IntersectionInputs {
+        name: "Demo T junction (example values)".into(),
+        primary: al.name.clone(),
+        secondary: side.name.clone(),
+        crossing_index: 0,
+        extend_m: 0.0,
+        corridor_type: CorridorType::PrimaryCrownMaintained,
+        primary_edges: RoadEdges::symmetric(3.5),
+        secondary_edges: RoadEdges::symmetric(3.0),
+        extents: JunctionExtents { primary_behind_m: 35.0, primary_ahead_m: 60.0, secondary_behind_m: 0.0, secondary_ahead_m: 50.0 },
+        returns: vec![simple(Quadrant { primary_arm: Arm::Ahead, secondary_arm: Arm::Ahead }), simple(Quadrant { primary_arm: Arm::Behind, secondary_arm: Arm::Ahead })],
+        islands: vec![],
+        vertical: Some(VerticalInputs { primary_crossfall: CrossfallInput::Fixed { left_pct: -2.0, right_pct: -2.0 }, secondary_crossfall: CrossfallInput::Fixed { left_pct: -2.0, right_pct: -2.0 }, tie_in_length_m: 15.0, lock_sample_spacing_m: None, edge_profile_spacing_m: 5.0, return_profile_spacing_m: 2.0 }),
+        corridor: None,
+    };
+    if let Err(e) = crate::civil_junction::make_intersection(doc, None, "Demo T junction (example values)", inputs, Some(surf_id.0), true, SOURCE) {
+        notes.push(format!("T junction: {e}"));
+    }
+    // A roundabout of two arms, east of the road.
+    let c = (E0 + 235.0, N0 + 165.0);
+    let mut arm_ids = Vec::new();
+    for (name, (x, y, h)) in [("Demo roundabout west arm (example)", (c.0 - 80.0, c.1, 0.0)), ("Demo roundabout south arm (example)", (c.0, c.1 - 80.0, std::f64::consts::FRAC_PI_2))] {
+        if let Ok(a) = Alignment::from_elements(name, 0.0, vec![AlignmentElement::line(x, y, h, 80.0)]) {
+            crate::alignment_glue::add(doc, &a);
+            arm_ids.push(a.name);
+        }
+    }
+    let arm = |n: &str, a: &str| ArmInput { name: n.into(), alignment: a.into(), approach_half_width_m: 3.5, flare_length_m: 20.0, entry_width_m: 7.0, entry_radius_m: 1.5, exit_width_m: 7.0, exit_radius_m: 1.5, departure_half_width_m: 3.5, splitter: SplitterInput { points: vec![SplitterPoint { distance_m: 0.0, half_width_m: 1.0 }, SplitterPoint { distance_m: 12.0, half_width_m: 0.0 }], nose_radius_m: 0.3 }, path_offsets: Some(PathOffsets { from_entry_kerb_m: 2.0, from_splitter_m: 2.0, from_central_island_m: 2.0 }) };
+    if arm_ids.len() == 2 {
+        let ri = RoundaboutInputs { name: "Demo roundabout (example values)".into(), centre: c, inscribed_diameter_m: 50.0, circulatory_width_m: 7.0, apron_width_m: 1.0, circulation: Circulation::Anticlockwise, arms: vec![arm("West", &arm_ids[0]), arm("South", &arm_ids[1])] };
+        if let Err(e) = crate::civil_junction::make_roundabout(doc, None, "Demo roundabout (example values)", ri, true, SOURCE) {
+            notes.push(format!("Roundabout: {e}"));
+        }
+    }
+    notes
+}
+
+/// A graded building pad: an outline, a platform level and slopes to the ground, all examples.
+fn grading_demo(doc: &mut Document, surf_id: ElementId) -> Vec<String> {
+    use afrobim_grading::{building_pad, PlatformSurface, ProjectionParams, Slope};
+    let (e, n) = (E0 + 215.0, N0 + 225.0);
+    let outline = [[e, n], [e + 36.0, n], [e + 36.0, n + 28.0], [e, n + 28.0]];
+    let level = (ground_z(e + 18.0, n + 14.0) * 10.0).round() / 10.0 + 0.4;
+    let params = ProjectionParams { ray_spacing: 2.0, facet_angle: 15.0_f64.to_radians() };
+    match building_pad("Demo pad (example values)", &outline, &PlatformSurface::Level { level }, Slope::Ratio(2.0), Slope::Ratio(3.0), 40.0, params) {
+        Ok(pkg) => {
+            crate::civil_grading::add_package(doc, &pkg, Some(surf_id), SOURCE, true);
+            vec![]
+        }
+        Err(e) => vec![format!("Pad: {e}")],
+    }
+}
+
+/// A small pipe run beside the first straight of the demonstration road: four structures and three
+/// pipes from the labelled example parts list. Every number is an example.
+fn pipe_demo(doc: &mut Document, surf_id: ElementId, al: &Alignment) -> Vec<String> {
+    use afrobim_pipes::{PartFamily, PipeSpec, RunPoint, RunSpec, StructureKind};
+    let mut notes = Vec::new();
+    let cat = crate::pipes_ui::example_catalogue();
+    let Some(part) = cat.parts.iter().find(|p| p.family == PartFamily::Pipe).cloned() else { return vec!["The example parts list has no pipe.".into()] };
+    let spart = cat.parts.iter().find(|p| p.family == PartFamily::Structure).cloned();
+    let Some(first) = al.elements.first() else { return notes };
+    let (x0, y0, h) = (first.x, first.y, first.heading_rad);
+    // Offset 10 m to the right of the road's first straight, stations 8, 33, 58 and 83 m.
+    let at = |s: f64| (x0 + s * h.cos() + 10.0 * h.sin(), y0 + s * h.sin() - 10.0 * h.cos());
+    let pts: Vec<RunPoint> = [8.0, 33.0, 58.0, 83.0].iter().map(|s| { let (e, n) = at(*s); RunPoint { easting_m: e, northing_m: n, rim_level_m: ground_z(e, n) } }).collect();
+    let mut data = crate::civil_pipes::PipeNetData::default();
+    data.example = true;
+    data.network = afrobim_pipes::PipeNetwork::new("Demo pipe network (example values)");
+    data.network.network_type = afrobim_pipes::NetworkType::Storm;
+    data.network.surface_name = Some("Demo existing ground (example data)".into());
+    data.catalogue = cat.clone();
+    data.surface = Some(surf_id.0);
+    let start_invert = pts[0].rim_level_m - 1.6;
+    let spec = RunSpec { structure_kind: StructureKind::Manhole, structure_prefix: "MH".into(), pipe_prefix: "P".into(), pipe: match PipeSpec::from_part(&part) { Ok(s) => s, Err(e) => return vec![e.to_string()] }, start_invert_m: start_invert, slope: 0.012 };
+    match data.network.add_run(&pts, &spec) {
+        Ok((structs, pipes)) => {
+            if let Some(sp) = &spart {
+                for s in &structs {
+                    let _ = data.network.swap_structure_part(*s, sp);
+                }
+            }
+            for p in &pipes {
+                if let Ok(pp) = data.network.pipe_mut(*p) {
+                    pp.design_flow_m3_s = Some(0.12);
+                }
+            }
+            let last = *pipes.last().unwrap();
+            let end_invert = data.network.pipe(last).map(|p| p.end_invert_m).unwrap_or(0.0);
+            data.tailwater_m = Some(end_invert + 0.2);
+            data.clearance_m = Some(0.3);
+            data.rules.min_slope = Some(0.005);
+            data.rules.min_cover_m = Some(0.6);
+            let net_id = crate::civil_pipes::add(doc, "Demo pipe network (example values)", &data, SOURCE);
+            let (e, n) = (E0, N0 + 150.0);
+            let pp = crate::civil_pipes::PipeProfileData { network: net_id.0, pipes: pipes.iter().map(|p| p.0).collect(), alignment: None, surface: Some(surf_id.0), insertion: [e, n], vertical_exaggeration: 5.0, ground_spacing_m: 5.0, tailwater_m: data.tailwater_m };
+            civil::add(doc, PIPEPROFILE, "Demo pipe profile (example values)", serde_json::to_value(&pp).unwrap_or_default(), Some(Bounds { min_e: e, min_n: n, max_e: e + 100.0, max_n: n + 30.0 }), SOURCE);
+        }
+        Err(e) => notes.push(format!("Pipe run: {e}")),
+    }
     notes
 }
 
@@ -163,6 +304,13 @@ impl crate::app::AfroBimApp {
     /// CIVILDEMO: builds the data, selects the surface and fits the view.
     pub(crate) fn civil_demo(&mut self) {
         let notes = build(&mut self.doc);
+        self.sdb_install_demo();
+        // The survey points as a point set linked to the (synthetic, unsaved) database.
+        if let Some(db) = self.civil_ui.sdb.db.clone() {
+            if let Err(e) = crate::survey_db::insert_points(&mut self.doc, &db, "(demonstration database, not saved)", "Main", 1000) {
+                self.log(format!("Survey points: {e}"));
+            }
+        }
         self.sync_generated();
         self.civil_build_now();
         self.schedule_commit_now();

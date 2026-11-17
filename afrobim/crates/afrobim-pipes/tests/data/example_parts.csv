@@ -1,0 +1,6 @@
+id,name,family,kind,shape,diameter_m,width_m,height_m,length_m,material,wall_thickness_m,manning_n,ks_m,ifc_entity,ifc_predefined_type,cost_item_code
+EXAMPLE-P1,"Example pipe A, test only",pipe,,circular,0.6,,,,example material A,0.05,0.013,,IFCPIPESEGMENT,,EX-0001
+EXAMPLE-P2,Example pipe B test only,pipe,,circular,0.9,,,,example material B,0.08,,0.0015,IFCPIPESEGMENT,,EX-0002
+EXAMPLE-P3,Example box test only,pipe,,box,,1.2,0.8,,example material A,0.1,0.015,,,,EX-0003
+EXAMPLE-S1,Example chamber test only,structure,manhole,circular,1.2,,,,example material A,0.1,,,IFCDISTRIBUTIONCHAMBERELEMENT,,EX-0101
+EXAMPLE-S2,Example rectangular test only,structure,catch_basin,rectangular,,0.6,,0.9,,0.1,,,IFCDISTRIBUTIONCHAMBERELEMENT,,EX-0102

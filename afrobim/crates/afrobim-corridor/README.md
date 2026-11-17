@@ -126,13 +126,28 @@ Reads `LandXML/Surfaces/Surface/Definition`. These names were checked against
 | `F@i` | `1` means "part of the triangulation but invisible" (schema). Such faces are **skipped** |
 
 A `Definition` may hold several `Faces` groups; all are read. Not read: `F@n` (neighbours),
-`F@b` (breakline sides), `SourceData`, `Watersheds`, `SurfVolumes`. `Units@elevationUnit` is not
-applied (by the schema it is for elevation attributes; the alignment reader does the same).
-Faces without exactly three ids, naming a missing point, or with no plan area are dropped and
-counted in the import notes.
+`F@b` (breakline sides; both derivable from the faces), `Watersheds`, `SurfVolumes`,
+`SourceData/Chain`. `Units@elevationUnit` is not applied (by the schema it is for elevation
+attributes; the alignment reader does the same). Faces without exactly three ids, naming a missing
+point, or with no plan area are dropped and counted in the import notes.
+
+Also read, and kept on `ImportedSurface`: `SourceData` (`Breaklines`, `Contours`, `Boundaries`,
+`DataPoints` and the external `PointFiles`, named and not opened) as `source_data`; the statistics
+`Definition` states (`area2DSurf`, `area3DSurf`, `elevMin`, `elevMax`) as `stated`; and
+`outlier_points`, the indices of points that lie 100 times the median distance or more from the
+middle of the surface. Such a point (a stray or untransformed survey point) is in the TIN as the file
+gives it and is named in the notes; it makes the plan extent of the TIN much larger than the
+surface. **Civil 3D states `area2DSurf` as the plan area of the visible faces**: the TIN read here
+has exactly that area (checked to 1e-3 m2 on four surfaces of a real Civil 3D 2025 file, with 581
+invisible faces skipped out of about 41 000), which is the check that skipping `F i="1"` is right.
 
 `tests/landxml/surface.xml` and `surface_feet.xml` validate against the schema
-(`xmllint --noout --schema LandXML-1.2.xsd`). They were written by hand.
+(`xmllint --noout --schema LandXML-1.2.xsd`). They were written by hand. The surface of
+`afrobim-alignment/tests/landxml/civil3d_like.xml` has the structure Civil 3D writes (invisible hull
+faces with `n` lists, a stray point, `PointFiles`, `Definition` statistics; made-up numbers) and is
+read by `tests/landxml.rs`; the same file also holds a test against a private real export, which
+runs only when `AFROBIM_PRIVATE_LANDXML` names it and otherwise prints a note and passes. Reading
+the four surfaces of that export (about 20 000 points) takes 0.6 s in a debug build.
 
 ### Storage in a document
 
@@ -298,8 +313,15 @@ the standard.
 `OffsetTarget`: `Fixed`, `Table` of (station, offset), or a plan `Polyline` (use
 `polyline_from_alignment` to sample another alignment). `ElevationTarget`: `Fixed`, `Table`, or a
 `Profile`. A table gives no value outside its stations (an error, not an extrapolation). A strip
-width can run to an offset target (lane widening); a link can run to an offset or an elevation.
-The ground ("surface target") is the corridor's ground TIN, used by `Daylight`.
+width can run to an offset target (lane widening); a link can run to an offset or an elevation, or
+(`LinkMode::ToOffsetAndElevation`, `library::link_to_offset_and_elevation`) to **both together**: the
+end point is fixed in plan and in level and the slope is whatever joins it to the attachment point
+(the slope is not entered). `ElevationTarget::NearestOnAlignment` reads the profile of another
+alignment at the station of that alignment nearest the **section point**, not at the baseline
+station: the section point is the link's attachment point for a link to an elevation, and the end
+point (at the offset target) for a link to an offset and an elevation. It needs the perpendicular
+foot of that point on the target alignment (a point beyond its ends is an error that says so) and a
+profile on the target alignment. The ground ("surface target") is the corridor's ground TIN, used by `Daylight`.
 
 A strip with `follows_superelevation` takes the alignment's stored cross-fall for its side at the
 station (`Superelevation::cross_fall_at`); where the alignment has none for that side, the
@@ -362,6 +384,14 @@ the swath. A surface that does not cover the line gives no run and a note.
   distance.
 
 ### Limits of this part
+
+- **No region bounded by an outline.** A corridor region is a range of stations along a baseline;
+  a section-based model cannot represent a closed outline (an island), because it has no station
+  along it. Round 6 looked at it and did not build it: an island is made as a grading (a feature
+  line footprint with infill, `afrobim-grading`) or as an outline the junction crate returns.
+- A link to a level and an offset together has no slope input, so a kerb return sliver is as steep
+  as the two targets make it; where the two targets are far apart in level the link is steep and
+  the section says so only through its geometry.
 
 - Everything is straight links in section; no curved or variable-width transitions except by
   targets, and a target is evaluated at each section only (between sections the surface is the

@@ -223,7 +223,7 @@ impl AfroBimApp {
         }
         if out.inner.as_ref().is_some_and(|(_, fo)| fo.primary) {
             if let (Some(al), Some(ex), Some(bh), Some(e), Some(n), Some(datum)) = (al_name, ex, bh, e, n, datum) {
-                let data = ProfileViewData { alignment: al.clone(), profiles: f.profiles.iter().map(|p| p.0).collect(), show_design: f.show_design, vertical_exaggeration: ex, datum, insertion: [e, n], show_bands: f.bands, band_height_m: bh };
+                let data = ProfileViewData { alignment: al.clone(), profiles: f.profiles.iter().map(|p| p.0).collect(), show_design: f.show_design, vertical_exaggeration: ex, datum, insertion: [e, n], show_bands: f.bands, band_height_m: bh, cloud: vec![] };
                 let v = serde_json::to_value(&data).unwrap_or_default();
                 let b = Bounds { min_e: e, min_n: n, max_e: e + 100.0, max_n: n + 40.0 };
                 match f.edit {

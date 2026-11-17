@@ -86,6 +86,8 @@ pub struct SurveyForm {
     /// The file as read in `order`, or why it cannot be.
     read: Result<SurveyPoints, String>,
     problem: Option<String>,
+    /// Keep, transform or cancel, when the file's stated system differs from the project's.
+    xform: crate::transform_ui::ImportCrs,
 }
 
 impl SurveyForm {
@@ -108,6 +110,7 @@ impl SurveyForm {
             set_project: true,
             excluded: BTreeSet::new(),
             problem: None,
+            xform: crate::transform_ui::ImportCrs::default(),
         }
     }
 
@@ -174,6 +177,15 @@ impl AfroBimApp {
             (_, _, false) => (false, "The coordinate system is not known"),
             _ => (true, ""),
         };
+        let file_crs = CoordinateSystem::parse(&form.crs);
+        let differs = crate::transform_ui::differs(file_crs.as_ref(), form.project.as_ref());
+        if differs {
+            if let Some(c) = &file_crs {
+                form.xform.seed(c);
+            }
+        }
+        let xform_state = std::cell::Cell::new((true, ""));
+        let (enabled, reason) = if differs && !form.xform.ready() && enabled { (false, form.xform.why_not()) } else { (enabled, reason) };
         let out = Dialog::new("Survey points", crate::glyphs::by_name("SURVEY"))
             .id_title(format!("Survey points: {file}"))
             .subtitle(file.clone())
@@ -181,15 +193,29 @@ impl AfroBimApp {
             .help("A ground surface is made from the points by triangulation. Coordinates and levels are read in the unit you choose and kept in metres. Nothing here is a design value: the column order starts at PNEZD because surveyors' files usually come that way, and the first points are shown as they are read so you can check it by eye.")
             .show(
                 ctx,
-                |ui| survey_body(ui, &mut form),
-                |ui| Footer::new("Make the surface").icon(crate::glyphs::by_name("SURVEY")).enabled(enabled, reason).show(ui),
+                |ui| {
+                    survey_body(ui, &mut form);
+                    if differs {
+                        if let (Some(p), Ok(sp)) = (form.project.clone(), &form.read) {
+                            let extent = crate::transform_ui::extent_of_points(sp.points.iter().map(|q| (q.easting, q.northing)));
+                            form.xform.show(ui, "sv-crs", &p, extent);
+                        }
+                        xform_state.set((form.xform.ready(), form.xform.why_not()));
+                    }
+                },
+                |ui| {
+                    let (ok, why) = xform_state.get();
+                    Footer::new("Make the surface").icon(crate::glyphs::by_name("SURVEY")).enabled(enabled && ok, if ok { reason } else { why }).show(ui)
+                },
             );
         if out.closed || out.inner.is_some_and(|(_, f)| f.cancel) {
             return;
         }
         if out.inner.is_some_and(|(_, f)| f.primary) {
+            let before: Vec<afrobim_kernel::ElementId> = self.doc.elements().iter().map(|e| e.id).collect();
             match form.request().and_then(|request| self.survey_import(Some(ctx), &form.path, &request)) {
                 Ok(_) => {
+                    self.finish_import_transform(&form.xform, &before, &file);
                     // With no project system, the one stated for this file becomes the project's, when ticked.
                     if form.project.is_none() && form.set_project {
                         if let Some(mut c) = CoordinateSystem::parse(&form.crs) {

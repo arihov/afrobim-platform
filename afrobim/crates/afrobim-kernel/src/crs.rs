@@ -23,17 +23,29 @@
 //!   `https://epsg.io/<code>.wkt`, areas of use from `https://epsg.io/<code>.json`, all fetched.
 //!   Transverse Mercator is EPSG method 9807 (same JSON).
 //!
-//! Projection series: Karney, C. F. F. (2011), "Transverse Mercator with an accuracy of a few
-//! nanometers", J. Geodesy 85(8), 475-485 (arXiv:1002.1417), the Krüger series in the third
-//! flattening n, truncated after the third-order terms for both directions. That is the same
-//! truncation the corridor crate uses for its inverse. The tests check forward against inverse
-//! (independent coefficient sets), the meridian arc by numerical integration, and scale and
-//! convergence by finite differences.
+//! * Adindan / UTM zones 35N to 38N = EPSG:20135 to 20138 and Arc 1950 / UTM zones 34S to 36S =
+//!   EPSG:20934 to 20936: parameters, base CRS and area of use from `https://epsg.io/<code>.json`
+//!   (all with method 9807, scale 0.9996, false easting 500 000 m), fetched 2026-11-16; the
+//!   Adindan ellipsoid is Clarke 1880 (RGS) (<https://epsg.io/4201.wkt>), the Arc 1950 ellipsoid is
+//!   Clarke 1880 (Arc), a = 6 378 249.145 m, 1/f = 293.4663077 (<https://epsg.io/4209.wkt>).
+//! * Hartebeesthoek94 / Lo15 to Lo33 (odd) = EPSG:2046 to 2055: Transverse Mercator (South
+//!   Orientated), method 9808, scale 1, no false origin, axes westing then southing, base CRS
+//!   EPSG:4148 on the WGS 84 ellipsoid; from `https://epsg.io/<code>.json`, fetched 2026-11-16. The
+//!   worked example of GN7-2 section 3.2.3.3 (Lo29) is a test, so the axis convention is checked.
+//!
+//! Projection series: IOGP Publication 373-7-2 (Geomatics Guidance Note 7, part 2, September 2019,
+//! <https://www.iogp.org/wp-content/uploads/2019/09/373-07-02.pdf>), section 3.2.3.1, the "JHS"
+//! formulas for the Transverse Mercator (EPSG method 9807), which are the Krüger series in the third
+//! flattening n (Karney, C. F. F. (2011), J. Geodesy 85(8), 475-485, arXiv:1002.1417) taken to
+//! fourth order in n: the coefficients h1 to h4 forward and h1' to h4' in reverse are the note's. The
+//! latitude in the reverse direction is found by the note's iteration on Q'', not by a series. The
+//! note's British National Grid example is a test, as are forward against inverse, the meridian arc
+//! by numerical integration, and scale and convergence by finite differences.
 //!
 //! Geographic coordinates returned by these functions are on the datum of the system itself
-//! (WGS 84 for WGS 84 / UTM, Arc 1960 for Arc 1960 / UTM). No datum shift between Arc 1960 and
-//! WGS 84 is implemented: the transformation parameters were not fetched with their EPSG
-//! transformation code, so none is applied and none is invented.
+//! (WGS 84 for WGS 84 / UTM, Arc 1960 for Arc 1960 / UTM). Moving a coordinate to another datum is
+//! not done here but in [`crate::crs_plan`], explicitly, using the registry transformations of
+//! [`crate::crs_transform`].
 
 use serde::{Deserialize, Serialize};
 
@@ -58,6 +70,11 @@ pub const WGS84: Ellipsoid =
 pub const CLARKE_1880_RGS: Ellipsoid =
     Ellipsoid { name: "Clarke 1880 (RGS)", a: 6_378_249.145, inverse_flattening: 293.465, source: "https://epsg.io/21096.wkt" };
 
+/// Clarke 1880 (Arc), the ellipsoid of Arc 1950 (EPSG:4209) and Cape (EPSG:4222): a = 6 378 249.145 m,
+/// 1/f = 293.4663077. Source: <https://epsg.io/4209.wkt> and <https://epsg.io/4222.wkt>, retrieved 2026-11-16.
+pub const CLARKE_1880_ARC: Ellipsoid =
+    Ellipsoid { name: "Clarke 1880 (Arc)", a: 6_378_249.145, inverse_flattening: 293.466_307_7, source: "https://epsg.io/4209.wkt" };
+
 // ---------------------------------------------------------------------------------------------
 // Transverse Mercator
 
@@ -65,42 +82,92 @@ pub const CLARKE_1880_RGS: Ellipsoid =
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransverseMercator {
     ellipsoid: Ellipsoid,
-    /// Latitude of natural origin is zero for every system here.
     lon0: f64,
     k0: f64,
     false_easting: f64,
     false_northing: f64,
+    /// Conformal-latitude angle xi of the latitude of natural origin (zero when it is the equator).
+    xi0: f64,
+    /// +1 for eastings and northings; -1 for the south-orientated method (westings and southings,
+    /// EPSG method 9808, Guidance Note 7-2 section 3.2.3.3).
+    sign: f64,
     e: f64,
     /// Rectifying radius A of Karney eq. 14, metres.
     radius: f64,
-    alpha: [f64; 3],
-    beta: [f64; 3],
-    delta: [f64; 3],
+    /// h1..h4 of GN7-2 3.2.3.1 (forward) and h1'..h4' (inverse).
+    alpha: [f64; 4],
+    beta: [f64; 4],
 }
 
 impl TransverseMercator {
     /// `central_meridian_deg` in degrees east; latitude of origin is the equator.
     pub fn new(ellipsoid: Ellipsoid, central_meridian_deg: f64, k0: f64, false_easting: f64, false_northing: f64) -> Self {
+        Self::new_with_origin(ellipsoid, 0.0, central_meridian_deg, k0, false_easting, false_northing, false)
+    }
+
+    /// The general case: a latitude of natural origin, and the south-orientated variant.
+    ///
+    /// With `south_oriented` the first coordinate is the westing and the second the southing, in
+    /// that axis order (the order the registry gives for the Hartebeesthoek94 Lo systems). The
+    /// northing term is `FN + k0 (B xi - M0)` with `M0 = B xi0` the meridian distance of the
+    /// latitude of origin (Guidance Note 7-2 section 3.2.3.1, JHS formulas); the south-orientated
+    /// westing and southing are `FE - k0 B eta` and `FN - k0 (B xi - M0)` (section 3.2.3.3).
+    pub fn new_with_origin(ellipsoid: Ellipsoid, lat0_deg: f64, central_meridian_deg: f64, k0: f64, false_easting: f64, false_northing: f64, south_oriented: bool) -> Self {
         let f = 1.0 / ellipsoid.inverse_flattening;
         let n = f / (2.0 - f);
-        let (n2, n3) = (n * n, n * n * n);
-        let radius = ellipsoid.a / (1.0 + n) * (1.0 + n2 / 4.0 + n2 * n2 / 64.0);
-        // Karney 2011: forward series alpha, inverse series beta, conformal-to-geodetic delta.
-        let alpha = [n / 2.0 - 2.0 * n2 / 3.0 + 5.0 * n3 / 16.0, 13.0 * n2 / 48.0 - 3.0 * n3 / 5.0, 61.0 * n3 / 240.0];
-        let beta = [n / 2.0 - 2.0 * n2 / 3.0 + 37.0 * n3 / 96.0, n2 / 48.0 + n3 / 15.0, 17.0 * n3 / 480.0];
-        let delta = [2.0 * n - 2.0 * n2 / 3.0 - 2.0 * n3, 7.0 * n2 / 3.0 - 8.0 * n3 / 5.0, 56.0 * n3 / 15.0];
-        Self {
+        let (n2, n3, n4) = (n * n, n * n * n, n * n * n * n);
+        let radius = ellipsoid.a / (1.0 + n) * (1.0 + n2 / 4.0 + n4 / 64.0);
+        // The coefficients h1..h4 (forward) and h1'..h4' (inverse) of the JHS formulas, GN7-2 section
+        // 3.2.3.1 (the Krueger series in n, which is Karney's alpha and beta to fourth order).
+        let alpha = [
+            n / 2.0 - 2.0 * n2 / 3.0 + 5.0 * n3 / 16.0 + 41.0 * n4 / 180.0,
+            13.0 * n2 / 48.0 - 3.0 * n3 / 5.0 + 557.0 * n4 / 1440.0,
+            61.0 * n3 / 240.0 - 103.0 * n4 / 140.0,
+            49561.0 * n4 / 161_280.0,
+        ];
+        let beta = [
+            n / 2.0 - 2.0 * n2 / 3.0 + 37.0 * n3 / 96.0 - n4 / 360.0,
+            n2 / 48.0 + n3 / 15.0 - 437.0 * n4 / 1440.0,
+            17.0 * n3 / 480.0 - 37.0 * n4 / 840.0,
+            4397.0 * n4 / 161_280.0,
+        ];
+        let e = (f * (2.0 - f)).sqrt();
+        let mut tm = Self {
             ellipsoid,
             lon0: central_meridian_deg.to_radians(),
             k0,
             false_easting,
             false_northing,
-            e: (f * (2.0 - f)).sqrt(),
+            xi0: 0.0,
+            sign: if south_oriented { -1.0 } else { 1.0 },
+            e,
             radius,
             alpha,
             beta,
-            delta,
+        };
+        if lat0_deg != 0.0 {
+            let tau_c = tm.conformal_tau(lat0_deg.to_radians().tan());
+            let xi_c = tau_c.atan();
+            tm.xi0 = xi_c + tm.alpha.iter().enumerate().map(|(j, a)| a * (2.0 * (j + 1) as f64 * xi_c).sin()).sum::<f64>();
         }
+        tm
+    }
+
+    /// Conformal tangent tau' from tau = tan(phi) (Karney 2011).
+    fn conformal_tau(&self, tau: f64) -> f64 {
+        let e = self.e;
+        let sigma = (e * (e * tau / (1.0 + tau * tau).sqrt()).atanh()).sinh();
+        tau * (1.0 + sigma * sigma).sqrt() - sigma * (1.0 + tau * tau).sqrt()
+    }
+
+    /// True for the south-orientated variant (westing, southing).
+    pub fn is_south_oriented(&self) -> bool {
+        self.sign < 0.0
+    }
+
+    /// The longitude of natural origin in degrees.
+    pub fn central_meridian_deg(&self) -> f64 {
+        self.lon0.to_degrees()
     }
 
     pub fn ellipsoid(&self) -> &Ellipsoid {
@@ -112,7 +179,10 @@ impl TransverseMercator {
     /// so far from the central meridian that the series is meaningless (beyond 80 degrees).
     pub fn forward(&self, lat_deg: f64, lon_deg: f64) -> Option<(f64, f64)> {
         let (_, _, xi, eta, _) = self.forward_parts(lat_deg, lon_deg)?;
-        Some((self.false_easting + self.k0 * self.radius * eta, self.false_northing + self.k0 * self.radius * xi))
+        Some((
+            self.false_easting + self.sign * self.k0 * self.radius * eta,
+            self.false_northing + self.sign * self.k0 * self.radius * (xi - self.xi0),
+        ))
     }
 
     /// (xi', eta', xi, eta, conformal tau') shared by forward, scale and convergence.
@@ -131,9 +201,7 @@ impl TransverseMercator {
         }
         let phi = lat_deg.to_radians();
         let tau = phi.tan();
-        let e = self.e;
-        let sigma = (e * (e * tau / (1.0 + tau * tau).sqrt()).atanh()).sinh();
-        let tau_c = tau * (1.0 + sigma * sigma).sqrt() - sigma * (1.0 + tau * tau).sqrt();
+        let tau_c = self.conformal_tau(tau);
         let (sl, cl) = lam.sin_cos();
         let xi_c = tau_c.atan2(cl);
         let eta_c = (sl / (tau_c * tau_c + cl * cl).sqrt()).asinh();
@@ -151,19 +219,28 @@ impl TransverseMercator {
         if !easting_m.is_finite() || !northing_m.is_finite() {
             return None;
         }
-        let xi = (northing_m - self.false_northing) / (self.k0 * self.radius);
-        let eta = (easting_m - self.false_easting) / (self.k0 * self.radius);
+        let xi = self.xi0 + self.sign * (northing_m - self.false_northing) / (self.k0 * self.radius);
+        let eta = self.sign * (easting_m - self.false_easting) / (self.k0 * self.radius);
         let (mut xi1, mut eta1) = (xi, eta);
         for (j, b) in self.beta.iter().enumerate() {
             let k = 2.0 * (j + 1) as f64;
             xi1 -= b * (k * xi).sin() * (k * eta).cosh();
             eta1 -= b * (k * xi).cos() * (k * eta).sinh();
         }
+        // GN7-2 3.2.3.1, reverse: beta' = asin(sin xi0' / cosh eta0'), Q' = asinh(tan beta'), then Q'' = Q' +
+        // e atanh(e tanh Q'') iterated until the change is insignificant, phi = atan(sinh Q'').
         let chi = (xi1.sin() / eta1.cosh()).asin();
-        let mut latitude = chi;
-        for (j, d) in self.delta.iter().enumerate() {
-            latitude += d * (2.0 * (j + 1) as f64 * chi).sin();
+        let q1 = chi.tan().asinh();
+        let mut q2 = q1;
+        for _ in 0..30 {
+            let next = q1 + self.e * (self.e * q2.tanh()).atanh();
+            let done = (next - q2).abs() < 1e-15;
+            q2 = next;
+            if done {
+                break;
+            }
         }
+        let latitude = q2.sinh().atan();
         let longitude = self.lon0 + eta1.sinh().atan2(xi1.cos());
         let (lat, lon) = (latitude.to_degrees(), longitude.to_degrees());
         (lat.is_finite() && lon.is_finite()).then_some((lat, lon))
@@ -181,6 +258,10 @@ impl TransverseMercator {
     /// check both against finite differences of [`forward`](Self::forward) on both ellipsoids
     /// and both hemispheres.
     pub fn scale_and_convergence(&self, lat_deg: f64, lon_deg: f64) -> Option<(f64, f64)> {
+        // A south-orientated grid has its axes turned half a turn; the convergence is not defined here.
+        if self.is_south_oriented() {
+            return None;
+        }
         let (xi_c, eta_c, _, _, tau_c) = self.forward_parts(lat_deg, lon_deg)?;
         // D = 1 + sum 2 j alpha_j cos(2 j (xi' + i eta')), cos(a + ib) = cos a cosh b - i sin a sinh b.
         let (mut dr, mut di) = (1.0, 0.0);
@@ -211,6 +292,9 @@ pub enum CrsKind {
     Projected,
     /// Known by name or code only. Nothing can be computed from it.
     NamedOnly,
+    /// A geographic system (latitude and longitude in degrees on a datum) the kernel knows by code
+    /// (see `crs_transform::geographic_crs_codes`): it takes part in datum transformations.
+    Geographic,
     /// A local site grid with no geodetic meaning.
     LocalGrid,
 }
@@ -310,6 +394,7 @@ struct ProjectCrsRaw {
 impl From<ProjectCrsRaw> for ProjectCrs {
     fn from(r: ProjectCrsRaw) -> ProjectCrs {
         let kind = r.kind.unwrap_or_else(|| if r.epsg.and_then(definition).is_some() { CrsKind::Projected } else { CrsKind::NamedOnly });
+        let geog = if kind == CrsKind::Geographic { r.epsg.and_then(crate::crs_transform::geographic_crs) } else { None };
         let mut crs = ProjectCrs {
             epsg: r.epsg,
             name: r.name,
@@ -323,6 +408,11 @@ impl From<ProjectCrsRaw> for ProjectCrs {
         if crs.kind == CrsKind::Projected && crs.horizontal_datum.is_empty() {
             crs.horizontal_datum = crs.epsg.and_then(definition).map(|d| d.datum.to_string()).unwrap_or_default();
         }
+        if let Some(g) = geog {
+            if crs.horizontal_datum.is_empty() {
+                crs.horizontal_datum = g.datum.to_string();
+            }
+        }
         crs
     }
 }
@@ -331,9 +421,49 @@ impl From<ProjectCrsRaw> for ProjectCrs {
 struct Definition {
     name: String,
     datum: &'static str,
+    /// EPSG code of the base geographic CRS (the datum the projection sits on).
+    geog: u32,
+    /// A UTM system (6 degree zone numbering applies).
+    utm: bool,
     projection: TransverseMercator,
     area: AreaOfUse,
 }
+
+/// Other transverse Mercator systems. Every row was fetched from `https://epsg.io/<code>.json`
+/// on 2026-11-16 (name, area of use, method code 9807 or 9808, longitude of natural origin, scale,
+/// false easting, false northing, base CRS), plus `https://epsg.io/<code>.wkt` for the Adindan
+/// and Arc 1950 ellipsoids. Rows: (EPSG, name, datum, base geographic CRS, ellipsoid, central
+/// meridian, scale, false easting, false northing, south oriented, UTM, south, west, north, east).
+type OtherRow = (u32, &'static str, &'static str, u32, Ellipsoid, f64, f64, f64, f64, bool, bool, f64, f64, f64, f64);
+
+const fn utm_row(epsg: u32, name: &'static str, datum: &'static str, geog: u32, ell: Ellipsoid, lon0: f64, fnorth: f64, a: [f64; 4]) -> OtherRow {
+    (epsg, name, datum, geog, ell, lon0, 0.9996, 500_000.0, fnorth, false, true, a[0], a[1], a[2], a[3])
+}
+
+/// Hartebeesthoek94 / Lo (south orientated, WGS 84 ellipsoid, scale 1, no false origin).
+const fn lo_row(epsg: u32, name: &'static str, lon0: f64, a: [f64; 4]) -> OtherRow {
+    (epsg, name, "Hartebeesthoek94", 4148, WGS84, lon0, 1.0, 0.0, 0.0, true, false, a[0], a[1], a[2], a[3])
+}
+
+const OTHER_PROJECTED: [OtherRow; 17] = [
+    utm_row(20135, "Adindan / UTM zone 35N", "Adindan", 4201, CLARKE_1880_RGS, 27.0, 0.0, [4.21, 23.99, 22.01, 30.01]),
+    utm_row(20136, "Adindan / UTM zone 36N", "Adindan", 4201, CLARKE_1880_RGS, 33.0, 0.0, [3.49, 29.99, 22.24, 36.0]),
+    utm_row(20137, "Adindan / UTM zone 37N", "Adindan", 4201, CLARKE_1880_RGS, 39.0, 0.0, [3.4, 36.0, 22.01, 42.0]),
+    utm_row(20138, "Adindan / UTM zone 38N", "Adindan", 4201, CLARKE_1880_RGS, 45.0, 0.0, [4.11, 42.0, 12.85, 47.99]),
+    utm_row(20934, "Arc 1950 / UTM zone 34S", "Arc 1950", 4209, CLARKE_1880_ARC, 21.0, 10_000_000.0, [-26.88, 19.99, -10.86, 24.0]),
+    utm_row(20935, "Arc 1950 / UTM zone 35S", "Arc 1950", 4209, CLARKE_1880_ARC, 27.0, 10_000_000.0, [-25.84, 24.0, -8.31, 30.0]),
+    utm_row(20936, "Arc 1950 / UTM zone 36S", "Arc 1950", 4209, CLARKE_1880_ARC, 33.0, 10_000_000.0, [-22.42, 30.0, -8.19, 35.93]),
+    lo_row(2046, "Hartebeesthoek94 / Lo15", 15.0, [-23.15, 14.35, -22.68, 14.6]),
+    lo_row(2047, "Hartebeesthoek94 / Lo17", 17.0, [-33.1, 16.45, -28.03, 18.0]),
+    lo_row(2048, "Hartebeesthoek94 / Lo19", 19.0, [-34.88, 17.99, -28.38, 20.0]),
+    lo_row(2049, "Hartebeesthoek94 / Lo21", 21.0, [-34.88, 19.99, -24.76, 22.01]),
+    lo_row(2050, "Hartebeesthoek94 / Lo23", 23.0, [-34.26, 22.0, -25.26, 24.01]),
+    lo_row(2051, "Hartebeesthoek94 / Lo25", 25.0, [-34.26, 24.0, -24.71, 26.01]),
+    lo_row(2052, "Hartebeesthoek94 / Lo27", 27.0, [-33.83, 26.0, -22.92, 28.0]),
+    lo_row(2053, "Hartebeesthoek94 / Lo29", 29.0, [-33.03, 27.99, -22.13, 30.01]),
+    lo_row(2054, "Hartebeesthoek94 / Lo31", 31.0, [-31.38, 29.99, -22.22, 32.02]),
+    lo_row(2055, "Hartebeesthoek94 / Lo33", 33.0, [-28.94, 31.95, -26.8, 32.95]),
+];
 
 /// Arc 1960 / UTM rows: (EPSG, name, central meridian, false northing, south, west, north, east).
 /// Every number fetched from `https://epsg.io/<code>.wkt` and `https://epsg.io/<code>.json`.
@@ -356,16 +486,33 @@ fn definition(epsg: u32) -> Option<Definition> {
             Some(Definition {
                 name: format!("WGS 84 / UTM zone {zone}{}", if south { 'S' } else { 'N' }),
                 datum: "WGS 84",
+                geog: 4326,
+                utm: true,
                 projection: TransverseMercator::new(WGS84, lon0, 0.9996, 500_000.0, if south { 10_000_000.0 } else { 0.0 }),
                 area: AreaOfUse { south: if south { -80.0 } else { 0.0 }, west: lon0 - 3.0, north: if south { 0.0 } else { 84.0 }, east: lon0 + 3.0 },
             })
         }
-        _ => ARC_1960_UTM.iter().find(|r| r.0 == epsg).map(|&(_, name, lon0, fnorth, s, w, n, e)| Definition {
-            name: name.to_string(),
-            datum: "Arc 1960",
-            projection: TransverseMercator::new(CLARKE_1880_RGS, lon0, 0.9996, 500_000.0, fnorth),
-            area: AreaOfUse { south: s, west: w, north: n, east: e },
-        }),
+        _ => ARC_1960_UTM
+            .iter()
+            .find(|r| r.0 == epsg)
+            .map(|&(_, name, lon0, fnorth, s, w, n, e)| Definition {
+                name: name.to_string(),
+                datum: "Arc 1960",
+                geog: 4210,
+                utm: true,
+                projection: TransverseMercator::new(CLARKE_1880_RGS, lon0, 0.9996, 500_000.0, fnorth),
+                area: AreaOfUse { south: s, west: w, north: n, east: e },
+            })
+            .or_else(|| {
+                OTHER_PROJECTED.iter().find(|r| r.0 == epsg).map(|&(_, name, datum, geog, ell, lon0, k0, fe, fnorth, south_oriented, utm, s, w, n, e)| Definition {
+                    name: name.to_string(),
+                    datum,
+                    geog,
+                    utm,
+                    projection: TransverseMercator::new_with_origin(ell, 0.0, lon0, k0, fe, fnorth, south_oriented),
+                    area: AreaOfUse { south: s, west: w, north: n, east: e },
+                })
+            }),
     }
 }
 
@@ -373,6 +520,7 @@ fn definition(epsg: u32) -> Option<Definition> {
 pub fn supported_epsg_codes() -> Vec<u32> {
     let mut v: Vec<u32> = (32601..=32660).chain(32701..=32760).collect();
     v.extend(ARC_1960_UTM.iter().map(|r| r.0));
+    v.extend(OTHER_PROJECTED.iter().map(|r| r.0));
     v
 }
 
@@ -394,6 +542,27 @@ impl ProjectCrs {
             wkt: None,
             source: CrsSource::Typed,
         })
+    }
+
+    /// A geographic system by EPSG code (4326, 4210, 4209, 4201, 4222, 4148): latitude and
+    /// longitude in degrees. `None` for any other code.
+    pub fn geographic(epsg: u32) -> Option<ProjectCrs> {
+        let g = crate::crs_transform::geographic_crs(epsg)?;
+        Some(ProjectCrs {
+            epsg: Some(epsg),
+            name: g.name.to_string(),
+            kind: CrsKind::Geographic,
+            horizontal_datum: g.datum.to_string(),
+            vertical_datum: String::new(),
+            linear_unit: LinearUnit::Metre,
+            wkt: None,
+            source: CrsSource::Typed,
+        })
+    }
+
+    /// The geographic systems the kernel knows, as systems.
+    pub fn geographic_systems() -> Vec<ProjectCrs> {
+        crate::crs_transform::geographic_crs_codes().into_iter().filter_map(ProjectCrs::geographic).collect()
     }
 
     /// WGS 84 / UTM zone `zone` (1 to 60), north or south of the equator.
@@ -508,7 +677,7 @@ impl ProjectCrs {
         let digits = c.strip_prefix("EPSG").unwrap_or(&c);
         if !digits.is_empty() && digits.chars().all(|ch| ch.is_ascii_digit()) {
             let code: u32 = digits.parse().ok()?;
-            return Some(ProjectCrs::from_epsg(code).unwrap_or_else(|| ProjectCrs::named_only(Some(code), &format!("EPSG:{code}"))));
+            return Some(ProjectCrs::from_epsg(code).or_else(|| ProjectCrs::geographic(code)).unwrap_or_else(|| ProjectCrs::named_only(Some(code), &format!("EPSG:{code}"))));
         }
         let mut c = c.replace("ZONE", "").replace("SOUTH", "S").replace("NORTH", "N");
         if c.starts_with("UTM") {
@@ -533,7 +702,7 @@ impl ProjectCrs {
             .and_then(|c| c.numbers.first().copied().or_else(|| c.strings.get(1).and_then(|s| s.trim().parse::<f64>().ok())))
             .map(|v| v as u32);
         let datum = root.find("DATUM").or_else(|| root.find("ENSEMBLE")).and_then(|d| d.strings.first().cloned()).unwrap_or_default();
-        let mut crs = match epsg.and_then(ProjectCrs::from_epsg) {
+        let mut crs = match epsg.and_then(|c| ProjectCrs::from_epsg(c).or_else(|| ProjectCrs::geographic(c))) {
             Some(known) => known,
             None => {
                 let local = keyword.starts_with("LOCAL") || keyword == "ENGCRS" || keyword == "ENGINEERINGCRS";
@@ -541,7 +710,7 @@ impl ProjectCrs {
             }
         };
         // Keep the file's own name when it differs from the registry name.
-        if crs.kind != CrsKind::Projected || crs.name != name {
+        if crs.kind == CrsKind::NamedOnly || crs.kind == CrsKind::LocalGrid || crs.name != name {
             crs.name = name;
         }
         if crs.horizontal_datum.is_empty() {
@@ -581,9 +750,26 @@ impl ProjectCrs {
         self.def().map(|d| d.area)
     }
 
+    /// EPSG code of the geographic CRS (the datum) this system is on, for a projected system the
+    /// kernel can compute with and for a geographic system in [`crate::crs_transform::geographic_crs`].
+    /// Local grids and unknown codes give `None`.
+    pub fn geographic_epsg(&self) -> Option<u32> {
+        if self.kind == CrsKind::LocalGrid {
+            return None;
+        }
+        let code = self.epsg?;
+        if let Some(d) = definition(code) {
+            return Some(d.geog);
+        }
+        crate::crs_transform::geographic_crs(code).map(|g| g.epsg)
+    }
+
     /// The UTM zone and whether it is the southern one, for the WGS 84 and Arc 1960 UTM systems.
     pub fn utm_zone(&self) -> Option<(u8, bool)> {
         let d = self.def()?;
+        if !d.utm {
+            return None;
+        }
         let lon0 = d.projection.lon0.to_degrees();
         let zone = ((lon0 + 183.0) / 6.0).round() as u8;
         Some((zone, d.projection.false_northing > 0.0))
@@ -918,7 +1104,7 @@ mod tests {
         assert_eq!(ProjectCrs::from_epsg(21096).unwrap().name, "Arc 1960 / UTM zone 36N");
         assert_eq!(ProjectCrs::from_epsg(21037).unwrap().utm_zone(), Some((37, true)));
         assert!(ProjectCrs::from_epsg(4326).is_none());
-        assert_eq!(supported_epsg_codes().len(), 120 + 6);
+        assert_eq!(supported_epsg_codes().len(), 120 + 6 + 17);
     }
 
     #[test]
@@ -932,7 +1118,7 @@ mod tests {
         assert_eq!(ProjectCrs::parse("EPSG:21096").unwrap().kind, CrsKind::Projected);
         // A code the kernel cannot project is kept by name only.
         let wgs = ProjectCrs::parse("EPSG:4326").unwrap();
-        assert_eq!((wgs.kind, wgs.epsg), (CrsKind::NamedOnly, Some(4326)));
+        assert_eq!((wgs.kind, wgs.epsg), (CrsKind::Geographic, Some(4326)));
         for text in ["UTM 36", "Arc 1960 / UTM zone 34S", "UTM 61S", "", "metres", "Clarke UTM 36S"] {
             assert_eq!(ProjectCrs::parse(text), None, "{text}");
         }
@@ -1077,6 +1263,96 @@ mod tests {
         assert!(g > 0.0, "{g}");
     }
 
+    /// GN7-2 section 3.2.3.1, worked example: OSGB 1936 / British National Grid, JHS formulas, forward and reverse.
+    /// The projection parameters and the Airy 1830 ellipsoid are the note's own; they test the general case
+    /// (a latitude of natural origin, a false northing, a scale below one) that no East African system uses.
+    #[test]
+    fn gn7_2_transverse_mercator_example_british_national_grid() {
+        let airy = Ellipsoid { name: "Airy 1830", a: 6_377_563.396, inverse_flattening: 299.324_96, source: "GN7-2 3.2.3.1 example" };
+        let bng = TransverseMercator::new_with_origin(airy, 49.0, -2.0, 0.999_601_271_7, 400_000.0, -100_000.0, false);
+        let (e, n) = bng.forward(50.5, 0.5).unwrap();
+        // The note prints E 577 274.99 and N 69 740.50. Recomputing them from the note's own printed
+        // intermediates (B, eta, xi, M0, k0) gives 577 274.984 and 69 740.492, so its last digit is rounded
+        // from a computation with more digits than it prints; agreement is asked to 0.01 m.
+        assert_close(e, 577_274.99, 0.01, "easting");
+        assert_close(n, 69_740.50, 0.01, "northing");
+        assert_close(e, 577_274.984, 0.002, "easting from the note's intermediates");
+        assert_close(n, 69_740.492, 0.002, "northing from the note's intermediates");
+        let (lat, lon) = bng.inverse(577_274.99, 69_740.50).unwrap();
+        assert_close(lat, 50.5, 0.0005 / 3600.0, "latitude");
+        assert_close(lon, 0.5, 0.0005 / 3600.0, "longitude");
+        // The note's intermediate constants: B and the meridian distance of the origin.
+        assert_close(bng.radius, 6_366_914.609, 0.001, "B");
+        assert_close(bng.radius * bng.xi0, 5_429_228.602, 0.001, "M0");
+    }
+
+    /// GN7-2 section 3.2.3.3, worked example: Hartebeesthoek94 / Lo29 (EPSG:2053), Transverse Mercator
+    /// (South Orientated): westing first, southing second, the axis order the registry gives for the system.
+    #[test]
+    fn gn7_2_transverse_mercator_south_orientated_example_lo29() {
+        let c = ProjectCrs::from_epsg(2053).unwrap();
+        assert_eq!(c.name, "Hartebeesthoek94 / Lo29");
+        assert!(c.utm_zone().is_none(), "Lo systems are not UTM zones");
+        let lat = -(25.0 + 43.0 / 60.0 + 55.302 / 3600.0);
+        let lon = 28.0 + 16.0 / 60.0 + 57.479 / 3600.0;
+        let (w, s) = c.from_geographic(lat, lon).unwrap();
+        assert_close(w, 71_984.49, 0.02, "westing");
+        assert_close(s, 2_847_342.74, 0.02, "southing");
+        let (la, lo) = c.to_geographic(71_984.49, 2_847_342.74).unwrap();
+        assert_close(la, lat, 0.0005 / 3600.0, "latitude");
+        assert_close(lo, lon, 0.0005 / 3600.0, "longitude");
+        // West of the central meridian is a positive westing; the area of use is inside Lo29's.
+        assert!(w > 0.0 && c.area_of_use().unwrap().contains(lat, lon));
+        // Convergence is not defined for the turned axes.
+        assert!(c.scale_and_convergence_at(w, s).is_none());
+        // Round trip across the whole area of use.
+        let a = c.area_of_use().unwrap();
+        for i in 0..=8 {
+            for j in 0..=4 {
+                let (la, lo) = (a.south + (a.north - a.south) * f64::from(i) / 8.0, a.west + (a.east - a.west) * f64::from(j) / 4.0);
+                let (w, s) = c.from_geographic(la, lo).unwrap();
+                let (la2, lo2) = c.to_geographic(w, s).unwrap();
+                assert!((la2 - la).abs() < 1e-9 && (lo2 - lo).abs() < 1e-9, "{la} {lo}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_new_systems_are_what_their_pages_said_and_round_trip() {
+        for (code, name, geog, lon0) in [
+            (20136, "Adindan / UTM zone 36N", 4201, 33.0),
+            (20935, "Arc 1950 / UTM zone 35S", 4209, 27.0),
+            (20934, "Arc 1950 / UTM zone 34S", 4209, 21.0),
+            (2046, "Hartebeesthoek94 / Lo15", 4148, 15.0),
+        ] {
+            let c = ProjectCrs::from_epsg(code).unwrap();
+            assert_eq!((c.name.as_str(), c.geographic_epsg()), (name, Some(geog)));
+            assert_close(c.projection().unwrap().central_meridian_deg(), lon0, 1e-12, "central meridian");
+        }
+        assert_eq!(ProjectCrs::from_epsg(20138).unwrap().utm_zone(), Some((38, false)));
+        assert_eq!(ProjectCrs::from_epsg(20934).unwrap().utm_zone(), Some((34, true)));
+        assert_eq!(ProjectCrs::from_epsg(32736).unwrap().geographic_epsg(), Some(4326));
+        assert_eq!(ProjectCrs::from_epsg(21036).unwrap().geographic_epsg(), Some(4210));
+        assert_eq!(ProjectCrs::parse("EPSG:4326").unwrap().geographic_epsg(), Some(4326));
+        assert_eq!(ProjectCrs::local_grid("x").geographic_epsg(), None);
+        assert_eq!(ProjectCrs::named_only(Some(2039), "Israeli Grid").geographic_epsg(), None);
+        // Round trip in every new UTM system, over its area of use.
+        for code in [20135, 20136, 20137, 20138, 20934, 20935, 20936] {
+            let c = ProjectCrs::from_epsg(code).unwrap();
+            let a = c.area_of_use().unwrap();
+            for i in 0..=6 {
+                for j in 0..=4 {
+                    let lat = a.south + (a.north - a.south) * f64::from(i) / 6.0;
+                    let lon = a.west + (a.east - a.west) * f64::from(j) / 4.0;
+                    let (e, n) = c.from_geographic(lat, lon).unwrap();
+                    let (la, lo) = c.to_geographic(e, n).unwrap();
+                    assert!((la - lat).abs() < 1e-9 && (lo - lon).abs() < 1e-9, "{code} {lat} {lon}");
+                    assert!((500_000.0 - e).abs() < 400_000.0, "{code}: easting {e} for {lat} {lon} is not a UTM easting");
+                }
+            }
+        }
+    }
+
     #[test]
     fn named_only_and_local_systems_compute_nothing() {
         let n = ProjectCrs::named_only(Some(4326), "WGS 84");
@@ -1204,7 +1480,7 @@ mod tests {
         let arc = ProjectCrs::search("arc 1960", 20);
         assert_eq!(arc.len(), 6);
         assert!(arc.iter().all(|c| c.horizontal_datum == "Arc 1960"));
-        assert_eq!(ProjectCrs::search("utm zone 36s", 10).len(), 2); // WGS 84 and Arc 1960
+        assert_eq!(ProjectCrs::search("utm zone 36s", 10).len(), 3); // WGS 84, Arc 1960 and Arc 1950
         assert!(ProjectCrs::search("", 10).is_empty());
         assert!(ProjectCrs::search("atlantis", 10).is_empty());
         assert_eq!(ProjectCrs::utm_wgs84(36, true).unwrap().epsg, Some(32736));

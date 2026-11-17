@@ -175,12 +175,39 @@ compare them for equality after a read, write, read). The files the tests write 
 `LandXML-1.2.xsd` (`AFROBIM_LANDXML_OUT=dir cargo test -p afrobim-design --test landxml_file`
 leaves them in `dir`).
 
-Superelevation: LandXML holds one rate, so a section is written only when its full-super stations
-hold one rate with opposite signs on the two sides and the curve tells the inside; a crown, a
-different rate per side, or a section with no cross-fall is left out with a warning. The `Application`
-elements of a source file are not carried over, and a ground profile or cross-section whose alignment
-is not in the file is reported and dropped (the schema nests them in an alignment). Nothing here
-was read by Civil 3D: the output has been validated against the schema, not opened by any other program.
+**A file that was read comes back as it was stated.** An alignment read by `parse_landxml_file` is
+written from the points the file stated (`LandXmlAlignmentInfo::coord_geoms`), not recomputed from
+the engine elements, so coordinates, radii and lengths come back bit for bit; so do the design
+profiles as written (also one with a vertical step, which the engine `Profile` cannot hold), the
+cross-sections with the attributes of `CrossSects` and `CrossSect`, `Feature` property bags, the
+coordinate system's `FieldNote`, a surface's `PointFiles` and `Definition` statistics, and every
+`Superelevation` record (stations, rates with their signs, `AdverseSE`). That holds only while the
+engine alignment, profile and superelevation are still the ones built from what was read (compared by
+element count, length, start and end; the profile and superelevation by equality with what the
+records give); an edited one is written from the engine with a warning saying so. Superelevation
+that was edited is written only when LandXML's single rate can hold it: its full-super stations hold
+one rate with opposite signs on the two sides and the curve tells the inside; a crown, a different
+rate per side, or a section with no cross-fall is left out with a warning.
+
+Not carried over: the `Application` elements of a source file (the output was not made by them),
+`LandXML@readOnly`, `Alignments@name`, the date and time (taken from the options), the redundant
+attributes the reader does not read (`Line@dir`, `Curve@chord`, `delta`, `dirStart`, `Spiral@theta`,
+`totalX`, ..., `Faces/F@n`, and the stated `length` of a line), the order of the elements inside a
+`Superelevation` (stations first, then the rates, then `AdverseSE`), and `Feature` or `FieldNote`
+elements that hang on an object the writer does not write one for (a warning counts them). A ground
+profile or cross-section whose alignment is not in the file is reported and dropped (the schema nests
+them in an alignment).
+
+**Checked on a real Civil 3D 2025 export** (`tests/landxml_civil.rs`; the file is private and the
+test runs only when `AFROBIM_PRIVATE_LANDXML` names it): read, written (8.5 MB), validated with
+`xmllint --noout --schema LandXML-1.2.xsd` (set `AFROBIM_LANDXML_XSD` to the schema file, which is
+kept outside the repository), read again, and the two readings compared part by part for equality
+(alignments, their stated geometry, design and ground profiles, cross-sections, superelevation
+tables, features, field notes, surfaces with their points and faces bit for bit, coordinate system),
+with no writer warning; writing the second reading again gives the same text. An independent reading
+in Python of the written file agrees with the one of the original except for what is listed above.
+`civil3d_like.xml` (made-up numbers, in `afrobim-alignment/tests/landxml/`) does the same in the
+public test suite. Nothing here has been opened by Civil 3D itself.
 
 ### Checks against a standard
 

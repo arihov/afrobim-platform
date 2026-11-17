@@ -37,6 +37,13 @@ afrobim-visibility = { path = "../afrobim-visibility" }
 afrobim-annotate = { path = "../afrobim-annotate" }
 afrobim-cogo = { path = "../afrobim-cogo" }
 afrobim-terrain = { path = "../afrobim-terrain" }
+afrobim-defaults = { path = "../afrobim-defaults" }
+afrobim-pipes = { path = "../afrobim-pipes" }
+afrobim-grading = { path = "../afrobim-grading" }
+afrobim-junction = { path = "../afrobim-junction" }
+afrobim-survey = { path = "../afrobim-survey" }
+afrobim-pointcloud = { path = "../afrobim-pointcloud" }
+afrobim-shortcuts = { path = "../afrobim-shortcuts" }
 serde.workspace = true
 serde_json.workspace = true
 eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }
