@@ -140,7 +140,7 @@ These come from `crates/afrobim-app/src/main.rs`. An argument that is not an opt
 | `--survey-exclude CODES` | Descriptions whose points are left out, separated by commas; a trailing `*` matches any ending (`CULV-*`). |
 | `--survey-name NAME` | The name of the surface; the file's name when not given. |
 | `--survey-dialog FILE` | Opens the survey points dialog on this file at start-up. |
-| `--save-as FILE` | Saves the document to this file once the start-up imports are done, then exits. |
+| `--save-as FILE` | Saves the document to this file once the start-up imports are done, then exits. After a `--survey` import that failed nothing is written. |
 | `--layers-on NAMES` | Switches these layers on at start-up, comma separated. |
 | `--zoom-to x,y,width` | Frames the 2D view on this centre and width (millimetres). |
 | `--view E,N,WIDTH` | Frames the plan on this easting and northing, WIDTH metres wide (metres). |
