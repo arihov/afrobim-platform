@@ -1,0 +1,25 @@
+[package]
+name = "afrobim-raster"
+description = "Georeferenced imagery: world files, GeoTIFF tags, a decimating decoder for large orthophotos, and web map tiles with a disk cache"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# The HTTP tile fetcher. The application turns it on; the tests and the engines never touch the network.
+http = ["dep:ureq"]
+
+[dependencies]
+afrobim-kernel = { path = "../afrobim-kernel" }
+serde.workspace = true
+serde_json.workspace = true
+# Pixels of PNG and JPEG files and of downloaded tiles. MIT OR Apache-2.0.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
+# Strip and tile access and the GeoTIFF tags, read chunk by chunk. MIT.
+tiff = "0.11"
+# Row-by-row PNG decoding, so a large orthophoto is never held whole in memory. MIT OR Apache-2.0.
+png = "0.18"
+# A small blocking HTTP client with rustls, for map tiles. MIT OR Apache-2.0.
+ureq = { version = "2", optional = true, default-features = false, features = ["tls"] }

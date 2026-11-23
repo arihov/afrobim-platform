@@ -177,7 +177,7 @@ pub fn pick_model(doc: &Document, p: Pt, radius: f64) -> Option<ElementId> {
     doc.elements()
         .iter()
         .rev()
-        .filter(|e| !ann::is_annotation(e) && e.category != ann::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY)
+        .filter(|e| !ann::is_annotation(e) && e.category != ann::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY && e.category != crate::imagery::CATEGORY)
         .filter(|e| doc.layer_visible(&e.layer) && !doc.layers().iter().any(|l| l.name == e.layer && l.locked))
         .find(|e| e.bounds().inflate(radius).contains_point(p))
         .map(|e| e.id)

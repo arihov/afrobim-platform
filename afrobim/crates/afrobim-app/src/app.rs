@@ -66,6 +66,10 @@ pub struct AfroBimApp {
     pub(crate) anno: crate::anno_ui::AnnoUi,
     /// DXF underlays: what was read from the files and what is drawn.
     pub(crate) under: crate::underlay::UnderlayState,
+    /// Georeferenced images: textures and placements.
+    pub(crate) imagery: crate::imagery::ImageryState,
+    /// The online background map.
+    pub(crate) basemap: crate::basemap::BasemapState,
     /// The sign schedule import windows.
     pub(crate) signsched: crate::signsched::SignSchedUi,
     pub(crate) projset: crate::projset::ProjSetUi,
@@ -227,6 +231,8 @@ impl AfroBimApp {
             pack: Default::default(),
             anno: Default::default(),
             under: Default::default(),
+            imagery: Default::default(),
+            basemap: Default::default(),
             signsched: Default::default(),
             projset: Default::default(),
             survey: Default::default(),
@@ -482,6 +488,23 @@ impl AfroBimApp {
                 }
                 Err(e) => app.status = e,
             }
+        }
+        // `--crs CODE`, `--image path`, `--basemap provider`: imagery at start-up.
+        if let Some(text) = app.options.crs.clone() {
+            match afrobim_kernel::ProjectCrs::parse(&text) {
+                Some(c) => {
+                    afrobim_kernel::set_project_crs(&mut app.doc, &c);
+                }
+                None => app.status = format!("--crs: '{text}' is not a coordinate system AfroBIM knows."),
+            }
+        }
+        if let Some(path) = app.options.image.clone() {
+            if let Err(e) = app.imagery.attach(&mut app.doc, &path) {
+                app.status = e;
+            }
+        }
+        if let Some(provider) = app.options.basemap.clone() {
+            crate::basemap::set_settings(&mut app.doc, &crate::basemap::BasemapSettings { enabled: true, provider, ..Default::default() });
         }
         if let Some(path) = app.options.signschedule.clone() {
             app.signsched_load(&path);
@@ -837,6 +860,7 @@ impl AfroBimApp {
         self.corridor_cache.clear();
         // Underlays are read again from their files, and a command in progress is dropped.
         self.under.reset();
+        self.imagery.reset();
         let osnap = self.anno.osnap.clone();
         self.anno = Default::default();
         self.anno.osnap = osnap;
@@ -895,7 +919,7 @@ impl AfroBimApp {
             }
             // Annotation is written by its own engine (real TEXT, arrows as SOLID); underlay and
             // settings records have no drawing.
-            if afrobim_annotate::is_annotation(e) || e.category == crate::underlay::CATEGORY || e.category == afrobim_annotate::SETTINGS_CATEGORY || e.category == afrobim_kernel::PROJECT_SETTINGS_CATEGORY {
+            if afrobim_annotate::is_annotation(e) || e.category == crate::underlay::CATEGORY || e.category == crate::imagery::CATEGORY || e.category == afrobim_annotate::SETTINGS_CATEGORY || e.category == afrobim_kernel::PROJECT_SETTINGS_CATEGORY {
                 continue;
             }
             match self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()) {
@@ -1213,7 +1237,7 @@ impl AfroBimApp {
                 // Imported alignments and surfaces, corridors and underlays sit at the
                 // coordinates of their source and are never moved by a tidy-up of the sheet.
                 self.doc.arrange_where(|e| {
-                    ![crate::alignment_glue::CATEGORY, afrobim_corridor::SURFACE_CATEGORY, afrobim_corridor::CORRIDOR_CATEGORY, crate::underlay::CATEGORY, afrobim_kernel::PROJECT_SETTINGS_CATEGORY].contains(&e.category.as_str())
+                    ![crate::alignment_glue::CATEGORY, afrobim_corridor::SURFACE_CATEGORY, afrobim_corridor::CORRIDOR_CATEGORY, crate::underlay::CATEGORY, crate::imagery::CATEGORY, afrobim_kernel::PROJECT_SETTINGS_CATEGORY].contains(&e.category.as_str())
                 });
                 self.zoom_extents_visible();
                 self.schedule_commit(ctx);
@@ -1541,6 +1565,21 @@ impl AfroBimApp {
                 self.projset.tab = 0;
             }
             Action::Underlay => self.under.window_open = true,
+            Action::Imagery => self.imagery.window_open = true,
+            Action::Basemap => {
+                let mut s = crate::basemap::settings(&self.doc);
+                s.enabled = !s.enabled;
+                crate::basemap::set_settings(&mut self.doc, &s);
+                self.schedule_commit_now();
+                self.status = if s.enabled {
+                    match afrobim_kernel::project_crs(&self.doc) {
+                        Some(c) => format!("Background map on ({}), placed in {}. It uses the internet; tiles are cached on disk.", crate::basemap::source(&s, &self.basemap.key).map(|v| v.2).unwrap_or_default(), c.label()),
+                        None => "Background map on, but the project has no coordinate system: set it with CRS so the map can be placed.".into(),
+                    }
+                } else {
+                    "Background map off.".into()
+                };
+            }
             Action::SignSchedule => self.signsched_pick(),
             Action::SignScheduleOut => self.signsched_out(),
             Action::SignScheduleTemplate => self.signsched_template(),
@@ -1559,9 +1598,11 @@ impl AfroBimApp {
             .doc
             .elements()
             .iter()
-            .filter(|e| self.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY && crate::civil::has_plan_position(&e.category))
+            .filter(|e| self.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY && e.category != crate::imagery::CATEGORY && crate::civil::has_plan_position(&e.category))
             .map(|e| e.bounds())
             .reduce(|a, b| a.union(&b))
+            // A document that holds only georeferenced images zooms to them.
+            .or_else(|| self.imagery.extents(&self.doc))
             .unwrap_or(afrobim_kernel::BBox::new(0.0, 0.0, 5000.0, 3000.0));
         let (l, t, w, h) = self.ctl.viewport;
         self.view.fit(&ext, l, t, w, h, 60.0);
@@ -2345,6 +2386,7 @@ impl AfroBimApp {
         self.reference_windows(ctx);
         self.anno_windows(ctx);
         self.underlay_window(ctx);
+        self.imagery_window(ctx);
         self.signsched_windows(ctx);
         self.projset_window(ctx);
         self.defaults_window(ctx);
@@ -3028,8 +3070,19 @@ impl AfroBimApp {
     fn screenshot_mode(&mut self, ctx: &egui::Context) {
         let Some(path) = self.options.screenshot.clone() else { return };
         // Wait for a viewpoint snapshot or a running import before the picture is taken.
-        if self.issues.snap.is_some() || self.refs.busy() || self.under.busy() || self.bg.busy() {
+        if self.issues.snap.is_some() || self.refs.busy() || self.under.busy() || self.imagery.busy() || self.bg.busy() {
             ctx.request_repaint();
+            return;
+        }
+        if self.frames == 0 && self.options.image.is_some() {
+            if let Some(b) = self.imagery.extents(&self.doc) {
+                let (l, t, w, h) = self.ctl.viewport;
+                self.view.fit(&b, l, t, w, h, 30.0);
+            }
+        }
+        // The background map: wait (a few seconds at most) for its tiles.
+        if self.options.basemap.is_some() && self.basemap.settled() < 10 && self.basemap.age_s() < 45.0 {
+            ctx.request_repaint_after(std::time::Duration::from_millis(50));
             return;
         }
         self.frames += 1;
@@ -3043,6 +3096,9 @@ impl AfroBimApp {
             })
         });
         if let Some(img) = shot {
+            if self.options.basemap.is_some() {
+                eprintln!("AfroBIM: background map: {} {}", self.basemap.status, self.basemap.last_error.clone().unwrap_or_default());
+            }
             if let Err(e) = image::save_buffer(&path, img.as_raw(), img.width() as u32, img.height() as u32, image::ColorType::Rgba8) {
                 eprintln!("AfroBIM: could not write {}: {e}", path.display());
             }
@@ -3153,6 +3209,16 @@ impl AfroBimApp {
         }
         if self.under.busy() {
             ctx.request_repaint_after(std::time::Duration::from_millis(60));
+        }
+        self.imagery.sync(ctx, &mut self.doc);
+        if std::mem::take(&mut self.imagery.doc_changed) {
+            self.schedule_commit_now();
+        }
+        if self.imagery.busy() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(60));
+        }
+        if self.basemap.sync(ctx, &self.doc, &self.view, self.ctl.viewport) {
+            ctx.request_repaint_after(std::time::Duration::from_millis(120));
         }
         lap.mark("ticks");
         self.menu_bar(ctx);

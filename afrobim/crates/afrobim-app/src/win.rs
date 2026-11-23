@@ -92,6 +92,7 @@ pub fn icon_for(title: &str) -> &'static str {
         ("measure", ph::RULER),
         ("snap", ph::CROSSHAIR_SIMPLE),
         ("underlay", ph::IMAGE_SQUARE),
+        ("background map", ph::GLOBE_HEMISPHERE_EAST),
         ("commands", ph::COMMAND),
         ("about", ph::INFO),
         ("export", ph::EXPORT),

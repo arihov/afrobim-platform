@@ -44,6 +44,7 @@ afrobim-junction = { path = "../afrobim-junction" }
 afrobim-survey = { path = "../afrobim-survey" }
 afrobim-pointcloud = { path = "../afrobim-pointcloud" }
 afrobim-shortcuts = { path = "../afrobim-shortcuts" }
+afrobim-raster = { path = "../afrobim-raster", features = ["http"] }
 serde.workspace = true
 serde_json.workspace = true
 eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }
@@ -51,7 +52,7 @@ egui = "0.31"
 egui-phosphor = { version = "0.9", default-features = false, features = ["regular"] }
 lyon_tessellation = "1"
 rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
 
 # Windows only: puts the icon and version information into afrobim.exe (see build.rs). Selected by
 # the host the build runs on, so Linux and macOS builds never compile it.

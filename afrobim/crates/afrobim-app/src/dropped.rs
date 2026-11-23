@@ -24,6 +24,8 @@ pub enum DropKind {
     Underlay,
     /// IFC: imported as a reference model.
     Reference,
+    /// A raster image (GeoTIFF, PNG, JPEG): attached as a georeferenced image underlay.
+    Image,
     /// Anything else.
     Unsupported,
 }
@@ -35,6 +37,7 @@ pub fn classify(path: &Path) -> DropKind {
         Some("xml") => DropKind::LandXml,
         Some("dxf") | Some("dwg") => DropKind::Underlay,
         Some("ifc") => DropKind::Reference,
+        Some("tif") | Some("tiff") | Some("png") | Some("jpg") | Some("jpeg") => DropKind::Image,
         _ => DropKind::Unsupported,
     }
 }
@@ -60,7 +63,8 @@ pub fn describe(kind: DropKind, path: &Path, unsaved: bool) -> (String, String, 
         DropKind::LandXml => (format!("Import {name}?"), "Read the horizontal alignments in this LandXML file and add them to the open document.".into(), "Import alignments"),
         DropKind::Underlay => (format!("Attach {name}?"), "Attach this drawing as a read-only underlay. It is read from its file in the background (a DWG is first converted to DXF with ODA File Converter); the document keeps its path and hash, not a copy.".into(), "Attach underlay"),
         DropKind::Reference => (format!("Import {name}?"), "Import this IFC file as a reference model, shown in the 3D view and checked for clashes. The model itself is not changed.".into(), "Import reference model"),
-        DropKind::Unsupported => (format!("{name} cannot be used"), "AfroBIM opens .afrobim documents and imports .xml (LandXML), .dxf and .dwg (underlay) and .ifc (reference model) files.".into(), "OK"),
+        DropKind::Image => (format!("Attach {name}?"), "Attach this image as a read-only georeferenced background. It is placed from its GeoTIFF tags or a world file (.pgw, .jgw, .tfw) beside it; the document keeps its path and hash, not the pixels.".into(), "Attach image"),
+        DropKind::Unsupported => (format!("{name} cannot be used"), "AfroBIM opens .afrobim documents and imports .xml (LandXML), .dxf and .dwg (underlay), .tif, .png and .jpg (georeferenced image) and .ifc (reference model) files.".into(), "OK"),
     }
 }
 
@@ -134,6 +138,7 @@ impl crate::app::AfroBimApp {
                 self.refs.start_import(&path, &[]);
                 self.refs.list_open = true;
             }
+            DropKind::Image => self.attach_image(&path),
             DropKind::Unsupported => {}
         }
     }
@@ -157,11 +162,14 @@ mod tests {
         assert_eq!(kind("TOPO.DWG"), DropKind::Underlay);
         assert_eq!(kind("bridge.ifc"), DropKind::Reference);
         assert_eq!(kind("bridge.IFC"), DropKind::Reference);
+        assert_eq!(kind("ortho.TIF"), DropKind::Image);
+        assert_eq!(kind("photo.png"), DropKind::Image);
+        assert_eq!(kind("scene.jpeg"), DropKind::Image);
     }
 
     #[test]
     fn other_files_and_files_without_an_extension_are_unsupported() {
-        for p in ["notes.txt", "photo.png", "archive.afrobim.zip", "README", "drawing.dwl2", ".afrobim", "ifc"] {
+        for p in ["notes.txt", "photo.bmp", "archive.afrobim.zip", "README", "drawing.dwl2", ".afrobim", "ifc"] {
             assert_eq!(kind(p), DropKind::Unsupported, "{p}");
         }
     }

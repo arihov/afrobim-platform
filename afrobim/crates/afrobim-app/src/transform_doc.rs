@@ -96,6 +96,9 @@ pub fn how(category: &str) -> How {
         "alignment" => How::Alignment,
         afrobim_annotate::TEXT_CATEGORY | afrobim_annotate::DIM_CATEGORY | afrobim_annotate::LEADER_CATEGORY => How::Rigid,
         crate::underlay::CATEGORY => How::Underlay,
+        // An image keeps its own coordinate system and is re-placed from it, so a transformation
+        // of the document never edits it.
+        crate::imagery::CATEGORY => How::NotGeographic,
         crate::reference_models::CATEGORY => How::Reference,
         crate::coordination_glue::CATEGORY => How::Derived,
         "sign" | "post" | "foundation" | "lighting" | "restraint" | "drain" | "culvert" | "marking" | "marking_ext" | "pavement" | "gantry" => How::Placed,

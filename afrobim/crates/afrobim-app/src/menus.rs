@@ -136,6 +136,7 @@ impl AfroBimApp {
                         a(ui, &mut pick, Action::ImportSurvey, "Survey points (CSV)…");
                         a(ui, &mut pick, Action::SignSchedule, "Sign schedule from CSV…");
                         a(ui, &mut pick, Action::Underlay, "DXF underlay…");
+                        a(ui, &mut pick, Action::Imagery, "Georeferenced image…");
                         a(ui, &mut pick, Action::IfcRef, "IFC reference model…");
                         a(ui, &mut pick, Action::BcfIn, "Issues from BCF…");
                         a(ui, &mut pick, Action::MspIn, "Programme from MS Project XML…");
@@ -248,6 +249,8 @@ impl AfroBimApp {
                     a(ui, &mut pick, Action::ImportSurvey, "Survey points (CSV)…");
                     a(ui, &mut pick, Action::ImportSurface, "Ground surface (LandXML)…");
                     a(ui, &mut pick, Action::Underlay, "DXF underlay…");
+                    a(ui, &mut pick, Action::Imagery, "Georeferenced image…");
+                    a(ui, &mut pick, Action::Basemap, "Background map on or off");
                     a(ui, &mut pick, Action::IfcRef, "IFC reference model…");
                 });
                 ui.menu_button("Civil", |ui| {

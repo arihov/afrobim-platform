@@ -361,6 +361,7 @@ pub fn worker_registry() -> ModuleRegistry {
     afrobim_design::register(&mut modules);
     afrobim_annotate::register(&mut modules);
     modules.register(Box::new(crate::underlay::UnderlayModule));
+    modules.register(Box::new(crate::imagery::ImageModule));
     modules.register(Box::new(afrobim_kernel::ProjectSettingsModule));
     modules
 }

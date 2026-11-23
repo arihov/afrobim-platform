@@ -186,6 +186,8 @@ pub fn glyph(action: Action) -> Option<&'static str> {
         A::ProjectSettings => ph::GEAR,
         A::CoordSystem => ph::GLOBE_HEMISPHERE_EAST,
         A::Underlay => ph::IMAGE_SQUARE,
+        A::Imagery => ph::IMAGE,
+        A::Basemap => ph::GLOBE_HEMISPHERE_EAST,
         A::SignSchedule => ph::FILE_ARROW_DOWN,
         A::SignScheduleOut => ph::FILE_ARROW_UP,
         A::SignScheduleTemplate => ph::FILE_DOTTED,

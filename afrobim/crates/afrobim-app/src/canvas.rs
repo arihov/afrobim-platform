@@ -55,6 +55,10 @@ impl AfroBimApp {
         painter.rect_filled(rect, 0.0, if dark { Color32::from_rgb(0x1F, 0x23, 0x29) } else { Color32::from_rgb(0xF2, 0xF2, 0xEE) });
         let ink = if dark { Color32::from_gray(242) } else { Color32::from_gray(26) };
 
+        // The background map and georeferenced images sit under the grid and everything else.
+        self.basemap.paint(&self.doc, painter, &self.view, rect, dark);
+        self.imagery.paint(&self.doc, painter, &self.view, rect);
+
         if self.grid_on {
             let step = display_spacing_fine(self.grid_spacing, self.view.scale, 14.0);
             let (minor, major) = if dark {
@@ -115,7 +119,7 @@ impl AfroBimApp {
             if !self.doc.layer_visible(&e.layer) {
                 continue;
             }
-            if e.category == crate::underlay::CATEGORY || e.category == afrobim_annotate::SETTINGS_CATEGORY {
+            if e.category == crate::underlay::CATEGORY || e.category == crate::imagery::CATEGORY || e.category == afrobim_annotate::SETTINGS_CATEGORY {
                 continue;
             }
             let (ink, width) = match layer_props.get(&e.layer) {

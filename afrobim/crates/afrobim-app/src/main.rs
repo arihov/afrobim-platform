@@ -134,6 +134,8 @@ mod menus;
 mod palette;
 mod ui_kit;
 mod underlay;
+mod imagery;
+mod basemap;
 mod workspace;
 mod zoom_cmds;
 mod view3d;
@@ -227,6 +229,12 @@ pub struct Options {
     pub photometry_run: bool,
     /// Attach this DXF as an underlay at start-up: `path` or `path,dx,dy,rotation` (mm, degrees).
     pub underlay: Option<String>,
+    /// Attach this georeferenced image at start-up (and frame it in a screenshot).
+    pub image: Option<PathBuf>,
+    /// Set the project coordinate system at start-up: an EPSG code or a name `CRS` accepts.
+    pub crs: Option<String>,
+    /// Switch the background map on at start-up, with this provider id (`esri-imagery`, `osm`, ...).
+    pub basemap: Option<String>,
     /// Read this sign schedule CSV at start-up and open its mapping and plan windows.
     pub signschedule: Option<PathBuf>,
     /// Write the model as DXF to this file, then exit.
@@ -327,6 +335,9 @@ fn parse_args_from(args: impl Iterator<Item = String>) -> Options {
             "--ifcref" => o.ifcref = args.next(),
             "--photometry" => o.photometry = args.next().map(PathBuf::from),
             "--underlay" => o.underlay = args.next(),
+            "--image" => o.image = args.next().map(PathBuf::from),
+            "--crs" => o.crs = args.next(),
+            "--basemap" => o.basemap = args.next(),
             "--signschedule" => o.signschedule = args.next().map(PathBuf::from),
             "--dxf-out" => o.dxf_out = args.next().map(PathBuf::from),
             "--survey" => o.survey = args.next().map(PathBuf::from),

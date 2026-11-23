@@ -17,7 +17,7 @@ Every number in this manual that comes from a standard is quoted with its citati
 7. Default values and design standards
 8. First hour walkthrough: signs and roads
 9. The ribbon tabs, in ribbon order
-10. Command reference (all 252 commands)
+10. Command reference (all 254 commands)
 11. Standards and editions
 12. Known slips in the source documents
 13. What has not been verified
@@ -132,6 +132,9 @@ These come from `crates/afrobim-app/src/main.rs`. An argument that is not an opt
 | `--photometry FILE` | Opens the Photometry window with this IES or LDT file loaded. With `--photometry-run`, also runs it on arbitrary demo settings. |
 | `--photometry-run` | With `--photometry`, runs the photometry on the arbitrary demo settings. No value. |
 | `--underlay FILE[,dx,dy,rot]` | Attaches this DXF as an underlay (millimetres, degrees). |
+| `--image FILE` | Attaches this georeferenced image (section 4.10) and, with `--screenshot`, frames it. |
+| `--crs CODE` | Sets the project coordinate system, for example `21036` or `"Arc 1960 / UTM zone 36S"`. |
+| `--basemap PROVIDER` | Switches the background map on with this provider: `esri-imagery`, `osm`, `esri-topo`, `opentopomap` or `mapbox-satellite`. With `--screenshot`, the picture waits (at most 45 s) until every tile of the view is shown. |
 | `--signschedule FILE` | Reads this sign schedule CSV at start-up and opens its mapping and plan windows. |
 | `--survey FILE` | Makes a ground surface from this file of survey points at start-up. Needs `--survey-order`. |
 | `--survey-order ORDER` | The columns of the point file: `PNEZD`, `PENZD`, `NEZD` or `ENZD` (P point, N northing, E easting, Z level, D description). Not guessed. |
@@ -168,7 +171,7 @@ These come from `crates/afrobim-app/src/main.rs`. An argument that is not an opt
 
 The window has three bands and two columns. From top to bottom: the menu bar, then the ribbon, with the workspace switcher at its left end. Below the ribbon are the left panel (the Tool Sets and the toolspace), the drawing area in the middle, and the right panel (Properties and Layers). The command line and the status bar sit at the bottom.
 
-Every route to a command runs the same entry in one command table, `crates/afrobim-app/src/commands.rs`, which holds 252 commands. The menus, the ribbon, the Tool Sets, the command palette and the command line therefore always do the same thing. Chapter 10 lists all 252.
+Every route to a command runs the same entry in one command table, `crates/afrobim-app/src/commands.rs`, which holds 254 commands. The menus, the ribbon, the Tool Sets, the command palette and the command line therefore always do the same thing. Chapter 10 lists all 254.
 
 ### 3.1 Workspaces
 
@@ -542,6 +545,26 @@ The project settings have a **Transform log** tab: every transform with its time
 - The accuracy of the projection is sub-millimetre inside a UTM zone at the latitudes of East Africa, as tested. It is not the nanometre accuracy of the higher-order series.
 - Points more than 80 degrees from the central meridian return no answer.
 - Annotation is translated, not turned or scaled, by a transform. A referenced object blocks the whole-document transform until it is promoted or removed.
+
+### 4.10 Georeferenced images and the background map
+
+Two kinds of picture can sit behind the model. Both are read only, and neither is ever written into an export.
+
+**Images (`IMAGE`).** An orthophoto from a drone survey, a satellite scene or a scanned plan, attached by path. The document keeps the path, a hash of the file, the file's own placement and the display switches; the pixels are read again from the file when the document opens, with a warning if the file is missing or has changed. Drop a `.tif`, `.png` or `.jpg` on the window to attach it too.
+
+- *Placement.* AfroBIM reads, in order: the GeoTIFF tags (ModelTiepoint and ModelPixelScale, or ModelTransformation), then a world file beside the image (`.pgw`, `.jgw`, `.tfw`, `.wld`, short or long form). A world file gives the centre of the top-left pixel and a GeoTIFF with PixelIsPoint ties a centre too; both are moved half a pixel to the corner on reading, so the image does not sit half a pixel out. Rotation terms are kept. An image with neither is placed by hand in the window: the top-left corner and the pixel size.
+- *Coordinate system.* From the GeoTIFF keys, otherwise from a `.prj` file beside the image. ESRI `.prj` files carry no EPSG code; the system is found by its name (`Arc_1960_UTM_Zone_36S` is EPSG:21036). It can be typed by hand as an EPSG code.
+- *Into the project.* When the image's system is the project's, or either side states none, the image's metres are used as they are (in millimetres). When they differ, a grid of 9 by 9 points over the image is moved through the same datum transformations `TRANSFORM` uses (section 4.8), and the window states which one and its stated accuracy. The image record is never edited by this: change the project system and the image is placed again. When there is no transformation between the two, the image is not drawn and the window says why.
+- *Size.* The file is decimated as it is read (TIFF strip by strip or tile by tile, using the file's internal overviews when it has them; PNG row by row), so a large orthophoto does not fill the memory. **Detail** sets the longest side of what is drawn. **Black collar** leaves out pure black pixels, the border of a mosaic.
+
+**The background map (`BASEMAP`).** Online map tiles drawn behind everything: Esri World Imagery (satellite, the default), OpenStreetMap, Esri World Topographic, OpenTopoMap, Mapbox Satellite (needs a token) or a custom HTTPS tile URL with `{z}`, `{x}`, `{y}` (or `{-y}`, `{q}`, `{key}`). Switch it on with `BASEMAP` or in the `IMAGE` window, where the provider and the opacity are chosen.
+
+- It is **off until switched on** and it is the only part of AfroBIM that uses the internet. It sends a generic user agent and nothing about you or the project beyond the tile numbers of the view.
+- It needs the project coordinate system (`CRS`). The view is moved to WGS 84 to find the tiles, and each tile is placed back in the project system as a grid of points. A project in Arc 1960 is shifted to WGS 84 through the recorded transformation (EPSG:1284 for Uganda, stated accuracy 6 m) and the status line in the window says so. A local grid or a named-only system cannot show the map.
+- Tiles are fetched only for the view, three at a time, and cached on disk for 30 days (`~/Library/Caches/AfroBIM/tiles` on macOS, `%LOCALAPPDATA%\AfroBIM\tiles` on Windows, `~/.cache/afrobim/tiles` on Linux; `AFROBIM_TILE_CACHE` moves it). While a tile loads, the nearest coarser tile already held stands in.
+- A key or token is kept for the session only, or read from `AFROBIM_TILE_KEY`. It is never written to the document or to disk.
+- The provider's attribution is drawn in the lower right corner of the canvas, as the providers' terms require. Check the terms of the provider you use; a custom provider is your responsibility.
+- The map is a picture for orientation. It is not survey data, and its position is only as good as the provider's imagery and the datum transformation. Do not set out from it.
 
 ## 5. A first hour with the civil tools
 
@@ -1378,6 +1401,8 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 | `OPEN` | none | An AfroBIM document | The document is loaded. |
 | `SIGNSCHEDULE` | `SIGNSCHED` | A CSV file (comma, semicolon or tab; quoted; with or without a byte order mark). The column mapping, with a dropdown per file column and a unit for lengths; save or load the mapping as JSON; then the import plan | Sign elements from the rows. Each row that cannot be read gives its reason and line number. Duplicate marks are skipped or updated. Apply is one undo step and ends in a report. |
 | `UNDERLAY` | `XREF`, `XATTACH`, `DXFUNDERLAY` | One or more DXF files, or DWG files when ODA File Converter is installed; the file units and millimetres per unit (can be overridden); insertion offset (mm), rotation (degrees) and scale; visibility and fade; per-layer switches; optionally draped flat at a level in the 3D view | A read-only underlay element, stored by path and an FNV-1a hash. |
+| `IMAGE` | `IMAGEATTACH`, `ATTACHIMAGE`, `GEOIMAGE`, `ORTHOPHOTO` | One or more images: GeoTIFF, or PNG and JPEG with a world file; the image's coordinate system (from the GeoTIFF or a `.prj`, or typed as an EPSG code); visibility, opacity, detail and the black collar switch; a placement by hand for an image that carries none. The window also holds the background map settings | A read-only image underlay element, stored by path, an FNV-1a hash and the file's own placement. See section 4.10. |
+| `BASEMAP` | `SATELLITE`, `BACKGROUNDMAP`, `MAPBACKGROUND` | Nothing: switches the background map on or off | The setting is kept in the project settings. See section 4.10. |
 | `SURFACE` | `TIN`, `TERRAIN` | A LandXML file with a TIN | A ground surface element, used by the profile editor, the corridor and the dimension of a level. |
 | `SURVEY` | `SURVEYPOINTS`, `POINTFILE`, `TOPO` | A text file of survey points, one a line (comma, semicolon, tab or blanks; with or without a heading). The column order (`PNEZD`, `PENZD`, `NEZD`, `ENZD`), with the first points shown as they are read; the coordinate system (a WGS 84 / UTM zone, optional); the longest triangle side in metres (optional); the descriptions to leave out, ticked from the list of those in the file with their counts | A ground surface element triangulated from the points, with its coordinate system kept. The account of the import is in the command history: points read, left out, merged and used, triangles, extent, and the latitude and longitude of the middle of the survey. |
 | `IFCREF` | `REFERENCEMODEL`, `IMPORTIFC` | One or more IFC files (IFC2X3, IFC4 or IFC4X3). A tick box applies the file's IfcMapConversion when it has one; the default is the file's own coordinates | Read-only reference models, stored by path and hash and read again on open. |
@@ -1391,6 +1416,7 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 - *Sign schedule:* the CSV is read and written; XML is not read. A column mapping step is needed for any layout other than the AfroBIM template. `SIGNSCHEDULEOUT` and `SIGNSCHEDULETEMPLATE` are on the Output tab.
 - *DWG:* AfroBIM does not read DWG itself. When ODA File Converter is installed (free from the Open Design Alliance, opendesign.com; looked for in `/Applications` on macOS, `C:\Program Files\ODA` on Windows, `/usr/bin` or `/opt` on Linux, or wherever `AFROBIM_ODA_CONVERTER` points), a DWG attached as an underlay (`UNDERLAY`, or dropped on the window) is converted to a DXF 2018 in a cache folder in the system's temporary folder and that DXF is read; the DWG itself is only read. Without the converter a DWG is refused with these instructions. The converted DXF is several times the size of the DWG. Civil 3D objects (alignments, profiles, surfaces, corridors, COGO points, labels) come through as the picture Civil 3D saved with them, drawn as lines, arcs, faces and text: **linework, not design objects**. To bring alignments, profiles and surfaces in as design data, export LandXML from Civil 3D and use `LANDXML` and `SURFACE`. An object saved with no picture is left out and counted. Tried on Civil 3D 2018-format (AC1032) drawings with ODA File Converter 27.10 on macOS.
 - *DXF underlays:* Read as DXF R12 to current, ASCII. Line types, line weights, hatch patterns, fonts and styles are not read. Drawn in one muted ink at the chosen fade, not in the file's colours. At most 250 000 segments are drawn a frame; the 3D draping uses the first 40 000. The sheet layout and site coordinates are different systems, so an underlay in survey coordinates appears far from the signs (see Troubleshooting).
+- *Georeferenced images:* 8 and 16-bit Gray, RGB and RGBA. Palette, YCbCr (JPEG-compressed) and band-separate TIFFs are refused with the `gdal_translate` line that converts them; floating-point rasters (elevation models) are refused as not imagery. Shown at most at the detail chosen (2048, 4096 or 8192 pixels on the longest side), so a large orthophoto is decimated, not shown at full resolution. GeoTIFF user-defined coordinate systems are not read: choose the system by hand. Not drawn in the 3D site view. Tried on the ACP orthophotos (PNG, `.pgw`, ESRI `.prj` in Arc 1960 / UTM 36S) on macOS.
 - *IFC reference models:* read-only, for reference. Openings are not subtracted. Colours, materials, layers and type objects are not read. Files of 4 GiB or more are refused. Not opened in a commercial BIM tool.
 
 ### 9.4 Annotate
@@ -1808,11 +1834,11 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 
 The Civil tab, and the toolspace that goes with it, are described in section 6 (civil objects) and section 3.4 (the toolspace).
 
-## 10. Command reference (all 252 commands)
+## 10. Command reference (all 254 commands)
 
-This is every command in `crates/afrobim-app/src/commands.rs`: **252 commands**, one `CommandInfo` entry each, and the same count as the registry. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
+This is every command in `crates/afrobim-app/src/commands.rs`: **254 commands**, one `CommandInfo` entry each, and the same count as the registry. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
 
-The counts by group are: Home 22, Edit 3, Insert 7, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 77, Design 10, Structures 4, Coordination 8, 4D 19, 5D 7, Construction 7, Output 13, Manage 10, View 6, Help 3. Those add to 252, the registry count. The palette and the command line reach every command. The groups follow the ribbon tabs, which serve the workflow stages in chapter 1.
+The counts by group are: Home 22, Edit 3, Insert 9, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 77, Design 10, Structures 4, Coordination 8, 4D 19, 5D 7, Construction 7, Output 13, Manage 10, View 6, Help 3. Those add to 254, the registry count. The palette and the command line reach every command. The groups follow the ribbon tabs, which serve the workflow stages in chapter 1.
 
 ### Home: 22 commands
 
@@ -1849,11 +1875,13 @@ The counts by group are: Home 22, Edit 3, Insert 7, Annotate 27, Modify 1, Signs
 | `PASTECLIP` | `PASTE` | - | Paste the clipboard into the model space |
 | `SELECTALL` | `ALL` | - | Select every element |
 
-### Insert: 7 commands
+### Insert: 9 commands
 
 | Command | Aliases | Also on | Help text |
 |---|---|---|---|
+| `BASEMAP` | `SATELLITE`, `BACKGROUNDMAP`, `MAPBACKGROUND` | - | Show or hide the online background map (satellite imagery or a street map) behind the model; needs the project coordinate system |
 | `IFCREF` | `REFERENCEMODEL`, `IMPORTIFC` | Coordination | Import IFC files as read-only reference models, stored by path and hash, shown in the 3D site view and usable in clash tests |
+| `IMAGE` | `IMAGEATTACH`, `ATTACHIMAGE`, `GEOIMAGE`, `ORTHOPHOTO` | - | Attach georeferenced images behind the model (GeoTIFF, or PNG and JPEG with a world file), and set up the online background map |
 | `LANDXML` | `ALIGNMENT` | Roads, Civil, Design | Import horizontal alignments from a LandXML file |
 | `REFMODELS` | `REFERENCES`, `REFLIST` | Coordination | List the reference models: visibility, transparency, alignment offset and rotation, import report, and the properties of a picked product |
 | `SIGNSCHEDULE` | `SIGNSCHED` | - | Import signs from a CSV schedule: column mapping, import plan, apply as one undo step |
@@ -2434,6 +2462,14 @@ The model-wide check (`CHECKALL`) names the dialog to open in the row for each e
 
 A field left empty stops the checks that need it. The inputs are kept on the element, so `CHECKALL` repeats them after you run it again.
 
+**The background map does not appear.**
+
+Open `IMAGE` and read the line under the map settings. "Set the project coordinate system" means the project has none: set it with `CRS`. A local grid or a system known by name only cannot be placed on Earth. "Last tile error" names what the server answered (no internet, a blocked network, a missing or wrong key). The map is off until switched on, and a document remembers the setting.
+
+**An image is drawn in the wrong place.**
+
+Open `IMAGE` and check **Placed from** and **Image system**. An image with no world file or GeoTIFF tags has no placement: place it by hand. An image whose `.prj` is missing is taken to be in the project's system; if it is not (an Arc 1960 orthophoto in a WGS 84 project lands a few hundred metres out in Uganda), type its EPSG code under **Choose the system**.
+
 **An underlay appears far from the model.**
 
 The 2D canvas is the sign sheet layout, while alignments and their survey coordinates sit in site coordinates. A DXF drawn in survey coordinates therefore appears far from the signs. Open the underlay's window (`UNDERLAY`) and either set the **insertion offset** and rotation to bring the drawing into the model, or use **Zoom to it** to find it. Check the file's units too: the window shows the file's units and the millimetres per unit, which can be overridden. A DWG file is refused; convert it to DXF first.
@@ -2506,7 +2542,7 @@ Points, parcels, ground profiles, profile views, sample line groups, assemblies,
 
 The round 4 polish corrected the READMEs that disagreed with the code, and the round 6 revision of this manual corrected the manual where it disagreed with the code. What remains below is still true of the code as built. Where the manual and a README disagree again, the manual follows the code.
 
-- **Command table.** `crates/afrobim-app/src/commands.rs` holds **252 commands**, one `CommandInfo` entry each. Chapter 10 lists all 252, grouped by the ribbon tab that holds each command first, and states the count per group. Every command is on a ribbon tab, or is a sign template that the Signs tab shows. The earlier editions of this manual said 222 (and 169 before the civil commands); both were wrong. The registry enforces unique names and aliases in a unit test (`names_and_aliases_resolve_and_are_unique`). The tables in chapter 10 were generated from the registry and the ribbon, and should be regenerated when either changes.
+- **Command table.** `crates/afrobim-app/src/commands.rs` holds **254 commands**, one `CommandInfo` entry each. Chapter 10 lists all 254, grouped by the ribbon tab that holds each command first, and states the count per group. Every command is on a ribbon tab, or is a sign template that the Signs tab shows. The earlier editions of this manual said 222 (and 169 before the civil commands); both were wrong. The registry enforces unique names and aliases in a unit test (`names_and_aliases_resolve_and_are_unique`). The tables in chapter 10 were generated from the registry and the ribbon, and should be regenerated when either changes.
 - **Ribbon and menus.** The ribbon has eighteen tabs and the menu bar ten menus: File, Edit, View, Insert, Civil, Modify, Analyse, Tools, Window and Help. The menus are not a separate command set. Every item runs a command from the command table. The Signs tab is built from the sign templates of the active standard. The Civil menu has submenus for Points, Surfaces, Profiles, Corridors and sections, Parcels, Pipe networks, Grading, Intersections, Data shortcuts, Point clouds, Survey database and Reprojection.
 - **Workspaces.** There are twelve workspaces in `WORKSPACES` in `workspace.rs`. A new workspace is one more entry there, and it is listed in the switcher automatically. The toolspace has three tabs (Prospector, Survey and Settings), and a workspace chooses which one it opens on.
 - **Command-line flags.** `main.rs` parses the options of chapter 2. The manual lists every option the parser reads.
