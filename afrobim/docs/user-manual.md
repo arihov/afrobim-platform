@@ -17,7 +17,7 @@ Every number in this manual that comes from a standard is quoted with its citati
 7. Default values and design standards
 8. First hour walkthrough: signs and roads
 9. The ribbon tabs, in ribbon order
-10. Command reference (all 257 commands)
+10. Command reference (all 258 commands)
 11. Standards and editions
 12. Known slips in the source documents
 13. What has not been verified
@@ -171,7 +171,7 @@ These come from `crates/afrobim-app/src/main.rs`. An argument that is not an opt
 
 The window has three bands and two columns. From top to bottom: the menu bar, then the ribbon, with the workspace switcher at its left end. Below the ribbon are the left panel (the Tool Sets and the toolspace), the drawing area in the middle, and the right panel (Properties and Layers). The command line and the status bar sit at the bottom.
 
-Every route to a command runs the same entry in one command table, `crates/afrobim-app/src/commands.rs`, which holds 257 commands. The menus, the ribbon, the Tool Sets, the command palette and the command line therefore always do the same thing. Chapter 10 lists all 257.
+Every route to a command runs the same entry in one command table, `crates/afrobim-app/src/commands.rs`, which holds 258 commands. The menus, the ribbon, the Tool Sets, the command palette and the command line therefore always do the same thing. Chapter 10 lists all 258.
 
 ### 3.1 Workspaces
 
@@ -358,6 +358,27 @@ Numbers typed for lengths and angles follow the display units. Stations can be t
 **Esc in a field.** Esc in a Properties field belongs to that field unless a command is running.
 
 **Shortcuts in the code.** Ctrl+N New, Ctrl+O Open, Ctrl+S Save, Ctrl+Shift+S Save as, Ctrl+Z Undo, Ctrl+Y Redo, Ctrl+A Select all, Ctrl+K command palette, F3 object snap, F7 grid, F8 ortho, F9 snap, Delete Erase. Ctrl+C and Ctrl+V copy and paste the clipboard.
+
+### 3.15 Saving, autosave and recovery
+
+**Saving is all or nothing.** Save and Save as (Ctrl+S, Ctrl+Shift+S, `SAVE`, `SAVEAS`), the MCP server's save tools and the Python library all write the document the same way. The new content goes to a hidden temporary file in the same folder as the document. It is flushed and synced to disk, and only then renamed over the document. If the disk is full, the drive is removed or the program stops part-way, the document you had before is still there, whole. The temporary file is removed after a failed save. If the document is reached through a symbolic link, the file the link points to is the one replaced. No backup copy of the previous version is kept: AfroBIM has no `.bak` convention, and none was added. Keep your own copies or use your project's file history for earlier versions.
+
+**Autosave.** While there are unsaved changes, AfroBIM writes a copy of the document every few minutes. The copy is called `<name>.afrobim.recover` and sits beside the document. A document that has never been saved has its copy in the `recover` folder of the AfroBIM settings folder (the folder that holds `prefs.json`). The copy is written the same safe way as a save, and it never replaces your document. Nothing is written when there are no unsaved changes, or when nothing has changed since the last copy.
+
+- **Window → Autosave**, `AUTOSAVE` (alias `RECOVERY`), or the Autosave button on the Manage tab, sets the minutes between copies. The default is 5. **0 switches autosave off.** The longest interval is 240 minutes. The choice is kept in the preferences file.
+- A copy is not written while a mouse button is held down; it waits for the next frame.
+
+**When the copy is removed.** A successful Save or Save as removes the copies of the old and the new name. A clean exit (Quit, or closing the window) removes the copy of the open document. AfroBIM does not ask about unsaved changes when you quit, so quitting with unsaved changes discards them and their copy, as it did before autosave existed. Save first.
+
+**If the program stops.** If AfroBIM panics (an internal error), it tries once to write the document as it was within about a second of the failure to the same recovery file, and then stops as it did before. A power cut or a forced stop cannot do that, so the last autosave is then the newest copy.
+
+**Recovering.** When AfroBIM starts, and whenever you open a document (including by dropping it on the window or from Open recent), it looks for a recovery file. A copy is offered only when it is newer than the document, is not empty and differs from the document. The dialog says "Recover unsaved changes from" followed by the time, written in UTC (the program has no time zone data), with three choices:
+
+- **Recover unsaved changes from <time>.** The copy is loaded as unsaved changes, under the document's own name. The file on disk is not touched, and the copy stays until you save. Choose Save to keep the recovered work.
+- **Discard.** The copy is deleted and the document opens as saved.
+- **Decide later.** Nothing changes.
+
+**Decide later** (also Escape, and the close button of the dialog) decides nothing: the copy stays and is offered again the next time. Autosave and the panic copy do not touch that file while the question is open, but once you have closed it and made new changes, the next autosave replaces the old copy with the new one. Decide before you carry on working. A recovery file older than its document is deleted without a question. A recovery file that cannot be read is left alone, and the status bar says so.
 
 ## 4. Coordinate systems
 
@@ -1945,11 +1966,11 @@ How the reader treats the file:
 
 The Civil tab, and the toolspace that goes with it, are described in section 6 (civil objects) and section 3.4 (the toolspace).
 
-## 10. Command reference (all 257 commands)
+## 10. Command reference (all 258 commands)
 
-This is every command in `crates/afrobim-app/src/commands.rs`: **257 commands**, one `CommandInfo` entry each, and the same count as the registry. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
+This is every command in `crates/afrobim-app/src/commands.rs`: **258 commands**, one `CommandInfo` entry each, and the same count as the registry. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
 
-The counts by group are: Home 22, Edit 3, Insert 10, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 77, Design 10, Structures 4, Coordination 8, 4D 19, 5D 8, Construction 7, Output 14, Manage 10, View 6, Help 3. Those add to 257, the registry count. The palette and the command line reach every command. The groups follow the ribbon tabs, which serve the workflow stages in chapter 1.
+The counts by group are: Home 22, Edit 3, Insert 10, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 77, Design 10, Structures 4, Coordination 8, 4D 19, 5D 8, Construction 7, Output 14, Manage 11, View 6, Help 3. Those add to 258, the registry count. The palette and the command line reach every command. The groups follow the ribbon tabs, which serve the workflow stages in chapter 1.
 
 ### Home: 22 commands
 
@@ -2266,11 +2287,12 @@ The counts by group are: Home 22, Edit 3, Insert 10, Annotate 27, Modify 1, Sign
 | `SIGNSCHEDULETEMPLATE` | `SIGNSCHEDBLANK` | - | Write a blank sign schedule template (CSV) |
 | `TITLEBLOCK` | `TBLOCK` | - | Edit the title block layout of the sheet set: fields shown, rows and cells, load or save it as JSON |
 
-### Manage: 10 commands
+### Manage: 11 commands
 
 | Command | Aliases | Also on | Help text |
 |---|---|---|---|
 | `APPEARANCE` | `LOOK`, `SCALE`, `INTERFACE` | View | Interface look (dark glass, light glass, solid) and scale |
+| `AUTOSAVE` | `RECOVERY` | - | Autosave: minutes between recovery copies of unsaved work (0 switches it off) |
 | `CANVAS` | none | View | Switch the model space between dark and light |
 | `CRS` | `COORDSYS` | - | The project coordinate system: set or change it, and see what kind it is, its datums and area of use. Nothing is ever moved |
 | `LAYER` | `LA`, `LAYERS` | - | Layer manager: create, rename, delete, colour, line weight, on, lock, current |
@@ -2568,6 +2590,22 @@ The status bar gives the reason after the colon. The app looks for the rule pack
 
 The lookup order is the same for each file: the environment variable, if it names something that exists; then the folder next to the executable; on macOS, the bundle's `Contents/Resources`; then every folder above the executable, and every folder above the working directory, for the relative path. A checkout run from inside `afrobim` finds `packs/` and `fonts/` one folder up. A macOS build with its data in `Contents/Resources` is found without a launcher (the `--launcher` option of the packaging script is optional, and only for a build that predates this lookup).
 
+**The document did not open as I left it, or "Recover unsaved changes" appears at start.**
+
+AfroBIM stopped, or the computer lost power, before the document was saved. The copy is the newest autosave (or, after an internal error, the state a second or so before it). Choose **Recover unsaved changes from <time>** and then Save, or **Discard**. If you are unsure, choose Decide later: the copy stays. The time is in UTC.
+
+**"Autosave could not write" appears in the status bar.**
+
+The folder of the document (or the settings folder, for a document with no name) cannot be written to: it may be read-only, full or on a drive that has gone. Your document is not affected. Save to another place, or fix the folder. The same applies to a save that fails: the message names the file, and the previous version of the document is untouched.
+
+**A `.afrobim.recover` file is left beside a document.**
+
+It is the autosave copy. It is removed by a successful save or a clean exit. One that remains came from a run that stopped. Open the document to be offered it, or delete the file if you do not want it. Do not send it to others as the project: send the saved `.afrobim`.
+
+**A hidden file ending in `.tmp` is left beside a document.**
+
+It is the temporary file of a save that was cut off by a crash or a power cut (a save that fails with an error removes it). The document itself is whole. It is safe to delete the `.tmp` file.
+
 **A station is ambiguous under station equations.**
 
 On an alignment with station equations, a displayed station can occur in more than one stationing region, for example where the stations overlap. The message is refused until you pick the region. In the dialog, set the **Stationing region** to the number of the region the station is in (1 to the number of regions). Enter 0 only when the station occurs once. The dialog shows the converted internal station beside the field (for example `1+550.000, internal station 1650.000 m`), so you can check it. The Stationing region control is shown only when the alignment has station equations.
@@ -2696,7 +2734,7 @@ The "Unmatched lines" list gives the reason for each line. The reasons, and what
 
 The round 4 polish corrected the READMEs that disagreed with the code, and the round 6 revision of this manual corrected the manual where it disagreed with the code. What remains below is still true of the code as built. Where the manual and a README disagree again, the manual follows the code.
 
-- **Command table.** `crates/afrobim-app/src/commands.rs` holds **257 commands**, one `CommandInfo` entry each. Chapter 10 lists all 257, grouped by the ribbon tab that holds each command first, and states the count per group. Every command is on a ribbon tab, or is a sign template that the Signs tab shows. The earlier editions of this manual said 222 (and 169 before the civil commands); both were wrong. The registry enforces unique names and aliases in a unit test (`names_and_aliases_resolve_and_are_unique`). The tables in chapter 10 were generated from the registry and the ribbon, and should be regenerated when either changes.
+- **Command table.** `crates/afrobim-app/src/commands.rs` holds **258 commands**, one `CommandInfo` entry each. Chapter 10 lists all 258, grouped by the ribbon tab that holds each command first, and states the count per group. Every command is on a ribbon tab, or is a sign template that the Signs tab shows. The earlier editions of this manual said 222 (and 169 before the civil commands); both were wrong. The registry enforces unique names and aliases in a unit test (`names_and_aliases_resolve_and_are_unique`). The tables in chapter 10 were generated from the registry and the ribbon, and should be regenerated when either changes.
 - **Ribbon and menus.** The ribbon has eighteen tabs and the menu bar ten menus: File, Edit, View, Insert, Civil, Modify, Analyse, Tools, Window and Help. The menus are not a separate command set. Every item runs a command from the command table. The Signs tab is built from the sign templates of the active standard. The Civil menu has submenus for Points, Surfaces, Profiles, Corridors and sections, Parcels, Pipe networks, Grading, Intersections, Data shortcuts, Point clouds, Survey database and Reprojection.
 - **Workspaces.** There are twelve workspaces in `WORKSPACES` in `workspace.rs`. A new workspace is one more entry there, and it is listed in the switcher automatically. The toolspace has three tabs (Prospector, Survey and Settings), and a workspace chooses which one it opens on.
 - **Command-line flags.** `main.rs` parses the options of chapter 2. The manual lists every option the parser reads.

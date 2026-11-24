@@ -625,6 +625,35 @@ mod tests {
     }
 
     #[test]
+    fn every_tool_write_goes_through_a_temporary_file_and_leaves_only_the_document() {
+        let tmp = TempDir::new("doc-atomic");
+        let mut t = tools();
+        let path = new_doc(&mut t, &tmp, "m.afrobim");
+        t.document_add_sign(&add_key(&path, "UK04.1")).unwrap();
+        t.document_save(&path, None, None).unwrap();
+        t.document_new(&path, None, true).unwrap();
+        let mut names: Vec<String> = std::fs::read_dir(tmp.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(names, vec!["m.afrobim"], "no temporary or recovery file is left");
+        assert!(Document::load(Path::new(&path)).unwrap().elements().is_empty());
+    }
+
+    #[test]
+    fn a_save_that_cannot_be_written_leaves_the_existing_file_whole() {
+        let tmp = TempDir::new("doc-atomic-fail");
+        let mut t = tools();
+        let path = new_doc(&mut t, &tmp, "m.afrobim");
+        t.document_add_sign(&add_key(&path, "UK04.1")).unwrap();
+        // Saving "as" a name below the document (a file, not a folder) fails; the document stays.
+        let below = format!("{path}/inner.afrobim");
+        assert!(t.document_save(&path, Some(&below), None).is_err());
+        assert_eq!(t.document_list(&path).unwrap().count, 1);
+    }
+
+    #[test]
     fn document_new_refuses_to_replace_a_file_unless_told_to() {
         let tmp = TempDir::new("doc-overwrite");
         let mut t = tools();

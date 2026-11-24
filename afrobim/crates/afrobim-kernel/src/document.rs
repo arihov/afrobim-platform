@@ -405,8 +405,11 @@ impl Document {
         Ok(doc)
     }
 
+    /// Writes the document to `path` atomically: through a temporary file in the same folder,
+    /// synced and renamed over the target, so a failed or interrupted save leaves the old file
+    /// whole (see [`crate::atomic`]).
     pub fn save(&self, path: &Path) -> Result<(), DocumentError> {
-        Ok(std::fs::write(path, self.to_json())?)
+        Ok(crate::atomic::write_atomic(path, self.to_json().as_bytes())?)
     }
 
     pub fn load(path: &Path) -> Result<Document, DocumentError> {
@@ -418,6 +421,34 @@ impl Document {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn save_replaces_an_existing_file_through_a_temporary_and_leaves_no_litter() {
+        let dir = std::env::temp_dir().join(format!("afrobim-doc-save-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("road.afrobim");
+        std::fs::write(&path, "an older file").unwrap();
+        let d = three();
+        d.save(&path).unwrap();
+        assert_eq!(Document::load(&path).unwrap().elements().len(), 3);
+        let files: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(files.len(), 1, "only the document is left: {files:?}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_save_that_cannot_complete_leaves_the_old_document_readable() {
+        let dir = std::env::temp_dir().join(format!("afrobim-doc-save-fail-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("road.afrobim");
+        let good = three();
+        good.save(&path).unwrap();
+        // A folder where the temporary file must go does not exist for a path below a file.
+        let bad = path.join("inside.afrobim");
+        assert!(Document::default().save(&bad).is_err());
+        assert_eq!(Document::load(&path).unwrap().elements().len(), 3);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     fn three() -> Document {
         let mut d = Document::default();
