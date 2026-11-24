@@ -187,6 +187,7 @@ pub fn glyph(action: Action) -> Option<&'static str> {
         A::CoordSystem => ph::GLOBE_HEMISPHERE_EAST,
         A::Underlay => ph::IMAGE_SQUARE,
         A::Imagery => ph::IMAGE,
+        A::GisImport => ph::MAP_TRIFOLD,
         A::Basemap => ph::GLOBE_HEMISPHERE_EAST,
         A::MapExport => ph::GLOBE,
         A::MapCapture => ph::CAMERA,

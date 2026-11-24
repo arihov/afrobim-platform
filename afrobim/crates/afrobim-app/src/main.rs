@@ -139,6 +139,7 @@ mod underlay;
 mod imagery;
 mod basemap;
 mod gis_io;
+mod gis_overlay;
 mod map_capture;
 mod green_glue;
 mod workspace;

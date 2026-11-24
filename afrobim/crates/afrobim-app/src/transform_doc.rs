@@ -49,6 +49,9 @@ pub enum How {
     Reference,
     /// Results derived from the geometry (clashes): cleared, to be worked out again.
     Derived,
+    /// A GIS overlay: it keeps its features in WGS 84 and is placed again in the new system, so
+    /// nothing in it is moved.
+    Reprojected,
     NotGeographic,
     Unsupported,
 }
@@ -63,6 +66,7 @@ impl How {
             How::Underlay => "placement (offset, turn, scale) is transformed",
             How::Reference => "placement (offset, turn) is transformed; the model stays tied to its own file and is not scaled",
             How::Derived => "derived results are cleared and are worked out again by running the tests",
+            How::Reprojected => "kept in WGS 84 and placed again in the new system: nothing is moved",
             How::NotGeographic => "no coordinates: nothing to move",
             How::Unsupported => "NOT SUPPORTED: cannot be transformed",
         }
@@ -99,6 +103,8 @@ pub fn how(category: &str) -> How {
         // An image keeps its own coordinate system and is re-placed from it, so a transformation
         // of the document never edits it.
         crate::imagery::CATEGORY => How::NotGeographic,
+        // A GIS overlay keeps its source in WGS 84 and is re-projected from it (see `gis_overlay::reproject_all`).
+        crate::gis_overlay::CATEGORY => How::Reprojected,
         crate::reference_models::CATEGORY => How::Reference,
         crate::coordination_glue::CATEGORY => How::Derived,
         "sign" | "post" | "foundation" | "lighting" | "restraint" | "drain" | "culvert" | "marking" | "marking_ext" | "pavement" | "gantry" => How::Placed,
@@ -517,7 +523,7 @@ fn transform_element(e: &mut Element, m: &mut Mapper, audit: Option<([f64; 2], [
             }
         }
         How::Alignment => map_alignment(&mut e.data, m),
-        How::Placed | How::NotGeographic | How::Rigid => {}
+        How::Placed | How::NotGeographic | How::Rigid | How::Reprojected => {}
         How::Underlay => map_placement(&mut e.data, "offset_mm", "rotation_deg", Some("scale"), m),
         How::Reference => {
             if let Some(Value::Array(models)) = e.data.get_mut("models") {
@@ -541,7 +547,7 @@ fn transform_element(e: &mut Element, m: &mut Mapper, audit: Option<([f64; 2], [
         }
     }
     // An assembly or a ground profile sits at the model origin by convention: it has no position to move.
-    if !matches!(class, How::NotGeographic | How::Underlay | How::Reference | How::Derived) && (!civil::is_civil(&e.category) || civil::has_plan_position(&e.category)) {
+    if !matches!(class, How::NotGeographic | How::Underlay | How::Reference | How::Derived | How::Reprojected) && (!civil::is_civil(&e.category) || civil::has_plan_position(&e.category)) {
         let (oe, on) = crs_from_model_point(e.origin);
         let (ne, nn) = m.map(oe, on, 0.0);
         e.origin = model_point_from_crs(ne, nn);
@@ -620,6 +626,8 @@ pub fn apply_plan(doc: &mut Document, selected: Option<&[ElementId]>, plan: &Tra
         let old = afrobim_kernel::project_crs(doc);
         crate::imagery::pin_crs(doc, old.as_ref());
         set_project_crs(doc, target);
+        // GIS overlays are placed again from their WGS 84 source.
+        crate::gis_overlay::reproject_all(doc);
     }
     let entry = LogEntry { what: what.to_string(), transform: Some(log), calibration: None, elements: report.elements, positions: report.positions, notes, when: Some(when) };
     push_log(doc, entry.clone());
@@ -636,6 +644,7 @@ pub fn apply_calibration(doc: &mut Document, cal: &SiteCalibration, target: &Pro
     let report = apply_map(doc, None, &f)?;
     crate::imagery::move_unpinned(doc, &|e, n| cal.to_target(e, n));
     set_project_crs(doc, target);
+    crate::gis_overlay::reproject_all(doc);
     let entry = LogEntry { what: format!("Site calibration {}", cal.name), transform: None, calibration: Some(cal.clone()), elements: report.elements, positions: report.positions, notes: report.notes, when: Some(when) };
     push_log(doc, entry.clone());
     Ok(entry)

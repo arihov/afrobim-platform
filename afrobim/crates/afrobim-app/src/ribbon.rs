@@ -117,7 +117,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
     const INSERT: &[Panel] = &[
         Panel { title: "Signs", items: &[Big(Icon::Library, "Standard signs", "LIBRARY")] },
         Panel { title: "Import", items: &[Big(Icon::Alignment, "LandXML alignments", "LANDXML"), Big(Icon::Open, "AfroBIM document", "OPEN"), Big(Icon::Schedule, "Sign schedule", "SIGNSCHEDULE")] },
-        Panel { title: "Reference", items: &[Big(Icon::Dxf, "DXF underlay", "UNDERLAY"), Big(Icon::Surface, "Image", "IMAGE"), Big(Icon::Map, "Background map", "BASEMAP"), Big(Icon::Map, "Capture map", "MAPCAPTURE"), Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Surface, "Survey points", "SURVEY"), Big(Icon::RefModel, "IFC reference model", "IFCREF"), Big(Icon::RefList, "Reference models", "REFMODELS")] },
+        Panel { title: "Reference", items: &[Big(Icon::Dxf, "DXF underlay", "UNDERLAY"), Big(Icon::Surface, "Image", "IMAGE"), Big(Icon::Map, "GIS overlay", "GISIMPORT"), Big(Icon::Map, "Background map", "BASEMAP"), Big(Icon::Map, "Capture map", "MAPCAPTURE"), Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Surface, "Survey points", "SURVEY"), Big(Icon::RefModel, "IFC reference model", "IFCREF"), Big(Icon::RefList, "Reference models", "REFMODELS")] },
     ];
     const ANNOTATE: &[Panel] = &[
         Panel { title: "Marks", items: &[Big(Icon::Marks, "Element marks", "MARKS")] },

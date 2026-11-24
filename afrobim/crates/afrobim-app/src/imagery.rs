@@ -92,7 +92,7 @@ impl ImageDef {
 /// hold a reference and draw behind the model, and no export, quantity or clash test may
 /// treat them as objects.
 pub fn is_backdrop(category: &str) -> bool {
-    category == CATEGORY || category == crate::underlay::CATEGORY
+    category == CATEGORY || category == crate::underlay::CATEGORY || category == crate::gis_overlay::CATEGORY
 }
 
 pub fn def_of(e: &Element) -> Option<ImageDef> {

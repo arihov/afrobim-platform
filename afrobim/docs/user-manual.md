@@ -17,7 +17,7 @@ Every number in this manual that comes from a standard is quoted with its citati
 7. Default values and design standards
 8. First hour walkthrough: signs and roads
 9. The ribbon tabs, in ribbon order
-10. Command reference (all 258 commands)
+10. Command reference (all 259 commands)
 11. Standards and editions
 12. Known slips in the source documents
 13. What has not been verified
@@ -171,7 +171,7 @@ These come from `crates/afrobim-app/src/main.rs`. An argument that is not an opt
 
 The window has three bands and two columns. From top to bottom: the menu bar, then the ribbon, with the workspace switcher at its left end. Below the ribbon are the left panel (the Tool Sets and the toolspace), the drawing area in the middle, and the right panel (Properties and Layers). The command line and the status bar sit at the bottom.
 
-Every route to a command runs the same entry in one command table, `crates/afrobim-app/src/commands.rs`, which holds 258 commands. The menus, the ribbon, the Tool Sets, the command palette and the command line therefore always do the same thing. Chapter 10 lists all 258.
+Every route to a command runs the same entry in one command table, `crates/afrobim-app/src/commands.rs`, which holds 259 commands. The menus, the ribbon, the Tool Sets, the command palette and the command line therefore always do the same thing. Chapter 10 lists all 259.
 
 ### 3.1 Workspaces
 
@@ -215,10 +215,10 @@ The Signs tab is built from the sign templates of the active design standard, so
 
 The menu bar has ten menus: File, Edit, View, Insert, Civil, Modify, Analyse, Tools, Window and Help. The menus repeat commands from the ribbon. Each item shows its shortcut at its right. An item with no shortcut shows its command name instead, so a menu also teaches the name to type.
 
-- **File.** New, Open, Open recent, Save, Save as. Import: LandXML alignments, LandXML ground surface, survey points (CSV), sign schedule from CSV, DXF underlay, IFC reference model, issues from BCF, programme from MS Project XML, programme from Primavera XER. Export: DXF, Google Earth KML or GeoJSON, IFC 4.3, alignment as LandXML, quantities (BoQ), fabrication sheets, sheet set as PDF and as DXF, calculation report pack, sign schedule (CSV), blank sign schedule template, issues as BCF, clash results (CSV), programme as MS Project XML and as Primavera XER, programme reports (CSV), cost reports (CSV), earned value tables (CSV). Then Project information, Project settings, Coordinate system and Quit.
+- **File.** New, Open, Open recent, Save, Save as. Import: LandXML alignments, LandXML ground surface, survey points (CSV), sign schedule from CSV, DXF underlay, georeferenced image, GIS overlay (GeoJSON, KML, GPX, CSV), IFC reference model, issues from BCF, programme from MS Project XML, programme from Primavera XER. Export: DXF, Google Earth KML or GeoJSON, IFC 4.3, alignment as LandXML, quantities (BoQ), fabrication sheets, sheet set as PDF and as DXF, calculation report pack, sign schedule (CSV), blank sign schedule template, issues as BCF, clash results (CSV), programme as MS Project XML and as Primavera XER, programme reports (CSV), cost reports (CSV), earned value tables (CSV). Then Project information, Project settings, Coordinate system and Quit.
 - **Edit.** Undo, Redo, Copy, Paste, Erase, Select all.
 - **View.** Zoom extents, Zoom window, Zoom to selection, Zoom previous, Zoom in, Zoom out. 2D model space or 3D view. Dark or light model space. Grid, Snap, Ortho and Outlined.
-- **Insert.** Standard signs. The traffic sign templates of the active standard. Road markings (lines along an alignment, stop and give way, arrows, hatching and chevrons, yellow lines, road studs, worded markings, Uganda lane and edge lines). Road elements (side drain, pipe culvert, portal gantry, cantilever gantry). Street lighting, lighting column, safety barrier, pavement, corridor, survey points (CSV), ground surface (LandXML), DXF underlay, georeferenced image, background map on or off, capture the map as an image and IFC reference model.
+- **Insert.** Standard signs. The traffic sign templates of the active standard. Road markings (lines along an alignment, stop and give way, arrows, hatching and chevrons, yellow lines, road studs, worded markings, Uganda lane and edge lines). Road elements (side drain, pipe culvert, portal gantry, cantilever gantry). Street lighting, lighting column, safety barrier, pavement, corridor, survey points (CSV), ground surface (LandXML), DXF underlay, georeferenced image, GIS overlay (GeoJSON, KML, GPX, CSV), background map on or off, capture the map as an image and IFC reference model.
 - **Civil.** Toolspace. Submenus for Points, Surfaces, Profiles, Corridors and sections, Parcels, Pipe networks, Grading, Intersections, Data shortcuts, Point clouds, Survey database and Reprojection. Earthworks and mass haul. Export civil data as LandXML. Demonstration data. Chapter 6 covers each command.
 - **Modify.** Move, Copy, Erase and Arrange. Sign actions: place the sign on an alignment, add supports, design supports, remove supports, hang the sign on a gantry, take it off a gantry. Design an alignment, edit the alignment in plan, profile editor, edit text.
 - **Analyse.** Check the whole model, check the selected element, alignment design checks, pavement design, rational method flow, sign visibility, photometry and corridor cross-sections, with a Coordination submenu.
@@ -325,7 +325,7 @@ The canvas is the model space. It is in millimetres with Y up.
 - **Select**: click an element. Click more to add to the selection; Shift and click removes one; Esc clears the selection.
 - **Window and crossing**: drag on empty space. Left to right takes elements wholly inside; right to left takes elements the box touches.
 - **Move**: drag a selected element or one of its grips, or type `M`. A drag honours object snap (OSNAP, F3) as `MOVE` does: pressed near a snap point, the grab point is that point; dragged near one, the element lands with the grab point on it. The element being dragged does not snap to itself, and the snap marker is drawn.
-- **Open and import by dropping**: drop an `.afrobim`, `.xml` (LandXML), `.dxf` (underlay) or `.ifc` (reference model) file on the window. A question says what will happen, and names unsaved changes if opening would lose them; nothing happens until you confirm. On macOS, double-clicking an `.afrobim` file in Finder starts the app without the file, because the framework does not pass on the open-document event (see `afrobim/docs/installing.md`).
+- **Open and import by dropping**: drop an `.afrobim`, `.xml` (LandXML), `.dxf` (underlay), `.tif`, `.png` or `.jpg` (image), `.geojson`, `.json`, `.kml` or `.gpx` (GIS overlay) or `.ifc` (reference model) file on the window. A CSV is not taken from a drop, because it may be survey points: import one of longitude and latitude with `GISIMPORT`. A question says what will happen, and names unsaved changes if opening would lose them; nothing happens until you confirm. On macOS, double-clicking an `.afrobim` file in Finder starts the app without the file, because the framework does not pass on the open-document event (see `afrobim/docs/installing.md`).
 - **Copy**: type `CO`, give a base point, then a point for each copy, then Enter. Ctrl+C and Ctrl+V also work.
 - **Erase**: Delete, or `E`.
 - **Undo and redo**: Ctrl+Z and Ctrl+Y. Every edit goes through undo, including the 4D, 5D and check inputs.
@@ -488,6 +488,7 @@ It **moves**:
 - every placed element (signs, supports, markings, drains, culverts, gantries, lighting, barriers and pavements), by its origin and site position;
 - the placement of a DXF underlay (its offset and turn; its scale follows the local scale change) and of an IFC reference model (its offset and turn; the model is not scaled and stays tied to its own file);
 - the system recorded on images. An image that carries no coordinate system of its own is read in the project system, so a change of the project system would silently re-read it in the new one and move it. Before the project system changes, a whole-document `TRANSFORM` writes the old project system onto every such image, with the source "project system before a transform". The image is then placed again through the transformation and stays where it was on the ground. A site calibration (`CALIBRATE`) starts from a local grid, which no transformation can compute with, so instead it moves the placement of every such image by the calibration itself (scale, rotation and shift); the image keeps no system of its own and is read in the new project system. An image that already has a system is not changed. A transform of the selection leaves the project system and the images alone;
+- GIS overlays (section 4.10): nothing in them is moved. An overlay keeps its features as read, in WGS 84, and the copy in the project system is made again from them when the project system changes, so a whole-document `TRANSFORM` places the overlays again at once, through the same transformation, and they stay on the ground where the file puts them;
 - annotation (text, dimensions and leaders): its origin moves, and the turn and scale of the transformation are not applied to it, so the drawing is translated only.
 
 It **does not move**:
@@ -572,7 +573,7 @@ The project settings have a **Transform log** tab: every transform with its time
 
 ### 4.10 Georeferenced images and the background map
 
-Two kinds of picture can sit behind the model. Both are read only, and neither is ever written into an export (DXF, IFC, KML or GeoJSON). The IFC export leaves out DXF underlays and images.
+Three kinds of background can sit behind the model: images, the online map and GIS overlays. All are read only, and none is ever written into an export (DXF, IFC, KML or GeoJSON). The IFC export leaves out DXF underlays, images and GIS overlays.
 
 **Images (`IMAGE`).** An orthophoto from a drone survey, a satellite scene or a scanned plan, attached by path. The document keeps the path, a hash of the file, the file's own placement and the display switches; the pixels are read again from the file when the document opens, with a warning if the file is missing or has changed. Drop a `.tif`, `.png` or `.jpg` on the window to attach it too.
 
@@ -620,7 +621,19 @@ The result is a north-up PNG in the project coordinate system, resampled from th
 - An empty document gives "Nothing to export".
 - Opening the files in Google Earth or QGIS is not among the checks recorded for this edition.
 
-**GIS import is planned.** Readers for GeoJSON, KML, GPX and CSV point files (longitude and latitude) exist in the engine (`afrobim-raster`) and have unit tests, but they are not yet available as an import in the application. Importing GIS data as an overlay, shapefile (SHP) import, KMZ import and export, and a DEM to ground surface are planned (chapter 14).
+**Importing GIS files (`GISIMPORT`).** `GISIMPORT` (aliases `IMPORTGIS`, `GEOJSONIN`, `KMLIN` and `GPXIN`; Insert tab, Reference panel, "GIS overlay"; also in the Insert menu and under Import in the File menu) opens the GIS overlays window. Its button "Import a file..." asks for a GeoJSON, KML, GPX or CSV file. A `.geojson`, `.json`, `.kml` or `.gpx` file dropped on the window is offered too, with a question first. A CSV is only read through the command, because a CSV dropped on the window may as well be survey points. It must have longitude and latitude columns in degrees.
+
+- *What is kept.* One overlay element for each file, on the hidden underlay layer, like an image. It holds the path, a hash (FNV-1a, a change detector) and the size of the file, the features as read in WGS 84 (longitude, latitude), the same features moved into the project coordinate system in model millimetres, the names of the layers, a colour and a switch for each layer, and the overlay's own switch and opacity. The features are in the document, so it opens and draws when the file is missing. Feature attributes other than the name are not kept.
+- *Layers.* The layers are the KML folders, the GeoJSON `layer` property (or "GeoJSON"), the GPX kinds ("Waypoints", "Tracks" and "Routes") and "CSV". Each is given a colour in turn, which can be changed in the window.
+- *Into the project.* The positions are moved from WGS 84 into the project system through the same transformation the background map uses, and the window names it and its stated accuracy. Heights are not used. Points are drawn as small crosses, lines as polylines and polygons as outlines with a light fill (holes are left empty), in the colour of the layer. Polygons of more than 3000 vertices are outlined and not filled. The overlay is drawn over the images and DXF underlays and under the model.
+- *Refused.* The import needs a project system with a position on Earth. It is refused, with the reason and nothing added, when the project has no system, is on a local site grid, or has a system known by name only. A file that cannot be read, holds no features, or has projected coordinates in place of degrees is refused with the reader's message.
+- *Features that fail.* A feature with any position the projection cannot compute is left out whole, and the status line and the window give the count. When none can be placed the import is refused.
+- *Change the project system.* The overlay is placed again from its WGS 84 source, so nothing is moved. `TRANSFORM` does the same at once. When the project goes to a local grid or a name-only system the overlay is not drawn and the window says why; the features are kept and come back when a system with a position on Earth is set.
+- *The window.* For each overlay: its file, whether the file is the one that was read (compared with the hash when the window opens), how many features were placed, how they were placed, a switch and an opacity, and for each layer a tick box, a colour and the number of features. **Zoom to it** frames the overlay. **Re-read** reads the file again and brings its changes in, keeping the colour and the switch of each layer still in the file. **Detach** removes the overlay from the document; the file is not touched.
+- *Read only.* An overlay is on the hidden underlay layer and is a backdrop, like an image. It is left out of the IFC, DXF, KML and GeoJSON exports, of the quantities and the bill, of the choice of an object for a leader, and of the tidy-up of the sheet (`ARRANGE`).
+- *Limits.* Files over 64 MB are refused. The file is read on the main thread, so a large file pauses the window for a moment. Not read: shapefile (SHP), KMZ, GeoJSON or KML with a coordinate system other than WGS 84. Only the name of a feature is kept, not its other attributes. Not opened against QGIS or Google Earth in the checks recorded here.
+
+Shapefile (SHP) import, KMZ import and export, and a DEM to ground surface are planned (chapter 14).
 
 ## 5. A first hour with the civil tools
 
@@ -1448,7 +1461,7 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 
 ### 9.3 Insert
 
-**Purpose.** Standard signs, imports of alignments, ground surfaces, a sign schedule, DXF underlays, georeferenced images and the online background map (with its capture to an image and its export to Google Earth), and IFC reference models.
+**Purpose.** Standard signs, imports of alignments, ground surfaces, a sign schedule, DXF underlays, georeferenced images, GIS overlays (GeoJSON, KML, GPX and CSV files) and the online background map (with its capture to an image and its export to Google Earth), and IFC reference models.
 
 | Command | Aliases | Asks for | Produces |
 |---|---|---|---|
@@ -1458,6 +1471,7 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 | `SIGNSCHEDULE` | `SIGNSCHED` | A CSV file (comma, semicolon or tab; quoted; with or without a byte order mark). The column mapping, with a dropdown per file column and a unit for lengths; save or load the mapping as JSON; then the import plan | Sign elements from the rows. Each row that cannot be read gives its reason and line number. Duplicate marks are skipped or updated. Apply is one undo step and ends in a report. |
 | `UNDERLAY` | `XREF`, `XATTACH`, `DXFUNDERLAY` | One or more DXF files, or DWG files when ODA File Converter is installed; the file units and millimetres per unit (can be overridden); insertion offset (mm), rotation (degrees) and scale; visibility and fade; per-layer switches; optionally draped flat at a level in the 3D view | A read-only underlay element, stored by path and an FNV-1a hash. |
 | `IMAGE` | `IMAGEATTACH`, `ATTACHIMAGE`, `GEOIMAGE`, `ORTHOPHOTO` | One or more images: GeoTIFF, or PNG and JPEG with a world file; the image's coordinate system (from the GeoTIFF or a `.prj`, or typed as an EPSG code); visibility, opacity, detail and the black collar switch; the draw order (Send back, Bring forward); a placement by hand for an image that carries none. The window also holds the background map settings and the map capture | A read-only image underlay element, stored by path, an FNV-1a hash and the file's own placement. See section 4.10. |
+| `GISIMPORT` | `IMPORTGIS`, `GEOJSONIN`, `KMLIN`, `GPXIN` | A project system with a position on Earth. A GeoJSON, KML, GPX or CSV (longitude, latitude) file, chosen from the "Import a file..." button of the window. In the window, for each overlay and each of its layers: visibility, colour and opacity; Zoom to it, Re-read, Detach | A read-only GIS overlay element, stored by path, an FNV-1a hash, the features as read in WGS 84 and the same features in the project system. The status line counts the features placed and those that could not be. See section 4.10. |
 | `BASEMAP` | `SATELLITE`, `BACKGROUNDMAP`, `MAPBACKGROUND` | Nothing: switches the background map on or off. The Satellite, Street and Terrain quick switch, the provider and the opacity are in the `IMAGE` window | The setting is kept in the project settings. See section 4.10. |
 | `MAPCAPTURE` | `CAPTUREMAP`, `MAPTOIMAGE` | The map on, and a project system with an EPSG code. The resolution (0.25, 0.5, 1, 2, 5 or 10 m per pixel, chosen in the `IMAGE` window) and a file name for the PNG | A PNG of the map of the current view in the project system, with `.pgw`, `.prj` and `.attribution.txt` files beside it, attached as an image underlay. At most 400 tiles and 8000 pixels on the longest side. See section 4.10. |
 | `MAPEXPORT` | `KMLOUT`, `GEOJSONOUT`, `GOOGLEEARTH`, `EXPORTKML` | A file name ending `.kml`, `.geojson` or `.json`. The selection is exported when there is one, otherwise everything | A KML file (one folder for each layer) or a GeoJSON file, in WGS 84, moved from the project system. Arcs are cut into chords within 20 mm; lettering is not exported. Refused for a local grid or a system known by name only. See section 4.10. |
@@ -1476,6 +1490,7 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 - *DXF underlays:* Read as DXF R12 to current, ASCII. Line types, line weights, hatch patterns, fonts and styles are not read. Drawn in one muted ink at the chosen fade, not in the file's colours. At most 250 000 segments are drawn a frame; the 3D draping uses the first 40 000. The sheet layout and site coordinates are different systems, so an underlay in survey coordinates appears far from the signs (see Troubleshooting).
 - *Map capture (`MAPCAPTURE`):* needs the map on and a project system with an EPSG code. At most 400 tiles and 8000 pixels on the longest side. Tiles that cannot be fetched stay transparent. The imagery remains under the provider's terms and the attribution note must stay with it. Not survey data.
 - *Export to Google Earth and GIS (`MAPEXPORT`):* geometry only, at height zero, in WGS 84. No lettering, annotation, images or underlays. Arcs are chords within 20 mm. Only as accurate as the project system and the datum transformation. Not opened in Google Earth or QGIS.
+- *GIS overlays (`GISIMPORT`):* GeoJSON, KML, GPX and CSV (longitude, latitude) only, in WGS 84; shapefile and KMZ are not read. Files over 64 MB are refused, and the file is read and hashed on the main thread. Only the name of a feature is kept. The features are held twice in the document (as read, and in the project system), so a large overlay makes the document and every undo step larger. Polygons of more than 3000 vertices are outlined and not filled. A feature with a position the projection cannot compute is left out and counted. Not drawn in the 3D site view. Not looked at in a window against QGIS or Google Earth in the checks recorded here.
 - *Georeferenced images:* 8 and 16-bit Gray, RGB and RGBA. Palette, YCbCr (JPEG-compressed) and band-separate TIFFs are refused with the `gdal_translate` line that converts them; floating-point rasters (elevation models) are refused as not imagery. Shown at most at the detail chosen (2048, 4096 or 8192 pixels on the longest side), so a large orthophoto is decimated, not shown at full resolution. GeoTIFF user-defined coordinate systems are not read: choose the system by hand. Not drawn in the 3D site view. Tried on the ACP orthophotos (PNG, `.pgw`, ESRI `.prj` in Arc 1960 / UTM 36S) on macOS.
 - *IFC reference models:* read-only, for reference. Openings are not subtracted. Colours, materials, layers and type objects are not read. Files of 4 GiB or more are refused. Not opened in a commercial BIM tool.
 
@@ -1966,11 +1981,11 @@ How the reader treats the file:
 
 The Civil tab, and the toolspace that goes with it, are described in section 6 (civil objects) and section 3.4 (the toolspace).
 
-## 10. Command reference (all 258 commands)
+## 10. Command reference (all 259 commands)
 
-This is every command in `crates/afrobim-app/src/commands.rs`: **258 commands**, one `CommandInfo` entry each, and the same count as the registry. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
+This is every command in `crates/afrobim-app/src/commands.rs`: **259 commands**, one `CommandInfo` entry each, and the same count as the registry. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
 
-The counts by group are: Home 22, Edit 3, Insert 10, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 77, Design 10, Structures 4, Coordination 8, 4D 19, 5D 8, Construction 7, Output 14, Manage 11, View 6, Help 3. Those add to 258, the registry count. The palette and the command line reach every command. The groups follow the ribbon tabs, which serve the workflow stages in chapter 1.
+The counts by group are: Home 22, Edit 3, Insert 11, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 77, Design 10, Structures 4, Coordination 8, 4D 19, 5D 8, Construction 7, Output 14, Manage 11, View 6, Help 3. Those add to 259, the registry count. The palette and the command line reach every command. The groups follow the ribbon tabs, which serve the workflow stages in chapter 1.
 
 ### Home: 22 commands
 
@@ -2007,11 +2022,12 @@ The counts by group are: Home 22, Edit 3, Insert 10, Annotate 27, Modify 1, Sign
 | `PASTECLIP` | `PASTE` | - | Paste the clipboard into the model space |
 | `SELECTALL` | `ALL` | - | Select every element |
 
-### Insert: 10 commands
+### Insert: 11 commands
 
 | Command | Aliases | Also on | Help text |
 |---|---|---|---|
 | `BASEMAP` | `SATELLITE`, `BACKGROUNDMAP`, `MAPBACKGROUND` | - | Show or hide the online background map (satellite imagery or a street map) behind the model; needs the project coordinate system |
+| `GISIMPORT` | `IMPORTGIS`, `GEOJSONIN`, `KMLIN`, `GPXIN` | - | Import GeoJSON, KML, GPX or CSV (longitude, latitude) files as read-only overlays in the project coordinate system, with a colour, switch and opacity for each layer |
 | `IFCREF` | `REFERENCEMODEL`, `IMPORTIFC` | Coordination | Import IFC files as read-only reference models, stored by path and hash, shown in the 3D site view and usable in clash tests |
 | `IMAGE` | `IMAGEATTACH`, `ATTACHIMAGE`, `GEOIMAGE`, `ORTHOPHOTO` | - | Attach georeferenced images behind the model (GeoTIFF, or PNG and JPEG with a world file), and set up the online background map |
 | `LANDXML` | `ALIGNMENT` | Roads, Civil, Design | Import horizontal alignments from a LandXML file |
@@ -2022,7 +2038,7 @@ The counts by group are: Home 22, Edit 3, Insert 10, Annotate 27, Modify 1, Sign
 | `SURVEY` | `SURVEYPOINTS`, `POINTFILE`, `TOPO` | Roads | Make a ground surface from a file of survey points (CSV or text): column order, coordinate system, longest triangle side, descriptions to leave out |
 | `UNDERLAY` | `XREF`, `XATTACH`, `DXFUNDERLAY` | - | Attach DXF drawings (or DWG, through ODA File Converter) as read-only background references, by path and hash |
 
-`MAPCAPTURE` is on the Insert tab (Reference panel, "Capture map"); `MAPEXPORT` is in the Output group, on the Export panel ("Google Earth / GeoJSON"). Both are also reached by name or alias on the command line, from the command palette (Ctrl+K), in the Insert menu (`MAPCAPTURE`, as Capture the map as an image) and in the File menu under Export (`MAPEXPORT`, as Google Earth KML or GeoJSON). `MAPCAPTURE` is also a button in the `IMAGE` window.
+`GISIMPORT` is on the Insert tab (Reference panel, "GIS overlay"), in the Insert menu and in the File menu under Import. `MAPCAPTURE` is on the Insert tab (Reference panel, "Capture map"); `MAPEXPORT` is in the Output group, on the Export panel ("Google Earth / GeoJSON"). Both are also reached by name or alias on the command line, from the command palette (Ctrl+K), in the Insert menu (`MAPCAPTURE`, as Capture the map as an image) and in the File menu under Export (`MAPEXPORT`, as Google Earth KML or GeoJSON). `MAPCAPTURE` is also a button in the `IMAGE` window.
 
 ### Annotate: 27 commands
 
@@ -2520,13 +2536,12 @@ Stated plainly, so nothing here is read as more than it is.
 
 ## 14. Planned, not built
 
-**Built in round 6 (moved out of the plan).** Pipe networks (section 6.8), grading objects (section 6.9), intersections and roundabout design (section 6.10), the survey database with field-data import, observation editing, traverse analysis and 2D and levelling network adjustment (section 6.11), point clouds (section 6.12), data shortcuts (section 6.13), reprojection between coordinate systems with `TRANSFORM` and `CALIBRATE` (section 4.8), and the defaults basis of DMRB values (chapter 7).
+**Built in round 6 (moved out of the plan).** Pipe networks (section 6.8), grading objects (section 6.9), intersections and roundabout design (section 6.10), the survey database with field-data import, observation editing, traverse analysis and 2D and levelling network adjustment (section 6.11), point clouds (section 6.12), data shortcuts (section 6.13), reprojection between coordinate systems with `TRANSFORM` and `CALIBRATE` (section 4.8), and the defaults basis of DMRB values (chapter 7). **Built from the map plan:** GIS import of GeoJSON, KML, GPX and CSV files as read-only overlays in the project system (`GISIMPORT`, section 4.10).
 
 **On the ribbon.** One tool is shown as a disabled "Planned" button: **Make an imported alignment editable**, on the Design tab, Exchange panel. The alignment engine holds an imported alignment as elements (lines, arcs and spirals), not as PIs with radii, and no conversion gives back a faithful PI design. The card says so.
 
 **Not built, from the map plan (2026-11-24, section 4.1 of the audit and feature plan).**
 
-- GIS import with reprojection (GeoJSON, KML, GPX and CSV with longitude and latitude). The readers are in the engine with tests; the import in the application, as a read-only overlay in the project system, is not built.
 - Shapefile (SHP) import, with DBF attributes and the `.prj`.
 - KMZ import and export, including KMZ ground overlays as images.
 - A DEM (SRTM or Copernicus GLO-30) to a ground surface and contours, with the vertical datum stated.
@@ -2734,7 +2749,7 @@ The "Unmatched lines" list gives the reason for each line. The reasons, and what
 
 The round 4 polish corrected the READMEs that disagreed with the code, and the round 6 revision of this manual corrected the manual where it disagreed with the code. What remains below is still true of the code as built. Where the manual and a README disagree again, the manual follows the code.
 
-- **Command table.** `crates/afrobim-app/src/commands.rs` holds **258 commands**, one `CommandInfo` entry each. Chapter 10 lists all 258, grouped by the ribbon tab that holds each command first, and states the count per group. Every command is on a ribbon tab, or is a sign template that the Signs tab shows. The earlier editions of this manual said 222 (and 169 before the civil commands); both were wrong. The registry enforces unique names and aliases in a unit test (`names_and_aliases_resolve_and_are_unique`). The tables in chapter 10 were generated from the registry and the ribbon, and should be regenerated when either changes.
+- **Command table.** `crates/afrobim-app/src/commands.rs` holds **259 commands**, one `CommandInfo` entry each. Chapter 10 lists all 259, grouped by the ribbon tab that holds each command first, and states the count per group. Every command is on a ribbon tab, or is a sign template that the Signs tab shows. The earlier editions of this manual said 222 (and 169 before the civil commands); both were wrong. The registry enforces unique names and aliases in a unit test (`names_and_aliases_resolve_and_are_unique`). The tables in chapter 10 were generated from the registry and the ribbon, and should be regenerated when either changes.
 - **Ribbon and menus.** The ribbon has eighteen tabs and the menu bar ten menus: File, Edit, View, Insert, Civil, Modify, Analyse, Tools, Window and Help. The menus are not a separate command set. Every item runs a command from the command table. The Signs tab is built from the sign templates of the active standard. The Civil menu has submenus for Points, Surfaces, Profiles, Corridors and sections, Parcels, Pipe networks, Grading, Intersections, Data shortcuts, Point clouds, Survey database and Reprojection.
 - **Workspaces.** There are twelve workspaces in `WORKSPACES` in `workspace.rs`. A new workspace is one more entry there, and it is listed in the switcher automatically. The toolspace has three tabs (Prospector, Survey and Settings), and a workspace chooses which one it opens on.
 - **Command-line flags.** `main.rs` parses the options of chapter 2. The manual lists every option the parser reads.
