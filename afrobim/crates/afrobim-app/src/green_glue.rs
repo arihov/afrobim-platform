@@ -307,6 +307,72 @@ fn use_text(u: &Use) -> String {
     }
 }
 
+/// The result of an assessment: the total and what it covers, the notes, the materials, the
+/// lighting block and the unmatched lines.
+fn result_ui(ui: &mut egui::Ui, a: &Assessment) {
+    let total = a.counted + a.excluded + a.unmatched + a.energy_lines;
+    match a.embodied_kgco2e {
+        Some(kg) => {
+            ui.label(egui::RichText::new(format!("Embodied carbon {} CO2e", t_co2e(kg))).size(18.0).strong());
+            crate::ui_kit::note(ui, format!("{EMBODIED_BASIS}."));
+            if let Some(t) = a.transport_kgco2e {
+                crate::ui_kit::note(ui, format!("of which transport {} CO2e", t_co2e(t)));
+            }
+            crate::ui_kit::note(
+                ui,
+                format!(
+                    "Of {} counted lines, {} include A4 and {} do not; {} include a waste allowance and {} do not.",
+                    a.counted, a.counted_with_a4, a.counted_without_a4, a.counted_with_waste, a.counted_without_waste
+                ),
+            );
+        }
+        None => {
+            ui.label(egui::RichText::new("No total: nothing could be counted").strong());
+        }
+    }
+    crate::ui_kit::note(ui, format!("{} of {total} quantity lines counted, {} excluded on purpose, {} unmatched, {} lighting. Factor file: {}.", a.counted, a.excluded, a.unmatched, a.energy_lines, if a.factor_set.is_empty() { "none" } else { &a.factor_set }));
+    for n in &a.notes {
+        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, n.clone());
+    }
+    if !a.by_material.is_empty() {
+        let rows: Vec<Vec<String>> = a.by_material.iter().map(|m| vec![m.material.clone(), rounded_text(m.tonnes, 1), rounded_text(m.waste_t, 1), t_co2e(m.kgco2e)]).collect();
+        crate::ui_kit::results_table(ui, "green-materials", &["Material", "Tonnes", "Waste t", "CO2e"], &[crate::ui_kit::Col::Text, crate::ui_kit::Col::Num, crate::ui_kit::Col::Num, crate::ui_kit::Col::Num], &rows);
+    }
+    let l = &a.lighting;
+    if a.energy_lines > 0 {
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new("Street lighting (operational, kept apart from embodied carbon)").strong());
+        let mut s = format!("{} luminaires", grouped(l.luminaires, 0));
+        match l.installed_kw {
+            Some(kw) => s += &format!(", {} kW installed", rounded_text(kw, 2)),
+            None => s += ", installed power not calculated",
+        }
+        if let Some(k) = l.kwh_per_year {
+            s += &format!(", {} kWh per year", kwh_text(k));
+        }
+        if let Some(c) = l.kgco2e_per_year {
+            s += &format!(", {} CO2e per year", t_co2e(c));
+        }
+        if let Some(c) = l.life_kgco2e {
+            s += &format!(", {} CO2e over the design life", t_co2e(c));
+        }
+        ui.label(s);
+        if !l.missing.is_empty() {
+            crate::ui_kit::note(ui, format!("Not worked out: {} not entered.", l.missing.join(", ")));
+        }
+    }
+    let unmatched: Vec<&afrobim_green::Row> = a.rows.iter().filter(|r| matches!(r.outcome, Outcome::Unmatched(_))).collect();
+    if !unmatched.is_empty() {
+        egui::CollapsingHeader::new(format!("Unmatched lines ({})", unmatched.len())).id_salt("green-unmatched").show(ui, |ui| {
+            for r in unmatched.iter().take(200) {
+                if let Outcome::Unmatched(why) = &r.outcome {
+                    ui.label(egui::RichText::new(format!("{}  {}: {why}", r.mark, r.description)).small());
+                }
+            }
+        });
+    }
+}
+
 impl crate::app::AfroBimApp {
     /// Runs the assessment on the current model and keeps it for the window.
     pub(crate) fn green_assess(&mut self) {
@@ -483,67 +549,7 @@ impl crate::app::AfroBimApp {
                     run = true;
                 }
                 if let Some(a) = &last {
-                    let total = a.counted + a.excluded + a.unmatched + a.energy_lines;
-                    match a.embodied_kgco2e {
-                        Some(kg) => {
-                            ui.label(egui::RichText::new(format!("Embodied carbon {} CO2e", t_co2e(kg))).size(18.0).strong());
-                            crate::ui_kit::note(ui, format!("{EMBODIED_BASIS}."));
-                            if let Some(t) = a.transport_kgco2e {
-                                crate::ui_kit::note(ui, format!("of which transport {} CO2e", t_co2e(t)));
-                            }
-                            crate::ui_kit::note(
-                                ui,
-                                format!(
-                                    "Of {} counted lines, {} include A4 and {} do not; {} include a waste allowance and {} do not.",
-                                    a.counted, a.counted_with_a4, a.counted_without_a4, a.counted_with_waste, a.counted_without_waste
-                                ),
-                            );
-                        }
-                        None => {
-                            ui.label(egui::RichText::new("No total: nothing could be counted").strong());
-                        }
-                    }
-                    crate::ui_kit::note(ui, format!("{} of {total} quantity lines counted, {} excluded on purpose, {} unmatched, {} lighting. Factor file: {}.", a.counted, a.excluded, a.unmatched, a.energy_lines, if a.factor_set.is_empty() { "none" } else { &a.factor_set }));
-                    for n in &a.notes {
-                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, n.clone());
-                    }
-                    if !a.by_material.is_empty() {
-                        let rows: Vec<Vec<String>> = a.by_material.iter().map(|m| vec![m.material.clone(), rounded_text(m.tonnes, 1), rounded_text(m.waste_t, 1), t_co2e(m.kgco2e)]).collect();
-                        crate::ui_kit::results_table(ui, "green-materials", &["Material", "Tonnes", "Waste t", "CO2e"], &[crate::ui_kit::Col::Text, crate::ui_kit::Col::Num, crate::ui_kit::Col::Num, crate::ui_kit::Col::Num], &rows);
-                    }
-                    let l = &a.lighting;
-                    if a.energy_lines > 0 {
-                        ui.add_space(4.0);
-                        ui.label(egui::RichText::new("Street lighting (operational, kept apart from embodied carbon)").strong());
-                        let mut s = format!("{} luminaires", grouped(l.luminaires, 0));
-                        match l.installed_kw {
-                            Some(kw) => s += &format!(", {} kW installed", rounded_text(kw, 2)),
-                            None => s += ", installed power not calculated",
-                        }
-                        if let Some(k) = l.kwh_per_year {
-                            s += &format!(", {} kWh per year", kwh_text(k));
-                        }
-                        if let Some(c) = l.kgco2e_per_year {
-                            s += &format!(", {} CO2e per year", t_co2e(c));
-                        }
-                        if let Some(c) = l.life_kgco2e {
-                            s += &format!(", {} CO2e over the design life", t_co2e(c));
-                        }
-                        ui.label(s);
-                        if !l.missing.is_empty() {
-                            crate::ui_kit::note(ui, format!("Not worked out: {} not entered.", l.missing.join(", ")));
-                        }
-                    }
-                    let unmatched: Vec<&afrobim_green::Row> = a.rows.iter().filter(|r| matches!(r.outcome, Outcome::Unmatched(_))).collect();
-                    if !unmatched.is_empty() {
-                        egui::CollapsingHeader::new(format!("Unmatched lines ({})", unmatched.len())).id_salt("green-unmatched").show(ui, |ui| {
-                            for r in unmatched.iter().take(200) {
-                                if let Outcome::Unmatched(why) = &r.outcome {
-                                    ui.label(egui::RichText::new(format!("{}  {}: {why}", r.mark, r.description)).small());
-                                }
-                            }
-                        });
-                    }
+                    result_ui(ui, a);
                     // Options.
                     ui.add_space(6.0);
                     ui.horizontal(|ui| {
@@ -898,6 +904,65 @@ mod tests {
         let notes = skipped_notes(&set);
         assert!(notes[0].starts_with("2 source(s)") && notes[0].contains("P1 (supports): no section"), "{notes:?}");
         assert!(skipped_notes(&afrobim_cost::QuantitySet::new()).is_empty());
+    }
+
+    fn shape_text(shape: &egui::Shape, out: &mut String) {
+        match shape {
+            egui::Shape::Text(t) => {
+                out.push_str(t.galley.text());
+                out.push('\n');
+            }
+            egui::Shape::Vec(v) => v.iter().for_each(|s| shape_text(s, out)),
+            _ => {}
+        }
+    }
+
+    /// All the text the application draws in its last of `frames` frames.
+    fn rendered(ctx: &egui::Context, app: &mut crate::app::AfroBimApp, frames: u32) -> String {
+        let mut f = eframe::Frame::_new_kittest();
+        let mut text = String::new();
+        for _ in 0..frames {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 1400.0))), ..Default::default() };
+            let out = ctx.run(input, |ctx| eframe::App::update(app, ctx, &mut f));
+            text.clear();
+            out.shapes.iter().for_each(|s| shape_text(&s.shape, &mut text));
+        }
+        text
+    }
+
+    #[test]
+    fn green_the_result_shows_the_basis_of_the_total_and_the_notes() {
+        let (ctx, mut app) = crate::u4_dialogs_test::app_for("dark", true);
+        crate::u4_dialogs_test::frame(&ctx, &mut app, 2);
+        app.doc = crate::sheets_glue::test_support::demo_doc();
+        with_factors(&mut app);
+        app.green_assess();
+        let a = app.green.last.clone().unwrap();
+        let mut text = String::new();
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 4000.0))), ..Default::default() };
+        let out = ctx.run(input, |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| result_ui(ui, &a));
+        });
+        out.shapes.iter().for_each(|s| shape_text(&s.shape, &mut text));
+        assert!(text.contains("Embodied carbon"), "{text}");
+        assert!(text.contains(EMBODIED_BASIS), "the basis of the total is shown: {text}");
+        assert!(text.contains("include A4"), "the coverage of A4 is shown: {text}");
+        for n in &a.notes {
+            assert!(text.contains(n.as_str()), "the note is shown under the result: {n}");
+        }
+        assert!(text.contains("Counted rules with no haul_km"), "{text}");
+    }
+
+    #[test]
+    fn green_the_window_shows_why_a_record_cannot_be_read_and_offers_the_reset() {
+        let (ctx, mut app) = crate::u4_dialogs_test::app_for("dark", true);
+        afrobim_kernel::set_project_setting(&mut app.doc, SETTINGS_KEY, serde_json::json!({"factors": 5}));
+        app.green.window_open = true;
+        let text = rendered(&ctx, &mut app, 3);
+        assert!(text.contains("cannot be read"), "{text}");
+        assert!(text.contains("Reset Green BIM settings"), "{text}");
+        assert!(!text.contains("Assess the model"), "no work is offered from defaults");
+        assert!(load(&app.doc).is_err(), "the window did not overwrite it");
     }
 
     #[test]

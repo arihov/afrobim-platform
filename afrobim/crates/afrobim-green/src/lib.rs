@@ -19,8 +19,8 @@
 //!
 //! For a line of quantity `q` in unit `u`, the first rule with the line's exact category and unit
 //! (`no` reads as `nr`) is used; a category can have a rule per unit. A category that has rules
-//! but none in `u` is looked at only to give the reason (an excluded category stays excluded; a
-//! counting one is unmatched, with the units it expects). A quantity that is not a number or is
+//! but none in `u` is looked at only to give the reason: the line is unmatched, naming the units
+//! the category's rules expect. A quantity that is not a number or is
 //! negative is unmatched; a quantity of 0 is excluded ("quantity is 0: not modelled"), so
 //! nothing counted at zero can make a zero total. Then:
 //!

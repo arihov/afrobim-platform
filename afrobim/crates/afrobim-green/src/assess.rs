@@ -206,31 +206,22 @@ fn evaluate(line: &LineIn, rule: &Rule, key: &str, set: Option<&FactorSet>) -> R
 }
 
 /// The rule for a line: the first with its category and unit. Failing that, the line's category
-/// is looked at only to give a reason, never to count.
-enum Found<'a> {
-    Rule(&'a Rule),
-    Excluded(String),
-    Unmatched(String),
-}
-
-fn find_rule<'a>(rules: &'a [Rule], line: &LineIn) -> Found<'a> {
+/// is looked at only to give the unit-mismatch reason, never to count or to exclude.
+fn find_rule<'a>(rules: &'a [Rule], line: &LineIn) -> Result<&'a Rule, String> {
     if let Some(r) = rules.iter().find(|r| r.category == line.category && unit_eq(&r.unit, &line.unit)) {
-        return Found::Rule(r);
+        return Ok(r);
     }
-    let same_category: Vec<&Rule> = rules.iter().filter(|r| r.category == line.category).collect();
-    match same_category.first() {
-        None => Found::Unmatched(format!("no rule for {}", line.category)),
-        Some(Rule { use_: Use::Excluded { reason }, .. }) => Found::Excluded(reason.clone()),
-        Some(_) => {
-            let mut units: Vec<String> = Vec::new();
-            for r in same_category.iter().filter(|r| !matches!(r.use_, Use::Excluded { .. })) {
-                let u = r.unit.trim().to_string();
-                if !units.contains(&u) {
-                    units.push(u);
-                }
-            }
-            Found::Unmatched(format!("the rule for {} expects {}, the line is in {}", line.category, units.join(" or "), line.unit.trim()))
+    let mut units: Vec<String> = Vec::new();
+    for r in rules.iter().filter(|r| r.category == line.category) {
+        let u = r.unit.trim().to_string();
+        if !units.contains(&u) {
+            units.push(u);
         }
+    }
+    if units.is_empty() {
+        Err(format!("no rule for {}", line.category))
+    } else {
+        Err(format!("the rule for {} expects {}, the line is in {}", line.category, units.join(" or "), line.unit.trim()))
     }
 }
 
@@ -268,9 +259,8 @@ pub fn assess(lines: &[LineIn], factors: Option<&FactorSet>, settings: &Settings
         };
         let mut meta = Meta::default();
         row.outcome = match find_rule(&settings.rules, line) {
-            Found::Excluded(reason) => Outcome::Excluded(reason),
-            Found::Unmatched(why) => Outcome::Unmatched(why),
-            Found::Rule(rule) => match &rule.use_ {
+            Err(why) => Outcome::Unmatched(why),
+            Ok(rule) => match &rule.use_ {
                 Use::Excluded { reason } => Outcome::Excluded(reason.clone()),
                 _ if !line.quantity.is_finite() => Outcome::Unmatched("the quantity is not a finite number".to_string()),
                 _ if line.quantity < 0.0 => Outcome::Unmatched("negative quantity".to_string()),
@@ -757,8 +747,8 @@ mod tests {
         assert_eq!(a.rows[0].outcome, Outcome::Counted);
         assert_eq!(a.rows[0].total_kg, 4.0 * 0.5 * 10.0);
         assert_eq!(a.rows[1].outcome, Outcome::Excluded("volume is not used".into()));
-        // a unit no rule has: the first rule of the category only gives the reason
-        assert_eq!(a.rows[2].outcome, Outcome::Excluded("volume is not used".into()));
+        // a unit no rule has: the category is looked at only for the message, never to exclude
+        assert_eq!(a.rows[2].outcome, Outcome::Unmatched("the rule for c expects m3 or m2, the line is in kg".into()));
         // with two counting rules, the message names both units
         let rules = vec![rule_for("c", "m3", Use::Material { key: "m".into() }), rule_for("c", "m2", Use::Material { key: "m".into() })];
         let a = assess(&[line(0, "c", 1.0, "kg")], Some(&set), &settings_with(rules));

@@ -32,7 +32,7 @@ For a line of quantity `q` and unit `u`:
 
 | Step | Formula |
 |---|---|
-| rule and unit | the rule is the first with the line's category and unit (case and spaces ignored; `no` reads as `nr`). A category with rules but none in the line's unit is unmatched (an excluded category stays excluded) |
+| rule and unit | the rule is the first with the line's category and unit (case and spaces ignored; `no` reads as `nr`). A category with rules but none in the line's unit is unmatched, naming the units its rules expect |
 | quantity | not finite or negative: unmatched; 0: excluded ("quantity is 0: not modelled") |
 | tonnes | `t`: `q`; `kg`: `q / 1000`; `m3`: `q * t_per_m3`; `m2`: `q * t_per_m2`; `m`: `q * t_per_m`; `nr`: `q * t_per_nr` |
 | waste | `waste_t = tonnes * waste_pct / 100` when the rule has `waste_pct`, else 0 |
