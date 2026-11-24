@@ -475,6 +475,7 @@ impl AfroBimApp {
                         }
                     });
                     a(ui, &mut pick, Action::Appearance, "Appearance…");
+                    a(ui, &mut pick, Action::Autosave, "Autosave…");
                     a(ui, &mut pick, Action::ToggleTheme, "Dark / light");
                     sep(ui);
                     a(ui, &mut pick, Action::Palette, "Command palette…");

@@ -163,6 +163,8 @@ pub struct AfroBimApp {
     pub(crate) show_labels: bool,
 
     path: Option<PathBuf>,
+    /// Autosave, the copy for the panic hook and the offer to recover (see `recovery`).
+    pub(crate) recovery: crate::recovery::RecoveryState,
     pub(crate) drops: crate::dropped::DropUi,
     pub(crate) status: String,
     pub(crate) fitted: bool,
@@ -174,7 +176,7 @@ pub struct AfroBimApp {
     pub(crate) camera_history: Vec<crate::view3d::Camera>,
     pub(crate) fitted_3d: bool,
     canvas_drag: bool,
-    quit: bool,
+    pub(crate) quit: bool,
 
     pub(crate) options: Options,
     frames: u32,
@@ -298,6 +300,7 @@ impl AfroBimApp {
             rep: Representation::Real,
             show_labels: true,
             path: None,
+            recovery: Default::default(),
             drops: Default::default(),
             status: "Ready.".into(),
             fitted: false,
@@ -651,6 +654,10 @@ impl AfroBimApp {
             app.survey_open(path);
         }
         app.frames_setup();
+        // A fresh session with no document named: a recovery file from a run that stopped is offered.
+        if app.path.is_none() && app.doc.elements().is_empty() {
+            app.recovery_look();
+        }
         if let Some(path) = app.options.export_ifc.clone() {
             app.export_ifc(path);
             eprintln!("AfroBIM: {}", app.status);
@@ -803,6 +810,7 @@ impl AfroBimApp {
         }
         self.sync_generated();
         self.history.commit(self.doc.snapshot());
+        self.recovery.note_edit();
     }
 
     pub(crate) fn undo(&mut self) {
@@ -873,36 +881,48 @@ impl AfroBimApp {
         self.commit_due = Some(0.0);
     }
 
+    /// Makes `doc` the open document: the caches and records are read afresh, the standard it was
+    /// written for is selected, and the undo history starts from it. The caller sets the path and
+    /// what counts as saved.
+    pub(crate) fn install_document(&mut self, doc: Document) {
+        self.doc = doc;
+        self.cache.clear();
+        self.reset_records();
+        let wanted = self.doc.standard.clone();
+        if !wanted.is_empty() && wanted != self.standard && signs_glue::STANDARDS.iter().any(|(id, _, _)| *id == wanted) {
+            self.set_standard(&wanted);
+        }
+        self.sync_generated();
+        self.history.reset(self.doc.snapshot());
+        self.fitted = false;
+    }
+
     pub(crate) fn open_path(&mut self, path: PathBuf) {
         match Document::load(&path) {
             Ok(doc) => {
-                self.doc = doc;
-                self.cache.clear();
-                self.reset_records();
-                let wanted = self.doc.standard.clone();
-                if !wanted.is_empty() && wanted != self.standard && signs_glue::STANDARDS.iter().any(|(id, _, _)| *id == wanted) {
-                    self.set_standard(&wanted);
-                }
-                self.sync_generated();
-                self.history.reset(self.doc.snapshot());
+                self.install_document(doc);
                 self.drops.saved = Some(crate::background::fingerprint(&self.doc));
                 self.status = format!("Opened {} ({} elements).", path.display(), self.doc.elements().len());
                 self.remember_recent(&path);
                 self.path = Some(path);
-                self.fitted = false;
+                self.recovery.last_written = None;
+                // A recovery file left by a run that stopped before this document was saved.
+                self.recovery_look();
             }
             Err(e) => self.status = format!("Could not open {}: {e}", path.display()),
         }
     }
 
-    fn save_to(&mut self, path: PathBuf) {
+    pub(crate) fn save_to(&mut self, path: PathBuf) {
         self.flush_commit();
         match self.doc.save(&path) {
             Ok(()) => {
                 self.status = format!("Saved {}.", path.display());
                 self.drops.saved = Some(crate::background::fingerprint(&self.doc));
                 self.remember_recent(&path);
-                self.path = Some(path);
+                let before = self.path.replace(path);
+                // The saved file holds the work: the recovery copies of the old and the new name go.
+                self.recovery_saved(before);
             }
             Err(e) => self.status = format!("Could not save {}: {e}", path.display()),
         }
@@ -1603,6 +1623,7 @@ impl AfroBimApp {
             Action::SignScheduleOut => self.signsched_out(),
             Action::SignScheduleTemplate => self.signsched_template(),
             Action::Appearance => self.appearance_open = true,
+            Action::Autosave => self.recovery.settings_open = true,
             Action::Palette => self.palette_open = true,
             Action::Help => self.show_help = true,
             Action::About => self.show_about = true,
@@ -2414,6 +2435,7 @@ impl AfroBimApp {
         self.civil_windows(ctx);
         self.landxml_window(ctx);
         self.appearance_window(ctx);
+        self.autosave_window(ctx);
         self.palette_window(ctx);
         self.issues_windows(ctx);
         self.visibility_windows(ctx);
@@ -3158,6 +3180,11 @@ impl eframe::App for AfroBimApp {
         }
     }
 
+    /// A clean exit: the recovery file of the open document is not needed any more.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.recovery_exit();
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let started = std::time::Instant::now();
         self.update_inner(ctx);
@@ -3222,6 +3249,7 @@ impl AfroBimApp {
         self.civil_sync();
         lap.mark("sync");
         self.drop_tick(ctx);
+        self.recovery_tick(ctx);
         self.sched_tick(ctx);
         self.under.sync(&mut self.doc, self.view.scale);
         if std::mem::take(&mut self.under.doc_changed) {

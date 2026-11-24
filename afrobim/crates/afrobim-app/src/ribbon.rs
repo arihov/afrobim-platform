@@ -264,6 +264,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
             ],
         },
         Panel { title: "Appearance", items: &[Big(Icon::Theme, "Theme", "THEME"), Big(Icon::Canvas, "Canvas colour", "CANVAS"), Big(Icon::Theme, "Look and scale", "APPEARANCE")] },
+        Panel { title: "Recovery", items: &[Big(Icon::Save, "Autosave", "AUTOSAVE")] },
     ];
     const VIEW: &[Panel] = &[
         Panel { title: "Zoom", items: &[Big(Icon::ZoomExtents, "Extents", "ZOOM"), Big(Icon::ZoomWindow, "Window", "ZOOMWINDOW"), Big(Icon::ZoomSelection, "Selection", "ZS"), Big(Icon::ZoomPrevious, "Previous", "ZP"), Big(Icon::ZoomIn, "In", "ZOOMIN"), Big(Icon::ZoomOut, "Out", "ZOOMOUT")] },
