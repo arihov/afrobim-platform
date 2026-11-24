@@ -33,23 +33,51 @@ pub fn axis_point(origin: &SettingOutInput, skew_deg: f64, s_mm: f64, t_mm: f64)
     let (ue, un) = (a.sin(), a.cos());
     let (ne, nn) = (-un, ue);
     let (s, t) = (s_mm / 1000.0, t_mm / 1000.0);
-    (origin.cl_easting_m + s * ue + t * ne, origin.cl_northing_m + s * un + t * nn)
+    (
+        origin.cl_easting_m + s * ue + t * ne,
+        origin.cl_northing_m + s * un + t * nn,
+    )
 }
 
 /// Points 1 to 6.
 pub fn setting_out(layout: &Layout, origin: &SettingOutInput) -> Vec<SettingOutPoint> {
     let pt = |number: u8, s: f64, t: f64, description: &str| {
         let (easting_m, northing_m) = axis_point(origin, layout.skew_deg, s, t);
-        SettingOutPoint { number, easting_m, northing_m, description: description.to_string() }
+        SettingOutPoint {
+            number,
+            easting_m,
+            northing_m,
+            description: description.to_string(),
+        }
     };
     let (l, r) = (&layout.left, &layout.right);
     let (sl, sr) = (-layout.left_len_mm, layout.right_len_mm);
     vec![
         pt(1, sl, 0.0, "centre of the outer face of the left headwall"),
         pt(2, sr, 0.0, "centre of the outer face of the right headwall"),
-        pt(3, sl - l.wing_outer_corner_o_mm, l.wing_outer_corner_t_mm, "outer corner of the left wing end, left of the axis"),
-        pt(4, sl - l.wing_outer_corner_o_mm, -l.wing_outer_corner_t_mm, "outer corner of the left wing end, right of the axis"),
-        pt(5, sr + r.wing_outer_corner_o_mm, -r.wing_outer_corner_t_mm, "outer corner of the right wing end, right of the axis"),
-        pt(6, sr + r.wing_outer_corner_o_mm, r.wing_outer_corner_t_mm, "outer corner of the right wing end, left of the axis"),
+        pt(
+            3,
+            sl - l.wing_outer_corner_o_mm,
+            l.wing_outer_corner_t_mm,
+            "outer corner of the left wing end, left of the axis",
+        ),
+        pt(
+            4,
+            sl - l.wing_outer_corner_o_mm,
+            -l.wing_outer_corner_t_mm,
+            "outer corner of the left wing end, right of the axis",
+        ),
+        pt(
+            5,
+            sr + r.wing_outer_corner_o_mm,
+            -r.wing_outer_corner_t_mm,
+            "outer corner of the right wing end, right of the axis",
+        ),
+        pt(
+            6,
+            sr + r.wing_outer_corner_o_mm,
+            r.wing_outer_corner_t_mm,
+            "outer corner of the right wing end, left of the axis",
+        ),
     ]
 }

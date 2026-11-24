@@ -83,10 +83,19 @@ pub struct Toe {
 
 impl SideTemplate {
     fn check(&self, name: &str) -> Result<(), CulvertError> {
-        not_negative(&format!("{name} carriageway width"), self.carriageway_width_m)?;
+        not_negative(
+            &format!("{name} carriageway width"),
+            self.carriageway_width_m,
+        )?;
         not_negative(&format!("{name} shoulder width"), self.shoulder_width_m)?;
-        finite(&format!("{name} carriageway crossfall"), self.carriageway_crossfall_pct)?;
-        finite(&format!("{name} shoulder crossfall"), self.shoulder_crossfall_pct)?;
+        finite(
+            &format!("{name} carriageway crossfall"),
+            self.carriageway_crossfall_pct,
+        )?;
+        finite(
+            &format!("{name} shoulder crossfall"),
+            self.shoulder_crossfall_pct,
+        )?;
         if let Some(k) = self.kerb {
             not_negative(&format!("{name} walkway width"), k.width_m)?;
             not_negative(&format!("{name} kerb step"), k.height_step_m)?;
@@ -128,17 +137,44 @@ impl RoadTemplate {
         finite("the road centreline level (FRL)", self.frl_m)?;
         self.left.check("left")?;
         self.right.check("right")?;
-        let mut points: Vec<SectionPoint> =
-            self.left.outward(self.frl_m).iter().rev().map(|&(d, l)| SectionPoint { offset_m: -d, level_m: l }).collect();
+        let mut points: Vec<SectionPoint> = self
+            .left
+            .outward(self.frl_m)
+            .iter()
+            .rev()
+            .map(|&(d, l)| SectionPoint {
+                offset_m: -d,
+                level_m: l,
+            })
+            .collect();
         // The centreline appears once: the right side's first point repeats it.
-        points.extend(self.right.outward(self.frl_m).iter().skip(1).map(|&(d, l)| SectionPoint { offset_m: d, level_m: l }));
-        RoadSection::new(points, self.pavement_depth_m, self.embankment_slope_n, self.cut_slope_n)
+        points.extend(
+            self.right
+                .outward(self.frl_m)
+                .iter()
+                .skip(1)
+                .map(|&(d, l)| SectionPoint {
+                    offset_m: d,
+                    level_m: l,
+                }),
+        );
+        RoadSection::new(
+            points,
+            self.pavement_depth_m,
+            self.embankment_slope_n,
+            self.cut_slope_n,
+        )
     }
 }
 
 impl RoadSection {
     /// Validates and sorts the points. The centreline (offset 0) must lie inside the points.
-    pub fn new(mut points: Vec<SectionPoint>, pavement_depth_m: f64, embankment_slope_n: f64, cut_slope_n: Option<f64>) -> Result<RoadSection, CulvertError> {
+    pub fn new(
+        mut points: Vec<SectionPoint>,
+        pavement_depth_m: f64,
+        embankment_slope_n: f64,
+        cut_slope_n: Option<f64>,
+    ) -> Result<RoadSection, CulvertError> {
         if points.len() < 2 {
             return invalid("a road section needs at least two points");
         }
@@ -156,19 +192,50 @@ impl RoadSection {
         if let Some(c) = cut_slope_n {
             positive("the cut slope (1:n)", c)?;
         }
-        Ok(RoadSection { points, pavement_depth_m, embankment_slope_n, cut_slope_n })
+        Ok(RoadSection {
+            points,
+            pavement_depth_m,
+            embankment_slope_n,
+            cut_slope_n,
+        })
     }
 
     /// From points the user typed or picked: (offset m, level m).
-    pub fn from_points(points: &[(f64, f64)], pavement_depth_m: f64, embankment_slope_n: f64, cut_slope_n: Option<f64>) -> Result<RoadSection, CulvertError> {
-        RoadSection::new(points.iter().map(|&(o, l)| SectionPoint { offset_m: o, level_m: l }).collect(), pavement_depth_m, embankment_slope_n, cut_slope_n)
+    pub fn from_points(
+        points: &[(f64, f64)],
+        pavement_depth_m: f64,
+        embankment_slope_n: f64,
+        cut_slope_n: Option<f64>,
+    ) -> Result<RoadSection, CulvertError> {
+        RoadSection::new(
+            points
+                .iter()
+                .map(|&(o, l)| SectionPoint {
+                    offset_m: o,
+                    level_m: l,
+                })
+                .collect(),
+            pavement_depth_m,
+            embankment_slope_n,
+            cut_slope_n,
+        )
     }
 
     /// From a corridor or sample-line section supplied by the caller at a chainage: (offset m,
     /// level m) of the finished surface, left negative. The app passes what the corridor reports;
     /// this crate does not reach into the corridor.
-    pub fn from_corridor_section(offsets_levels: &[(f64, f64)], pavement_depth_m: f64, embankment_slope_n: f64, cut_slope_n: Option<f64>) -> Result<RoadSection, CulvertError> {
-        RoadSection::from_points(offsets_levels, pavement_depth_m, embankment_slope_n, cut_slope_n)
+    pub fn from_corridor_section(
+        offsets_levels: &[(f64, f64)],
+        pavement_depth_m: f64,
+        embankment_slope_n: f64,
+        cut_slope_n: Option<f64>,
+    ) -> Result<RoadSection, CulvertError> {
+        RoadSection::from_points(
+            offsets_levels,
+            pavement_depth_m,
+            embankment_slope_n,
+            cut_slope_n,
+        )
     }
 
     /// Level of the finished surface at `offset_m`, linear between points. None outside the points.
@@ -181,7 +248,11 @@ impl RoadSection {
             let (a, b) = (w[0], w[1]);
             if offset_m >= a.offset_m && offset_m <= b.offset_m {
                 let span = b.offset_m - a.offset_m;
-                return Some(if span <= 0.0 { a.level_m } else { a.level_m + (b.level_m - a.level_m) * (offset_m - a.offset_m) / span });
+                return Some(if span <= 0.0 {
+                    a.level_m
+                } else {
+                    a.level_m + (b.level_m - a.level_m) * (offset_m - a.offset_m) / span
+                });
             }
         }
         None
@@ -206,7 +277,11 @@ impl RoadSection {
         if let Some(l) = self.level_at(offset_m) {
             return l;
         }
-        let side = if offset_m < 0.0 { Side::Left } else { Side::Right };
+        let side = if offset_m < 0.0 {
+            Side::Left
+        } else {
+            Side::Right
+        };
         let e = self.edge(side);
         e.level_m - (offset_m - e.offset_m).abs() / self.embankment_slope_n
     }
@@ -235,12 +310,27 @@ impl RoadSection {
             }
         };
         // The slope level at distance d out, and its difference from the ground (zero at the toe).
-        let slope = |d: f64| if fill { e.level_m - d / n } else { e.level_m + d / n };
+        let slope = |d: f64| {
+            if fill {
+                e.level_m - d / n
+            } else {
+                e.level_m + d / n
+            }
+        };
         let diff = |d: f64| slope(d) - ground(d);
         if g0 == 0.0 {
-            return Ok(Toe { offset_m: e.offset_m, level_m: e.level_m, fill });
+            return Ok(Toe {
+                offset_m: e.offset_m,
+                level_m: e.level_m,
+                fill,
+            });
         }
-        let mut stops: Vec<f64> = ogl.points.iter().map(|p| sgn * (p.offset_m - e.offset_m)).filter(|&d| d > 0.0).collect();
+        let mut stops: Vec<f64> = ogl
+            .points
+            .iter()
+            .map(|p| sgn * (p.offset_m - e.offset_m))
+            .filter(|&d| d > 0.0)
+            .collect();
         stops.sort_by(f64::total_cmp);
         let mut a = 0.0;
         for b in stops.iter().copied().chain(std::iter::once(f64::NAN)) {
@@ -248,18 +338,34 @@ impl RoadSection {
                 // Beyond the last ground point the ground is flat at its last level, so the slope
                 // meets it at a known distance.
                 let c = ground(a + 1.0);
-                let d = if fill { n * (e.level_m - c) } else { n * (c - e.level_m) };
+                let d = if fill {
+                    n * (e.level_m - c)
+                } else {
+                    n * (c - e.level_m)
+                };
                 if d >= a - 1e-9 {
                     let d = d.max(a);
-                    return Ok(Toe { offset_m: e.offset_m + sgn * d, level_m: slope(d), fill });
+                    return Ok(Toe {
+                        offset_m: e.offset_m + sgn * d,
+                        level_m: slope(d),
+                        fill,
+                    });
                 }
                 break;
             }
             let (da, db) = (diff(a), diff(b));
             if da == 0.0 || (da > 0.0) != (db > 0.0) || db == 0.0 {
-                let t = if (da - db).abs() < 1e-12 { 0.0 } else { da / (da - db) };
+                let t = if (da - db).abs() < 1e-12 {
+                    0.0
+                } else {
+                    da / (da - db)
+                };
                 let d = a + (b - a) * t;
-                return Ok(Toe { offset_m: e.offset_m + sgn * d, level_m: slope(d), fill });
+                return Ok(Toe {
+                    offset_m: e.offset_m + sgn * d,
+                    level_m: slope(d),
+                    fill,
+                });
             }
             a = b;
         }
@@ -277,7 +383,10 @@ impl Ogl {
         for &(o, l) in points {
             finite("a ground offset", o)?;
             finite("a ground level", l)?;
-            v.push(SectionPoint { offset_m: o, level_m: l });
+            v.push(SectionPoint {
+                offset_m: o,
+                level_m: l,
+            });
         }
         v.sort_by(|a, b| a.offset_m.total_cmp(&b.offset_m));
         Ok(Ogl { points: v })
@@ -286,6 +395,9 @@ impl Ogl {
     /// Ground level at `offset_m`: linear between points, held flat beyond the first and last.
     pub fn level_at(&self, offset_m: f64) -> f64 {
         let p = &self.points;
+        if p.is_empty() {
+            return 0.0;
+        }
         if offset_m <= p[0].offset_m {
             return p[0].level_m;
         }
@@ -296,7 +408,11 @@ impl Ogl {
             let (a, b) = (w[0], w[1]);
             if offset_m >= a.offset_m && offset_m <= b.offset_m {
                 let span = b.offset_m - a.offset_m;
-                return if span <= 0.0 { a.level_m } else { a.level_m + (b.level_m - a.level_m) * (offset_m - a.offset_m) / span };
+                return if span <= 0.0 {
+                    a.level_m
+                } else {
+                    a.level_m + (b.level_m - a.level_m) * (offset_m - a.offset_m) / span
+                };
             }
         }
         p[p.len() - 1].level_m
@@ -319,7 +435,12 @@ impl RoadSource {
     pub fn section(&self) -> Result<RoadSection, CulvertError> {
         match self {
             RoadSource::Template(t) => t.to_section(),
-            RoadSource::Points(s) | RoadSource::Corridor(s) => RoadSection::new(s.points.clone(), s.pavement_depth_m, s.embankment_slope_n, s.cut_slope_n),
+            RoadSource::Points(s) | RoadSource::Corridor(s) => RoadSection::new(
+                s.points.clone(),
+                s.pavement_depth_m,
+                s.embankment_slope_n,
+                s.cut_slope_n,
+            ),
         }
     }
 }
@@ -329,12 +450,25 @@ mod tests {
     use super::*;
 
     fn side(kerb: Option<KerbWalkway>) -> SideTemplate {
-        SideTemplate { carriageway_width_m: 3.5, carriageway_crossfall_pct: 2.5, shoulder_width_m: 1.5, shoulder_crossfall_pct: 4.0, kerb }
+        SideTemplate {
+            carriageway_width_m: 3.5,
+            carriageway_crossfall_pct: 2.5,
+            shoulder_width_m: 1.5,
+            shoulder_crossfall_pct: 4.0,
+            kerb,
+        }
     }
 
     #[test]
     fn template_builds_points_and_the_centreline_once() {
-        let t = RoadTemplate { frl_m: 100.0, left: side(None), right: side(None), pavement_depth_m: 0.5, embankment_slope_n: 2.0, cut_slope_n: None };
+        let t = RoadTemplate {
+            frl_m: 100.0,
+            left: side(None),
+            right: side(None),
+            pavement_depth_m: 0.5,
+            embankment_slope_n: 2.0,
+            cut_slope_n: None,
+        };
         let s = t.to_section().expect("section");
         assert_eq!(s.points.len(), 5);
         assert!((s.level_at(3.5).unwrap() - (100.0 - 0.0875)).abs() < 1e-9);
@@ -344,8 +478,19 @@ mod tests {
 
     #[test]
     fn asymmetric_walkway_adds_a_step_on_one_side_only() {
-        let k = KerbWalkway { width_m: 1.5, height_step_m: 0.15, crossfall_pct: 2.0 };
-        let t = RoadTemplate { frl_m: 100.0, left: side(None), right: side(Some(k)), pavement_depth_m: 0.5, embankment_slope_n: 2.0, cut_slope_n: None };
+        let k = KerbWalkway {
+            width_m: 1.5,
+            height_step_m: 0.15,
+            crossfall_pct: 2.0,
+        };
+        let t = RoadTemplate {
+            frl_m: 100.0,
+            left: side(None),
+            right: side(Some(k)),
+            pavement_depth_m: 0.5,
+            embankment_slope_n: 2.0,
+            cut_slope_n: None,
+        };
         let s = t.to_section().expect("section");
         assert_eq!(s.points.len(), 7);
         assert!((s.edge(Side::Right).offset_m - 6.5).abs() < 1e-9);
@@ -354,7 +499,8 @@ mod tests {
 
     #[test]
     fn toe_in_fill_meets_the_ground_and_cut_needs_a_slope() {
-        let s = RoadSection::from_points(&[(-5.0, 10.0), (0.0, 10.0), (5.0, 10.0)], 0.3, 2.0, None).expect("section");
+        let s = RoadSection::from_points(&[(-5.0, 10.0), (0.0, 10.0), (5.0, 10.0)], 0.3, 2.0, None)
+            .expect("section");
         let flat = Ogl::from_points(&[(0.0, 8.0)]).expect("ogl");
         let toe = s.toe(&flat, Side::Right).expect("toe");
         assert!((toe.offset_m - 9.0).abs() < 1e-9 && (toe.level_m - 8.0).abs() < 1e-9 && toe.fill);
@@ -364,7 +510,8 @@ mod tests {
         assert!((s.fill_surface_level_m(t2.offset_m) - rising.level_at(t2.offset_m)).abs() < 1e-9);
         let high = Ogl::from_points(&[(0.0, 12.0)]).expect("ogl");
         assert!(s.toe(&high, Side::Right).is_err());
-        let s2 = RoadSection::from_points(&[(-5.0, 10.0), (5.0, 10.0)], 0.3, 2.0, Some(1.5)).expect("section");
+        let s2 = RoadSection::from_points(&[(-5.0, 10.0), (5.0, 10.0)], 0.3, 2.0, Some(1.5))
+            .expect("section");
         let t3 = s2.toe(&high, Side::Right).expect("cut toe");
         assert!((t3.offset_m - 8.0).abs() < 1e-9 && !t3.fill);
     }

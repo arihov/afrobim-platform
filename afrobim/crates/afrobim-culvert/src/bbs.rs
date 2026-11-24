@@ -106,11 +106,17 @@ pub struct DimExpr {
 
 impl DimExpr {
     pub fn constant(c: f64) -> DimExpr {
-        DimExpr { constant: c, terms: Vec::new() }
+        DimExpr {
+            constant: c,
+            terms: Vec::new(),
+        }
     }
 
     pub fn of(c: f64, terms: &[(f64, Q)]) -> DimExpr {
-        DimExpr { constant: c, terms: terms.to_vec() }
+        DimExpr {
+            constant: c,
+            terms: terms.to_vec(),
+        }
     }
 }
 
@@ -131,7 +137,10 @@ pub enum Count {
     /// This many for each cell of the barrel.
     PerCell(u32),
     /// Bars at a spacing along a length: `floor(length / spacing) + 1`.
-    Spaced { length: DimExpr, spacing_mm: f64 },
+    Spaced {
+        length: DimExpr,
+        spacing_mm: f64,
+    },
 }
 
 /// How many elements of this kind there are.
@@ -230,17 +239,32 @@ pub struct ShapeDef {
 
 /// The drawing's shape codes. `r` is the minimum bend radius ([`min_bend_radius_mm`]).
 pub fn shape_defs() -> Vec<ShapeDef> {
-    let s = |code, bs8666, formula, matched_to_drawing| ShapeDef { code, bs8666, formula, matched_to_drawing };
+    let s = |code, bs8666, formula, matched_to_drawing| ShapeDef {
+        code,
+        bs8666,
+        formula,
+        matched_to_drawing,
+    };
     vec![
         s(100, "00", "A", false),
         s(111, "11", "A + B - 0.5 r - d", false),
-        s(113, "11 (no drawing row; treated as 111)", "A + B - 0.5 r - d", true),
+        s(
+            113,
+            "11 (no drawing row; treated as 111)",
+            "A + B - 0.5 r - d",
+            true,
+        ),
         s(200, "21", "A + B + C - r - 2 d", false),
         s(202, "none (matched)", "A + B + C - (0.5 r + d)", true),
         s(213, "none (matched)", "A + B + D", true),
         s(117, "99 (half-round, developed length)", "A", false),
         s(500, "51", "2 (A + B) + link allowance x d", false),
-        s(900, "99", "A + B + C + D + E + F - (legs - 1) (0.5 r + d)", false),
+        s(
+            900,
+            "99",
+            "A + B + C + D + E + F - (legs - 1) (0.5 r + d)",
+            false,
+        ),
     ]
 }
 
@@ -253,7 +277,16 @@ impl ReinforcementTable {
         let hw = |k: f64| DimExpr::of(k, &[(1.0, Q::HeadwallWidth)]);
         let leg_slab = DimExpr::of(0.0, &[(1.0, Q::ApronThickness), (-2.0, Q::CoverSlab)]);
         let hw_wall = DimExpr::of(0.0, &[(1.0, Q::HeadwallThickness), (-2.0, Q::CoverWall)]);
-        let none6 = || [DimExpr::default(), DimExpr::default(), DimExpr::default(), DimExpr::default(), DimExpr::default(), DimExpr::default()];
+        let none6 = || {
+            [
+                DimExpr::default(),
+                DimExpr::default(),
+                DimExpr::default(),
+                DimExpr::default(),
+                DimExpr::default(),
+                DimExpr::default(),
+            ]
+        };
         let step = |b: DimExpr| {
             let mut s = none6();
             s[1] = b;
@@ -261,25 +294,222 @@ impl ReinforcementTable {
         };
         let rows = vec![
             // Apron
-            H::row("01", ElementKind::Apron, "Apron U-bar", 12, None, 200, [Some(leg_slab.clone()), Some(hw(-1350.0)), Some(leg_slab.clone()), None, None, None], Count::Fixed(4), ElementCount::PerEnd(2), Basis::DrawingFixed)
-                .with_series(12, step(c(170.0))),
-            H::row("02", ElementKind::Apron, "Apron U-bar", 12, None, 200, [Some(leg_slab.clone()), Some(DimExpr::of(0.0, &[(1.0, Q::ApronAndToe), (1.0, Q::HeadwallThickness), (-2.0, Q::CoverWall)])), Some(leg_slab.clone()), None, None, None], Count::Spaced { length: DimExpr::of(0.0, &[(1.0, Q::OverallWidth)]), spacing_mm: 380.0 }, ElementCount::PerEnd(2), Basis::Geometry),
+            H::row(
+                "01",
+                ElementKind::Apron,
+                "Apron U-bar",
+                12,
+                None,
+                200,
+                [
+                    Some(leg_slab.clone()),
+                    Some(hw(-1350.0)),
+                    Some(leg_slab.clone()),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Fixed(4),
+                ElementCount::PerEnd(2),
+                Basis::DrawingFixed,
+            )
+            .with_series(12, step(c(170.0))),
+            H::row(
+                "02",
+                ElementKind::Apron,
+                "Apron U-bar",
+                12,
+                None,
+                200,
+                [
+                    Some(leg_slab.clone()),
+                    Some(DimExpr::of(
+                        0.0,
+                        &[
+                            (1.0, Q::ApronAndToe),
+                            (1.0, Q::HeadwallThickness),
+                            (-2.0, Q::CoverWall),
+                        ],
+                    )),
+                    Some(leg_slab.clone()),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Spaced {
+                    length: DimExpr::of(0.0, &[(1.0, Q::OverallWidth)]),
+                    spacing_mm: 380.0,
+                },
+                ElementCount::PerEnd(2),
+                Basis::Geometry,
+            ),
             {
                 let mut s = none6();
                 s[0] = c(7.0);
                 s[1] = DimExpr::of(-269.3, &[(0.1, Q::OverallWidth)]);
                 s[2] = c(-5.0);
-                H::row("03", ElementKind::Apron, "Apron U-bar", 12, None, 200, [Some(c(100.0)), Some(c(2380.0)), Some(c(100.0)), None, None, None], Count::Fixed(2), ElementCount::PerEnd(2), Basis::DrawingFixed).with_series(11, s)
+                H::row(
+                    "03",
+                    ElementKind::Apron,
+                    "Apron U-bar",
+                    12,
+                    None,
+                    200,
+                    [
+                        Some(c(100.0)),
+                        Some(c(2380.0)),
+                        Some(c(100.0)),
+                        None,
+                        None,
+                        None,
+                    ],
+                    Count::Fixed(2),
+                    ElementCount::PerEnd(2),
+                    Basis::DrawingFixed,
+                )
+                .with_series(11, s)
             },
             // Wing walls
-            H::row("04", ElementKind::WingWall, "Wing wall bar", 12, None, 202, [Some(c(170.0)), Some(DimExpr::of(-23.0, &[(1.0, Q::WingLength)])), Some(c(100.0)), None, None, None], Count::Fixed(3), ElementCount::PerEnd(2), Basis::DrawingFixed).with_series(1, none6()),
-            H::row("05A", ElementKind::WingWall, "Wing wall U-bar", 12, None, 202, [Some(c(170.0)), Some(c(310.0)), Some(c(100.0)), None, None, None], Count::Fixed(1), ElementCount::PerEnd(2), Basis::DrawingFixed).with_series(1, none6()),
-            H::row("06", ElementKind::WingWall, "Wing wall L-bar", 12, Some(120.0), 111, [Some(c(100.0)), Some(c(800.0)), None, None, None, None], Count::Spaced { length: DimExpr::of(0.0, &[(1.0, Q::WingLength)]), spacing_mm: 120.0 }, ElementCount::PerEnd(2), Basis::DrawingFixed),
-            H::row("06B", ElementKind::WingWall, "Wing wall U-bar", 12, None, 200, [Some(c(710.0)), Some(c(170.0)), Some(c(710.0)), None, None, None], Count::Fixed(1), ElementCount::PerEnd(2), Basis::DrawingFixed).with_series(1, none6()),
-            H::row("16", ElementKind::WingWall, "Wing wall bar", 10, None, 202, [Some(DimExpr::of(294.0, &[(1.0, Q::WingLength)])), Some(c(151.0)), Some(c(100.0)), None, None, None], Count::Fixed(2), ElementCount::PerEnd(2), Basis::DrawingFixed),
+            H::row(
+                "04",
+                ElementKind::WingWall,
+                "Wing wall bar",
+                12,
+                None,
+                202,
+                [
+                    Some(c(170.0)),
+                    Some(DimExpr::of(-23.0, &[(1.0, Q::WingLength)])),
+                    Some(c(100.0)),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Fixed(3),
+                ElementCount::PerEnd(2),
+                Basis::DrawingFixed,
+            )
+            .with_series(1, none6()),
+            H::row(
+                "05A",
+                ElementKind::WingWall,
+                "Wing wall U-bar",
+                12,
+                None,
+                202,
+                [
+                    Some(c(170.0)),
+                    Some(c(310.0)),
+                    Some(c(100.0)),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Fixed(1),
+                ElementCount::PerEnd(2),
+                Basis::DrawingFixed,
+            )
+            .with_series(1, none6()),
+            H::row(
+                "06",
+                ElementKind::WingWall,
+                "Wing wall L-bar",
+                12,
+                Some(120.0),
+                111,
+                [Some(c(100.0)), Some(c(800.0)), None, None, None, None],
+                Count::Spaced {
+                    length: DimExpr::of(0.0, &[(1.0, Q::WingLength)]),
+                    spacing_mm: 120.0,
+                },
+                ElementCount::PerEnd(2),
+                Basis::DrawingFixed,
+            ),
+            H::row(
+                "06B",
+                ElementKind::WingWall,
+                "Wing wall U-bar",
+                12,
+                None,
+                200,
+                [
+                    Some(c(710.0)),
+                    Some(c(170.0)),
+                    Some(c(710.0)),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Fixed(1),
+                ElementCount::PerEnd(2),
+                Basis::DrawingFixed,
+            )
+            .with_series(1, none6()),
+            H::row(
+                "16",
+                ElementKind::WingWall,
+                "Wing wall bar",
+                10,
+                None,
+                202,
+                [
+                    Some(DimExpr::of(294.0, &[(1.0, Q::WingLength)])),
+                    Some(c(151.0)),
+                    Some(c(100.0)),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Fixed(2),
+                ElementCount::PerEnd(2),
+                Basis::DrawingFixed,
+            ),
             // Headwall
-            H::row("07", ElementKind::Headwall, "Headwall L-bar", 12, Some(250.0), 111, [Some(c(100.0)), Some(DimExpr::of(0.0, &[(1.0, Q::HeadwallHeight), (-2.0, Q::CoverWall)])), None, None, None, None], Count::Spaced { length: DimExpr::of(0.0, &[(1.0, Q::HeadwallWidth), (-2.0, Q::CoverWall)]), spacing_mm: 250.0 }, ElementCount::PerEnd(1), Basis::Geometry),
-            H::row("08", ElementKind::Headwall, "Headwall link", 12, None, 500, [Some(c(768.0)), Some(hw_wall.clone()), Some(c(160.0)), None, None, None], Count::PerCell(2), ElementCount::PerEnd(1), Basis::DrawingFixed).with_series(1, none6()),
+            H::row(
+                "07",
+                ElementKind::Headwall,
+                "Headwall L-bar",
+                12,
+                Some(250.0),
+                111,
+                [
+                    Some(c(100.0)),
+                    Some(DimExpr::of(
+                        0.0,
+                        &[(1.0, Q::HeadwallHeight), (-2.0, Q::CoverWall)],
+                    )),
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Spaced {
+                    length: DimExpr::of(0.0, &[(1.0, Q::HeadwallWidth), (-2.0, Q::CoverWall)]),
+                    spacing_mm: 250.0,
+                },
+                ElementCount::PerEnd(1),
+                Basis::Geometry,
+            ),
+            H::row(
+                "08",
+                ElementKind::Headwall,
+                "Headwall link",
+                12,
+                None,
+                500,
+                [
+                    Some(c(768.0)),
+                    Some(hw_wall.clone()),
+                    Some(c(160.0)),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::PerCell(2),
+                ElementCount::PerEnd(1),
+                Basis::DrawingFixed,
+            )
+            .with_series(1, none6()),
             H::row(
                 "09",
                 ElementKind::Headwall,
@@ -294,22 +524,265 @@ impl ReinforcementTable {
             )
             .with_hypot(3, hw(0.0), c(350.0))
             .with_series(1, none6()),
-            H::row("10", ElementKind::Headwall, "Headwall U-bar", 12, None, 200, [Some(c(800.0)), Some(hw_wall.clone()), Some(c(800.0)), None, None, None], Count::PerCell(4), ElementCount::PerEnd(1), Basis::DrawingFixed),
-            H::row("11", ElementKind::Headwall, "Headwall link", 8, None, 500, [Some(c(404.0)), Some(hw_wall.clone()), Some(c(105.0)), None, None, None], Count::PerCell(1), ElementCount::PerEnd(1), Basis::DrawingFixed).with_series(1, none6()),
-            H::row("12", ElementKind::Headwall, "Headwall link", 8, None, 500, [Some(c(168.0)), Some(hw_wall.clone()), Some(c(105.0)), None, None, None], Count::PerCell(2), ElementCount::PerEnd(1), Basis::DrawingFixed),
-            H::row("17", ElementKind::Headwall, "Headwall L-bar", 8, None, 111, [Some(c(150.0)), Some(c(500.0)), None, None, None, None], Count::PerCell(5), ElementCount::PerEnd(1), Basis::DrawingFixed),
-            H::row("15", ElementKind::Headwall, "Half-round bar", 8, None, 117, [None, None, None, None, None, None], Count::PerCell(4), ElementCount::PerEnd(1), Basis::Geometry)
-                .with_half_circle(0, DimExpr::of(0.0, &[(0.5, Q::PipeOd)]))
-                .pipe_only(),
-            H::row("ADD", ElementKind::Headwall, "Additional bar", 12, None, 900, [Some(c(250.0)), Some(c(70.0)), Some(c(250.0)), Some(c(70.0)), Some(c(250.0)), None], Count::Fixed(11), ElementCount::PerEnd(1), Basis::DrawingFixed),
+            H::row(
+                "10",
+                ElementKind::Headwall,
+                "Headwall U-bar",
+                12,
+                None,
+                200,
+                [
+                    Some(c(800.0)),
+                    Some(hw_wall.clone()),
+                    Some(c(800.0)),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::PerCell(4),
+                ElementCount::PerEnd(1),
+                Basis::DrawingFixed,
+            ),
+            H::row(
+                "11",
+                ElementKind::Headwall,
+                "Headwall link",
+                8,
+                None,
+                500,
+                [
+                    Some(c(404.0)),
+                    Some(hw_wall.clone()),
+                    Some(c(105.0)),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::PerCell(1),
+                ElementCount::PerEnd(1),
+                Basis::DrawingFixed,
+            )
+            .with_series(1, none6()),
+            H::row(
+                "12",
+                ElementKind::Headwall,
+                "Headwall link",
+                8,
+                None,
+                500,
+                [
+                    Some(c(168.0)),
+                    Some(hw_wall.clone()),
+                    Some(c(105.0)),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::PerCell(2),
+                ElementCount::PerEnd(1),
+                Basis::DrawingFixed,
+            ),
+            H::row(
+                "17",
+                ElementKind::Headwall,
+                "Headwall L-bar",
+                8,
+                None,
+                111,
+                [Some(c(150.0)), Some(c(500.0)), None, None, None, None],
+                Count::PerCell(5),
+                ElementCount::PerEnd(1),
+                Basis::DrawingFixed,
+            ),
+            H::row(
+                "15",
+                ElementKind::Headwall,
+                "Half-round bar",
+                8,
+                None,
+                117,
+                [None, None, None, None, None, None],
+                Count::PerCell(4),
+                ElementCount::PerEnd(1),
+                Basis::Geometry,
+            )
+            .with_half_circle(0, DimExpr::of(0.0, &[(0.5, Q::PipeOd)]))
+            .pipe_only(),
+            H::row(
+                "ADD",
+                ElementKind::Headwall,
+                "Additional bar",
+                12,
+                None,
+                900,
+                [
+                    Some(c(250.0)),
+                    Some(c(70.0)),
+                    Some(c(250.0)),
+                    Some(c(70.0)),
+                    Some(c(250.0)),
+                    None,
+                ],
+                Count::Fixed(11),
+                ElementCount::PerEnd(1),
+                Basis::DrawingFixed,
+            ),
             // Toe beam
-            H::row("13", ElementKind::ToeBeam, "Toe beam U-bar", 12, None, 200, [Some(c(150.0)), Some(DimExpr::of(0.0, &[(1.0, Q::OverallWidth), (-2.0, Q::CoverWall)])), Some(c(150.0)), None, None, None], Count::Fixed(6), ElementCount::PerEnd(1), Basis::Geometry),
-            H::row("14", ElementKind::ToeBeam, "Toe beam link", 10, Some(300.0), 500, [Some(DimExpr::of(0.0, &[(1.0, Q::ToeTotalDepth), (-2.0, Q::CoverWall)])), Some(DimExpr::of(0.0, &[(1.0, Q::ToeWidth), (-2.0, Q::CoverWall)])), Some(c(130.0)), None, None, None], Count::Spaced { length: DimExpr::of(0.0, &[(1.0, Q::OverallWidth), (-2.0, Q::CoverWall)]), spacing_mm: 300.0 }, ElementCount::PerEnd(1), Basis::Geometry),
+            H::row(
+                "13",
+                ElementKind::ToeBeam,
+                "Toe beam U-bar",
+                12,
+                None,
+                200,
+                [
+                    Some(c(150.0)),
+                    Some(DimExpr::of(
+                        0.0,
+                        &[(1.0, Q::OverallWidth), (-2.0, Q::CoverWall)],
+                    )),
+                    Some(c(150.0)),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Fixed(6),
+                ElementCount::PerEnd(1),
+                Basis::Geometry,
+            ),
+            H::row(
+                "14",
+                ElementKind::ToeBeam,
+                "Toe beam link",
+                10,
+                Some(300.0),
+                500,
+                [
+                    Some(DimExpr::of(
+                        0.0,
+                        &[(1.0, Q::ToeTotalDepth), (-2.0, Q::CoverWall)],
+                    )),
+                    Some(DimExpr::of(
+                        0.0,
+                        &[(1.0, Q::ToeWidth), (-2.0, Q::CoverWall)],
+                    )),
+                    Some(c(130.0)),
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Spaced {
+                    length: DimExpr::of(0.0, &[(1.0, Q::OverallWidth), (-2.0, Q::CoverWall)]),
+                    spacing_mm: 300.0,
+                },
+                ElementCount::PerEnd(1),
+                Basis::Geometry,
+            ),
             // Box barrel: placeholders pending structural design, all editable.
-            H::row("BX1", ElementKind::BoxBarrel, "Bottom slab transverse bar", 12, Some(150.0), 100, [Some(DimExpr::of(0.0, &[(1.0, Q::BarrelWidth), (-2.0, Q::CoverWall)])), None, None, None, None, None], Count::Spaced { length: DimExpr::of(0.0, &[(1.0, Q::BarrelLength), (-2.0, Q::CoverWall)]), spacing_mm: 150.0 }, ElementCount::Total(1), Basis::Assumed).box_only(),
-            H::row("BX2", ElementKind::BoxBarrel, "Top slab transverse bar", 12, Some(150.0), 100, [Some(DimExpr::of(0.0, &[(1.0, Q::BarrelWidth), (-2.0, Q::CoverWall)])), None, None, None, None, None], Count::Spaced { length: DimExpr::of(0.0, &[(1.0, Q::BarrelLength), (-2.0, Q::CoverWall)]), spacing_mm: 150.0 }, ElementCount::Total(1), Basis::Assumed).box_only(),
-            H::row("BX3", ElementKind::BoxBarrel, "Slab distribution bar", 10, Some(200.0), 100, [Some(DimExpr::of(0.0, &[(1.0, Q::BarrelLength), (-2.0, Q::CoverWall)])), None, None, None, None, None], Count::Spaced { length: DimExpr::of(0.0, &[(1.0, Q::BarrelWidth), (-2.0, Q::CoverWall)]), spacing_mm: 200.0 }, ElementCount::Total(2), Basis::Assumed).box_only(),
-            H::row("BX4", ElementKind::BoxBarrel, "Wall vertical bar", 12, Some(150.0), 100, [Some(DimExpr::of(0.0, &[(1.0, Q::BarrelHeight), (-2.0, Q::CoverWall)])), None, None, None, None, None], Count::Spaced { length: DimExpr::of(0.0, &[(1.0, Q::BarrelLength), (-2.0, Q::CoverWall)]), spacing_mm: 150.0 }, ElementCount::PerCellPlusOne(2), Basis::Assumed).box_only(),
+            H::row(
+                "BX1",
+                ElementKind::BoxBarrel,
+                "Bottom slab transverse bar",
+                12,
+                Some(150.0),
+                100,
+                [
+                    Some(DimExpr::of(
+                        0.0,
+                        &[(1.0, Q::BarrelWidth), (-2.0, Q::CoverWall)],
+                    )),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Spaced {
+                    length: DimExpr::of(0.0, &[(1.0, Q::BarrelLength), (-2.0, Q::CoverWall)]),
+                    spacing_mm: 150.0,
+                },
+                ElementCount::Total(1),
+                Basis::Assumed,
+            )
+            .box_only(),
+            H::row(
+                "BX2",
+                ElementKind::BoxBarrel,
+                "Top slab transverse bar",
+                12,
+                Some(150.0),
+                100,
+                [
+                    Some(DimExpr::of(
+                        0.0,
+                        &[(1.0, Q::BarrelWidth), (-2.0, Q::CoverWall)],
+                    )),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Spaced {
+                    length: DimExpr::of(0.0, &[(1.0, Q::BarrelLength), (-2.0, Q::CoverWall)]),
+                    spacing_mm: 150.0,
+                },
+                ElementCount::Total(1),
+                Basis::Assumed,
+            )
+            .box_only(),
+            H::row(
+                "BX3",
+                ElementKind::BoxBarrel,
+                "Slab distribution bar",
+                10,
+                Some(200.0),
+                100,
+                [
+                    Some(DimExpr::of(
+                        0.0,
+                        &[(1.0, Q::BarrelLength), (-2.0, Q::CoverWall)],
+                    )),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Spaced {
+                    length: DimExpr::of(0.0, &[(1.0, Q::BarrelWidth), (-2.0, Q::CoverWall)]),
+                    spacing_mm: 200.0,
+                },
+                ElementCount::Total(2),
+                Basis::Assumed,
+            )
+            .box_only(),
+            H::row(
+                "BX4",
+                ElementKind::BoxBarrel,
+                "Wall vertical bar",
+                12,
+                Some(150.0),
+                100,
+                [
+                    Some(DimExpr::of(
+                        0.0,
+                        &[(1.0, Q::BarrelHeight), (-2.0, Q::CoverWall)],
+                    )),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+                Count::Spaced {
+                    length: DimExpr::of(0.0, &[(1.0, Q::BarrelLength), (-2.0, Q::CoverWall)]),
+                    spacing_mm: 150.0,
+                },
+                ElementCount::PerCellPlusOne(2),
+                Basis::Assumed,
+            )
+            .box_only(),
         ];
         ReinforcementTable {
             cover_wall_mm: 40.0,
@@ -336,17 +809,26 @@ impl ReinforcementTable {
         positive("the link allowance", self.link_allowance_d)?;
         for r in &self.rows {
             if unit_mass_kg_per_m(r.diameter_mm).is_none() {
-                return invalid(format!("bar mark {}: Y{} has no unit mass in the table (Y8 to Y25 only)", r.mark, r.diameter_mm));
+                return invalid(format!(
+                    "bar mark {}: Y{} has no unit mass in the table (Y8 to Y25 only)",
+                    r.mark, r.diameter_mm
+                ));
             }
             if !shape_defs().iter().any(|s| s.code == r.shape_code) {
-                return invalid(format!("bar mark {}: shape code {} is not one of the known codes", r.mark, r.shape_code));
+                return invalid(format!(
+                    "bar mark {}: shape code {} is not one of the known codes",
+                    r.mark, r.shape_code
+                ));
             }
             if let Count::Spaced { spacing_mm, .. } = &r.per_element {
                 positive(&format!("the spacing of bar mark {}", r.mark), *spacing_mm)?;
             }
             if let Some(s) = &r.series {
                 if s.count == 0 || s.count > 26 {
-                    return invalid(format!("bar mark {}: a series has 1 to 26 marks (a to z)", r.mark));
+                    return invalid(format!(
+                        "bar mark {}: a series has 1 to 26 marks (a to z)",
+                        r.mark
+                    ));
                 }
             }
         }
@@ -359,7 +841,18 @@ struct ApplyHelper;
 
 impl ApplyHelper {
     #[allow(clippy::too_many_arguments)]
-    fn row(mark: &str, element: ElementKind, description: &str, diameter_mm: u32, spacing_mm: Option<f64>, shape_code: u16, dims: [Option<DimExpr>; 6], per_element: Count, elements: ElementCount, basis: Basis) -> BarRule {
+    fn row(
+        mark: &str,
+        element: ElementKind,
+        description: &str,
+        diameter_mm: u32,
+        spacing_mm: Option<f64>,
+        shape_code: u16,
+        dims: [Option<DimExpr>; 6],
+        per_element: Count,
+        elements: ElementCount,
+        basis: Basis,
+    ) -> BarRule {
         BarRule {
             mark: mark.to_string(),
             element,
@@ -470,7 +963,9 @@ impl Ctx<'_> {
             Q::CoverSlab => t.cover_slab_mm,
             Q::BarrelLength => self.layout.barrel_len_mm,
             Q::BarrelWidth => self.input.barrel.outer_width_mm(),
-            Q::BarrelHeight => self.input.barrel.crown_above_invert_mm() + self.input.barrel.below_invert_mm(),
+            Q::BarrelHeight => {
+                self.input.barrel.crown_above_invert_mm() + self.input.barrel.below_invert_mm()
+            }
         }
     }
 
@@ -481,7 +976,12 @@ impl Ctx<'_> {
 
 /// Cutting length of one bar, mm, before rounding: the BS 8666 formula of the shape plus any
 /// adjustment. `dims` are A to F in mm.
-pub fn raw_cutting_length_mm(code: u16, dims: &[Option<f64>; 6], diameter_mm: f64, table: &ReinforcementTable) -> Result<f64, CulvertError> {
+pub fn raw_cutting_length_mm(
+    code: u16,
+    dims: &[Option<f64>; 6],
+    diameter_mm: f64,
+    table: &ReinforcementTable,
+) -> Result<f64, CulvertError> {
     let g = |i: usize| dims[i].unwrap_or(0.0);
     let d = diameter_mm;
     let r = min_bend_radius_mm(d);
@@ -490,7 +990,10 @@ pub fn raw_cutting_length_mm(code: u16, dims: &[Option<f64>; 6], diameter_mm: f6
         if (0..n).all(|i| dims[i].is_some()) {
             Ok(())
         } else {
-            invalid(format!("shape {code} needs dimensions A to {}", ["A", "B", "C", "D", "E", "F"][n - 1]))
+            invalid(format!(
+                "shape {code} needs dimensions A to {}",
+                ["A", "B", "C", "D", "E", "F"][n - 1]
+            ))
         }
     };
     let raw = match code {
@@ -530,7 +1033,12 @@ pub fn raw_cutting_length_mm(code: u16, dims: &[Option<f64>; 6], diameter_mm: f6
         }
         other => return invalid(format!("shape code {other} is not known")),
     };
-    let adjust: f64 = table.adjustments.iter().filter(|a| a.shape_code == code && a.diameter_mm as f64 == d).map(|a| a.add_mm).sum();
+    let adjust: f64 = table
+        .adjustments
+        .iter()
+        .filter(|a| a.shape_code == code && a.diameter_mm as f64 == d)
+        .map(|a| a.add_mm)
+        .sum();
     Ok(raw + adjust)
 }
 
@@ -568,7 +1076,8 @@ fn elements_of(c: ElementCount, ctx: &Ctx, per_end_multiplier: u32) -> u32 {
 pub fn schedule(input: &CulvertInput, layout: &Layout) -> Result<Bbs, CulvertError> {
     let table = &input.reinforcement;
     table.check()?;
-    let same_ends = layout.left.spec == layout.right.spec && layout.left.headwall_width_mm == layout.right.headwall_width_mm;
+    let same_ends = layout.left.spec == layout.right.spec
+        && layout.left.headwall_width_mm == layout.right.headwall_width_mm;
     let mut rows = Vec::new();
     for rule in &table.rows {
         match (rule.applies, input.barrel.is_pipe()) {
@@ -597,7 +1106,9 @@ pub fn schedule(input: &CulvertInput, layout: &Layout) -> Result<Bbs, CulvertErr
                         let base = match rule_dim {
                             DimRule::Expr(e) => ctx.eval(e),
                             DimRule::Hypot(x, y) => ctx.eval(x).hypot(ctx.eval(y)),
-                            DimRule::HalfCircle(r) => PI * (ctx.eval(r) + table.half_round_offset_mm),
+                            DimRule::HalfCircle(r) => {
+                                PI * (ctx.eval(r) + table.half_round_offset_mm)
+                            }
                         };
                         let step = rule.series.as_ref().map_or(0.0, |s| ctx.eval(&s.step[i]));
                         let v = (base + step * k as f64).round();
@@ -607,14 +1118,24 @@ pub fn schedule(input: &CulvertInput, layout: &Layout) -> Result<Bbs, CulvertErr
                         *slot = Some(v);
                     }
                 }
-                let raw = raw_cutting_length_mm(rule.shape_code, &dims, rule.diameter_mm as f64, table)?;
+                let raw =
+                    raw_cutting_length_mm(rule.shape_code, &dims, rule.diameter_mm as f64, table)?;
                 let cut = round_to(raw, table.rounding_mm);
                 if cut <= 0.0 {
-                    return invalid(format!("bar mark {}: the cutting length is not positive", rule.mark));
+                    return invalid(format!(
+                        "bar mark {}: the cutting length is not positive",
+                        rule.mark
+                    ));
                 }
-                let mass_per_m = unit_mass_kg_per_m(rule.diameter_mm).ok_or_else(|| CulvertError::Invalid(format!("no unit mass for Y{}", rule.diameter_mm)))?;
+                let mass_per_m = unit_mass_kg_per_m(rule.diameter_mm).ok_or_else(|| {
+                    CulvertError::Invalid(format!("no unit mass for Y{}", rule.diameter_mm))
+                })?;
                 let total_bars = per_element * elements;
-                let mark = if rule.series.is_some() { format!("{}{}{}", rule.mark, (b'a' + k as u8) as char, tag) } else { format!("{}{}", rule.mark, tag) };
+                let mark = if rule.series.is_some() {
+                    format!("{}{}{}", rule.mark, (b'a' + k as u8) as char, tag)
+                } else {
+                    format!("{}{}", rule.mark, tag)
+                };
                 rows.push(BbsRow {
                     element: rule.element,
                     mark,
@@ -633,7 +1154,10 @@ pub fn schedule(input: &CulvertInput, layout: &Layout) -> Result<Bbs, CulvertErr
             }
         }
     }
-    let mut bbs = Bbs { rows, ..Bbs::default() };
+    let mut bbs = Bbs {
+        rows,
+        ..Bbs::default()
+    };
     for r in &bbs.rows {
         *bbs.by_diameter_kg.entry(r.diameter_mm).or_insert(0.0) += r.mass_kg;
         *bbs.by_element_kg.entry(r.element).or_insert(0.0) += r.mass_kg;
@@ -663,7 +1187,11 @@ impl Bbs {
         for r in &self.rows {
             if last != Some(r.element) {
                 if last.is_some() {
-                    out.push_str(&format!(",,,Subtotal {},,,,,,,,,,,,,{:.3}\n", q(last.map_or("", ElementKind::label)), self.element_kg(last.unwrap_or(r.element))));
+                    out.push_str(&format!(
+                        ",,,Subtotal {},,,,,,,,,,,,,{:.3}\n",
+                        q(last.map_or("", ElementKind::label)),
+                        self.element_kg(last.unwrap_or(r.element))
+                    ));
                 }
                 last = Some(r.element);
             }
@@ -690,12 +1218,19 @@ impl Bbs {
             ));
         }
         if let Some(l) = last {
-            out.push_str(&format!(",,,Subtotal {},,,,,,,,,,,,,{:.3}\n", q(l.label()), self.element_kg(l)));
+            out.push_str(&format!(
+                ",,,Subtotal {},,,,,,,,,,,,,{:.3}\n",
+                q(l.label()),
+                self.element_kg(l)
+            ));
         }
         for (d, kg) in &self.by_diameter_kg {
             out.push_str(&format!(",,,Total Y{d},,,,,,,,,,,,,{kg:.3}\n"));
         }
-        out.push_str(&format!(",,,Grand total,,,,,,,,,,,,,{:.3}\n", self.total_kg));
+        out.push_str(&format!(
+            ",,,Grand total,,,,,,,,,,,,,{:.3}\n",
+            self.total_kg
+        ));
         out
     }
 }

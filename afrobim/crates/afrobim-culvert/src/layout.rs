@@ -88,8 +88,16 @@ pub struct Layout {
 }
 
 impl EndLayout {
-    fn new(spec: &EndStructure, barrel_width_mm: f64, surround_side_mm: f64, side: Side, invert_m: f64) -> EndLayout {
-        let hw = spec.headwall_width_mm.unwrap_or(barrel_width_mm + 2.0 * surround_side_mm + spec.headwall_extra_width_mm);
+    fn new(
+        spec: &EndStructure,
+        barrel_width_mm: f64,
+        surround_side_mm: f64,
+        side: Side,
+        invert_m: f64,
+    ) -> EndLayout {
+        let hw = spec
+            .headwall_width_mm
+            .unwrap_or(barrel_width_mm + 2.0 * surround_side_mm + spec.headwall_extra_width_mm);
         let phi = spec.wing.splay_deg.to_radians();
         let (sin, cos) = (phi.sin(), phi.cos());
         let reach = spec.wing.length_mm * cos;
@@ -142,23 +150,49 @@ fn slope_offset_m(section: &RoadSection, side: Side, top_m: f64) -> Result<f64, 
         ));
     }
     let d = section.embankment_slope_n * (e.level_m - top_m);
-    Ok(if side == Side::Left { e.offset_m - d } else { e.offset_m + d })
+    Ok(if side == Side::Left {
+        e.offset_m - d
+    } else {
+        e.offset_m + d
+    })
 }
 
 /// Invert at the left end, at the right end, the gradient (m/m) and the invert at the centreline
 /// for the given end lengths.
-fn inverts_for(spec: &InvertSpec, inlet_left: bool, flow_dir: f64, left_len: f64, right_len: f64) -> (f64, f64, f64, f64) {
+fn inverts_for(
+    spec: &InvertSpec,
+    inlet_left: bool,
+    flow_dir: f64,
+    left_len: f64,
+    right_len: f64,
+) -> (f64, f64, f64, f64) {
     match *spec {
         InvertSpec::Ends { inlet_m, outlet_m } => {
-            let (l, r) = if inlet_left { (inlet_m, outlet_m) } else { (outlet_m, inlet_m) };
+            let (l, r) = if inlet_left {
+                (inlet_m, outlet_m)
+            } else {
+                (outlet_m, inlet_m)
+            };
             let total = left_len + right_len;
-            let g = if total > 0.0 { (inlet_m - outlet_m) / (total / 1000.0) } else { 0.0 };
+            let g = if total > 0.0 {
+                (inlet_m - outlet_m) / (total / 1000.0)
+            } else {
+                0.0
+            };
             // invert(s) = cl - flow_dir * g * s, so at the left end s = -left_len.
             (l, r, g, l - flow_dir * g * left_len / 1000.0)
         }
-        InvertSpec::CentreGradient { centre_m, gradient_pct } => {
+        InvertSpec::CentreGradient {
+            centre_m,
+            gradient_pct,
+        } => {
             let g = gradient_pct / 100.0;
-            (centre_m + flow_dir * g * left_len / 1000.0, centre_m - flow_dir * g * right_len / 1000.0, g, centre_m)
+            (
+                centre_m + flow_dir * g * left_len / 1000.0,
+                centre_m - flow_dir * g * right_len / 1000.0,
+                g,
+                centre_m,
+            )
         }
     }
 }
@@ -184,7 +218,8 @@ pub fn derive(input: &CulvertInput) -> Result<Layout, CulvertError> {
         LengthRule::Fixed { total_mm } => Some((total_mm / 2.0, total_mm / 2.0)),
         LengthRule::LeftRight { left_mm, right_mm } => Some((left_mm, right_mm)),
     };
-    let end_height_m = |e: &EndStructure| (e.headwall_above_apron_mm - e.apron_top_below_invert_mm) / 1000.0;
+    let end_height_m =
+        |e: &EndStructure| (e.headwall_above_apron_mm - e.apron_top_below_invert_mm) / 1000.0;
     let (mut left_len, mut right_len) = lengths_fixed.unwrap_or((0.0, 0.0));
     let mut iterations = 0;
     let (inv_l, inv_r, gradient, inv_cl) = loop {
@@ -214,8 +249,20 @@ pub fn derive(input: &CulvertInput) -> Result<Layout, CulvertError> {
         return invalid(format!("the barrel lengths from the centreline must both be greater than zero (left {left_len:.0}, right {right_len:.0} mm)"));
     }
 
-    let left = EndLayout::new(&input.left_end, width, input.bedding.surround_side_mm, Side::Left, inv_l);
-    let right = EndLayout::new(&input.right_end, width, input.bedding.surround_side_mm, Side::Right, inv_r);
+    let left = EndLayout::new(
+        &input.left_end,
+        width,
+        input.bedding.surround_side_mm,
+        Side::Left,
+        inv_l,
+    );
+    let right = EndLayout::new(
+        &input.right_end,
+        width,
+        input.bedding.surround_side_mm,
+        Side::Right,
+        inv_r,
+    );
     if left_len + right_len < left.apron_and_toe_mm + right.apron_and_toe_mm {
         return invalid(format!(
             "the barrel is {:.0} mm long but the two end structures need {:.0} mm: they would overlap",
@@ -247,7 +294,8 @@ pub fn derive(input: &CulvertInput) -> Result<Layout, CulvertError> {
         let s = p.offset_m * 1000.0 / sin_skew;
         if s >= -left_len && s <= right_len {
             let invert = inv_cl - flow_dir * gradient * s / 1000.0;
-            let cover = (p.level_m - invert - input.barrel.crown_above_invert_mm() / 1000.0) * 1000.0;
+            let cover =
+                (p.level_m - invert - input.barrel.crown_above_invert_mm() / 1000.0) * 1000.0;
             min_cover = min_cover.min(cover);
         }
     }
@@ -260,7 +308,10 @@ pub fn derive(input: &CulvertInput) -> Result<Layout, CulvertError> {
         limit: input.thresholds.min_cover_mm,
         unit: "mm".to_string(),
         passed: min_cover >= input.thresholds.min_cover_mm,
-        message: format!("the smallest cover under the road is {min_cover:.0} mm against a minimum of {:.0} mm", input.thresholds.min_cover_mm),
+        message: format!(
+            "the smallest cover under the road is {min_cover:.0} mm against a minimum of {:.0} mm",
+            input.thresholds.min_cover_mm
+        ),
     });
     checks.push(Check {
         name: "self-cleansing gradient".to_string(),
@@ -268,7 +319,10 @@ pub fn derive(input: &CulvertInput) -> Result<Layout, CulvertError> {
         limit: input.thresholds.min_gradient_pct,
         unit: "%".to_string(),
         passed: gpct + 1e-9 >= input.thresholds.min_gradient_pct,
-        message: format!("the barrel gradient is {gpct:.2} % against a minimum of {:.2} %", input.thresholds.min_gradient_pct),
+        message: format!(
+            "the barrel gradient is {gpct:.2} % against a minimum of {:.2} %",
+            input.thresholds.min_gradient_pct
+        ),
     });
 
     Ok(Layout {
