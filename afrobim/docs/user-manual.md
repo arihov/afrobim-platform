@@ -17,7 +17,7 @@ Every number in this manual that comes from a standard is quoted with its citati
 7. Default values and design standards
 8. First hour walkthrough: signs and roads
 9. The ribbon tabs, in ribbon order
-10. Command reference (all 256 commands)
+10. Command reference (all 257 commands)
 11. Standards and editions
 12. Known slips in the source documents
 13. What has not been verified
@@ -171,7 +171,7 @@ These come from `crates/afrobim-app/src/main.rs`. An argument that is not an opt
 
 The window has three bands and two columns. From top to bottom: the menu bar, then the ribbon, with the workspace switcher at its left end. Below the ribbon are the left panel (the Tool Sets and the toolspace), the drawing area in the middle, and the right panel (Properties and Layers). The command line and the status bar sit at the bottom.
 
-Every route to a command runs the same entry in one command table, `crates/afrobim-app/src/commands.rs`, which holds 256 commands. The menus, the ribbon, the Tool Sets, the command palette and the command line therefore always do the same thing. Chapter 10 lists all 256.
+Every route to a command runs the same entry in one command table, `crates/afrobim-app/src/commands.rs`, which holds 257 commands. The menus, the ribbon, the Tool Sets, the command palette and the command line therefore always do the same thing. Chapter 10 lists all 257.
 
 ### 3.1 Workspaces
 
@@ -222,7 +222,7 @@ The menu bar has ten menus: File, Edit, View, Insert, Civil, Modify, Analyse, To
 - **Civil.** Toolspace. Submenus for Points, Surfaces, Profiles, Corridors and sections, Parcels, Pipe networks, Grading, Intersections, Data shortcuts, Point clouds, Survey database and Reprojection. Earthworks and mass haul. Export civil data as LandXML. Demonstration data. Chapter 6 covers each command.
 - **Modify.** Move, Copy, Erase and Arrange. Sign actions: place the sign on an alignment, add supports, design supports, remove supports, hang the sign on a gantry, take it off a gantry. Design an alignment, edit the alignment in plan, profile editor, edit text.
 - **Analyse.** Check the whole model, check the selected element, alignment design checks, pavement design, rational method flow, sign visibility, photometry and corridor cross-sections, with a Coordination submenu.
-- **Tools.** Layer manager, Units, Object snap settings, Text styles, Dimension styles. Submenus for Sheets (sheet sets, sheet preview, title block), Annotate, Measure, Programme (4D), Cost (5D) and Construction. Design standard, with UK and Uganda.
+- **Tools.** Layer manager, Units, Object snap settings, Text styles, Dimension styles. Submenus for Sheets (sheet sets, sheet preview, title block), Annotate, Measure, Programme (4D), Cost (5D), with the entry Green BIM: carbon and energy… (`GREENBIM`, section 9.12), and Construction. Design standard, with UK and Uganda.
 - **Window.** Workspace (the list of workspaces). Panels: Tool sets and model tree, Properties and layers. Look: Dark glass, Light glass, Solid. Appearance. Dark / light. Command palette.
 - **Help.** Search commands (the palette), Command list, About AfroBIM.
 
@@ -1740,6 +1740,7 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 | `RATES` | `RATELIBRARY` | A rate library CSV (`item_code,description,unit,rate,currency,source_note,date`), or each rate typed with its currency, source note and date | The rate library. Items with no rate are listed as unpriced, never priced at zero. |
 | `CURRENCY` | `EXCHANGE` | The primary currency label and decimals (UGX with 0 decimals is the starting label); an optional secondary currency; exchange rates (1 FROM = RATE TO, each dated, with a source note); an optional as-of date | The currency settings. A rate converts directly or by reciprocal, never through a third currency. |
 | `ESTIMATE` | `PRICE` | Nothing. Tabs for the priced bill, additions, audit trail and comparison | The priced bill with section totals, a secondary-currency column, additions in list order, the grand total, banners for unpriced items, unmapped lines and possible double counting, and comparison with a saved snapshot or another estimate. |
+| `GREENBIM` | `CARBON`, `EMBODIEDCARBON`, `GREEN` | Your factor file (CSV, loaded in the window); the waste, haul and lighting settings, entered in the window | Embodied carbon (A1-A3 and A4), its transport part, coverage, totals by material, the street lighting energy block, saved design options and a CSV export. With no factor file there is no total |
 | `CASHFLOW` | `SCURVE` | A window (start and finish) per item or section, by hand, or taken from the linked activities of the programme | A monthly table and an S-curve. |
 | `CERTIFICATE` | `IPC`, `INTERIM` | Payment rules you enter, in the order applied (retention with an optional cap, advance recovery, percent of gross, lump); the quantities to date, typed or taken from the site records at a date; the previous certificate | An interim payment certificate. |
 | `COSTCSV` | `COSTREPORTS` | A folder | Every CSV the crate offers: quantity lines, bill structure, mapping rules, rates, the priced and unpriced bill, summary, audit trail, unmapped lines, cash flow, comparison and certificate. |
@@ -1753,6 +1754,77 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 - Cash flow is linear by calendar day, by month. No weeks or working-day calendars. Non-linear distributions are not done.
 - Exchange rates convert directly or by reciprocal only.
 - Not done: price adjustment and escalation, variations, dayworks, claims, final account, xlsx output (CSV only).
+
+#### Green BIM: carbon and energy (`GREENBIM`)
+
+**Purpose.** Embodied carbon (A1-A3 for materials, A4 for transport), material waste and haul from the model's quantity lines, and the operational energy and carbon of the street lighting. The engine is `afrobim-green`. The window opens from `GREENBIM` (aliases `CARBON`, `EMBODIEDCARBON` and `GREEN`), from the Green BIM panel of this tab ("Carbon and energy"), or from Tools → Cost (5D) → "Green BIM: carbon and energy…". It reads the same quantity lines as the estimate. Its factor file, settings and saved options are kept in the document.
+
+**AfroBIM ships no carbon factors.** Every carbon factor, density, waste percentage, haul distance, burning hour, dimming level, design life and grid factor is yours to enter. A figure built into the application would carry a source and an edition that you did not choose, and a carbon figure given to a client or funder must name its source, edition and boundary. So the window shows no total until a factor file is loaded, and a line with no factor is reported as unmatched with its reason. Nothing is priced at zero.
+
+**Steps.**
+
+1. **Save the blank template.** Press *Save blank template…*. It writes `carbon-factors.csv`: one row for each material key the model needs, every number blank. The fixed keys are always included: `concrete`, `concrete blinding`, `structural steel`, `steel post`, `safety barrier`, `culvert`, `road marking`, `sign face`, `lighting column` and `earth fill`. Keys taken from the model's own lines are also included: `pavement: <material>` for each pavement layer material, and `concrete <grade>` for each concrete grade. Save the template once the model has its quantities, so that these keys are present.
+2. **Fill it from the source you choose.** Take the figures from one named source and its edition. Give each row its `source` and `edition`. In the setting lines at the top, state the file's name, source, edition and boundary (for example A1-A3), the transport factor and, if you assess lighting, the grid factor with its source. Leave a cell blank when you have no figure. A blank is never taken as zero.
+3. **Load it.** *Load factor file…* opens a CSV dialog. The window then shows the file's name, its number of factors, source, edition, boundary, transport and grid settings, and runs an assessment. *Remove* clears the file.
+4. **Set the lighting use.** Three inputs under "Street lighting use": burning hours (0 to 8784 per year), energy after dimming (the fraction of full power over the burning hours, 0 to 1, where 1 means no dimming) and design life (0 to 100 years). Tick the box beside an input to enter it. Unticked means not entered, and nothing is assumed.
+5. **Set waste and haul.** Under "How each quantity is used", each rule that counts material or haul has a waste allowance (percent of the tonnes, 0 to 100) and a haul distance (km, 0 to 1000). Tick and enter a value; unticked means no waste and no transport for that rule. Rules that do not count show no inputs.
+6. **Assess the model.** Loading a factor file runs an assessment. Changing waste, haul or lighting does not: press *Assess the model* again. The result shown is always the last one run.
+
+**Reading the result.**
+
+- **Embodied carbon** is the sum over the counted lines of A1-A3 plus A4, shown in tonnes of CO2e. *Of which transport* is the A4 part. With no factor file, or nothing counted, the window shows "No total" rather than zero.
+- **Coverage.** The line reads "N of M quantity lines counted, X excluded on purpose, Y unmatched, Z lighting". Every line ends in exactly one of these four, so they add up to M.
+  - *Counted*: material carbon, haul, or both, was calculated.
+  - *Excluded on purpose*: the quantity is carried by another quantity of the same item, so it is not counted twice. For example, the area of a pavement layer is excluded because its volume carries the layer, and cut earthworks are excluded so that moved earth is counted once, through the fill haul.
+  - *Unmatched*: the line should carry carbon or haul but could not be worked out. Each reason is listed under "Unmatched lines".
+  - *Lighting*: luminaire lines, kept in the lighting block.
+- **Totals by material.** Tonnes, waste tonnes and tonnes of CO2e for each material.
+- **Street lighting (operational).** Shown apart from embodied carbon: luminaires, installed kW, kWh per year, kgCO2e per year, and the total over the design life. A figure is "not worked out" while an input it needs is missing, and the window names that input.
+- **Save as option.** Name the result and save it as a design option. The option keeps its totals, coverage, lighting figures, and the name and edition of the factor file. Compare only options worked out with the same factor file; hover over a name to see which file it was.
+- **Export CSV…** writes `green-bim.csv`, in blocks separated by a blank line: the factor set, every line with its outcome, reason and figures, totals by material, the embodied and transport totals, the coverage counts, the lighting block and the notes. An empty figure means not calculated, never zero. If no assessment has run, one runs first.
+
+**The factor file.** A CSV file. Lines beginning with `#` come first and are read as settings. Other `#` lines are ignored. The settings are:
+
+| Setting line | Meaning |
+|---|---|
+| `# name:` | A name for this file, shown in the window |
+| `# source:` | The publication the figures come from |
+| `# edition:` | The edition of that publication |
+| `# boundary:` | The life-cycle boundary the carbon factors cover, as you state it, for example A1-A3 |
+| `# transport_kgco2e_per_tkm:` | The A4 transport factor, in kgCO2e per tonne-kilometre |
+| `# grid_kgco2e_per_kwh:` | The grid factor for lighting, in kgCO2e per kWh |
+| `# grid_source:` | The publication the grid factor comes from |
+
+Then comes the header row. It must be exactly these nine columns, in this order:
+
+| Column | Meaning |
+|---|---|
+| `key` | The name the rules look up. Matched ignoring case and extra spaces |
+| `material` | The name shown in reports |
+| `kgco2e_per_t` | kgCO2e per tonne, for the boundary in `# boundary:` |
+| `t_per_m3` | Tonnes per cubic metre, used for `m3` lines |
+| `t_per_m2` | Tonnes per square metre, used for `m2` lines |
+| `t_per_m` | Tonnes per metre, used for `m` lines |
+| `t_per_nr` | Tonnes per item, used for `nr` lines |
+| `source` | Where this row's figures come from |
+| `edition` | The edition of that source |
+
+Lines in `t` and `kg` need no density: a `t` quantity is taken as tonnes, and a `kg` quantity is divided by 1000. Such lines still need `kgco2e_per_t`.
+
+How the reader treats the file:
+
+- An empty cell is not entered. An empty `kgco2e_per_t` leaves its lines unmatched.
+- A negative, non-numeric or infinite number, a short row, or a repeated key is an error, and the message names the line number.
+- A field may be quoted, with `""` for a quote. A field cannot hold a line break, and a setting's value must be on its own line.
+
+**Limits.**
+
+- The engine records the boundary you state. It does not check that your factors cover it. Material carbon is labelled A1-A3 and transport A4.
+- Haul is one distance per rule, typed by you. The mass-haul diagram is not read for distances.
+- Design options compare totals only. No per-kilometre or per-item view is built.
+- Lighting covers the street lighting luminaire lines only. Building energy is not built.
+- A quantity category with no rule in the default table is unmatched. The window sets waste and haul for the rules in its table; it cannot add a rule.
+- The tests in the code use invented fixtures for arithmetic. They are not data about any material, grid or road.
 
 ### 9.13 Construction
 
@@ -1873,11 +1945,11 @@ The "Asks for" column names the fields of the dialog as they are labelled on scr
 
 The Civil tab, and the toolspace that goes with it, are described in section 6 (civil objects) and section 3.4 (the toolspace).
 
-## 10. Command reference (all 256 commands)
+## 10. Command reference (all 257 commands)
 
-This is every command in `crates/afrobim-app/src/commands.rs`: **256 commands**, one `CommandInfo` entry each, and the same count as the registry. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
+This is every command in `crates/afrobim-app/src/commands.rs`: **257 commands**, one `CommandInfo` entry each, and the same count as the registry. Type a name or an alias on the command line, or find it in the command palette (Ctrl+K). Each command is listed once, under the first ribbon tab that holds its button, in ribbon order. The "Also on" column lists the other tabs that hold the same command. The sign templates (STACK, DIRECTION, CONFIRM, PLACE, LANE, DIVERSION, MAP, TEE and ROUNDABOUT) are the sign buttons of the active design standard, on the Signs tab and in the Insert menu. The help text is the one the command table holds, so the same words show on its hover card and in the `?` list.
 
-The counts by group are: Home 22, Edit 3, Insert 10, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 77, Design 10, Structures 4, Coordination 8, 4D 19, 5D 7, Construction 7, Output 14, Manage 10, View 6, Help 3. Those add to 256, the registry count. The palette and the command line reach every command. The groups follow the ribbon tabs, which serve the workflow stages in chapter 1.
+The counts by group are: Home 22, Edit 3, Insert 10, Annotate 27, Modify 1, Signs 8, Roads 20, Civil 77, Design 10, Structures 4, Coordination 8, 4D 19, 5D 8, Construction 7, Output 14, Manage 10, View 6, Help 3. Those add to 257, the registry count. The palette and the command line reach every command. The groups follow the ribbon tabs, which serve the workflow stages in chapter 1.
 
 ### Home: 22 commands
 
@@ -2150,7 +2222,7 @@ The counts by group are: Home 22, Edit 3, Insert 10, Annotate 27, Modify 1, Sign
 | `XERIN` | `IMPORTXER`, `P6IN` | - | Import a programme from a Primavera P6 XER file and show what the file could not carry (files have not been tested in P6) |
 | `XEROUT` | `EXPORTXER`, `P6OUT` | - | Export the programme as a Primavera P6 XER file and show what the file does not carry (not tested in P6) |
 
-### 5D: 7 commands
+### 5D: 8 commands
 
 | Command | Aliases | Also on | Help text |
 |---|---|---|---|
@@ -2160,6 +2232,7 @@ The counts by group are: Home 22, Edit 3, Insert 10, Annotate 27, Modify 1, Sign
 | `COSTCSV` | `COSTREPORTS` | - | Export every cost report as CSV into a folder |
 | `CURRENCY` | `EXCHANGE` | - | Set the primary currency label, an optional secondary currency and dated exchange rates |
 | `ESTIMATE` | `PRICE` | - | Show the priced bill, additions, audit trail and revision comparison |
+| `GREENBIM` | `CARBON`, `EMBODIEDCARBON`, `GREEN` | - | Green BIM: embodied carbon, material waste and transport from the model's quantities with your factor file, and the energy of the street lighting |
 | `RATES` | `RATELIBRARY` | - | Enter or load rates (with currency, source note and date); lists unpriced items |
 
 ### Construction: 7 commands
@@ -2601,11 +2674,29 @@ A flow above the full-bore discharge is reported as exceeding capacity. A loop i
 
 Points, parcels, ground profiles, profile views, sample line groups, assemblies, feature lines, survey figures and point clouds are not written to IFC. No verified IFC entity fits them. They stay in the document and in `CIVILXML` (section 6.15).
 
+**Green BIM shows "no total".**
+
+The status bar reads "Green BIM: no total". The window then gives the reason: "No factor file loaded, so no carbon total is shown", or "No total: nothing could be counted". Check these in order:
+
+- No factor file is loaded. Save the blank template, fill it from your source and load it.
+- A factor file is loaded but no line was counted, because every line is excluded, unmatched or lighting. Open "Unmatched lines" to see the reason for each line.
+- Waste, haul or lighting was changed after the last run. Press *Assess the model* again.
+
+**A material is unmatched in Green BIM.**
+
+The "Unmatched lines" list gives the reason for each line. The reasons, and what to do:
+
+- `no factor for <key>`: the factor file has no row with that key. Add a row whose `key` is exactly that key (case and extra spaces are ignored), with its `material`, its `kgco2e_per_t`, and the density for the unit the line is measured in: `t_per_m3` for `m3`, `t_per_m2` for `m2`, `t_per_m` for `m`, or `t_per_nr` for `nr`. Then load the file again. The blank template has a row for each key the model needs.
+- `<key>: no t_per_<unit> in the factor file`: the row exists but its density for that unit is blank. Enter the density.
+- `<key>: no kgco2e_per_t in the factor file`: the row has no carbon figure. Enter it.
+- `the unit differs from the rule's`: the line is measured in another unit from the one its rule expects (`m`, `m2`, `m3`, `kg`, `t` or `nr`). It is not converted. Measure the quantity in the rule's unit.
+- `no rule for <category>`: the quantity's category has no rule. The window cannot add one, so the line stays unmatched.
+
 ## 16. Notes for the maintainer
 
 The round 4 polish corrected the READMEs that disagreed with the code, and the round 6 revision of this manual corrected the manual where it disagreed with the code. What remains below is still true of the code as built. Where the manual and a README disagree again, the manual follows the code.
 
-- **Command table.** `crates/afrobim-app/src/commands.rs` holds **256 commands**, one `CommandInfo` entry each. Chapter 10 lists all 256, grouped by the ribbon tab that holds each command first, and states the count per group. Every command is on a ribbon tab, or is a sign template that the Signs tab shows. The earlier editions of this manual said 222 (and 169 before the civil commands); both were wrong. The registry enforces unique names and aliases in a unit test (`names_and_aliases_resolve_and_are_unique`). The tables in chapter 10 were generated from the registry and the ribbon, and should be regenerated when either changes.
+- **Command table.** `crates/afrobim-app/src/commands.rs` holds **257 commands**, one `CommandInfo` entry each. Chapter 10 lists all 257, grouped by the ribbon tab that holds each command first, and states the count per group. Every command is on a ribbon tab, or is a sign template that the Signs tab shows. The earlier editions of this manual said 222 (and 169 before the civil commands); both were wrong. The registry enforces unique names and aliases in a unit test (`names_and_aliases_resolve_and_are_unique`). The tables in chapter 10 were generated from the registry and the ribbon, and should be regenerated when either changes.
 - **Ribbon and menus.** The ribbon has eighteen tabs and the menu bar ten menus: File, Edit, View, Insert, Civil, Modify, Analyse, Tools, Window and Help. The menus are not a separate command set. Every item runs a command from the command table. The Signs tab is built from the sign templates of the active standard. The Civil menu has submenus for Points, Surfaces, Profiles, Corridors and sections, Parcels, Pipe networks, Grading, Intersections, Data shortcuts, Point clouds, Survey database and Reprojection.
 - **Workspaces.** There are twelve workspaces in `WORKSPACES` in `workspace.rs`. A new workspace is one more entry there, and it is listed in the switcher automatically. The toolspace has three tabs (Prospector, Survey and Settings), and a workspace chooses which one it opens on.
 - **Command-line flags.** `main.rs` parses the options of chapter 2. The manual lists every option the parser reads.
