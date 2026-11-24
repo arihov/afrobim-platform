@@ -58,6 +58,10 @@ pub struct ImageDef {
     pub detail: u32,
     /// Pure black pixels are not drawn (the collar of an orthophoto mosaic).
     pub transparent_black: bool,
+    /// Draw order among the images: higher is drawn later, over the others. The online map is
+    /// always below every image. Absent in documents saved before it existed (read as 0).
+    #[serde(default)]
+    pub order: i32,
 }
 
 impl ImageDef {
@@ -75,6 +79,7 @@ impl ImageDef {
             opacity: 1.0,
             detail: 4096,
             transparent_black: true,
+            order: 0,
         }
     }
 
@@ -113,6 +118,32 @@ pub fn pin_crs(doc: &mut Document, old: Option<&ProjectCrs>) -> usize {
         set_def(doc, id, &def);
     }
     ids.len()
+}
+
+/// The images in the order they are drawn: by `order`, then by their place in the document.
+pub fn paint_order(doc: &Document) -> Vec<ElementId> {
+    let mut v: Vec<(i32, usize, ElementId)> = doc.elements().iter().enumerate().filter_map(|(i, e)| def_of(e).map(|d| (d.order, i, e.id))).collect();
+    v.sort();
+    v.into_iter().map(|(_, _, id)| id).collect()
+}
+
+/// Moves an image one step up (`forward`) or down the draw order, renumbering every image
+/// 0, 1, 2 ... so the orders stay distinct. False when it is already at that end.
+pub fn shift_order(doc: &mut Document, id: ElementId, forward: bool) -> bool {
+    let mut ids = paint_order(doc);
+    let Some(i) = ids.iter().position(|x| *x == id) else { return false };
+    let j = if forward { i + 1 } else { i.wrapping_sub(1) };
+    if j >= ids.len() {
+        return false;
+    }
+    ids.swap(i, j);
+    for (k, id) in ids.iter().enumerate() {
+        if let Some(mut d) = doc.find(*id).and_then(def_of) {
+            d.order = k as i32;
+            set_def(doc, *id, &d);
+        }
+    }
+    true
 }
 
 /// The module of the placeholder element: it draws nothing.
@@ -509,7 +540,8 @@ impl ImageryState {
 
     /// Draws the visible images behind the model, in document order.
     pub fn paint(&self, doc: &Document, painter: &Painter, view: &ViewTransform, rect: Rect) {
-        for e in doc.elements().iter().filter(|e| e.category == CATEGORY) {
+        for id in paint_order(doc) {
+            let Some(e) = doc.find(id) else { continue };
             let Some(def) = def_of(e) else { continue };
             if !def.visible {
                 continue;
@@ -545,6 +577,7 @@ impl crate::app::AfroBimApp {
         }
         let mut open = true;
         let (mut attach, mut detach, mut accept, mut zoom) = (false, None, None, None);
+        let mut reorder: Option<(ElementId, bool)> = None;
         let mut changes: Vec<(ElementId, ImageDef)> = Vec::new();
         let mut map_changed: Option<crate::basemap::BasemapSettings> = None;
         let project = project_crs(&self.doc);
@@ -598,6 +631,16 @@ impl crate::app::AfroBimApp {
                             ui.horizontal(|ui| {
                                 ui.add(egui::Slider::new(&mut def.opacity, 0.05..=1.0).show_value(false));
                                 ui.label(format!("{:.0} %", def.opacity * 100.0));
+                            });
+                            ui.end_row();
+                            ui.label("Draw order");
+                            ui.horizontal(|ui| {
+                                if ui.button("Send back").on_hover_text("Drawn under the other images (the online map stays below all of them)").clicked() {
+                                    reorder = Some((id, false));
+                                }
+                                if ui.button("Bring forward").on_hover_text("Drawn over the other images").clicked() {
+                                    reorder = Some((id, true));
+                                }
                             });
                             ui.end_row();
                             ui.label("Detail");
@@ -723,6 +766,11 @@ impl crate::app::AfroBimApp {
         if attach {
             if let Some(path) = rfd::FileDialog::new().add_filter("Georeferenced image", EXTENSIONS).add_filter("any file", &["*"]).set_title("Attach a georeferenced image").pick_file() {
                 self.attach_image(&path);
+            }
+        }
+        if let Some((id, forward)) = reorder {
+            if shift_order(&mut self.doc, id, forward) {
+                self.schedule_commit_now();
             }
         }
         if let Some(id) = accept {
@@ -895,6 +943,28 @@ mod tests {
         assert!(dx.hypot(dy) < 0.5, "image moved with the datum: off by {dx:.3}, {dy:.3} m");
         let (sx, sy) = (after.lo.x - before.lo.x, after.lo.y - before.lo.y);
         assert!(sx.hypot(sy) > 50_000.0, "the datum shift is tens of metres, so the check is not vacuous");
+    }
+
+    #[test]
+    fn images_draw_in_their_order_and_an_old_document_without_one_still_loads() {
+        let mut doc = Document::default();
+        let mk = |doc: &mut Document, name: &str| {
+            let def = ImageDef::new(Path::new(&format!("{name}.png")));
+            doc.add(CATEGORY, name, Pt::new(0.0, 0.0), 1.0, 1.0, crate::underlay::LAYER, serde_json::to_value(&def).unwrap())
+        };
+        let (a, b, c) = (mk(&mut doc, "a"), mk(&mut doc, "b"), mk(&mut doc, "c"));
+        assert_eq!(paint_order(&doc), vec![a, b, c]);
+        assert!(shift_order(&mut doc, a, true));
+        assert_eq!(paint_order(&doc), vec![b, a, c]);
+        assert!(shift_order(&mut doc, c, false));
+        assert_eq!(paint_order(&doc), vec![b, c, a]);
+        assert!(!shift_order(&mut doc, a, true), "already on top");
+        assert!(!shift_order(&mut doc, b, false), "already at the bottom");
+        // A record written before the field existed has no "order" key.
+        let mut v = serde_json::to_value(ImageDef::new(Path::new("old.png"))).unwrap();
+        v.as_object_mut().unwrap().remove("order");
+        let old: ImageDef = serde_json::from_value(v).unwrap();
+        assert_eq!(old.order, 0);
     }
 
     #[test]

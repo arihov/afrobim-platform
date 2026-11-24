@@ -392,7 +392,24 @@ pub fn tile_grid(from_geo: &TransformPlan, z: u8, x: u32, y: u32, n: usize) -> O
 }
 
 /// The background map part of the window.
+/// The quick map types and the built-in provider each one picks.
+pub const MAP_TYPES: &[(&str, &str)] = &[("Satellite", "esri-imagery"), ("Street", "osm"), ("Terrain", "opentopomap")];
+
+/// Which quick map type a provider is, if any.
+pub fn map_type(provider: &str) -> Option<usize> {
+    MAP_TYPES.iter().position(|(_, id)| *id == provider)
+}
+
 pub fn settings_ui(ui: &mut egui::Ui, s: &mut BasemapSettings, st: &mut BasemapState, project: Option<&ProjectCrs>) {
+    ui.horizontal(|ui| {
+        for (label, id) in MAP_TYPES {
+            if ui.selectable_label(s.provider == *id, *label).clicked() {
+                s.provider = id.to_string();
+                s.enabled = true;
+            }
+        }
+    });
+    ui.add_space(4.0);
     egui::Grid::new("basemap-grid").num_columns(2).spacing([10.0, 5.0]).show(ui, |ui| {
         ui.label("Show the map");
         crate::ui_kit::toggle(ui, &mut s.enabled, "Online tiles behind the model (uses the internet)");
@@ -442,6 +459,17 @@ pub fn settings_ui(ui: &mut egui::Ui, s: &mut BasemapSettings, st: &mut BasemapS
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_quick_map_type_names_a_built_in_provider_without_a_key() {
+        for (i, (label, id)) in MAP_TYPES.iter().enumerate() {
+            let p = tiles::provider(id).unwrap_or_else(|| panic!("{label}: no provider {id}"));
+            assert!(!p.needs_key, "{label}");
+            assert_eq!(map_type(id), Some(i));
+        }
+        assert!(tiles::provider(MAP_TYPES[0].1).unwrap().imagery, "Satellite is a photograph");
+        assert_eq!(map_type("mapbox-satellite"), None);
+    }
 
     #[test]
     fn the_settings_round_trip_through_the_project_settings_and_start_off() {

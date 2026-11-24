@@ -465,7 +465,29 @@ pub fn tab(ui: &mut egui::Ui, state: &mut CrsUi, current: &Option<ProjectCrs>, o
     out
 }
 
+/// One-click systems for work in Uganda. The country straddles UTM zones 35 and 36 and the
+/// equator: WGS 84 / UTM for new survey, Arc 1960 / UTM for legacy cadastral and road records.
+pub const UGANDA_PRESETS: &[(u32, &str)] = &[
+    (32636, "WGS 84 / UTM 36N"),
+    (32736, "WGS 84 / UTM 36S"),
+    (32635, "WGS 84 / UTM 35N"),
+    (32735, "WGS 84 / UTM 35S"),
+    (21096, "Arc 1960 / UTM 36N"),
+    (21036, "Arc 1960 / UTM 36S"),
+    (21095, "Arc 1960 / UTM 35N"),
+    (21035, "Arc 1960 / UTM 35S"),
+];
+
 fn known_systems(ui: &mut egui::Ui, edit: &mut CrsEdit) {
+    crate::ui_kit::note(ui, "Uganda");
+    ui.horizontal_wrapped(|ui| {
+        for (code, label) in UGANDA_PRESETS {
+            if ProjectCrs::from_epsg(*code).is_some() && ui.selectable_label(edit.selected == Some(*code), *label).on_hover_text(format!("EPSG:{code}")).clicked() {
+                edit.selected = Some(*code);
+            }
+        }
+    });
+    ui.add_space(4.0);
     ui_kit::form(ui, "crs-search", |f| {
         f.row_note("Search", "an EPSG code (21036) or part of a name (arc 1960, utm 36 s)", |ui| {
             ui_kit::text_field(ui, &mut edit.query, "EPSG code or name");
@@ -562,6 +584,20 @@ pub fn object_count(doc: &Document) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_uganda_preset_is_a_system_the_application_computes_with_and_reaches_wgs84() {
+        use afrobim_kernel::crs_plan::plan_transform;
+        let wgs = ProjectCrs::geographic(4326).unwrap();
+        for (code, label) in UGANDA_PRESETS {
+            let c = ProjectCrs::from_epsg(*code).unwrap_or_else(|| panic!("EPSG:{code} ({label}) is not known to the kernel"));
+            assert_eq!(c.kind, CrsKind::Projected, "{label}");
+            let (zone, south) = c.utm_zone().unwrap();
+            assert_eq!(format!("{zone}{}", if south { "S" } else { "N" }), label.rsplit(' ').next().unwrap(), "{label}");
+            assert_eq!(c.horizontal_datum.contains("Arc 1960"), label.starts_with("Arc"), "{label}: {}", c.horizontal_datum);
+            assert!(plan_transform(&c, &wgs, None).is_ok_and(|p| !p.is_empty()), "{label} has no plan to WGS 84");
+        }
+    }
 
     #[test]
     fn the_ifc_georeference_follows_the_project_system() {
