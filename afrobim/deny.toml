@@ -1,0 +1,46 @@
+# cargo-deny policy for the AfroBIM workspace. CI runs
+#   cargo deny --manifest-path afrobim/Cargo.toml check --config afrobim/deny.toml licenses bans sources
+# (see .github/workflows/ci.yml). Advisories are not part of that run.
+#
+# Every target is checked, not only the one the developer builds on, so the Windows, Linux
+# and macOS only crates of the GUI stack are all covered.
+
+[licenses]
+# A crate passes when its SPDX expression is satisfied by this list, so "MIT OR Apache-2.0"
+# needs only one of the two. The list was read from the 246 of the 420 locked crates that were
+# on the machine it was written on (cargo-deny itself was not available there); the Windows,
+# Wayland, X11, Android and wasm only crates were not, so the first CI run is the check that
+# nothing was missed.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",   # an alternative in zerocopy's expression; kept because it is permissive
+    "BSD-3-Clause",   # subtle and endi have no alternative
+    "ISC",            # rustls-webpki, untrusted, libloading, delaunator, ring (with Apache-2.0)
+    "Zlib",           # foldhash, zlib-rs
+    "Unicode-3.0",    # the icu_* crates, unicode-ident, unicode-normalization
+    "CDLA-Permissive-2.0", # webpki-roots (the Mozilla root list)
+    "CC0-1.0",        # hexf-parse, which has no alternative
+    "OFL-1.1",        # epaint_default_fonts bundles OFL-licensed fonts ...
+    "Ubuntu-font-1.0", # ... and the Ubuntu font
+    "MPL-2.0",        # not in the tree yet: acadrust (DWG reader) is licensed MPL-2.0
+]
+
+# The workspace's own crates declare no licence yet (plan item 7.8) and are never published
+# (publish = false), so they are skipped rather than reported as unlicensed.
+[licenses.private]
+ignore = true
+
+[bans]
+# The GUI stack pulls in several versions of a few crates (windows-sys, wayland-*, ...), so
+# duplicates are reported but do not fail the run.
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+
+[sources]
+# Only crates.io: no git dependencies and no other registry.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
