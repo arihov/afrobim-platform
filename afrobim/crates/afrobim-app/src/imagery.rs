@@ -120,6 +120,22 @@ pub fn pin_crs(doc: &mut Document, old: Option<&ProjectCrs>) -> usize {
     ids.len()
 }
 
+/// Moves the placement of every image without a system of its own by a plane map (a site
+/// calibration, which is a similarity, so three corners fix the new affine exactly). Used where
+/// the project system changes from a local grid, in which [`pin_crs`] would leave the image in a
+/// system nothing can compute with. Returns how many images were moved.
+pub fn move_unpinned(doc: &mut Document, f: &dyn Fn(f64, f64) -> (f64, f64)) -> usize {
+    let ids: Vec<(ElementId, ImageDef)> = doc.elements().iter().filter_map(|e| def_of(e).filter(|d| d.crs.is_none() && d.affine.is_some()).map(|d| (e.id, d))).collect();
+    for (id, mut def) in ids.iter().cloned() {
+        let a = Affine::from_array(def.affine.unwrap());
+        let (o, x, y) = (f(a.c, a.f), { let p = a.apply(1.0, 0.0); f(p.0, p.1) }, { let p = a.apply(0.0, 1.0); f(p.0, p.1) });
+        def.affine = Some([x.0 - o.0, y.0 - o.0, o.0, x.1 - o.1, y.1 - o.1, o.1]);
+        def.placed_from = format!("{} (moved by a site calibration)", def.placed_from);
+        set_def(doc, id, &def);
+    }
+    ids.len()
+}
+
 /// The images in the order they are drawn: by `order`, then by their place in the document.
 pub fn paint_order(doc: &Document) -> Vec<ElementId> {
     let mut v: Vec<(i32, usize, ElementId)> = doc.elements().iter().enumerate().filter_map(|(i, e)| def_of(e).map(|d| (d.order, i, e.id))).collect();
@@ -395,7 +411,9 @@ impl ImageryState {
         if let Some(l) = doc.layers_mut().iter_mut().find(|l| l.name == crate::underlay::LAYER) {
             l.visible = false;
         }
-        let def = ImageDef::new(&path);
+        let mut def = ImageDef::new(&path);
+        // A new image goes on top of the ones already attached.
+        def.order = doc.elements().iter().filter_map(def_of).map(|d| d.order + 1).max().unwrap_or(0);
         let id = doc.add(CATEGORY, &name, Pt::new(0.0, 0.0), 1.0, 1.0, crate::underlay::LAYER, serde_json::to_value(&def).map_err(|e| e.to_string())?);
         self.start(id, &def, true);
         Ok(id)
@@ -967,11 +985,46 @@ mod tests {
         assert_eq!(paint_order(&doc), vec![b, c, a]);
         assert!(!shift_order(&mut doc, a, true), "already on top");
         assert!(!shift_order(&mut doc, b, false), "already at the bottom");
+        // An attached image goes on top.
+        let d = dir("order");
+        let p = png_with_world(&d, 2, 2, "1\n0\n0\n-1\n0.5\n1.5\n", None);
+        let mut st = ImageryState::default();
+        let top = st.attach(&mut doc, &p).unwrap();
+        assert_eq!(paint_order(&doc).last(), Some(&top));
         // A record written before the field existed has no "order" key.
         let mut v = serde_json::to_value(ImageDef::new(Path::new("old.png"))).unwrap();
         v.as_object_mut().unwrap().remove("order");
         let old: ImageDef = serde_json::from_value(v).unwrap();
         assert_eq!(old.order, 0);
+    }
+
+    #[test]
+    fn a_site_calibration_moves_an_image_on_the_local_grid_with_the_drawing() {
+        use afrobim_kernel::crs_plan::{ControlPair, SiteCalibration};
+        let d = dir("cal");
+        let p = png_with_world(&d, 4, 4, "1\n0\n0\n-1\n100.5\n203.5\n", None);
+        let mut doc = Document::default();
+        afrobim_kernel::set_project_crs(&mut doc, &ProjectCrs::local_grid("Site grid"));
+        let mut st = ImageryState::default();
+        let id = st.attach(&mut doc, &p).unwrap();
+        let ctx = egui::Context::default();
+        st.wait(&ctx, &mut doc);
+        let target = ProjectCrs::from_epsg(21036).unwrap();
+        // A rotated, slightly scaled site grid.
+        let (s, c) = (0.3f64.sin() * 1.0002, 0.3f64.cos() * 1.0002);
+        let pairs: Vec<ControlPair> = [(0.0, 0.0), (500.0, 0.0), (0.0, 500.0), (500.0, 500.0)].iter().enumerate().map(|(i, (x, y))| ControlPair { label: format!("C{i}"), local: (*x, *y), target: (179_000.0 + x * c + y * s, 9_909_000.0 - x * s + y * c) }).collect();
+        let cal = SiteCalibration::fit("Site", &target, &pairs, None).unwrap();
+        crate::transform_doc::apply_calibration(&mut doc, &cal, &target, "t".into()).unwrap();
+        let def = def_of(doc.find(id).unwrap()).unwrap();
+        assert!(def.crs.is_none(), "still read in the project system");
+        let placed = place(&def, Some(&target)).expect("the image can still be placed");
+        let a = Affine::from_array(def.affine.unwrap());
+        for (col, row) in [(0.0, 0.0), (4.0, 0.0), (0.0, 4.0), (4.0, 4.0)] {
+            let got = a.apply(col, row);
+            let want = cal.to_target(100.0 + col, 204.0 - row);
+            assert!((got.0 - want.0).hypot(got.1 - want.1) < 1e-6, "corner {col},{row}: {got:?} vs {want:?}");
+        }
+        assert!(placed.lo.x > 170_000_000.0, "placed in the target system, millimetres");
     }
 
     #[test]

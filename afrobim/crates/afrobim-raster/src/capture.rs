@@ -12,7 +12,7 @@
 //!    [`MAX_CAPTURE_TILES`] tiles (the providers' terms forbid bulk download).
 //! 2. [`resample`]: every output pixel centre is moved from the project system to longitude and
 //!    latitude, then to fractional tile pixels, and sampled bilinearly from the tile mosaic.
-//! 3. [`write_capture`]: the PNG, the `.pgw`, the `.prj` and a short `.txt` note of the
+//! 3. [`write_capture`]: the PNG, the `.pgw`, the `.prj` and a short `.attribution.txt` note of the
 //!    attribution, each written to a temporary file and renamed into place.
 //!
 //! Coordinates passed to the `to_lonlat` closures are project easting and northing in metres;
@@ -456,7 +456,7 @@ fn write_temp(path: &Path, write: impl FnOnce(&mut dyn Write) -> Result<(), Stri
 }
 
 /// Writes the capture: the PNG at `png_path`, the world file (`.pgw`) and the `.prj` beside it,
-/// and a `.txt` note of the attribution, the tile zoom and the size (no date, so the output is
+/// and an `.attribution.txt` note of the attribution, the tile zoom and the size (no date, so the output is
 /// the same from run to run). Every file goes to a temporary file first and is renamed into
 /// place, the PNG last, so a failure never leaves a PNG without its placement.
 pub fn write_capture(png_path: &Path, plan: &CapturePlan, rgba: &[u8], crs: &ProjectCrs, attribution: &str) -> Result<(), String> {
@@ -484,7 +484,7 @@ pub fn write_capture(png_path: &Path, plan: &CapturePlan, rgba: &[u8], crs: &Pro
         plan.tiles.len()
     );
 
-    let targets = [png_path.with_extension("prj"), png_path.with_extension("pgw"), png_path.with_extension("txt"), png_path.to_path_buf()];
+    let targets = [png_path.with_extension("prj"), png_path.with_extension("pgw"), png_path.with_extension("attribution.txt"), png_path.to_path_buf()];
     let mut temps: Vec<PathBuf> = Vec::new();
     let cleanup = |temps: &[PathBuf]| {
         for t in temps {
@@ -589,7 +589,7 @@ mod tests {
         }
         let c = g.crs.unwrap();
         assert_eq!((c.epsg, c.kind), (Some(21036), CrsKind::Projected));
-        let note = std::fs::read_to_string(dir.join("capture.txt")).unwrap();
+        let note = std::fs::read_to_string(dir.join("capture.attribution.txt")).unwrap();
         assert!(note.contains("Test tiles") && note.contains(&format!("zoom {}", plan.zoom)));
         let img = image::open(&png).unwrap().to_rgba8();
         assert_eq!(img.dimensions(), (480, 320));

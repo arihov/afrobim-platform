@@ -141,6 +141,8 @@ impl crate::app::AfroBimApp {
             .filter_map(|e| self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()).map(|g| (e.id, &g.drawing)))
             .collect();
         let n = drawings.len();
+        let candidates = self.doc.elements().iter().filter(|e| (!selected_only || self.doc.is_selected(e.id)) && exportable(e)).count();
+        let skipped = candidates - n;
         let feats = match features(&self.doc, &drawings, &plan) {
             Ok(f) => f,
             Err(e) => {
@@ -152,7 +154,13 @@ impl crate::app::AfroBimApp {
         let name = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
         let text = if kml { afrobim_raster::vector::to_kml(&name, &feats) } else { afrobim_raster::vector::to_geojson(&feats) };
         self.status = match std::fs::write(&path, text) {
-            Ok(()) => format!("Exported {} features from {n} objects to {} (WGS 84{}).", feats.len(), path.display(), crate::imagery::plan_words(&plan)),
+            Ok(()) => format!(
+                "Exported {} features from {n} objects to {} (WGS 84{}){}.",
+                feats.len(),
+                path.display(),
+                crate::imagery::plan_words(&plan),
+                if skipped > 0 { format!("; {skipped} objects with no plan drawing were left out") } else { String::new() }
+            ),
             Err(e) => format!("Could not write {}: {e}", path.display()),
         };
     }
@@ -215,5 +223,25 @@ mod tests {
         assert!(kml.contains("Kerb A") && kml.contains("<coordinates>32."));
         let gj = afrobim_raster::vector::to_geojson(&f);
         assert!(gj.contains("\"Kerb A\"") && gj.contains("[32."));
+    }
+
+    #[test]
+    fn the_app_exports_an_imported_alignment_to_geojson() {
+        let ctx = egui::Context::default();
+        let cc = eframe::CreationContext::_new_kittest(ctx);
+        let mut app = crate::app::AfroBimApp::new(&cc, crate::Options { civil_demo: false, screenshot: Some(std::env::temp_dir().join("afrobim-gis-test.png")), ..crate::Options::default() });
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../afrobim-alignment/tests/landxml/corridor.xml");
+        crate::alignment_glue::import_landxml(&mut app.doc, &path).unwrap();
+        if afrobim_kernel::project_crs(&app.doc).is_none() {
+            afrobim_kernel::set_project_crs(&mut app.doc, &ProjectCrs::from_epsg(21036).unwrap());
+        }
+        let cats: Vec<String> = app.doc.elements().iter().map(|e| e.category.clone()).collect();
+        let out = std::env::temp_dir().join(format!("afrobim-gis-{}.geojson", std::process::id()));
+        app.export_gis(out.clone());
+        assert!(app.status.starts_with("Exported"), "{} (categories {cats:?})", app.status);
+        let f = afrobim_raster::vector::from_geojson(&std::fs::read_to_string(&out).unwrap()).unwrap();
+        let al: Vec<_> = f.iter().filter(|x| x.properties.iter().any(|(k, v)| k == "category" && v == crate::alignment_glue::CATEGORY)).collect();
+        assert!(!al.is_empty(), "no alignment in the export: {} ; categories in features {:?}", app.status, f.iter().map(|x| x.properties.clone()).collect::<Vec<_>>());
+        assert!(al.iter().any(|x| matches!(&x.geometry, Geometry::LineString(v) if v.len() > 2)));
     }
 }

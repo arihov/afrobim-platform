@@ -634,8 +634,7 @@ pub fn apply_calibration(doc: &mut Document, cal: &SiteCalibration, target: &Pro
     }
     let f = |e: f64, n: f64, _z: f64| Ok(cal.to_target(e, n));
     let report = apply_map(doc, None, &f)?;
-    let old = afrobim_kernel::project_crs(doc);
-    crate::imagery::pin_crs(doc, old.as_ref());
+    crate::imagery::move_unpinned(doc, &|e, n| cal.to_target(e, n));
     set_project_crs(doc, target);
     let entry = LogEntry { what: format!("Site calibration {}", cal.name), transform: None, calibration: Some(cal.clone()), elements: report.elements, positions: report.positions, notes: report.notes, when: Some(when) };
     push_log(doc, entry.clone());

@@ -160,7 +160,7 @@ pub fn capture_ui(ui: &mut egui::Ui, c: &mut CaptureUi, enabled: bool) -> bool {
     if !c.last.is_empty() {
         ui.label(egui::RichText::new(&c.last).small());
     }
-    ui.label(egui::RichText::new("A capture works offline afterwards and can be plotted. At most 400 tiles per capture, as the providers' terms ask; the attribution is saved beside the image and must stay with any print.").small().weak());
+    ui.label(egui::RichText::new("A capture works offline afterwards. AfroBIM fetches at most 400 tiles per capture to keep the load on the provider light. The imagery stays under the provider's terms of use: check them before printing or sharing, and keep the attribution note saved beside the image with it.").small().weak());
     go
 }
 
