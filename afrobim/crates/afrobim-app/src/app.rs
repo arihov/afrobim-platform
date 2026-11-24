@@ -68,6 +68,8 @@ pub struct AfroBimApp {
     pub(crate) under: crate::underlay::UnderlayState,
     /// Georeferenced images: textures and placements.
     pub(crate) imagery: crate::imagery::ImageryState,
+    /// GIS overlays (GeoJSON, KML, GPX, CSV): what is drawn and the window.
+    pub(crate) gis: crate::gis_overlay::GisState,
     pub(crate) green: crate::green_glue::GreenUi,
     /// The online background map.
     pub(crate) basemap: crate::basemap::BasemapState,
@@ -233,6 +235,7 @@ impl AfroBimApp {
             anno: Default::default(),
             under: Default::default(),
             imagery: Default::default(),
+            gis: Default::default(),
             green: Default::default(),
             basemap: Default::default(),
             signsched: Default::default(),
@@ -863,6 +866,7 @@ impl AfroBimApp {
         // Underlays are read again from their files, and a command in progress is dropped.
         self.under.reset();
         self.imagery.reset();
+        self.gis.reset();
         let osnap = self.anno.osnap.clone();
         self.anno = Default::default();
         self.anno.osnap = osnap;
@@ -1584,6 +1588,7 @@ impl AfroBimApp {
             }
             Action::Underlay => self.under.window_open = true,
             Action::Imagery => self.imagery.window_open = true,
+            Action::GisImport => self.gis.window_open = true,
             Action::GreenBim => self.green.window_open = true,
             Action::Basemap => {
                 let mut s = crate::basemap::settings(&self.doc);
@@ -1622,6 +1627,7 @@ impl AfroBimApp {
             .reduce(|a, b| a.union(&b))
             // A document that holds only georeferenced images zooms to them.
             .or_else(|| self.imagery.extents(&self.doc))
+            .or_else(|| self.gis.extents(&self.doc))
             .unwrap_or(afrobim_kernel::BBox::new(0.0, 0.0, 5000.0, 3000.0));
         let (l, t, w, h) = self.ctl.viewport;
         self.view.fit(&ext, l, t, w, h, 60.0);
@@ -2406,6 +2412,7 @@ impl AfroBimApp {
         self.anno_windows(ctx);
         self.underlay_window(ctx);
         self.imagery_window(ctx);
+        self.gis_window(ctx);
         self.green_window(ctx);
         self.signsched_windows(ctx);
         self.projset_window(ctx);
@@ -3236,6 +3243,11 @@ impl AfroBimApp {
         }
         if self.imagery.busy() {
             ctx.request_repaint_after(std::time::Duration::from_millis(60));
+        }
+        // GIS overlays are placed again when the project system changed under them.
+        self.gis.sync(&mut self.doc);
+        if std::mem::take(&mut self.gis.doc_changed) {
+            self.schedule_commit_now();
         }
         self.finish_map_capture();
         if self.basemap.capture.busy.is_some() {

@@ -26,6 +26,8 @@ pub enum DropKind {
     Reference,
     /// A raster image (GeoTIFF, PNG, JPEG): attached as a georeferenced image underlay.
     Image,
+    /// GeoJSON, KML or GPX: imported as a read-only GIS overlay (a CSV only through the command).
+    Gis,
     /// Anything else.
     Unsupported,
 }
@@ -38,6 +40,8 @@ pub fn classify(path: &Path) -> DropKind {
         Some("dxf") | Some("dwg") => DropKind::Underlay,
         Some("ifc") => DropKind::Reference,
         Some("tif") | Some("tiff") | Some("png") | Some("jpg") | Some("jpeg") => DropKind::Image,
+        // A CSV may be survey points as well as longitude and latitude: it is read only through GISIMPORT.
+        Some(e) if crate::gis_overlay::DROP_EXTENSIONS.contains(&e) => DropKind::Gis,
         _ => DropKind::Unsupported,
     }
 }
@@ -64,7 +68,8 @@ pub fn describe(kind: DropKind, path: &Path, unsaved: bool) -> (String, String, 
         DropKind::Underlay => (format!("Attach {name}?"), "Attach this drawing as a read-only underlay. It is read from its file in the background (a DWG is first converted to DXF with ODA File Converter); the document keeps its path and hash, not a copy.".into(), "Attach underlay"),
         DropKind::Reference => (format!("Import {name}?"), "Import this IFC file as a reference model, shown in the 3D view and checked for clashes. The model itself is not changed.".into(), "Import reference model"),
         DropKind::Image => (format!("Attach {name}?"), "Attach this image as a read-only georeferenced background. It is placed from its GeoTIFF tags or a world file (.pgw, .jgw, .tfw) beside it; the document keeps its path and hash, not the pixels.".into(), "Attach image"),
-        DropKind::Unsupported => (format!("{name} cannot be used"), "AfroBIM opens .afrobim documents and imports .xml (LandXML), .dxf and .dwg (underlay), .tif, .png and .jpg (georeferenced image) and .ifc (reference model) files.".into(), "OK"),
+        DropKind::Gis => (format!("Import {name}?"), "Import this file as a read-only GIS overlay. Its longitude and latitude are moved into the project coordinate system (which must have a position on Earth); the document keeps its path, a hash and the features, not a copy of the file.".into(), "Import overlay"),
+        DropKind::Unsupported => (format!("{name} cannot be used"), "AfroBIM opens .afrobim documents and imports .xml (LandXML), .dxf and .dwg (underlay), .tif, .png and .jpg (georeferenced image), .geojson, .json, .kml and .gpx (GIS overlay) and .ifc (reference model) files. A CSV of longitude and latitude is imported with the GISIMPORT command.".into(), "OK"),
     }
 }
 
@@ -139,6 +144,7 @@ impl crate::app::AfroBimApp {
                 self.refs.list_open = true;
             }
             DropKind::Image => self.attach_image(&path),
+            DropKind::Gis => self.import_gis(&path),
             DropKind::Unsupported => {}
         }
     }
@@ -165,6 +171,15 @@ mod tests {
         assert_eq!(kind("ortho.TIF"), DropKind::Image);
         assert_eq!(kind("photo.png"), DropKind::Image);
         assert_eq!(kind("scene.jpeg"), DropKind::Image);
+        assert_eq!(kind("road.geojson"), DropKind::Gis);
+        assert_eq!(kind("ROAD.GeoJSON"), DropKind::Gis);
+        assert_eq!(kind("data.json"), DropKind::Gis);
+        assert_eq!(kind("plots.kml"), DropKind::Gis);
+        assert_eq!(kind("walk.GPX"), DropKind::Gis);
+        // A CSV may be survey points: it is never taken for GIS on a drop.
+        assert_eq!(kind("points.csv"), DropKind::Unsupported);
+        assert_eq!(kind("points.txt"), DropKind::Unsupported);
+        assert!(describe(DropKind::Gis, Path::new("a.kml"), false).1.contains("GIS overlay"));
     }
 
     #[test]

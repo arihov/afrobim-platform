@@ -95,6 +95,8 @@ impl AfroBimApp {
 
         // DXF underlays sit behind the model.
         self.under.paint(&self.doc, painter, &self.view, rect, ink);
+        // GIS overlays (GeoJSON, KML, GPX, CSV) sit over the images and the underlays, behind the model.
+        self.gis.paint(&self.doc, painter, &self.view, rect);
 
         let label = if dark { Color32::from_rgb(0xA8, 0xB0, 0xBA) } else { Color32::from_rgb(0x50, 0x55, 0x5C) };
         // Referenced documents and the reference markers (drawn over the objects below).
