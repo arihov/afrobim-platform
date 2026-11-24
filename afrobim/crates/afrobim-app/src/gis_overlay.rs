@@ -317,7 +317,8 @@ impl Report {
 
     pub fn line(&self, file: &str) -> String {
         let failed = if self.failed > 0 { format!(" {} feature(s) could not be placed in the project system and are left out.", self.failed) } else { String::new() };
-        format!("{file}: {} features ({} points, {} lines, {} polygons) in {} layer(s).{failed} {}", self.features, self.points, self.lines, self.areas, self.layers, self.how)
+        let n = |k: usize, one: &str, many: &str| format!("{k} {}", if k == 1 { one } else { many });
+        format!("{file}: {} ({}, {}, {}) in {}.{failed} {}", n(self.features, "feature", "features"), n(self.points, "point", "points"), n(self.lines, "line", "lines"), n(self.areas, "polygon", "polygons"), n(self.layers, "layer", "layers"), self.how)
     }
 }
 
@@ -525,6 +526,8 @@ pub struct GisState {
     /// Set when a sync changed the document (the caller takes an undo step).
     pub doc_changed: bool,
     status: HashMap<ElementId, FileStatus>,
+    /// The window was drawn last frame.
+    shown: bool,
     /// The last message of the window: (is an error, text).
     pub message: Option<(bool, String)>,
 }
@@ -751,7 +754,12 @@ impl crate::app::AfroBimApp {
     /// colour), opacity, re-read and detach.
     pub(crate) fn gis_window(&mut self, ctx: &egui::Context) {
         if !self.gis.window_open {
+            self.gis.shown = false;
             return;
+        }
+        if !std::mem::replace(&mut self.gis.shown, true) {
+            // Opened now: the files are compared with their hashes again.
+            self.gis.status.clear();
         }
         let mut open = true;
         let (mut import, mut detach, mut reread, mut zoom) = (false, None, None, None);
@@ -1380,5 +1388,85 @@ mod tests {
         assert!(app.status.contains("local site grid"), "{}", app.status);
         assert_eq!(app.doc.elements().iter().filter(|e| e.category == CATEGORY).count(), n);
         crate::u4_dialogs_test::frame(&ctx, &mut app, 2);
+    }
+
+    #[test]
+    fn undo_after_a_change_of_system_restores_the_old_system_and_the_old_placement() {
+        let (ctx, mut app) = crate::u4_dialogs_test::app_for("dark-glass", false);
+        let frames = |app: &mut crate::app::AfroBimApp| {
+            crate::u4_dialogs_test::frame(&ctx, app, 4);
+        };
+        frames(&mut app);
+        app.apply_project_crs(ProjectCrs::from_epsg(32636).unwrap());
+        frames(&mut app);
+        let d = dir("undo");
+        let p = write(&d, "road.geojson", LINE);
+        app.import_gis(&p);
+        frames(&mut app);
+        let id = app.doc.elements().iter().find(|e| e.category == CATEGORY).map(|e| e.id).unwrap();
+        let key36n = project_key(Some(&ProjectCrs::from_epsg(32636).unwrap()));
+        let north = projected_line(&app.doc, id)[0][1];
+        // The CRS command: the system is stored, the next frames place the overlay again.
+        app.apply_project_crs(ProjectCrs::from_epsg(32736).unwrap());
+        frames(&mut app);
+        assert!((projected_line(&app.doc, id)[0][1] - north - 1.0e10).abs() < 1000.0, "placed again in UTM 36S");
+        app.undo();
+        frames(&mut app);
+        assert_eq!(afrobim_kernel::project_crs(&app.doc).and_then(|c| c.epsg), Some(32636), "the old system is back");
+        assert_eq!(def_of(app.doc.find(id).unwrap()).unwrap().proj_key, key36n);
+        assert!((projected_line(&app.doc, id)[0][1] - north).abs() < 1e-6, "and so is the old placement");
+        // And it stays there: a further frame does not place it again.
+        frames(&mut app);
+        assert_eq!(afrobim_kernel::project_crs(&app.doc).and_then(|c| c.epsg), Some(32636));
+        app.run(&ctx, crate::commands::Action::Redo);
+        frames(&mut app);
+        assert_eq!(afrobim_kernel::project_crs(&app.doc).and_then(|c| c.epsg), Some(32736));
+        assert!((projected_line(&app.doc, id)[0][1] - north - 1.0e10).abs() < 1000.0);
+    }
+
+    #[test]
+    fn the_window_compares_the_files_again_each_time_it_opens() {
+        let (ctx, mut app) = crate::u4_dialogs_test::app_for("dark-glass", false);
+        crate::u4_dialogs_test::frame(&ctx, &mut app, 2);
+        app.apply_project_crs(ProjectCrs::from_epsg(32636).unwrap());
+        let d = dir("reopen");
+        let p = write(&d, "road.geojson", LINE);
+        app.import_gis(&p);
+        let id = app.doc.elements().iter().find(|e| e.category == CATEGORY).map(|e| e.id).unwrap();
+        crate::u4_dialogs_test::frame(&ctx, &mut app, 3);
+        assert_eq!(app.gis.status.get(&id), Some(&FileStatus::Same));
+        app.gis.window_open = false;
+        crate::u4_dialogs_test::frame(&ctx, &mut app, 2);
+        std::fs::write(&p, r#"{"type":"Feature","properties":{},"geometry":{"type":"Point","coordinates":[32.58,0.35]}}"#).unwrap();
+        app.run(&ctx, crate::commands::Action::GisImport);
+        crate::u4_dialogs_test::frame(&ctx, &mut app, 3);
+        assert_eq!(app.gis.status.get(&id), Some(&FileStatus::Changed));
+    }
+
+    #[test]
+    fn the_report_reads_in_the_singular_and_the_plural() {
+        let mut def = def_of_str();
+        def.source.truncate(1);
+        let r = Report::of(&def);
+        assert!(r.line("f").starts_with("f: 1 feature (1 point, 0 lines, 0 polygons) in 1 layer."), "{}", r.line("f"));
+    }
+
+    fn def_of_str() -> OverlayDef {
+        OverlayDef {
+            path: String::new(),
+            hash: String::new(),
+            size: 0,
+            kind: "GeoJSON".into(),
+            visible: true,
+            opacity: 1.0,
+            layers: vec![LayerDef { name: "L".into(), colour: [1, 2, 3], visible: true }],
+            source: vec![SrcFeature { name: "a".into(), layer: 0, geom: Geom::Point([32.58, 0.35, 0.0]) }, SrcFeature { name: "b".into(), layer: 0, geom: Geom::Point([32.59, 0.35, 0.0]) }],
+            projected: Vec::new(),
+            proj_key: String::new(),
+            failed: 0,
+            error: String::new(),
+            how: String::new(),
+            rev: 0,
+        }
     }
 }
