@@ -909,7 +909,7 @@ impl AfroBimApp {
     }
 
     /// Writes the selected elements (or every element when nothing is selected) to one DXF, each
-    /// at its model position, in millimetres.
+    /// at its model position, in millimetres; to a DWG when the path ends in `.dwg`.
     fn export_dxf(&mut self, path: PathBuf) {
         self.sync_generated();
         let selected_only = !self.doc.selection().is_empty();
@@ -943,9 +943,25 @@ impl AfroBimApp {
         }
         let ann_report = afrobim_annotate::export_dxf(&ann_doc, &mut dxf);
         written += ann_report.annotations;
-        match std::fs::write(&path, dxf.finish()) {
+        // A .dwg path gets the same drawing as a DWG: the DXF text converted by the built-in DWG
+        // writer, run in a child process (see dwg_bridge).
+        let is_dwg = path.extension().is_some_and(|x| x.eq_ignore_ascii_case("dwg"));
+        let version = crate::dwg_bridge::export_version();
+        let bytes = if is_dwg {
+            match crate::dwg_bridge::export_dwg(&dxf.finish(), version) {
+                Ok(b) => b,
+                Err(e) => {
+                    self.status = format!("Could not write {} as DWG: {e}. Export as DXF instead.", path.display());
+                    return;
+                }
+            }
+        } else {
+            dxf.finish().into_bytes()
+        };
+        match std::fs::write(&path, bytes) {
             Ok(()) => {
-                self.status = format!("Exported {written} element(s) to {}.", path.display());
+                let format = if is_dwg { format!(" as an {} DWG ({}) by the built-in DWG writer", version.name(), version.code()) } else { String::new() };
+                self.status = format!("Exported {written} element(s) to {}{format}.", path.display());
                 if skipped > 0 {
                     self.status.push_str(&format!(" {skipped} without geometry were left out."));
                 }
@@ -1126,8 +1142,13 @@ impl AfroBimApp {
             Action::ExportDxf => {
                 if self.doc.elements().is_empty() {
                     self.status = "Nothing to export.".into();
-                } else if let Some(mut path) = rfd::FileDialog::new().add_filter("AutoCAD DXF (R12)", &["dxf"]).set_file_name("signs.dxf").save_file() {
-                    if path.extension().is_none() {
+                } else if let Some(mut path) = rfd::FileDialog::new()
+                    .add_filter("AutoCAD DXF (R12)", &["dxf"])
+                    .add_filter(format!("AutoCAD DWG ({})", crate::dwg_bridge::export_version().name()), &["dwg"])
+                    .set_file_name("signs.dxf")
+                    .save_file()
+                {
+                    if path.extension().is_none_or(|x| !x.eq_ignore_ascii_case("dxf") && !x.eq_ignore_ascii_case("dwg")) {
                         path.set_extension("dxf");
                     }
                     self.export_dxf(path);

@@ -3,8 +3,9 @@
 //! Reads ASCII DXF from R12 through the current release as AutoCAD and Civil 3D write it, keeps
 //! the geometry by layer in the file's own units, and produces an [`afrobim_draw::Drawing`] for
 //! display plus snap points for object snap. Binary DXF is refused (see [`ReadError`]). A DWG
-//! given to [`read_file`] is converted to DXF with ODA File Converter when it is installed, and
-//! refused with what to do when it is not (see [`dwg`]). Nothing here edits or writes a DXF or a
+//! given to [`read_file_with`] is converted to DXF by the built-in converter the application hands
+//! in, and otherwise with ODA File Converter when it is installed; [`read_file`] uses ODA File
+//! Converter alone. Without either it is refused with what to do (see [`dwg`]). Nothing here edits or writes a DXF or a
 //! DWG; the writer in the crate root is untouched.
 //!
 //! ```no_run
@@ -64,6 +65,9 @@ pub enum ReadError {
     Dwg(String),
     #[error("{0}")]
     DwgConversion(#[from] dwg::DwgError),
+    /// Neither the built-in DWG reader nor ODA File Converter could open a DWG: both reasons.
+    #[error("{0}")]
+    DwgFailed(String),
     #[error("{0}")]
     NotDxf(String),
 }
@@ -90,20 +94,89 @@ pub struct Underlay {
 /// Reads an ASCII DXF file, or a DWG through ODA File Converter (see [`dwg`]). Binary DXF, and a
 /// DWG when there is no converter, are refused with a message that says what to do.
 pub fn read_file(path: &Path) -> Result<Underlay, ReadError> {
+    read_file_with(path, None)
+}
+
+/// [`read_file`] with a built-in DWG converter: a DWG is converted by `builtin` first (unless
+/// `AFROBIM_DWG_BUILTIN=0`), and by ODA File Converter when that fails and it is installed. The
+/// report's warnings say which route was used and why the built-in one was not.
+pub fn read_file_with(path: &Path, builtin: Option<dwg::Builtin<'_>>) -> Result<Underlay, ReadError> {
     let mut f = std::fs::File::open(path)?;
     let mut head = [0u8; 6];
     let n = f.read(&mut head)?;
     if dwg::is_dwg(&head[..n]) {
         let code = String::from_utf8_lossy(&head).to_string();
-        let program = dwg::find_converter().ok_or_else(|| ReadError::Dwg(format!("version {code}, {}", dwg_name(&code))))?;
-        let dxf = dwg::convert_with(&program, path, &dwg::default_cache_root())?;
-        let mut under = read(BufReader::with_capacity(1 << 20, std::fs::File::open(&dxf)?))?;
-        under.report.warn(format!("Converted from DWG ({}, {}) with ODA File Converter.", code, dwg_name(&code)));
-        return Ok(under);
+        return read_dwg(path, &code, builtin, dwg::builtin_enabled(), dwg::find_converter(), &dwg::default_cache_root());
     }
     drop(f);
     let f = std::fs::File::open(path)?;
     read(BufReader::with_capacity(1 << 20, f))
+}
+
+fn read_dxf_file(dxf: &Path) -> Result<Underlay, ReadError> {
+    read(BufReader::with_capacity(1 << 20, std::fs::File::open(dxf)?))
+}
+
+/// The DWG at `path` (version `code`) through the built-in converter, then ODA File Converter.
+fn read_dwg(path: &Path, code: &str, builtin: Option<dwg::Builtin<'_>>, builtin_on: bool, oda: Option<std::path::PathBuf>, cache_root: &Path) -> Result<Underlay, ReadError> {
+    let name = format!("{code}, {}", dwg_name(code));
+    let builtin_failed = match builtin {
+        // No built-in converter in this program: ODA File Converter alone, as before.
+        None => None,
+        Some(_) if !builtin_on => Some("it is switched off (AFROBIM_DWG_BUILTIN=0)".to_string()),
+        Some(convert) => match dwg::convert_builtin_with(convert, path, cache_root) {
+            Ok((dxf, notes)) => match read_dxf_file(&dxf) {
+                Ok(mut under) if under.report.total_read() > 0 || oda.is_none() => {
+                    let mut first = vec![format!("Read from DWG ({name}) with AfroBIM's built-in DWG reader.")];
+                    first.extend(notes.into_iter().map(|n| format!("Built-in DWG reader: {n}")));
+                    warn_first(&mut under.report, first);
+                    return Ok(under);
+                }
+                Ok(_) => {
+                    dwg::forget_builtin(path, cache_root);
+                    Some("it read no entities from the drawing".to_string())
+                }
+                Err(e) => {
+                    dwg::forget_builtin(path, cache_root);
+                    Some(format!("the DXF it wrote could not be read ({e})"))
+                }
+            },
+            Err(why) => Some(why),
+        },
+    };
+    let Some(program) = oda else {
+        return Err(match builtin_failed {
+            None => ReadError::Dwg(format!("version {name}")),
+            Some(why) => ReadError::DwgFailed(format!(
+                "This DWG ({name}) could not be opened. The built-in DWG reader could not read it: {why}. ODA File Converter, the \
+                 fallback, is not installed: install it free from https://www.opendesign.com/guestfiles/oda_file_converter or set \
+                 AFROBIM_ODA_CONVERTER to where it is, or save the drawing as DXF from AutoCAD or Civil 3D and attach the DXF."
+            )),
+        });
+    };
+    let dxf = match dwg::convert_with(&program, path, cache_root) {
+        Ok(dxf) => dxf,
+        Err(e) => {
+            return Err(match builtin_failed {
+                None => e.into(),
+                Some(why) => ReadError::DwgFailed(format!("This DWG ({name}) could not be opened. The built-in DWG reader could not read it: {why}. {e}.")),
+            })
+        }
+    };
+    let mut under = read_dxf_file(&dxf)?;
+    let mut first = vec![format!("Converted from DWG ({name}) with ODA File Converter.")];
+    first.extend(builtin_failed.map(|why| format!("The built-in DWG reader was not used: {why}.")));
+    warn_first(&mut under.report, first);
+    Ok(under)
+}
+
+/// Puts notes at the head of a report's warnings, so the route a DWG took is shown even when the
+/// window lists only the first few.
+fn warn_first(report: &mut ReadReport, notes: Vec<String>) {
+    let rest = std::mem::take(&mut report.warnings);
+    for n in notes.into_iter().chain(rest) {
+        report.warn(n);
+    }
 }
 
 /// Reads an ASCII DXF from memory.
@@ -347,5 +420,103 @@ fn ink_colour(rgb: [u8; 3]) -> Option<Colour> {
         None
     } else {
         Some(best)
+    }
+}
+
+#[cfg(test)]
+mod dwg_order_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    const ONE_LINE: &str = "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\nROAD\n10\n0\n20\n0\n11\n1000\n21\n0\n0\nENDSEC\n0\nEOF\n";
+    const EMPTY: &str = "0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n";
+
+    fn scratch(name: &str) -> (PathBuf, PathBuf) {
+        let d = std::env::temp_dir().join(format!("afrobim-dwg-order-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        let dwg = d.join("site.dwg");
+        std::fs::write(&dwg, format!("AC1032 {name}")).unwrap();
+        (d, dwg)
+    }
+
+    /// A stand-in for ODA File Converter: a script that writes `dxf` where the converter would.
+    #[cfg(unix)]
+    fn fake_oda(dir: &Path, dxf: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let body = dir.join("oda.dxf");
+        std::fs::write(&body, dxf).unwrap();
+        let p = dir.join("ODAFileConverter");
+        std::fs::write(&p, format!("#!/bin/sh\ncp '{}' \"$2/drawing.dxf\"\n", body.display())).unwrap();
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+        p
+    }
+
+    fn warnings(u: &Underlay) -> String {
+        u.report.warnings.join(" | ")
+    }
+
+    #[test]
+    fn the_builtin_reader_comes_first_and_says_so() {
+        let (d, dwg) = scratch("first");
+        let ok = |_: &Path, out: &Path| std::fs::write(out, ONE_LINE).map(|_| vec!["2 of 90 object records were left out.".to_string()]).map_err(|e| e.to_string());
+        // ODA is "installed" but never reached: the program does not exist.
+        let u = read_dwg(&dwg, "AC1032", Some(&ok), true, Some(PathBuf::from("/no/such/oda")), &d.join("cache")).unwrap();
+        assert_eq!(u.report.total_read(), 1);
+        assert!(u.report.warnings[0].contains("built-in DWG reader"), "{}", warnings(&u));
+        assert!(u.report.warnings[1].contains("2 of 90"), "{}", warnings(&u));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn with_the_builtin_off_or_failing_and_no_oda_the_error_gives_the_reason() {
+        let (d, dwg) = scratch("noda");
+        let never = |_: &Path, _: &Path| -> Result<Vec<String>, String> { panic!("the switched-off reader ran") };
+        let e = read_dwg(&dwg, "AC1032", Some(&never), false, None, &d.join("cache")).unwrap_err().to_string();
+        assert!(e.contains("AFROBIM_DWG_BUILTIN=0") && e.contains("not installed"), "{e}");
+        let fails = |_: &Path, _: &Path| Err("the DWG reader took longer than 300 s and was stopped".to_string());
+        let e = read_dwg(&dwg, "AC1032", Some(&fails), true, None, &d.join("cache")).unwrap_err().to_string();
+        assert!(e.contains("300 s") && e.contains("ODA File Converter"), "{e}");
+        // No built-in converter at all: the old message.
+        let e = read_dwg(&dwg, "AC1032", None, true, None, &d.join("cache")).unwrap_err().to_string();
+        assert!(e.contains("DWG") && e.contains("ODA File Converter"), "{e}");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn when_both_fail_the_error_gives_both_reasons() {
+        let (d, dwg) = scratch("both");
+        let fails = |_: &Path, _: &Path| Err("the DWG decoder failed on this AC1032 file".to_string());
+        let e = read_dwg(&dwg, "AC1032", Some(&fails), true, Some(PathBuf::from("/no/such/oda")), &d.join("cache")).unwrap_err().to_string();
+        assert!(e.contains("decoder failed") && e.contains("could not be started"), "{e}");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn oda_is_the_fallback_and_the_report_says_why() {
+        let (d, dwg) = scratch("fallback");
+        let oda = fake_oda(&d, ONE_LINE);
+        let fails = |_: &Path, _: &Path| Err("the DWG reader stopped on this file".to_string());
+        let u = read_dwg(&dwg, "AC1032", Some(&fails), true, Some(oda.clone()), &d.join("cache")).unwrap();
+        assert_eq!(u.report.total_read(), 1);
+        assert!(warnings(&u).contains("with ODA File Converter") && warnings(&u).contains("stopped on this file"), "{}", warnings(&u));
+        // A built-in DXF with nothing in it, or one the reader cannot read, is a failure too while
+        // ODA is there, and is not kept in the cache.
+        let (d2, dwg2) = scratch("emptybuiltin");
+        let empty = |_: &Path, out: &Path| std::fs::write(out, EMPTY).map(|_| Vec::new()).map_err(|e| e.to_string());
+        let u = read_dwg(&dwg2, "AC1032", Some(&empty), true, Some(oda.clone()), &d2.join("cache")).unwrap();
+        assert!(warnings(&u).contains("no entities"), "{}", warnings(&u));
+        assert!(!dwg::builtin_dxf(&dwg::cache_dir(&dwg2, &d2.join("cache")).unwrap()).exists());
+        let (d3, dwg3) = scratch("badbuiltin");
+        let bad = |_: &Path, out: &Path| std::fs::write(out, b"AutoCAD Binary DXF\r\n").map(|_| Vec::new()).map_err(|e| e.to_string());
+        let u = read_dwg(&dwg3, "AC1032", Some(&bad), true, Some(oda), &d3.join("cache")).unwrap();
+        assert!(warnings(&u).contains("could not be read"), "{}", warnings(&u));
+        // Without ODA an empty built-in drawing is taken as it is.
+        let u = read_dwg(&dwg2, "AC1032", Some(&empty), true, None, &d2.join("cache")).unwrap();
+        assert_eq!(u.report.total_read(), 0);
+        for x in [d, d2, d3] {
+            let _ = std::fs::remove_dir_all(&x);
+        }
     }
 }

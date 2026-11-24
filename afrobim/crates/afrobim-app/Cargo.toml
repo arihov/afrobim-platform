@@ -16,6 +16,7 @@ afrobim-draw = { path = "../afrobim-draw" }
 afrobim-kernel = { path = "../afrobim-kernel" }
 afrobim-signs = { path = "../afrobim-signs" }
 afrobim-dxf = { path = "../afrobim-dxf" }
+afrobim-dwg = { path = "../afrobim-dwg" }
 afrobim-ifc = { path = "../afrobim-ifc" }
 afrobim-fabrication = { path = "../afrobim-fabrication" }
 afrobim-supports = { path = "../afrobim-supports" }

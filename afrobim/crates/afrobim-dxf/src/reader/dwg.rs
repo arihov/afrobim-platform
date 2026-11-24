@@ -1,11 +1,24 @@
-//! Opening a DWG by converting it to DXF with ODA File Converter.
+//! Opening a DWG: AfroBIM's built-in reader first, ODA File Converter as the fallback.
 //!
-//! AfroBIM does not read DWG itself. When ODA File Converter (free, from the Open Design Alliance,
-//! <https://www.opendesign.com/guestfiles/oda_file_converter>) is installed, a DWG is converted
-//! to an ASCII DXF 2018 in a cache folder and that DXF is read. The converter is never bundled
-//! with AfroBIM: it is found where the user installed it.
+//! The order, when a DWG is attached or dropped on the window (see [`super::read_file_with`]):
 //!
-//! Where it is looked for, in order:
+//! 1. **The built-in reader.** The application hands the reader a converter ([`Builtin`]) that turns
+//!    the DWG into an ASCII DXF without any other program: the `afrobim-dwg` crate, through the
+//!    `acadrust` library (MPL-2.0, pure Rust), run in a child process of AfroBIM itself with a time
+//!    limit (`afrobim-app/src/dwg_bridge.rs`), so a hostile or broken file cannot take the window
+//!    down. Its DXF goes to `<cache>/builtin/drawing.dxf`. It counts as failed when the child fails,
+//!    when the DXF it wrote cannot be read, or when it holds no entities and ODA File Converter is
+//!    there to try. Set `AFROBIM_DWG_BUILTIN=0` to switch it off.
+//! 2. **ODA File Converter**, when the built-in reader is off or failed and the converter is
+//!    installed. Its DXF goes to `<cache>/out/drawing.dxf`.
+//!
+//! The underlay's report says which route was used, and when both fail the error gives both
+//! reasons. A program that calls [`super::read_file`] (no built-in converter) gets ODA File
+//! Converter alone, as before.
+//!
+//! ODA File Converter (free, from the Open Design Alliance,
+//! <https://www.opendesign.com/guestfiles/oda_file_converter>) is never bundled with AfroBIM: it is
+//! found where the user installed it. Where it is looked for, in order:
 //!
 //! 1. `AFROBIM_ODA_CONVERTER`: the program, or on macOS the `.app` folder. Set it to an empty
 //!    value to switch conversion off.
@@ -21,13 +34,17 @@
 //! with ODA's audit and repair on loading.
 //!
 //! The cache is `<temp>/afrobim-dwg/<key>/`, the key made from the DWG's full path, size and
-//! modification time, so a changed drawing is converted again and an unchanged one is not. The
+//! modification time, so a changed drawing is converted again and an unchanged one is not. Each
+//! route has its own file in the key's folder, so a cached DXF is always reported by the route
+//! that made it. The built-in reader writes to a `.part` file and renames it only when the child
+//! finished, so a child that was stopped never leaves a half DXF to be taken for a whole one. The
 //! source DWG is only read. A converted DXF is several times the size of its DWG (a 17 MB Civil 3D
-//! drawing gave 142 MB).
+//! drawing gave 142 MB through ODA).
 //!
-//! What a DXF made this way holds: everything AutoCAD itself draws, and the objects of other
-//! programs (Civil 3D alignments, surfaces, corridors, points, labels …) as proxy entities with
-//! the picture their program saved, which the reader draws (see [`super::proxy`]).
+//! What a DXF from ODA holds: everything AutoCAD itself draws, and the objects of other programs
+//! (Civil 3D alignments, surfaces, corridors, points, labels …) as proxy entities with the picture
+//! their program saved, which the reader draws (see [`super::proxy`]). What the built-in reader
+//! keeps of such objects depends on acadrust; see the module notes in `afrobim-dwg`.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -114,10 +131,72 @@ pub fn find_converter_with(setting: Option<PathBuf>) -> Option<PathBuf> {
 pub fn install_hint() -> String {
     let found = if find_converter().is_some() { "" } else { " It was not found on this computer." };
     format!(
-        "AfroBIM opens a DWG from its file by converting it to DXF with ODA File Converter.{found} Install it free from \
-         https://www.opendesign.com/guestfiles/oda_file_converter, or set AFROBIM_ODA_CONVERTER to where it is. \
-         Otherwise convert it to DXF (save as DXF from AutoCAD or Civil 3D) and open the DXF."
+        "AfroBIM opens a DWG from its file with its built-in DWG reader, and otherwise by converting it to DXF with ODA File \
+         Converter.{found} Install it free from https://www.opendesign.com/guestfiles/oda_file_converter, or set \
+         AFROBIM_ODA_CONVERTER to where it is. Otherwise convert it to DXF (save as DXF from AutoCAD or Civil 3D) and open the DXF."
     )
+}
+
+/// A built-in DWG converter, handed in by the application: it reads the DWG at the first path and
+/// writes an ASCII DXF to the second, returning notes on what it left out, or why it could not.
+pub type Builtin<'a> = &'a dyn Fn(&Path, &Path) -> Result<Vec<String>, String>;
+
+/// Whether the built-in DWG reader is on: it is unless `AFROBIM_DWG_BUILTIN` is `0`, `off`,
+/// `false` or `no`.
+pub fn builtin_enabled() -> bool {
+    builtin_enabled_with(std::env::var("AFROBIM_DWG_BUILTIN").ok().as_deref())
+}
+
+/// [`builtin_enabled`] with the environment variable's value given (for tests).
+pub fn builtin_enabled_with(setting: Option<&str>) -> bool {
+    !matches!(setting.map(|s| s.trim().to_ascii_lowercase()).as_deref(), Some("0" | "off" | "false" | "no"))
+}
+
+/// Where the built-in reader's DXF of a DWG is kept, inside the DWG's cache folder.
+pub fn builtin_dxf(dir: &Path) -> PathBuf {
+    dir.join("builtin").join("drawing.dxf")
+}
+
+/// Converts a DWG with the built-in converter into its cache folder under `cache_root` and returns
+/// the DXF with the converter's notes. A DXF already in the cache is returned without converting
+/// again, with the notes kept from that conversion.
+pub fn convert_builtin_with(convert: Builtin<'_>, dwg: &Path, cache_root: &Path) -> Result<(PathBuf, Vec<String>), String> {
+    let dir = cache_dir(dwg, cache_root).map_err(|e| e.to_string())?;
+    let dxf = builtin_dxf(&dir);
+    let notes_file = dxf.with_file_name("notes.txt");
+    let read_notes = || std::fs::read_to_string(&notes_file).map(|s| s.lines().filter(|l| !l.trim().is_empty()).map(str::to_string).collect()).unwrap_or_default();
+    if std::fs::metadata(&dxf).is_ok_and(|m| m.len() > 0) {
+        return Ok((dxf, read_notes()));
+    }
+    let parent = dxf.parent().unwrap_or(&dir);
+    std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    let part = dxf.with_extension("dxf.part");
+    let _ = std::fs::remove_file(&part);
+    let result = convert(dwg, &part);
+    let fail = |why: String| {
+        let _ = std::fs::remove_file(&part);
+        Err(why)
+    };
+    let notes = match result {
+        Ok(notes) => notes,
+        Err(why) => return fail(why),
+    };
+    if !std::fs::metadata(&part).is_ok_and(|m| m.len() > 0) {
+        return fail("it wrote no DXF".into());
+    }
+    if let Err(e) = std::fs::rename(&part, &dxf) {
+        return fail(format!("{}: {e}", dxf.display()));
+    }
+    let _ = std::fs::write(&notes_file, notes.join("\n"));
+    Ok((dxf, notes))
+}
+
+/// Removes the built-in reader's cached DXF of a DWG (when the reader could not use it), so the
+/// next open converts again.
+pub fn forget_builtin(dwg: &Path, cache_root: &Path) {
+    if let Ok(dir) = cache_dir(dwg, cache_root) {
+        let _ = std::fs::remove_dir_all(builtin_dxf(&dir).parent().unwrap_or(&dir));
+    }
 }
 
 /// FNV-1a 64 of some bytes.
@@ -243,6 +322,51 @@ mod tests {
         let e = convert_with(Path::new("/no/such/program"), &dwg, &root).unwrap_err();
         assert!(matches!(&e, DwgError::Failed { why, .. } if why.contains("could not be started")), "{e}");
         assert!(!cache_dir(&dwg, &root).unwrap().join("out/drawing.dxf").exists());
+        assert!(dwg.exists(), "the source is untouched");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn the_builtin_switch_reads_off_values_and_defaults_to_on() {
+        assert!(builtin_enabled_with(None));
+        assert!(builtin_enabled_with(Some("1")));
+        assert!(builtin_enabled_with(Some("")));
+        for off in ["0", " 0 ", "off", "FALSE", "no"] {
+            assert!(!builtin_enabled_with(Some(off)), "{off}");
+        }
+    }
+
+    #[test]
+    fn a_builtin_conversion_is_cached_with_its_notes_and_a_failed_one_leaves_nothing() {
+        let d = scratch("builtin");
+        let dwg = d.join("c.dwg");
+        std::fs::write(&dwg, b"AC1032 builtin").unwrap();
+        let root = d.join("cache");
+        let calls = std::cell::Cell::new(0);
+        let ok = |_: &Path, out: &Path| {
+            calls.set(calls.get() + 1);
+            std::fs::write(out, b"0\nEOF\n").unwrap();
+            Ok(vec!["1 of 9 records were left out.".to_string()])
+        };
+        let (dxf, notes) = convert_builtin_with(&ok, &dwg, &root).unwrap();
+        assert_eq!(dxf, builtin_dxf(&cache_dir(&dwg, &root).unwrap()));
+        assert_eq!(notes, vec!["1 of 9 records were left out.".to_string()]);
+        // The second open is the cache, notes and all.
+        assert_eq!(convert_builtin_with(&ok, &dwg, &root).unwrap(), (dxf.clone(), notes));
+        assert_eq!(calls.get(), 1);
+        // The ODA route does not take the built-in DXF for its own.
+        assert!(!cache_dir(&dwg, &root).unwrap().join("out/drawing.dxf").exists());
+        forget_builtin(&dwg, &root);
+        assert!(!dxf.exists());
+        // A converter that writes half a file and then fails leaves no DXF and no part file.
+        let half = |_: &Path, out: &Path| {
+            std::fs::write(out, b"0\nSECTION\n").unwrap();
+            Err("stopped after 1 s".to_string())
+        };
+        assert_eq!(convert_builtin_with(&half, &dwg, &root).unwrap_err(), "stopped after 1 s");
+        assert!(!dxf.exists() && !dxf.with_extension("dxf.part").exists());
+        let nothing = |_: &Path, _: &Path| Ok(Vec::new());
+        assert_eq!(convert_builtin_with(&nothing, &dwg, &root).unwrap_err(), "it wrote no DXF");
         assert!(dwg.exists(), "the source is untouched");
         let _ = std::fs::remove_dir_all(&d);
     }

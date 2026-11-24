@@ -20,7 +20,9 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
 use afrobim_draw::Primitive;
-use afrobim_dxf::reader::{self, DisplayOptions, SnapKind, SnapOptions, Underlay};
+#[cfg(test)]
+use afrobim_dxf::reader;
+use afrobim_dxf::reader::{DisplayOptions, SnapKind, SnapOptions, Underlay};
 use afrobim_kernel::{Document, Element, ElementId, Generated, Module, Pt, ViewTransform};
 use egui::{pos2, Color32, Painter, Rect, Shape, Stroke};
 use serde::{Deserialize, Serialize};
@@ -341,8 +343,9 @@ impl UnderlayState {
         self.entries.get(&id).and_then(|e| e.built.as_ref())
     }
 
-    /// Attaches a DXF, or a DWG (converted to DXF by the reader with ODA File Converter when it is
-    /// installed): adds the record to the document and starts reading.
+    /// Attaches a DXF, or a DWG (read by the built-in DWG reader, or converted with ODA File
+    /// Converter when that fails and it is installed): adds the record to the document and starts
+    /// reading.
     pub fn attach(&mut self, doc: &mut Document, path: &Path) -> Result<ElementId, String> {
         let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         if !path.exists() {
@@ -377,7 +380,7 @@ impl UnderlayState {
                 Err((true, "missing".to_string()))
             } else {
                 hash_file(&path).map_err(|e| (false, e.to_string())).and_then(|(hash, size)| {
-                    let under = reader::read_file(&path).map_err(|e| (false, e.to_string()))?;
+                    let under = crate::dwg_bridge::read_underlay(&path).map_err(|e| (false, e.to_string()))?;
                     Ok(Loaded { under: Arc::new(under), hash, size })
                 })
             };
@@ -592,7 +595,7 @@ impl crate::app::AfroBimApp {
         let (mut attach, mut detach, mut accept, mut zoom) = (false, None, None, None);
         let mut changes: Vec<(ElementId, UnderlayDef)> = Vec::new();
         let dlg = crate::ui_kit::Dialog::titled("DXF underlays").subtitle("Drawings attached behind the model, read only").width(660.0).show(ctx, |ui| {
-            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "A DXF drawing attached here is a read-only background reference. The document stores its path and a hash, not the drawing: it is read again whenever the document opens, with a warning if the file is missing or has changed. AfroBIM ships no underlay: you supply the DXF. A DWG must be converted to DXF first (save it as DXF from AutoCAD or Civil 3D).");
+            crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "A DXF or DWG drawing attached here is a read-only background reference. The document stores its path and a hash, not the drawing: it is read again whenever the document opens, with a warning if the file is missing or has changed. AfroBIM ships no underlay: you supply the drawing. A DWG (AutoCAD 2004 to 2018 formats) is read by the built-in reader in a separate process; if that fails and ODA File Converter is installed, ODA converts it instead.");
             crate::ui_kit::heading(ui, "Attached drawings");
             let ids: Vec<(ElementId, String)> = self.doc.elements().iter().filter(|e| e.category == CATEGORY).map(|e| (e.id, e.name.clone())).collect();
             if ids.is_empty() {

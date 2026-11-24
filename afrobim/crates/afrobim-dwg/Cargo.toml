@@ -1,0 +1,17 @@
+[package]
+name = "afrobim-dwg"
+description = "Built-in DWG reading and writing for AfroBIM: DWG to ASCII DXF text and back, through the acadrust crate (MPL-2.0, used unmodified)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+# MPL-2.0, file-level copyleft: used unmodified as a separate library (see NOTICE at the repository
+# root). Its DWG code is ported from ACadSharp (MIT). Pinned exactly: a DWG decoder's behaviour on
+# real files is what the tests measure, so it changes only on purpose.
+acadrust = "=0.6.8"
+
+[dev-dependencies]
+afrobim-dxf = { path = "../afrobim-dxf" }
+afrobim-draw = { path = "../afrobim-draw" }

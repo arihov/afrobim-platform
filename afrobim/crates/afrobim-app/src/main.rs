@@ -77,6 +77,7 @@ mod coordination_ui;
 mod cost_glue;
 mod cost_ui;
 mod demo_glue;
+mod dwg_bridge;
 mod ext_markings_glue;
 mod ext_markings_ui;
 mod design_glue;
@@ -410,6 +411,10 @@ fn run(options: &Options, multisampling: u16) -> eframe::Result<()> {
 }
 
 fn main() -> eframe::Result<()> {
+    // A DWG child (`--dwg-to-dxf`, `--dxf-to-dwg`) does its one job and ends before any window.
+    if let Some(code) = dwg_bridge::child_main(&std::env::args_os().skip(1).collect::<Vec<_>>()) {
+        std::process::exit(code);
+    }
     let options = parse_args();
     // 4× multisampling smooths sign edges; software and remote displays may not offer it.
     match run(&options, 4) {

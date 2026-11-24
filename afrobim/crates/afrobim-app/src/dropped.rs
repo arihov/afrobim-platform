@@ -61,7 +61,7 @@ pub fn describe(kind: DropKind, path: &Path, unsaved: bool) -> (String, String, 
             (format!("Open {name}?"), format!("Open this AfroBIM document in place of the one now open.{warn}"), "Open")
         }
         DropKind::LandXml => (format!("Import {name}?"), "Read the horizontal alignments in this LandXML file and add them to the open document.".into(), "Import alignments"),
-        DropKind::Underlay => (format!("Attach {name}?"), "Attach this drawing as a read-only underlay. It is read from its file in the background (a DWG is first converted to DXF with ODA File Converter); the document keeps its path and hash, not a copy.".into(), "Attach underlay"),
+        DropKind::Underlay => (format!("Attach {name}?"), "Attach this drawing as a read-only underlay. It is read from its file in the background (a DWG is read by the built-in reader, with ODA File Converter as a fallback); the document keeps its path and hash, not a copy.".into(), "Attach underlay"),
         DropKind::Reference => (format!("Import {name}?"), "Import this IFC file as a reference model, shown in the 3D view and checked for clashes. The model itself is not changed.".into(), "Import reference model"),
         DropKind::Image => (format!("Attach {name}?"), "Attach this image as a read-only georeferenced background. It is placed from its GeoTIFF tags or a world file (.pgw, .jgw, .tfw) beside it; the document keeps its path and hash, not the pixels.".into(), "Attach image"),
         DropKind::Unsupported => (format!("{name} cannot be used"), "AfroBIM opens .afrobim documents and imports .xml (LandXML), .dxf and .dwg (underlay), .tif, .png and .jpg (georeferenced image) and .ifc (reference model) files.".into(), "OK"),
