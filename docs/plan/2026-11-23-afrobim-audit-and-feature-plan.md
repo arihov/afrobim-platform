@@ -216,6 +216,24 @@ The owner asked for the map to work like the AutoCAD plugins CADEarth and Spatia
 
 **Privacy:** a received document with the map switched on fetches tiles for its site when it opens, which tells the tile provider roughly where the project is. The map starts off in every new document; a future setting should ask before fetching tiles for a document that came from someone else.
 
+### 4.2 Green BIM: what AfroBIM already gives, and what to build (added 2026-11-25)
+
+Green BIM uses the model's own data to judge environmental impact before construction: energy, carbon and waste, alongside cost. Most of the data it needs is already in AfroBIM; the factors and the reports are not. The table checks each part of the idea against the code.
+
+| Green BIM claim | AfroBIM today | Gap | Plan item |
+|---|---|---|---|
+| Spot construction problems before they happen (less rework) | Built: clash tests and coordination rules (`afrobim-coordination`), BCF issues in and out | None for roads; buildings are only reference models | Built |
+| Fewer delays | Built: 4D programme (`afrobim-schedule`, `afrobim-progress`), MS Project and Primavera import | None | Built |
+| Know the cost before building | Built: 5D bill, rates, estimate and cash flow (`afrobim-cost`); corridor quantities (`afrobim-corridor` quantities) | None | Built |
+| Less material waste | Partly: exact quantities and a cut and fill balance with mass haul (`afrobim-corridor`) | No waste allowance per item; no report of surplus spoil or imported fill | 9.15 |
+| Lower carbon footprint | Not built: no carbon factor anywhere in the code; the lighting crate lists "energy and carbon assessment" as out of scope | Carbon factors per material, haul emissions, option comparison | 9.15 |
+| Lower energy consumption | Not built for buildings or street lighting energy | Lighting kWh per year from the luminaire layout (the photometry is already there), then building energy | 9.16, and a new 9.17 |
+| Better material choices | Partly: pavement design compares layers by structural need (`afrobim-pavement`), not by carbon or cost together | Side-by-side options on cost, carbon and life | 9.15 |
+
+**9.17 Street lighting energy and carbon** (new, size S): annual kWh and kgCO2e from the luminaire layout the lighting module already designs (wattage, burning hours, dimming profile), with the grid emission factor for Uganda stated and sourced. It is the quickest Green BIM result, because the layout exists today.
+
+Order: 9.17 first (small, uses existing data), then 9.15 (carbon and waste from the quantities), then 9.16 (building energy). All three wait on the carbon factor source (open question 4).
+
 ## 5. Plan
 
 The plan is ordered by risk first, then by value to a highway engineer in Uganda.
@@ -262,6 +280,7 @@ The plan is ordered by risk first, then by value to a highway engineer in Uganda
 | 9.13 | **Shared work**: file locks for data shortcuts, then a sync folder with conflict detection | More than one designer per project | New | L |
 | 9.14 | Lane-graph traffic animation for junction presentations | Presentation only; lowest priority | ACP `traffic.js` | M |
 | 9.15 | **Green BIM, part 1: embodied carbon and waste from the quantities.** Carbon factors per material (cement and concrete by class, bitumen and asphalt, steel, aggregates, timber) applied to the BoQ the 5D module already produces; earthworks haul emissions from the mass-haul diagram; a waste allowance per item. Compare design options side by side (flexible against rigid pavement, gabion against concrete wall, cut and fill balance) in kgCO2e per km and per item, with every factor's source and edition shown | Clients and funders (World Bank, AfDB, EU) increasingly ask for a carbon figure at design stage; the cheapest saving is the one chosen before construction | New; builds on 5D quantities and mass haul | M |
+| 9.17 | **Green BIM: street lighting energy and carbon**: annual kWh and kgCO2e from the luminaire layout already designed, with a sourced grid emission factor for Uganda | The quickest Green BIM result; the layout exists today | New; builds on `afrobim-lighting` | S |
 | 9.16 | **Green BIM, part 2: operational energy and daylight for buildings** (ACP park buildings, toll plazas, weighbridges, offices): sun path from the project location, solar gain on facades, roof area for solar PV yield, a simple energy estimate; export to gbXML or IFC for a full simulation tool | Lower running costs and a smaller footprint over the building's life | ACP buildings; sun position from 9.11 | M to L |
 
 ### Suggested order
