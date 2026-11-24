@@ -198,6 +198,7 @@ pub fn glyph(action: Action) -> Option<&'static str> {
         A::About => ph::INFO,
         A::Quit => ph::SIGN_OUT,
         A::Appearance => ph::PALETTE,
+        A::Autosave => ph::CLOCK_COUNTER_CLOCKWISE,
         A::Palette => ph::COMMAND,
         A::Civil(c) => crate::civil_cmds::glyph(c),
     })

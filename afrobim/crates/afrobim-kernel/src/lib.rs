@@ -10,6 +10,7 @@
 //! transform, picking, window and crossing selection, drafting aids, the command state machine
 //! and undo. Front ends forward input and draw state.
 
+pub mod atomic;
 mod controller;
 pub mod crs;
 pub mod crs_plan;
@@ -24,6 +25,7 @@ mod undo;
 mod view;
 
 pub use afrobim_draw::Pt2 as Pt;
+pub use atomic::{recover_path, write_atomic, write_atomic_with};
 pub use controller::{CanvasCommand, CanvasController, CanvasEvent, CanvasTool};
 pub use document::{Document, DocumentError, Element, ElementId, Layer, SelectMode, SitePlacement, FILE_EXTENSION};
 pub use drafting::{display_spacing, display_spacing_fine, ortho, parse_point, snap};

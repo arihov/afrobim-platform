@@ -101,6 +101,7 @@ mod report_pack;
 mod render;
 mod ribbon;
 mod prefs;
+mod recovery;
 mod statusbar;
 mod theme;
 mod road_dialogs;
@@ -416,6 +417,9 @@ fn main() -> eframe::Result<()> {
         std::process::exit(code);
     }
     let options = parse_args();
+    // A panic on this thread tries once to write the document to its recovery file first. Only
+    // here, so that tests which panic on purpose write nothing.
+    recovery::install_panic_hook();
     // 4× multisampling smooths sign edges; software and remote displays may not offer it.
     match run(&options, 4) {
         Ok(()) => Ok(()),

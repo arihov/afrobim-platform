@@ -18,12 +18,14 @@ pub struct Prefs {
     pub recent: Vec<String>,
     /// Remembered window positions by title: x, y.
     pub window_pos: std::collections::BTreeMap<String, [f32; 2]>,
+    /// Minutes between autosaves of unsaved changes; 0 switches autosave off.
+    pub autosave_minutes: u32,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
         let t = Theme::default();
-        Prefs { look: t.look.key().into(), solid_dark: t.solid_dark, scale: t.scale, workspace: "All".into(), recent: Vec::new(), window_pos: Default::default() }
+        Prefs { look: t.look.key().into(), solid_dark: t.solid_dark, scale: t.scale, workspace: "All".into(), recent: Vec::new(), window_pos: Default::default(), autosave_minutes: crate::recovery::DEFAULT_AUTOSAVE_MINUTES }
     }
 }
 

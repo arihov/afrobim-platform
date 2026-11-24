@@ -21,8 +21,13 @@ use afrobim_kernel::{Document, ModuleRegistry};
 
 /// A fingerprint of the document's content: equal fingerprints mean no edit happened in between.
 pub fn fingerprint(doc: &Document) -> u64 {
+    fingerprint_json(&doc.to_json())
+}
+
+/// The fingerprint of a document's JSON text, for a caller that already has it.
+pub fn fingerprint_json(json: &str) -> u64 {
     let mut h = DefaultHasher::new();
-    doc.to_json().hash(&mut h);
+    json.hash(&mut h);
     h.finish()
 }
 
