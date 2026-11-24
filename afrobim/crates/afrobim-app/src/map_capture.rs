@@ -23,7 +23,7 @@ pub const MAX_PX: u32 = 8000;
 /// The capture part of the map window.
 pub struct CaptureUi {
     pub m_per_px: f64,
-    pub busy: Option<Receiver<Result<PathBuf, String>>>,
+    pub busy: Option<Receiver<Result<(PathBuf, usize), String>>>,
     pub last: String,
 }
 
@@ -35,7 +35,7 @@ impl Default for CaptureUi {
 
 impl CaptureUi {
     /// The finished capture, once.
-    pub fn poll(&mut self) -> Option<Result<PathBuf, String>> {
+    pub fn poll(&mut self) -> Option<Result<(PathBuf, usize), String>> {
         let r = self.busy.as_ref()?.try_recv().ok()?;
         self.busy = None;
         Some(r)
@@ -114,7 +114,7 @@ impl crate::app::AfroBimApp {
             let r = if missing == plan.tiles.len() {
                 Err("no tile could be fetched (offline, or the provider refused).".to_string())
             } else {
-                write_capture(&png, &plan, &rgba, &crs, &attribution).map(|_| png)
+                write_capture(&png, &plan, &rgba, &crs, &attribution).map(|_| (png, missing))
             };
             let _ = tx.send(r);
         });
@@ -123,9 +123,14 @@ impl crate::app::AfroBimApp {
     /// Picks up a finished capture and attaches it.
     pub(crate) fn finish_map_capture(&mut self) {
         match self.basemap.capture.poll() {
-            Some(Ok(path)) => {
-                self.basemap.capture.last = format!("Captured {}.", path.display());
+            Some(Ok((path, missing))) => {
                 self.attach_image(&path);
+                self.basemap.capture.last = if missing == 0 {
+                    format!("Captured {}.", path.display())
+                } else {
+                    format!("Captured {}, but {missing} tiles could not be fetched and are left transparent: capture again to fill them.", path.display())
+                };
+                self.status = self.basemap.capture.last.clone();
             }
             Some(Err(e)) => {
                 self.basemap.capture.last = format!("Capture failed: {e}");
