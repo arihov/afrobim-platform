@@ -37,7 +37,14 @@ pub struct CatalogRow {
 
 impl From<&PackCatalogEntry> for CatalogRow {
     fn from(e: &PackCatalogEntry) -> CatalogRow {
-        CatalogRow { key: e.key.clone(), name: e.name.clone(), family: e.family.clone(), series: e.series.clone(), scheme: e.scheme.clone(), symbol_id: e.symbol_id.clone() }
+        CatalogRow {
+            key: e.key.clone(),
+            name: e.name.clone(),
+            family: e.family.clone(),
+            series: e.series.clone(),
+            scheme: e.scheme.clone(),
+            symbol_id: e.symbol_id.clone(),
+        }
     }
 }
 
@@ -191,15 +198,28 @@ impl Engine {
             let catalog = engine
                 .catalog()
                 .iter()
-                .map(|e| CatalogRow { key: e.key.clone(), name: e.name.clone(), family: e.family.clone(), series: e.series.clone(), scheme: e.scheme.clone(), symbol_id: e.symbol_id.clone() })
+                .map(|e| CatalogRow {
+                    key: e.key.clone(),
+                    name: e.name.clone(),
+                    family: e.family.clone(),
+                    series: e.series.clone(),
+                    scheme: e.scheme.clone(),
+                    symbol_id: e.symbol_id.clone(),
+                })
                 .collect();
-            let loaded = Rc::new(LoadedPack { pack: engine.pack().clone(), catalog });
+            let loaded = Rc::new(LoadedPack {
+                pack: engine.pack().clone(),
+                catalog,
+            });
             self.engines.insert(loc.id.clone(), Rc::new(engine));
             loaded
         } else {
             let pack = RulePack::load(&loc.path).map_err(failed)?;
             let std = StdRules::load(&loc.path, &pack).map_err(failed)?;
-            let catalog = std.catalog.map(|c| c.entries.iter().map(CatalogRow::from).collect()).unwrap_or_default();
+            let catalog = std
+                .catalog
+                .map(|c| c.entries.iter().map(CatalogRow::from).collect())
+                .unwrap_or_default();
             Rc::new(LoadedPack { pack, catalog })
         };
         self.packs.insert(loc.id.clone(), loaded.clone());
@@ -382,7 +402,9 @@ mod tests {
     #[test]
     fn the_uganda_folder_pack_loads_as_the_desktop_app_loads_it() {
         let mut engine = Engine::new(testing::settings());
-        let loaded = engine.load_pack(Some("UG-TSM-2004")).unwrap_or_else(|e| panic!("{e}"));
+        let loaded = engine
+            .load_pack(Some("UG-TSM-2004"))
+            .unwrap_or_else(|e| panic!("{e}"));
         assert_eq!(loaded.pack.id, "UG-TSM-2004");
         assert!(!loaded.catalog.is_empty());
         // The same engine lays a sign out: the catalog entry the pack registers, seeded and laid out.
@@ -397,7 +419,10 @@ mod tests {
         let tmp = TempDir::new("noug");
         let mut bare = Engine::new(testing::settings_with_fonts(tmp.path()));
         let err = bare.load_pack(Some("UG-TSM-2004")).unwrap_err().to_string();
-        assert!(err.contains("UG-TSM-2004") && !err.contains("not read by the AfroBIM engine"), "{err}");
+        assert!(
+            err.contains("UG-TSM-2004") && !err.contains("not read by the AfroBIM engine"),
+            "{err}"
+        );
     }
 
     #[test]
