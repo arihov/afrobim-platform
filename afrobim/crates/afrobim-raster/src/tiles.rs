@@ -106,15 +106,43 @@ pub struct Provider {
     pub imagery: bool,
 }
 
-/// The built-in providers. The first is the default. Esri and OpenStreetMap need no key; their
-/// terms ask for the attribution to be shown and for tiles not to be fetched in bulk, which the
-/// tile service respects (a few requests at a time, only what the view needs, cached on disk).
+/// The built-in providers. The first is the default. Those without `needs_key` work as they are;
+/// their terms ask for the attribution to be shown and for tiles not to be fetched in bulk, which
+/// the tile service respects (a few requests at a time, only what the view needs, cached on disk).
+/// Keyed providers take the user's own key or token, kept for the session only. Every URL was
+/// checked against the live service or the provider's API documentation on 2026-11-25. Google and
+/// Bing are absent on purpose: Google's terms forbid fetching its tiles directly (its Map Tiles API
+/// needs a session token, not a plain URL), and Bing Maps is retired in favour of Azure Maps.
 pub const PROVIDERS: &[Provider] = &[
+    // Free, no key.
     Provider { id: "esri-imagery", name: "Esri World Imagery (satellite)", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", attribution: "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community", max_zoom: 19, needs_key: false, imagery: true },
-    Provider { id: "osm", name: "OpenStreetMap", url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: "© OpenStreetMap contributors", max_zoom: 19, needs_key: false, imagery: false },
+    Provider { id: "esri-street", name: "Esri World Street Map", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", attribution: "© Esri, HERE, Garmin, OpenStreetMap contributors and the GIS user community", max_zoom: 19, needs_key: false, imagery: false },
     Provider { id: "esri-topo", name: "Esri World Topographic", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}", attribution: "© Esri and contributors", max_zoom: 19, needs_key: false, imagery: false },
+    Provider { id: "esri-relief", name: "Esri World Shaded Relief", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}", attribution: "© Esri, USGS, NOAA", max_zoom: 13, needs_key: false, imagery: false },
+    Provider { id: "esri-light-gray", name: "Esri Light Gray Canvas", url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", attribution: "© Esri, HERE, Garmin, OpenStreetMap contributors", max_zoom: 16, needs_key: false, imagery: false },
+    Provider { id: "esri-dark-gray", name: "Esri Dark Gray Canvas", url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", attribution: "© Esri, HERE, Garmin, OpenStreetMap contributors", max_zoom: 16, needs_key: false, imagery: false },
+    Provider { id: "osm", name: "OpenStreetMap", url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: "© OpenStreetMap contributors", max_zoom: 19, needs_key: false, imagery: false },
+    Provider { id: "osm-hot", name: "OpenStreetMap Humanitarian (HOT)", url: "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png", attribution: "© OpenStreetMap contributors, tiles by Humanitarian OpenStreetMap Team hosted by OpenStreetMap France", max_zoom: 19, needs_key: false, imagery: false },
     Provider { id: "opentopomap", name: "OpenTopoMap", url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", attribution: "© OpenStreetMap contributors, SRTM | Style © OpenTopoMap (CC-BY-SA)", max_zoom: 17, needs_key: false, imagery: false },
+    Provider { id: "carto-voyager", name: "CARTO Voyager", url: "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png", attribution: "© OpenStreetMap contributors © CARTO", max_zoom: 19, needs_key: false, imagery: false },
+    Provider { id: "carto-positron", name: "CARTO Positron (light)", url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", attribution: "© OpenStreetMap contributors © CARTO", max_zoom: 19, needs_key: false, imagery: false },
+    Provider { id: "carto-dark", name: "CARTO Dark Matter", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", attribution: "© OpenStreetMap contributors © CARTO", max_zoom: 19, needs_key: false, imagery: false },
+    Provider { id: "s2cloudless", name: "Sentinel-2 cloudless 2016 (EOX, 10 m)", url: "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg", attribution: "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)", max_zoom: 15, needs_key: false, imagery: true },
+    Provider { id: "s2cloudless-2020", name: "Sentinel-2 cloudless 2020 (EOX, 10 m, non-commercial)", url: "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg", attribution: "Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2020), CC BY-NC-SA 4.0", max_zoom: 15, needs_key: false, imagery: true },
+    // Keyed: the user's own account.
     Provider { id: "mapbox-satellite", name: "Mapbox Satellite (needs a token)", url: "https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token={key}", attribution: "© Mapbox © Maxar", max_zoom: 19, needs_key: true, imagery: true },
+    Provider { id: "mapbox-streets", name: "Mapbox Streets (needs a token)", url: "https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/256/{z}/{x}/{y}?access_token={key}", attribution: "© Mapbox © OpenStreetMap contributors", max_zoom: 19, needs_key: true, imagery: false },
+    Provider { id: "mapbox-satellite-streets", name: "Mapbox Satellite Streets (needs a token)", url: "https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}?access_token={key}", attribution: "© Mapbox © OpenStreetMap contributors © Maxar", max_zoom: 19, needs_key: true, imagery: true },
+    Provider { id: "maptiler-satellite", name: "MapTiler Satellite (needs a key)", url: "https://api.maptiler.com/maps/satellite/256/{z}/{x}/{y}.jpg?key={key}", attribution: "© MapTiler © OpenStreetMap contributors", max_zoom: 20, needs_key: true, imagery: true },
+    Provider { id: "maptiler-hybrid", name: "MapTiler Hybrid (needs a key)", url: "https://api.maptiler.com/maps/hybrid/256/{z}/{x}/{y}.jpg?key={key}", attribution: "© MapTiler © OpenStreetMap contributors", max_zoom: 20, needs_key: true, imagery: true },
+    Provider { id: "maptiler-streets", name: "MapTiler Streets (needs a key)", url: "https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key={key}", attribution: "© MapTiler © OpenStreetMap contributors", max_zoom: 20, needs_key: true, imagery: false },
+    Provider { id: "maptiler-topo", name: "MapTiler Topo (needs a key)", url: "https://api.maptiler.com/maps/topo-v2/256/{z}/{x}/{y}.png?key={key}", attribution: "© MapTiler © OpenStreetMap contributors", max_zoom: 20, needs_key: true, imagery: false },
+    Provider { id: "azure-imagery", name: "Azure Maps Imagery (Bing successor, needs a key)", url: "https://atlas.microsoft.com/map/tile?api-version=2024-04-01&tilesetId=microsoft.imagery&zoom={z}&x={x}&y={y}&tileSize=256&subscription-key={key}", attribution: "© Microsoft and its data providers (Azure Maps)", max_zoom: 19, needs_key: true, imagery: true },
+    Provider { id: "azure-road", name: "Azure Maps Road (Bing successor, needs a key)", url: "https://atlas.microsoft.com/map/tile?api-version=2024-04-01&tilesetId=microsoft.base.road&zoom={z}&x={x}&y={y}&tileSize=256&subscription-key={key}", attribution: "© Microsoft and its data providers (Azure Maps)", max_zoom: 19, needs_key: true, imagery: false },
+    Provider { id: "thunderforest-landscape", name: "Thunderforest Landscape (needs a key)", url: "https://api.thunderforest.com/landscape/{z}/{x}/{y}.png?apikey={key}", attribution: "Maps © Thunderforest, Data © OpenStreetMap contributors", max_zoom: 19, needs_key: true, imagery: false },
+    Provider { id: "thunderforest-outdoors", name: "Thunderforest Outdoors (needs a key)", url: "https://api.thunderforest.com/outdoors/{z}/{x}/{y}.png?apikey={key}", attribution: "Maps © Thunderforest, Data © OpenStreetMap contributors", max_zoom: 19, needs_key: true, imagery: false },
+    Provider { id: "stadia-satellite", name: "Stadia Alidade Satellite (needs a key)", url: "https://tiles.stadiamaps.com/tiles/alidade_satellite/{z}/{x}/{y}.jpg?api_key={key}", attribution: "© CNES, Airbus DS, PlanetObserver (Contains Copernicus Data) | © Stadia Maps © OpenMapTiles © OpenStreetMap contributors", max_zoom: 20, needs_key: true, imagery: true },
+    Provider { id: "stadia-outdoors", name: "Stadia Outdoors (needs a key)", url: "https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}.png?api_key={key}", attribution: "© Stadia Maps © OpenMapTiles © OpenStreetMap contributors", max_zoom: 20, needs_key: true, imagery: false },
 ];
 
 /// A provider by its identifier.
@@ -213,6 +241,16 @@ mod tests {
         assert!(check_template("http://a/{z}/{x}/{y}.png").is_err());
         assert!(check_template("https://a/{z}/{x}.png").is_err());
         assert!(PROVIDERS.iter().all(|p| check_template(p.url).is_ok()));
+        // Every provider has a unique id, a key placeholder exactly when it needs a key, and an
+        // attribution to show.
+        let mut ids: Vec<&str> = PROVIDERS.iter().map(|p| p.id).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), PROVIDERS.len());
+        for p in PROVIDERS {
+            assert_eq!(p.url.contains("{key}"), p.needs_key, "{}", p.id);
+            assert!(!p.attribution.is_empty() && (1..=22).contains(&p.max_zoom), "{}", p.id);
+        }
     }
 
     #[test]

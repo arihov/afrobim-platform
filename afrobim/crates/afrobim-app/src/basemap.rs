@@ -420,9 +420,16 @@ pub fn settings_ui(ui: &mut egui::Ui, s: &mut BasemapSettings, st: &mut BasemapS
         ui.label("Provider");
         let label = if s.provider == CUSTOM { "Custom tile URL".to_string() } else { tiles::provider(&s.provider).map(|p| p.name.to_string()).unwrap_or_else(|| s.provider.clone()) };
         egui::ComboBox::from_id_salt("basemap-provider").selected_text(label).width(300.0).show_ui(ui, |ui| {
-            for p in tiles::PROVIDERS {
+            ui.label(egui::RichText::new("Free").small().weak());
+            for p in tiles::PROVIDERS.iter().filter(|p| !p.needs_key) {
                 ui.selectable_value(&mut s.provider, p.id.to_string(), p.name);
             }
+            ui.separator();
+            ui.label(egui::RichText::new("Needs your own key or token").small().weak());
+            for p in tiles::PROVIDERS.iter().filter(|p| p.needs_key) {
+                ui.selectable_value(&mut s.provider, p.id.to_string(), p.name);
+            }
+            ui.separator();
             ui.selectable_value(&mut s.provider, CUSTOM.to_string(), "Custom tile URL");
         });
         ui.end_row();
