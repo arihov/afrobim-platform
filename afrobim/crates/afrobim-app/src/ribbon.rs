@@ -94,7 +94,7 @@ const ALIGNMENT: Panel = Panel {
 };
 const EXPORT: Panel = Panel {
     title: "Export",
-    items: &[Big(Icon::Dxf, "DXF", "DXFOUT"), Big(Icon::Ifc, "IFC 4.3", "IFCOUT"), Big(Icon::Quantities, "Quantities", "QUANTITIES"), Big(Icon::Sheets, "Fabrication sheets", "SHEETS")],
+    items: &[Big(Icon::Dxf, "DXF", "DXFOUT"), Big(Icon::Map, "Google Earth / GeoJSON", "MAPEXPORT"), Big(Icon::Ifc, "IFC 4.3", "IFCOUT"), Big(Icon::Quantities, "Quantities", "QUANTITIES"), Big(Icon::Sheets, "Fabrication sheets", "SHEETS")],
 };
 const STANDARD: Panel = Panel { title: "Design standard", items: &[Big(Icon::Standard, "UK TSM", "UK"), Big(Icon::Standard, "Uganda TSM", "UGANDA")] };
 const DRAFTING: Panel = Panel { title: "Drafting aids", items: &[Small(Icon::Grid, "Grid", "GRID"), Small(Icon::Snap, "Snap", "SNAP"), Small(Icon::Ortho, "Ortho", "ORTHO")] };
@@ -117,7 +117,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
     const INSERT: &[Panel] = &[
         Panel { title: "Signs", items: &[Big(Icon::Library, "Standard signs", "LIBRARY")] },
         Panel { title: "Import", items: &[Big(Icon::Alignment, "LandXML alignments", "LANDXML"), Big(Icon::Open, "AfroBIM document", "OPEN"), Big(Icon::Schedule, "Sign schedule", "SIGNSCHEDULE")] },
-        Panel { title: "Reference", items: &[Big(Icon::Dxf, "DXF underlay", "UNDERLAY"), Big(Icon::Surface, "Image", "IMAGE"), Big(Icon::Map, "Background map", "BASEMAP"), Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Surface, "Survey points", "SURVEY"), Big(Icon::RefModel, "IFC reference model", "IFCREF"), Big(Icon::RefList, "Reference models", "REFMODELS")] },
+        Panel { title: "Reference", items: &[Big(Icon::Dxf, "DXF underlay", "UNDERLAY"), Big(Icon::Surface, "Image", "IMAGE"), Big(Icon::Map, "Background map", "BASEMAP"), Big(Icon::Map, "Capture map", "MAPCAPTURE"), Big(Icon::Surface, "Survey surface", "SURFACE"), Big(Icon::Surface, "Survey points", "SURVEY"), Big(Icon::RefModel, "IFC reference model", "IFCREF"), Big(Icon::RefList, "Reference models", "REFMODELS")] },
     ];
     const ANNOTATE: &[Panel] = &[
         Panel { title: "Marks", items: &[Big(Icon::Marks, "Element marks", "MARKS")] },
