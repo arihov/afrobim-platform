@@ -119,7 +119,7 @@ impl AfroBimApp {
             if !self.doc.layer_visible(&e.layer) {
                 continue;
             }
-            if e.category == crate::underlay::CATEGORY || e.category == crate::imagery::CATEGORY || e.category == afrobim_annotate::SETTINGS_CATEGORY {
+            if crate::imagery::is_backdrop(&e.category) || e.category == afrobim_annotate::SETTINGS_CATEGORY {
                 continue;
             }
             let (ink, width) = match layer_props.get(&e.layer) {

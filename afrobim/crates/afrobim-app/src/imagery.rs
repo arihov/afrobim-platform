@@ -83,6 +83,13 @@ impl ImageDef {
     }
 }
 
+/// True for the read-only background records (DXF underlays, images, GIS overlays): they
+/// hold a reference and draw behind the model, and no export, quantity or clash test may
+/// treat them as objects.
+pub fn is_backdrop(category: &str) -> bool {
+    category == CATEGORY || category == crate::underlay::CATEGORY
+}
+
 pub fn def_of(e: &Element) -> Option<ImageDef> {
     (e.category == CATEGORY).then(|| serde_json::from_value(e.data.clone()).ok()).flatten()
 }
@@ -91,6 +98,21 @@ pub fn set_def(doc: &mut Document, id: ElementId, def: &ImageDef) {
     if let (Some(e), Ok(v)) = (doc.find_mut(id), serde_json::to_value(def)) {
         e.data = v;
     }
+}
+
+/// Before the project system changes under the drawing (TRANSFORM, site calibration), writes the
+/// old system onto every image that has none of its own. An image without a system is read in
+/// the project system, so without this it would silently be reread in the new one and land in
+/// the wrong place. Returns how many images were pinned.
+pub fn pin_crs(doc: &mut Document, old: Option<&ProjectCrs>) -> usize {
+    let Some(old) = old else { return 0 };
+    let ids: Vec<(ElementId, ImageDef)> = doc.elements().iter().filter_map(|e| def_of(e).filter(|d| d.crs.is_none()).map(|d| (e.id, d))).collect();
+    for (id, mut def) in ids.iter().cloned() {
+        def.crs = Some(old.clone());
+        def.crs_from = "project system before a transform".into();
+        set_def(doc, id, &def);
+    }
+    ids.len()
 }
 
 /// The module of the placeholder element: it draws nothing.
@@ -845,6 +867,48 @@ mod tests {
         let mut st3 = ImageryState::default();
         st3.wait(&ctx, &mut doc);
         assert_eq!(st3.entries[&id].status, ImgStatus::Missing);
+    }
+
+    #[test]
+    fn an_image_without_a_system_stays_on_the_ground_through_a_transform() {
+        use afrobim_kernel::crs_plan::{plan_transform, DataExtent};
+        let d = dir("pin");
+        // Arc 1960 / UTM 36S near Ntungamo, 1 m pixels, no .prj: read in the project system.
+        let p = png_with_world(&d, 4, 4, "1\n0\n0\n-1\n200000.5\n9900003.5\n", None);
+        let mut doc = Document::default();
+        let from = ProjectCrs::from_epsg(21036).unwrap();
+        let to = ProjectCrs::from_epsg(32736).unwrap();
+        afrobim_kernel::set_project_crs(&mut doc, &from);
+        let mut st = ImageryState::default();
+        let id = st.attach(&mut doc, &p).unwrap();
+        let ctx = egui::Context::default();
+        st.wait(&ctx, &mut doc);
+        assert!(def_of(doc.find(id).unwrap()).unwrap().crs.is_none());
+        let before = place(&def_of(doc.find(id).unwrap()).unwrap(), Some(&from)).unwrap();
+        let plan = plan_transform(&from, &to, Some(DataExtent::new((199_990.0, 9_899_990.0), (200_010.0, 9_900_010.0)))).unwrap().into_iter().next().unwrap();
+        crate::transform_doc::apply_plan(&mut doc, None, &plan, &to, "Whole document", "t".into()).unwrap();
+        let def = def_of(doc.find(id).unwrap()).unwrap();
+        assert_eq!(def.crs.as_ref().and_then(|c| c.epsg), Some(21036), "the old system is pinned onto the image");
+        let after = place(&def, Some(&to)).unwrap();
+        let want = plan.apply(before.lo.x / 1000.0, before.lo.y / 1000.0, 0.0).unwrap();
+        let (dx, dy) = (after.lo.x / 1000.0 - want.first, after.lo.y / 1000.0 - want.second);
+        assert!(dx.hypot(dy) < 0.5, "image moved with the datum: off by {dx:.3}, {dy:.3} m");
+        let (sx, sy) = (after.lo.x - before.lo.x, after.lo.y - before.lo.y);
+        assert!(sx.hypot(sy) > 50_000.0, "the datum shift is tens of metres, so the check is not vacuous");
+    }
+
+    #[test]
+    fn an_image_underlay_is_never_written_to_an_ifc_export() {
+        let d = dir("ifc");
+        let p = png_with_world(&d, 4, 4, "1\n0\n0\n-1\n0.5\n3.5\n", None);
+        let mut doc = Document::default();
+        let mut st = ImageryState::default();
+        st.attach(&mut doc, &p).unwrap();
+        // The export takes only what the app's filter lets through; the image must not pass.
+        assert!(doc.elements().iter().any(|e| e.category == CATEGORY));
+        assert!(doc.elements().iter().all(|e| !crate::app::ifc_exportable(&e.category)));
+        assert!(!crate::app::ifc_exportable(crate::underlay::CATEGORY));
+        assert!(crate::app::ifc_exportable("wall"));
     }
 
     #[test]

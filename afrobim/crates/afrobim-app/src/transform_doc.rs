@@ -617,6 +617,8 @@ pub fn apply_plan(doc: &mut Document, selected: Option<&[ElementId]>, plan: &Tra
     if selected.is_some() {
         notes.push("Only the selected objects were transformed: the project coordinate system was not changed, so the document now holds objects in two systems.".into());
     } else {
+        let old = afrobim_kernel::project_crs(doc);
+        crate::imagery::pin_crs(doc, old.as_ref());
         set_project_crs(doc, target);
     }
     let entry = LogEntry { what: what.to_string(), transform: Some(log), calibration: None, elements: report.elements, positions: report.positions, notes, when: Some(when) };
@@ -632,6 +634,8 @@ pub fn apply_calibration(doc: &mut Document, cal: &SiteCalibration, target: &Pro
     }
     let f = |e: f64, n: f64, _z: f64| Ok(cal.to_target(e, n));
     let report = apply_map(doc, None, &f)?;
+    let old = afrobim_kernel::project_crs(doc);
+    crate::imagery::pin_crs(doc, old.as_ref());
     set_project_crs(doc, target);
     let entry = LogEntry { what: format!("Site calibration {}", cal.name), transform: None, calibration: Some(cal.clone()), elements: report.elements, positions: report.positions, notes: report.notes, when: Some(when) };
     push_log(doc, entry.clone());

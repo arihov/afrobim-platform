@@ -919,7 +919,7 @@ impl AfroBimApp {
             }
             // Annotation is written by its own engine (real TEXT, arrows as SOLID); underlay and
             // settings records have no drawing.
-            if afrobim_annotate::is_annotation(e) || e.category == crate::underlay::CATEGORY || e.category == crate::imagery::CATEGORY || e.category == afrobim_annotate::SETTINGS_CATEGORY || e.category == afrobim_kernel::PROJECT_SETTINGS_CATEGORY {
+            if afrobim_annotate::is_annotation(e) || crate::imagery::is_backdrop(&e.category) || e.category == afrobim_annotate::SETTINGS_CATEGORY || e.category == afrobim_kernel::PROJECT_SETTINGS_CATEGORY {
                 continue;
             }
             match self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()) {
@@ -969,7 +969,7 @@ impl AfroBimApp {
             .doc
             .elements()
             .iter()
-            .filter(|e| e.category != crate::reference_models::CATEGORY && !crate::civil::is_civil(&e.category))
+            .filter(|e| ifc_exportable(&e.category))
             .map(|e| afrobim_ifc::IfcElementInput { element: e, generated: self.cache.get(&e.id).and_then(|c| c.generated.as_ref().ok()) })
             .collect();
         inputs.extend(synth.iter().map(|(e, g)| afrobim_ifc::IfcElementInput { element: e, generated: g.as_ref() }));
@@ -1237,7 +1237,7 @@ impl AfroBimApp {
                 // Imported alignments and surfaces, corridors and underlays sit at the
                 // coordinates of their source and are never moved by a tidy-up of the sheet.
                 self.doc.arrange_where(|e| {
-                    ![crate::alignment_glue::CATEGORY, afrobim_corridor::SURFACE_CATEGORY, afrobim_corridor::CORRIDOR_CATEGORY, crate::underlay::CATEGORY, crate::imagery::CATEGORY, afrobim_kernel::PROJECT_SETTINGS_CATEGORY].contains(&e.category.as_str())
+                    ![crate::alignment_glue::CATEGORY, afrobim_corridor::SURFACE_CATEGORY, afrobim_corridor::CORRIDOR_CATEGORY, afrobim_kernel::PROJECT_SETTINGS_CATEGORY].contains(&e.category.as_str()) && !crate::imagery::is_backdrop(&e.category)
                 });
                 self.zoom_extents_visible();
                 self.schedule_commit(ctx);
@@ -1598,7 +1598,7 @@ impl AfroBimApp {
             .doc
             .elements()
             .iter()
-            .filter(|e| self.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && e.category != crate::underlay::CATEGORY && e.category != crate::imagery::CATEGORY && crate::civil::has_plan_position(&e.category))
+            .filter(|e| self.doc.layer_visible(&e.layer) && e.category != afrobim_annotate::SETTINGS_CATEGORY && e.category != afrobim_kernel::PROJECT_SETTINGS_CATEGORY && !crate::imagery::is_backdrop(&e.category) && crate::civil::has_plan_position(&e.category))
             .map(|e| e.bounds())
             .reduce(|a, b| a.union(&b))
             // A document that holds only georeferenced images zooms to them.
@@ -3281,4 +3281,10 @@ impl Lap {
             eprintln!("FRAMEPARTS #{frame} {}", self.parts.iter().map(|(n, ms)| format!("{n}={ms:.0}")).collect::<Vec<_>>().join(" "));
         }
     }
+}
+
+/// Whether an element of this category goes into an IFC export as a building element. Reference
+/// models, civil objects (written separately) and backdrops (underlays, images) do not.
+pub(crate) fn ifc_exportable(category: &str) -> bool {
+    category != crate::reference_models::CATEGORY && !crate::civil::is_civil(category) && !crate::imagery::is_backdrop(category)
 }
