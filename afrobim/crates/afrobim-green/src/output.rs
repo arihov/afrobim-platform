@@ -1,4 +1,4 @@
-use crate::assess::{Assessment, Outcome};
+use crate::assess::{Assessment, Outcome, EMBODIED_BASIS};
 use crate::csv::row;
 
 fn fig(v: f64) -> String {
@@ -51,12 +51,16 @@ pub fn assessment_csv(a: &Assessment) -> String {
     for t in &a.by_material {
         o.push_str(&row(&[t.key.clone(), t.material.clone(), fig(t.tonnes), fig(t.waste_t), fig(t.kgco2e)]));
     }
-    o.push_str(&row(&["embodied (A1-A3 plus A4)", "", "", "", &opt(a.embodied_kgco2e)]));
+    o.push_str(&row(&[format!("embodied ({EMBODIED_BASIS})"), String::new(), String::new(), String::new(), opt(a.embodied_kgco2e)]));
     o.push_str(&row(&["of which transport (A4)", "", "", "", &opt(a.transport_kgco2e)]));
     o.push('\n');
 
     o.push_str(&row(&["Coverage"]));
     o.push_str(&row(&["counted", &a.counted.to_string()]));
+    o.push_str(&row(&["counted with A4", &a.counted_with_a4.to_string()]));
+    o.push_str(&row(&["counted without A4", &a.counted_without_a4.to_string()]));
+    o.push_str(&row(&["counted with waste allowance", &a.counted_with_waste.to_string()]));
+    o.push_str(&row(&["counted without waste allowance", &a.counted_without_waste.to_string()]));
     o.push_str(&row(&["excluded", &a.excluded.to_string()]));
     o.push_str(&row(&["unmatched", &a.unmatched.to_string()]));
     o.push_str(&row(&["energy lines", &a.energy_lines.to_string()]));
@@ -65,8 +69,8 @@ pub fn assessment_csv(a: &Assessment) -> String {
 
     let l = &a.lighting;
     o.push_str(&row(&["Street lighting energy (not part of embodied carbon)"]));
-    o.push_str(&row(&["luminaires", &fig(l.luminaires)]));
-    o.push_str(&row(&["installed_kw", &fig(l.installed_kw)]));
+    o.push_str(&row(&["luminaires", &if a.energy_lines > 0 { fig(l.luminaires) } else { String::new() }]));
+    o.push_str(&row(&["installed_kw", &opt(l.installed_kw)]));
     o.push_str(&row(&["kwh_per_year", &opt(l.kwh_per_year)]));
     o.push_str(&row(&["kgco2e_per_year", &opt(l.kgco2e_per_year)]));
     o.push_str(&row(&["life_kgco2e", &opt(l.life_kgco2e)]));
@@ -103,7 +107,11 @@ mod tests {
         assert!(csv.contains("\"Test, file (T1)\""));
         assert!(csv.contains("0,,c,,counted,,m,3.000,0.000,6.000,0.000,6.000"));
         assert!(csv.contains("1,,nothing,,unmatched,no rule for nothing,,,,,,"));
-        assert!(csv.contains("embodied (A1-A3 plus A4),,,,6.000"));
+        assert!(csv.contains("\"embodied (A1-A3, plus A4 where a haul was entered)\",,,,6.000"));
+        assert!(csv.contains("counted with A4,0\n") && csv.contains("counted without A4,1\n"));
+        assert!(csv.contains("counted without waste allowance,1\n"));
+        assert!(csv.contains("luminaires,\n") && csv.contains("installed_kw,\n"));
+        assert!(csv.contains("Counted rules with no haul_km"), "the notes are exported");
         assert!(csv.contains("of which transport (A4),,,,\n"));
         assert!(csv.contains("kwh_per_year,\n"));
         assert!(csv.contains("unmatched,1\n"));
