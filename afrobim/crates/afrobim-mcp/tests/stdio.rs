@@ -34,15 +34,17 @@ struct Client {
 }
 
 impl Client {
-    /// Starts the server in `cwd` with the given flags and environment. `AFROBIM_PACK` and
-    /// `AFROBIM_FONTS` are cleared first so the developer's own environment cannot leak in.
+    /// Starts the server in `cwd` with the given flags and environment. `AFROBIM_PACK`,
+    /// `AFROBIM_FONTS`, `AFROBIM_ROOT` and `AFROBIM_READ_ONLY` are cleared first so the developer's own environment cannot leak in.
     fn start(cwd: &Path, args: &[&str], env: &[(&str, &str)]) -> Client {
         let mut command = Command::new(env!("CARGO_BIN_EXE_afrobim-mcp"));
         command
             .args(args)
             .current_dir(cwd)
             .env_remove("AFROBIM_PACK")
-            .env_remove("AFROBIM_FONTS");
+            .env_remove("AFROBIM_FONTS")
+            .env_remove("AFROBIM_ROOT")
+            .env_remove("AFROBIM_READ_ONLY");
         command.envs(env.iter().copied());
         let mut child = command
             .stdin(Stdio::piped())
@@ -280,10 +282,15 @@ fn a_whole_session_over_stdio() {
     }
     assert_eq!(std::fs::read_dir(&out_dir).unwrap().count(), 2);
 
-    // ─── schedule check (a path relative to the checkout root) ────────────
+    // ─── schedule check (a path relative to the project root, here the working directory) ──
+    std::fs::copy(
+        repo_root().join("examples/uk-directional.csv"),
+        tmp.join("uk-directional.csv"),
+    )
+    .unwrap();
     let checked = c.call(
         "validate_schedule",
-        json!({ "csv_path": "examples/uk-directional.csv" }),
+        json!({ "csv_path": "uk-directional.csv" }),
     );
     assert_eq!(
         (
@@ -393,9 +400,13 @@ fn a_whole_session_over_stdio() {
     assert_eq!(c.request("ping", Value::Null)["result"], json!({}));
     let (code, stderr) = c.finish();
     assert_eq!(code, Some(0));
-    assert_eq!(
-        stderr, "",
-        "nothing but protocol messages is expected on a healthy run"
+    // Standard error holds only the start-up log: the project root and the read-only state.
+    assert!(
+        stderr
+            .lines()
+            .all(|l| l.starts_with("afrobim-mcp: project root:")
+                || l == "afrobim-mcp: read-only mode: off"),
+        "nothing but the start-up log is expected on a healthy run: {stderr}"
     );
 }
 
@@ -520,4 +531,256 @@ fn help_version_and_bad_flags_do_not_start_a_session() {
     assert_eq!(bad.status.code(), Some(2));
     assert!(bad.stdout.is_empty(), "stdout is reserved for the protocol");
     assert!(String::from_utf8_lossy(&bad.stderr).contains("unknown argument '--nope'"));
+}
+
+/// The server's own start-up lines on standard error.
+fn log_of(stderr: &str) -> String {
+    stderr.lines().collect::<Vec<_>>().join("\n")
+}
+
+/// Copies the example schedule to `to`.
+fn copy_example_schedule(to: &Path) {
+    std::fs::copy(repo_root().join("examples/uk-directional.csv"), to).unwrap();
+}
+
+#[test]
+fn the_root_defaults_to_the_working_directory_and_the_log_says_so() {
+    let tmp = temp_dir("root-default");
+    let mut c = Client::start(&tmp, &[], &[]);
+    c.initialize();
+    let (code, stderr) = c.finish();
+    assert_eq!(code, Some(0));
+    let log = log_of(&stderr);
+    assert!(
+        log.contains("project root:")
+            && log.contains(tmp.to_str().unwrap())
+            && log.contains("the working directory is used"),
+        "{log}"
+    );
+    assert!(log.contains("read-only mode: off"), "{log}");
+}
+
+#[test]
+fn every_tool_path_is_confined_to_the_root_given_by_flag_or_environment() {
+    let tmp = temp_dir("confined");
+    let project = tmp.join("project");
+    let outside = tmp.join("outside");
+    std::fs::create_dir_all(&project).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    copy_example_schedule(&outside.join("secret.csv"));
+    copy_example_schedule(&project.join("ok.csv"));
+
+    // The working directory is not the root: the flag decides, and relative paths follow it.
+    let mut c = Client::start(&outside, &["--root", project.to_str().unwrap()], &[]);
+    c.initialize();
+    assert_eq!(
+        c.call("validate_schedule", json!({ "csv_path": "ok.csv" }))["valid"],
+        true
+    );
+    let root_name = project.to_str().unwrap();
+    for (tool, args) in [
+        (
+            "validate_schedule",
+            json!({ "csv_path": "../outside/secret.csv" }),
+        ),
+        (
+            "validate_schedule",
+            json!({ "csv_path": outside.join("secret.csv") }),
+        ),
+        ("document_new", json!({ "path": outside.join("m.afrobim") })),
+        (
+            "export_dxf",
+            json!({ "out_dir": outside.join("dxf"), "signs": ["UK04.1"] }),
+        ),
+        ("document_new", json!({ "path": "../outside/m.afrobim" })),
+    ] {
+        let error = c.call_failing(tool, args);
+        assert!(
+            error.contains("outside the project root") && error.contains(root_name),
+            "{tool}: {error}"
+        );
+    }
+    assert!(!outside.join("m.afrobim").exists() && !outside.join("dxf").exists());
+    let (code, stderr) = c.finish();
+    assert_eq!(code, Some(0));
+    assert!(log_of(&stderr).contains("(from --root)"), "{stderr}");
+
+    // The environment variable does the same, and the flag wins over it.
+    let mut c = Client::start(
+        &outside,
+        &[],
+        &[("AFROBIM_ROOT", project.to_str().unwrap())],
+    );
+    c.initialize();
+    assert!(c
+        .call_failing("document_new", json!({ "path": "../outside/m.afrobim" }))
+        .contains("outside the project root"));
+    let (_, stderr) = c.finish();
+    assert!(log_of(&stderr).contains("(from AFROBIM_ROOT)"), "{stderr}");
+
+    let mut c = Client::start(
+        &outside,
+        &["--root", outside.to_str().unwrap()],
+        &[("AFROBIM_ROOT", project.to_str().unwrap())],
+    );
+    c.initialize();
+    assert_eq!(
+        c.call("validate_schedule", json!({ "csv_path": "secret.csv" }))["valid"],
+        true
+    );
+    c.finish();
+
+    // A root that does not exist stops the server with a message.
+    let bad = Command::new(env!("CARGO_BIN_EXE_afrobim-mcp"))
+        .args(["--root", tmp.join("nowhere").to_str().unwrap()])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert_eq!(bad.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("project root is not a folder"));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_link_pointing_outside_the_root_is_refused_over_stdio() {
+    let tmp = temp_dir("confined-link");
+    let project = tmp.join("project");
+    let outside = tmp.join("outside");
+    std::fs::create_dir_all(&project).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    copy_example_schedule(&outside.join("secret.csv"));
+    std::os::unix::fs::symlink(outside.join("secret.csv"), project.join("link.csv")).unwrap();
+    std::os::unix::fs::symlink(&outside, project.join("linked-dir")).unwrap();
+
+    let mut c = Client::start(&project, &[], &[]);
+    c.initialize();
+    for (tool, args) in [
+        ("validate_schedule", json!({ "csv_path": "link.csv" })),
+        (
+            "validate_schedule",
+            json!({ "csv_path": "linked-dir/secret.csv" }),
+        ),
+        ("document_new", json!({ "path": "linked-dir/m.afrobim" })),
+        (
+            "export_dxf",
+            json!({ "out_dir": "linked-dir/dxf", "signs": ["UK04.1"] }),
+        ),
+    ] {
+        let error = c.call_failing(tool, args);
+        assert!(
+            error.contains("outside the project root"),
+            "{tool}: {error}"
+        );
+    }
+    assert!(!outside.join("m.afrobim").exists() && !outside.join("dxf").exists());
+    c.finish();
+}
+
+#[test]
+fn read_only_mode_refuses_every_write_tool_and_still_reads() {
+    let tmp = temp_dir("read-only");
+    copy_example_schedule(&tmp.join("s.csv"));
+
+    // Make a document first, with a server that may write.
+    let mut c = Client::start(&tmp, &[], &[]);
+    c.initialize();
+    c.call("document_new", json!({ "path": "m.afrobim" }));
+    c.call(
+        "document_add_sign",
+        json!({ "path": "m.afrobim", "key": "UK04.1", "mark": "A" }),
+    );
+    c.finish();
+    let before = std::fs::read(tmp.join("m.afrobim")).unwrap();
+
+    // The flag, and then the environment variable, each switch the writes off.
+    for (args, env) in [
+        (vec!["--read-only"], vec![]),
+        (vec![], vec![("AFROBIM_READ_ONLY", "1")]),
+    ] {
+        let mut c = Client::start(&tmp, &args, &env);
+        c.initialize();
+        for (tool, arguments) in [
+            (
+                "export_dxf",
+                json!({ "out_dir": "dxf", "signs": ["UK04.1"] }),
+            ),
+            ("document_new", json!({ "path": "n.afrobim" })),
+            (
+                "document_new",
+                json!({ "path": "m.afrobim", "overwrite": true }),
+            ),
+            (
+                "document_add_sign",
+                json!({ "path": "m.afrobim", "key": "UK04.1" }),
+            ),
+            (
+                "document_remove_element",
+                json!({ "path": "m.afrobim", "mark": "A" }),
+            ),
+            ("document_save", json!({ "path": "m.afrobim" })),
+            (
+                "document_save",
+                json!({ "path": "m.afrobim", "save_as": "copy.afrobim" }),
+            ),
+            (
+                "document_export_dxf",
+                json!({ "path": "m.afrobim", "out_path": "m.dxf" }),
+            ),
+        ] {
+            let error = c.call_failing(tool, arguments);
+            assert!(error.contains("read-only mode"), "{tool}: {error}");
+        }
+        // Reads are untouched.
+        let listed = c.call("document_list", json!({ "path": "m.afrobim" }));
+        assert_eq!(listed["elements"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            c.call("validate_schedule", json!({ "csv_path": "s.csv" }))["valid"],
+            true
+        );
+        assert!(
+            c.call("search_catalog", json!({}))["count"]
+                .as_u64()
+                .unwrap()
+                > 10
+        );
+        let (code, stderr) = c.finish();
+        assert_eq!(code, Some(0));
+        assert!(log_of(&stderr).contains("read-only mode: on"), "{stderr}");
+    }
+    assert_eq!(std::fs::read(tmp.join("m.afrobim")).unwrap(), before);
+    for name in ["dxf", "n.afrobim", "copy.afrobim", "m.dxf"] {
+        assert!(!tmp.join(name).exists(), "{name} must not exist");
+    }
+
+    // A value that is not a yes or a no stops the server rather than leaving it writable.
+    let bad = Command::new(env!("CARGO_BIN_EXE_afrobim-mcp"))
+        .env("AFROBIM_READ_ONLY", "ture")
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert_eq!(bad.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("AFROBIM_READ_ONLY must be"));
+}
+
+#[test]
+fn a_normal_path_inside_the_root_works_for_every_kind_of_tool() {
+    let tmp = temp_dir("inside");
+    let mut c = Client::start(&tmp, &["--root", tmp.to_str().unwrap()], &[]);
+    c.initialize();
+    c.call("document_new", json!({ "path": "sub/m.afrobim" }));
+    c.call(
+        "document_add_sign",
+        json!({ "path": "sub/m.afrobim", "key": "UK04.1", "mark": "A" }),
+    );
+    let exported = c.call(
+        "export_dxf",
+        json!({ "out_dir": "dxf", "signs": ["UK04.1"] }),
+    );
+    assert_eq!(exported["files"].as_array().unwrap().len(), 1);
+    c.call(
+        "document_export_dxf",
+        json!({ "path": "sub/m.afrobim", "out_path": "out/m.dxf" }),
+    );
+    assert!(tmp.join("out/m.dxf").is_file());
+    c.finish();
 }

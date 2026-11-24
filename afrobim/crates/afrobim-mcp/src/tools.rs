@@ -419,8 +419,10 @@ impl Tools {
         if keys.is_some() == csv_path.is_some() {
             return Err(ToolError::new("give exactly one of 'signs' or 'csv_path'"));
         }
-        let root = self.engine.settings.root.clone();
-        let csv = csv_path.map(|p| paths::resolve_csv(p, &root)).transpose()?;
+        let guard = self.engine.settings.guard.clone();
+        let csv = csv_path
+            .map(|p| paths::resolve_csv(p, &guard))
+            .transpose()?;
         let engine = self.engine.sign_engine(pack)?;
 
         let mut failures = Vec::new();
@@ -453,7 +455,7 @@ impl Tools {
             }
         }
 
-        let out_dir = paths::prepare_out_dir(out_dir, &root)?;
+        let out_dir = paths::prepare_out_dir(out_dir, &guard)?;
         let mut files = Vec::new();
         let mut used: HashSet<String> = HashSet::new();
         let (mut errors, mut warnings) = (0, 0);
@@ -508,7 +510,7 @@ impl Tools {
         csv_path: &str,
         pack: Option<&str>,
     ) -> Result<ValidateScheduleResult, ToolError> {
-        let csv = paths::resolve_csv(csv_path, &self.engine.settings.root)?;
+        let csv = paths::resolve_csv(csv_path, &self.engine.settings.guard)?;
         let engine = self.engine.sign_engine(pack)?;
         let mut results = Vec::new();
         for r in schedule::read_schedule(&csv)? {

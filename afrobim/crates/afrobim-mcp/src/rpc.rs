@@ -182,6 +182,15 @@ impl Server {
         if let Some(refusal) = spec.unknown_argument(arguments) {
             return Ok(tool_result(refusal, true));
         }
+        if !spec.read_only && self.tools.engine.settings.read_only() {
+            return Ok(tool_result(
+                format!(
+                    "An error occurred invoking '{name}': refused: the server is in read-only mode (--read-only or {}), and {name} writes files",
+                    crate::settings::READ_ONLY_ENV
+                ),
+                true,
+            ));
+        }
         let tools = &mut self.tools;
         // A panic inside the engine must not take the server (and the assistant's session) down.
         let outcome = catch_unwind(AssertUnwindSafe(|| (spec.call)(tools, &Args(arguments))));

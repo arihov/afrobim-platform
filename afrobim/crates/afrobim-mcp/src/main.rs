@@ -39,7 +39,16 @@ fn main() -> ExitCode {
 
     // Standard output carries JSON-RPC only, so everything else goes to standard error. A
     // missing pack or fonts folder is not fatal: the tools that need it say what to fix.
-    let settings = Settings::from_environment(&options);
+    let settings = match Settings::from_environment(&options) {
+        Ok(settings) => settings,
+        Err(e) => {
+            eprintln!("afrobim-mcp: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    for line in settings.startup_log() {
+        eprintln!("afrobim-mcp: {line}");
+    }
     for problem in [
         settings.pack_file.as_ref().err(),
         settings.fonts_dir.as_ref().err(),

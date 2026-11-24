@@ -18,6 +18,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 
 use crate::engine::{self, round1};
+use crate::paths::Access;
 use crate::tools::{
     blank_str, check_speed, count, family_token, status_of, DiagnosticInfo, ToolError, Tools,
 };
@@ -228,8 +229,8 @@ fn properties_from(map: &Map<String, Value>) -> Result<BTreeMap<String, String>,
 }
 
 impl Tools {
-    fn document_path(&self, path: &str) -> Result<PathBuf, ToolError> {
-        paths::resolve_file(path, &self.engine.settings.root, EXTENSION, "path")
+    fn document_path(&self, path: &str, access: Access) -> Result<PathBuf, ToolError> {
+        paths::resolve_file(path, &self.engine.settings.guard, access, EXTENSION, "path")
     }
 
     /// The sign engine for a document: the pack named in the call, else the document's own
@@ -249,7 +250,7 @@ impl Tools {
         pack: Option<&str>,
         overwrite: bool,
     ) -> Result<DocumentNewResult, ToolError> {
-        let file = self.document_path(path)?;
+        let file = self.document_path(path, Access::Write)?;
         if file.exists() && !overwrite {
             return Err(ToolError::new(format!(
                 "{} already exists; pass overwrite: true to replace it with an empty document",
@@ -291,7 +292,7 @@ impl Tools {
             .transpose()?
             .unwrap_or_default();
 
-        let file = self.document_path(a.path)?;
+        let file = self.document_path(a.path, Access::Write)?;
         let mut doc = load(&file)?;
         let engine = self.engine_for(a.pack, &doc)?;
         let mut sign = match (key, row, a.definition) {
@@ -341,7 +342,7 @@ impl Tools {
     }
 
     pub fn document_list(&mut self, path: &str) -> Result<DocumentListResult, ToolError> {
-        let file = self.document_path(path)?;
+        let file = self.document_path(path, Access::Read)?;
         let doc = load(&file)?;
         Ok(DocumentListResult {
             path: shown(&file),
@@ -383,7 +384,7 @@ impl Tools {
         if id.is_some() == mark.is_some() {
             return Err(ToolError::new("give exactly one of 'id' or 'mark'"));
         }
-        let file = self.document_path(path)?;
+        let file = self.document_path(path, Access::Write)?;
         let mut doc = load(&file)?;
         let matches: Vec<(ElementId, String)> = doc
             .elements()
@@ -431,9 +432,24 @@ impl Tools {
         save_as: Option<&str>,
         pack: Option<&str>,
     ) -> Result<DocumentSaveResult, ToolError> {
-        let file = self.document_path(path)?;
-        let target = match blank_str(save_as) {
-            Some(p) => paths::resolve_file(p, &self.engine.settings.root, EXTENSION, "save_as")?,
+        let save_as = blank_str(save_as);
+        // Saving in place writes the document; a copy only reads it.
+        let file = self.document_path(
+            path,
+            if save_as.is_some() {
+                Access::Read
+            } else {
+                Access::Write
+            },
+        )?;
+        let target = match save_as {
+            Some(p) => paths::resolve_file(
+                p,
+                &self.engine.settings.guard,
+                Access::Write,
+                EXTENSION,
+                "save_as",
+            )?,
             None => file.clone(),
         };
         let mut doc = load(&file)?;
@@ -502,9 +518,14 @@ impl Tools {
         marks: Option<&[String]>,
         pack: Option<&str>,
     ) -> Result<DocumentExportResult, ToolError> {
-        let root = self.engine.settings.root.clone();
-        let file = self.document_path(path)?;
-        let out = paths::resolve_file(out_path, &root, "dxf", "out_path")?;
+        let file = self.document_path(path, Access::Read)?;
+        let out = paths::resolve_file(
+            out_path,
+            &self.engine.settings.guard,
+            Access::Write,
+            "dxf",
+            "out_path",
+        )?;
         let doc = load(&file)?;
         let marks: Option<Vec<&str>> = marks
             .filter(|m| !m.is_empty())
