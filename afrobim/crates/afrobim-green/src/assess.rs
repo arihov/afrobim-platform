@@ -1,20 +1,30 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use serde::{Deserialize, Serialize};
 
 use crate::factors::{normalise_key, Factor, FactorSet};
 use crate::rules::{Rule, Settings, Use};
 
+/// What the embodied total covers, for labels: it is A1-A3 for every counted line and A4 only for
+/// the lines whose rule has a haul distance (and a transport factor).
+pub const EMBODIED_BASIS: &str = "A1-A3, plus A4 where a haul was entered";
+
+/// Why a gantry's count line is unmatched when its steel mass line is missing.
+const NO_STEEL_MASS: &str = "no steel mass: a member has no mass per metre";
+
 /// A quantity line as the app hands it over (the crate does not depend on the cost crate).
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LineIn {
     pub id: usize,
+    /// The model element the line was measured from, when it has one. Lines of one element and
+    /// mark belong together (the parts of one gantry).
+    pub element: Option<u64>,
     pub mark: String,
     pub category: String,
     pub description: String,
     pub quantity: f64,
-    /// `m`, `m2`, `m3`, `kg`, `t` or `nr`.
+    /// `m`, `m2`, `m3`, `kg`, `t` or `nr` (`no` is read as `nr`).
     pub unit: String,
     pub attributes: BTreeMap<String, String>,
 }
@@ -24,7 +34,7 @@ pub struct LineIn {
 pub enum Outcome {
     /// Carbon and/or transport was calculated.
     Counted,
-    /// Left out on purpose, with the rule's reason.
+    /// Left out on purpose, with the reason.
     Excluded(String),
     /// Could not be calculated, with the reason. Never costed at zero.
     Unmatched(String),
@@ -65,9 +75,12 @@ pub struct MaterialTotal {
 /// Street lighting energy. Every figure is None when an input it needs is missing.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct LightingResult {
+    /// Number of luminaires on the luminaire lines; 0 when there are none (see `energy_lines`
+    /// in the assessment).
     pub luminaires: f64,
-    /// Over the luminaire lines that carry a `power_w` attribute.
-    pub installed_kw: f64,
+    /// Installed power. None when there are no luminaire lines or any of them lacks `power_w`:
+    /// a partial sum would look like the whole.
+    pub installed_kw: Option<f64>,
     pub kwh_per_year: Option<f64>,
     pub kgco2e_per_year: Option<f64>,
     pub life_kgco2e: Option<f64>,
@@ -83,12 +96,21 @@ pub struct Assessment {
     pub factor_set: String,
     pub rows: Vec<Row>,
     pub by_material: Vec<MaterialTotal>,
-    /// Sum of the counted lines' `total_kg` (A1-A3 plus A4). None when no factor file is loaded
-    /// or nothing was counted: never 0 standing for "zero carbon".
+    /// Sum of the counted lines' `total_kg`: A1-A3 for every counted line, plus A4 for the lines
+    /// that have a haul (see [`EMBODIED_BASIS`], `counted_with_a4`). None when no factor file is
+    /// loaded or nothing was counted: never 0 standing for "zero carbon".
     pub embodied_kgco2e: Option<f64>,
-    /// The A4 part of `embodied_kgco2e`. None when no counted line had haul and a transport factor.
+    /// The A4 part of `embodied_kgco2e`. None when no counted line had a haul and a transport factor.
     pub transport_kgco2e: Option<f64>,
     pub counted: usize,
+    /// Counted lines whose A4 was calculated (haul entered and a transport factor in the file).
+    pub counted_with_a4: usize,
+    /// Counted lines with no A4 in their total.
+    pub counted_without_a4: usize,
+    /// Counted lines whose rule has a waste allowance.
+    pub counted_with_waste: usize,
+    /// Counted lines with no waste allowance in their total.
+    pub counted_without_waste: usize,
     pub excluded: usize,
     pub unmatched: usize,
     pub energy_lines: usize,
@@ -96,8 +118,18 @@ pub struct Assessment {
     pub notes: Vec<String>,
 }
 
+/// Units are compared trimmed, ignoring case; `no` is the other spelling of `nr`.
+fn canonical_unit(u: &str) -> String {
+    let l = u.trim().to_lowercase();
+    if l == "no" {
+        "nr".to_string()
+    } else {
+        l
+    }
+}
+
 fn unit_eq(a: &str, b: &str) -> bool {
-    a.trim().eq_ignore_ascii_case(b.trim())
+    canonical_unit(a) == canonical_unit(b)
 }
 
 fn valid(v: Option<f64>) -> Result<Option<f64>, ()> {
@@ -113,11 +145,13 @@ struct Figures {
     waste_t: f64,
     a1a3: f64,
     a4: f64,
+    /// True when the A4 was calculated: a haul and a transport factor were both present.
+    a4_applied: bool,
 }
 
 fn tonnes_of(line: &LineIn, f: &Factor, key: &str) -> Result<f64, String> {
     let q = line.quantity;
-    let unit = line.unit.trim().to_lowercase();
+    let unit = canonical_unit(&line.unit);
     let per = |v: Option<f64>, name: &str| v.map(|x| q * x).ok_or_else(|| format!("{key}: no {name} in the factor file"));
     match unit.as_str() {
         "t" => Ok(q),
@@ -158,7 +192,7 @@ fn evaluate(line: &LineIn, rule: &Rule, key: &str, set: Option<&FactorSet>) -> R
                 missing.push("transport_kgco2e_per_tkm in the factor file");
             }
             match a4 {
-                Some(a4) => Ok(Figures { tonnes, waste_t, a1a3: 0.0, a4 }),
+                Some(a4) => Ok(Figures { tonnes, waste_t, a1a3: 0.0, a4, a4_applied: true }),
                 None => Err(format!("{key}: no {}", missing.join(" and no "))),
             }
         }
@@ -166,17 +200,46 @@ fn evaluate(line: &LineIn, rule: &Rule, key: &str, set: Option<&FactorSet>) -> R
             if !factor.has_carbon() {
                 return Err(format!("{key}: no kgco2e_per_t in the factor file"));
             }
-            Ok(Figures { tonnes, waste_t, a1a3: moved * factor.kgco2e_per_t, a4: a4.unwrap_or(0.0) })
+            Ok(Figures { tonnes, waste_t, a1a3: moved * factor.kgco2e_per_t, a4: a4.unwrap_or(0.0), a4_applied: a4.is_some() })
         }
     }
+}
+
+/// The rule for a line: the first with its category and unit. Failing that, the line's category
+/// is looked at only to give the unit-mismatch reason, never to count or to exclude.
+fn find_rule<'a>(rules: &'a [Rule], line: &LineIn) -> Result<&'a Rule, String> {
+    if let Some(r) = rules.iter().find(|r| r.category == line.category && unit_eq(&r.unit, &line.unit)) {
+        return Ok(r);
+    }
+    let mut units: Vec<String> = Vec::new();
+    for r in rules.iter().filter(|r| r.category == line.category) {
+        let u = r.unit.trim().to_string();
+        if !units.contains(&u) {
+            units.push(u);
+        }
+    }
+    if units.is_empty() {
+        Err(format!("no rule for {}", line.category))
+    } else {
+        Err(format!("the rule for {} expects {}, the line is in {}", line.category, units.join(" or "), line.unit.trim()))
+    }
+}
+
+/// What was worked out beside a row, for the tallies.
+#[derive(Default, Clone)]
+struct Meta {
+    rule_category: String,
+    a4_applied: bool,
+    waste_entered: bool,
+    haul_entered: bool,
 }
 
 /// Assesses the lines. See the crate documentation for every formula.
 pub fn assess(lines: &[LineIn], factors: Option<&FactorSet>, settings: &Settings) -> Assessment {
     let mut a = Assessment { factor_set: factors.map(FactorSet::label).unwrap_or_default(), ..Assessment::default() };
-    let mut totals: BTreeMap<String, MaterialTotal> = BTreeMap::new();
     let mut energy: Vec<&LineIn> = Vec::new();
-    let mut transport_used = false;
+    let mut rows: Vec<Row> = Vec::with_capacity(lines.len());
+    let mut metas: Vec<Meta> = Vec::with_capacity(lines.len());
     let mut haul_without_factor = false;
     let transport_factor = factors.and_then(|s| s.transport_kgco2e_per_tkm).is_some_and(|v| v.is_finite() && v >= 0.0);
 
@@ -194,58 +257,79 @@ pub fn assess(lines: &[LineIn], factors: Option<&FactorSet>, settings: &Settings
             a4_kg: 0.0,
             total_kg: 0.0,
         };
-        row.outcome = match settings.rules.iter().find(|r| r.category == line.category) {
-            None => Outcome::Unmatched(format!("no rule for {}", line.category)),
-            Some(rule) => match &rule.use_ {
+        let mut meta = Meta::default();
+        row.outcome = match find_rule(&settings.rules, line) {
+            Err(why) => Outcome::Unmatched(why),
+            Ok(rule) => match &rule.use_ {
                 Use::Excluded { reason } => Outcome::Excluded(reason.clone()),
-                _ if !unit_eq(&rule.unit, &line.unit) => {
-                    Outcome::Unmatched(format!("the rule for {} expects {}, the line is in {}", rule.category, rule.unit.trim(), line.unit.trim()))
-                }
-                Use::LightingEnergy if !line.quantity.is_finite() => Outcome::Unmatched("the quantity is not a finite number".to_string()),
+                _ if !line.quantity.is_finite() => Outcome::Unmatched("the quantity is not a finite number".to_string()),
+                _ if line.quantity < 0.0 => Outcome::Unmatched("negative quantity".to_string()),
+                _ if line.quantity == 0.0 => Outcome::Excluded("quantity is 0: not modelled".to_string()),
                 Use::LightingEnergy => {
                     energy.push(line);
                     Outcome::Energy
                 }
-                _ if !line.quantity.is_finite() => Outcome::Unmatched("the quantity is not a finite number".to_string()),
-                counting => {
-                    let key = match counting {
-                        Use::Material { key } | Use::HaulOnly { key } => Ok(key.clone()),
-                        Use::MaterialFromAttribute { attribute, prefix } => match line.attributes.get(attribute) {
-                            Some(v) if !v.trim().is_empty() => Ok(format!("{prefix}{}", v.trim())),
-                            _ => Err(format!("the line has no attribute '{attribute}'")),
-                        },
-                        _ => Err(String::new()),
-                    };
-                    match key {
-                        Err(why) => Outcome::Unmatched(why),
-                        Ok(key) => {
-                            row.material_key = key.clone();
-                            match evaluate(line, rule, &key, factors) {
-                                Err(why) => Outcome::Unmatched(why),
-                                Ok(f) => {
-                                    row.tonnes = f.tonnes;
-                                    row.waste_t = f.waste_t;
-                                    row.a1a3_kg = f.a1a3;
-                                    row.a4_kg = f.a4;
-                                    row.total_kg = f.a1a3 + f.a4;
-                                    if rule.haul_km.is_some() {
-                                        if transport_factor {
-                                            transport_used = true;
-                                        } else {
-                                            haul_without_factor = true;
-                                        }
-                                    }
-                                    Outcome::Counted
+                counting => match counting.key_for(&line.attributes) {
+                    Err(why) => Outcome::Unmatched(why),
+                    Ok(key) => {
+                        row.material_key = key.clone();
+                        match evaluate(line, rule, &key, factors) {
+                            Err(why) => Outcome::Unmatched(why),
+                            Ok(f) => {
+                                row.tonnes = f.tonnes;
+                                row.waste_t = f.waste_t;
+                                row.a1a3_kg = f.a1a3;
+                                row.a4_kg = f.a4;
+                                row.total_kg = f.a1a3 + f.a4;
+                                meta = Meta { rule_category: rule.category.clone(), a4_applied: f.a4_applied, waste_entered: rule.waste_pct.is_some(), haul_entered: rule.haul_km.is_some() };
+                                if rule.haul_km.is_some() && !transport_factor {
+                                    haul_without_factor = true;
                                 }
+                                Outcome::Counted
                             }
                         }
                     }
-                }
+                },
             },
         };
+        rows.push(row);
+        metas.push(meta);
+    }
+
+    // A gantry whose members lack a mass per metre has no steel mass line, and the rest of its
+    // lines are excluded on the ground that the steel mass carries it. Its count line says so,
+    // so that its steel does not vanish without a word.
+    let steel_rule_counts = settings.rules.iter().any(|r| r.category == "gantry.steel_mass" && r.use_.is_counting());
+    if steel_rule_counts {
+        let with_steel: HashSet<(Option<u64>, &str)> = lines.iter().filter(|l| l.category == "gantry.steel_mass").map(|l| (l.element, l.mark.as_str())).collect();
+        for (row, line) in rows.iter_mut().zip(lines) {
+            if line.category == "gantry.count" && matches!(row.outcome, Outcome::Excluded(_)) && !with_steel.contains(&(line.element, line.mark.as_str())) {
+                row.outcome = Outcome::Unmatched(NO_STEEL_MASS.to_string());
+            }
+        }
+    }
+
+    let mut totals: BTreeMap<String, MaterialTotal> = BTreeMap::new();
+    let mut no_haul_rules: BTreeSet<String> = BTreeSet::new();
+    let mut no_waste_rules: BTreeSet<String> = BTreeSet::new();
+    for (row, meta) in rows.iter().zip(&metas) {
         match &row.outcome {
             Outcome::Counted => {
                 a.counted += 1;
+                if meta.a4_applied {
+                    a.counted_with_a4 += 1;
+                } else {
+                    a.counted_without_a4 += 1;
+                }
+                if meta.waste_entered {
+                    a.counted_with_waste += 1;
+                } else {
+                    a.counted_without_waste += 1;
+                    no_waste_rules.insert(meta.rule_category.clone());
+                }
+                if !meta.haul_entered {
+                    no_haul_rules.insert(meta.rule_category.clone());
+                }
                 if let Some(factor) = factors.and_then(|s| s.find(&row.material_key)) {
                     let t = totals.entry(normalise_key(&factor.key)).or_insert_with(|| MaterialTotal {
                         key: factor.key.trim().to_string(),
@@ -263,16 +347,16 @@ pub fn assess(lines: &[LineIn], factors: Option<&FactorSet>, settings: &Settings
             Outcome::Unmatched(_) => a.unmatched += 1,
             Outcome::Energy => a.energy_lines += 1,
         }
-        a.rows.push(row);
     }
 
     a.by_material = totals.into_values().collect();
     if factors.is_some() && a.counted > 0 {
-        a.embodied_kgco2e = Some(a.rows.iter().filter(|r| r.outcome == Outcome::Counted).map(|r| r.total_kg).sum());
-        if transport_used {
-            a.transport_kgco2e = Some(a.rows.iter().filter(|r| r.outcome == Outcome::Counted).map(|r| r.a4_kg).sum());
+        a.embodied_kgco2e = Some(rows.iter().filter(|r| r.outcome == Outcome::Counted).map(|r| r.total_kg).sum());
+        if a.counted_with_a4 > 0 {
+            a.transport_kgco2e = Some(rows.iter().filter(|r| r.outcome == Outcome::Counted).map(|r| r.a4_kg).sum());
         }
     }
+    a.rows = rows;
     a.lighting = lighting(&energy, factors, settings);
 
     if factors.is_none() {
@@ -284,13 +368,29 @@ pub fn assess(lines: &[LineIn], factors: Option<&FactorSet>, settings: &Settings
     if haul_without_factor {
         a.notes.push("A rule has haul_km but the factor file has no transport_kgco2e_per_tkm: that transport is not counted.".to_string());
     }
+    if a.counted > 0 {
+        a.notes.push(format!(
+            "The embodied total is {EMBODIED_BASIS}: {} of {} counted line(s) include A4 and {} do not; {} include a waste allowance and {} do not.",
+            a.counted_with_a4, a.counted, a.counted_without_a4, a.counted_with_waste, a.counted_without_waste
+        ));
+        if !no_haul_rules.is_empty() {
+            a.notes.push(format!("Counted rules with no haul_km, so no transport (A4) is in their lines: {}.", join(&no_haul_rules)));
+        }
+        if !no_waste_rules.is_empty() {
+            a.notes.push(format!("Counted rules with no waste_pct, so no waste allowance is in their lines: {}.", join(&no_waste_rules)));
+        }
+    }
     if a.lighting.lines_without_power > 0 {
         a.notes.push(format!(
-            "{} luminaire line(s) have no usable power_w attribute: lighting energy is not calculated until every line has one.",
+            "{} luminaire line(s) have no usable power_w attribute: installed power and lighting energy are not calculated until every line has one.",
             a.lighting.lines_without_power
         ));
     }
     a
+}
+
+fn join(set: &BTreeSet<String>) -> String {
+    set.iter().map(String::as_str).collect::<Vec<_>>().join(", ")
 }
 
 fn lighting(lines: &[&LineIn], factors: Option<&FactorSet>, settings: &Settings) -> LightingResult {
@@ -306,7 +406,8 @@ fn lighting(lines: &[&LineIn], factors: Option<&FactorSet>, settings: &Settings)
             None => r.lines_without_power += 1,
         }
     }
-    r.installed_kw = watts / 1000.0;
+    let kw = (r.lines_without_power == 0).then_some(watts / 1000.0);
+    r.installed_kw = kw;
     let u = &settings.lighting;
     let hours = u.hours_per_year.filter(|v| v.is_finite() && *v >= 0.0);
     let dimming = u.dimming_factor.filter(|v| v.is_finite() && (0.0..=1.0).contains(v));
@@ -327,15 +428,13 @@ fn lighting(lines: &[&LineIn], factors: Option<&FactorSet>, settings: &Settings)
     if life.is_none() {
         r.missing.push("design_life_years".to_string());
     }
-    if r.lines_without_power == 0 {
-        if let (Some(h), Some(d)) = (hours, dimming) {
-            let kwh = r.installed_kw * h * d;
-            r.kwh_per_year = Some(kwh);
-            if let Some(g) = grid {
-                let per_year = kwh * g;
-                r.kgco2e_per_year = Some(per_year);
-                r.life_kgco2e = life.map(|y| per_year * y);
-            }
+    if let (Some(kw), Some(h), Some(d)) = (kw, hours, dimming) {
+        let kwh = kw * h * d;
+        r.kwh_per_year = Some(kwh);
+        if let Some(g) = grid {
+            let per_year = kwh * g;
+            r.kgco2e_per_year = Some(per_year);
+            r.life_kgco2e = life.map(|y| per_year * y);
         }
     }
     r
@@ -353,7 +452,7 @@ mod tests {
     }
 
     fn line(id: usize, category: &str, quantity: f64, unit: &str) -> LineIn {
-        LineIn { id, mark: format!("M{id}"), category: category.into(), description: "test".into(), quantity, unit: unit.into(), attributes: BTreeMap::new() }
+        LineIn { id, element: None, mark: format!("M{id}"), category: category.into(), description: "test".into(), quantity, unit: unit.into(), attributes: BTreeMap::new() }
     }
 
     fn rule_for(category: &str, unit: &str, use_: Use) -> Rule {
@@ -414,7 +513,33 @@ mod tests {
         let a = assess(&[line(0, "c", 10.0, "t")], Some(&bare), &settings_with(vec![r]));
         assert_eq!(a.rows[0].a4_kg, 0.0);
         assert_eq!(a.transport_kgco2e, None);
+        assert_eq!(a.counted_with_a4, 0, "a haul with no transport factor is not an A4");
+        assert_eq!(a.counted_without_a4, 1);
         assert!(a.notes.iter().any(|n| n.contains("transport_kgco2e_per_tkm")));
+    }
+
+    #[test]
+    fn the_total_says_where_a4_and_waste_are_and_are_not_in_it() {
+        let mut set = set_of(vec![factor("m", 100.0), factor("n", 10.0)]);
+        set.transport_kgco2e_per_tkm = Some(0.1);
+        let mut hauled = rule_for("hauled", "t", Use::Material { key: "m".into() });
+        hauled.haul_km = Some(30.0);
+        hauled.waste_pct = Some(10.0);
+        let plain = rule_for("plain", "t", Use::Material { key: "n".into() });
+        let a = assess(&[line(0, "hauled", 10.0, "t"), line(1, "plain", 20.0, "t"), line(2, "plain", 5.0, "t")], Some(&set), &settings_with(vec![hauled, plain]));
+        assert_eq!((a.counted, a.counted_with_a4, a.counted_without_a4), (3, 1, 2));
+        assert_eq!((a.counted_with_waste, a.counted_without_waste), (1, 2));
+        // hauled: 11 t * 100 + 11 t * 30 km * 0.1 = 1100 + 33; plain: 25 t * 10 = 250
+        assert_eq!(a.embodied_kgco2e, Some(1100.0 + 33.0 + 250.0));
+        assert_eq!(a.transport_kgco2e, Some(33.0));
+        let text = a.notes.join("\n");
+        assert!(text.contains(EMBODIED_BASIS), "{text}");
+        assert!(text.contains("no haul_km") && text.contains(": plain."), "{text}");
+        assert!(text.contains("no waste_pct") && text.contains(": plain."), "{text}");
+        assert!(!text.contains("hauled."), "a rule with a haul and a waste is not listed: {text}");
+        // nothing counted: no such notes
+        let a = assess(&[], Some(&set), &Settings::default());
+        assert!(!a.notes.iter().any(|n| n.contains("haul_km")));
     }
 
     #[test]
@@ -437,6 +562,7 @@ mod tests {
         assert_eq!(row.a4_kg, 20.0 * 30.0 * 0.1);
         assert_eq!(a.embodied_kgco2e, Some(row.a4_kg));
         assert_eq!(a.transport_kgco2e, Some(row.a4_kg));
+        assert_eq!(a.counted_with_a4, 1);
         assert_eq!(a.by_material.len(), 1);
     }
 
@@ -452,7 +578,7 @@ mod tests {
         };
         let a = assess(std::slice::from_ref(&l), Some(&set), &s);
         assert_eq!(a.lighting.luminaires, 10.0);
-        assert_eq!(a.lighting.installed_kw, 1.0);
+        assert_eq!(a.lighting.installed_kw, Some(1.0));
         assert_eq!(a.lighting.kwh_per_year, Some(4000.0));
         assert_eq!(a.lighting.kgco2e_per_year, Some(2000.0));
         assert_eq!(a.lighting.life_kgco2e, Some(40_000.0));
@@ -475,14 +601,19 @@ mod tests {
         // out of range dimming is unusable
         s.lighting.dimming_factor = Some(1.5);
         assert_eq!(assess(std::slice::from_ref(&l), Some(&set), &s).lighting.kwh_per_year, None);
-        // a line with no power: counted, no energy figure, noted
+        // a line with no power: counted, no installed power (a partial sum would look whole), noted
         let bare = line(1, "lighting.luminaire", 2.0, "nr");
         s.lighting.dimming_factor = Some(1.0);
         let a = assess(&[l, bare], Some(&set), &s);
         assert_eq!(a.lighting.lines_without_power, 1);
+        assert_eq!(a.lighting.installed_kw, None);
         assert_eq!(a.lighting.kwh_per_year, None);
         assert_eq!(a.lighting.luminaires, 12.0);
         assert!(a.notes.iter().any(|n| n.contains("power_w")));
+        // no luminaires: no installed power either, not 0 kW
+        let a = assess(&[], Some(&set), &s);
+        assert_eq!(a.lighting.installed_kw, None);
+        assert_eq!(a.energy_lines, 0);
     }
 
     #[test]
@@ -490,14 +621,14 @@ mod tests {
         let mut l = line(0, "lighting.luminaire", 4.0, "nr");
         l.attributes.insert("power_w".into(), "50".into());
         let a = assess(&[l], None, &Settings::default());
-        assert_eq!(a.lighting.installed_kw, 0.2);
+        assert_eq!(a.lighting.installed_kw, Some(0.2));
         assert_eq!(a.lighting.kwh_per_year, None);
         assert!(a.lighting.missing.iter().any(|m| m.starts_with("grid_kgco2e_per_kwh")));
     }
 
-    /// Index of `post.mass` among the default rules, which is also its line id in `mixed_lines`.
+    /// Index of `post.length` among the default rules, which is also its line id in `mixed_lines`.
     fn post_index() -> usize {
-        default_rules().iter().position(|r| r.category == "post.mass").unwrap()
+        default_rules().iter().position(|r| r.category == "post.length").unwrap()
     }
 
     fn mixed_lines() -> Vec<LineIn> {
@@ -507,8 +638,8 @@ mod tests {
         let mut asphalt = line(n + 1, "pavement.layer_volume", 5.0, "m3");
         asphalt.attributes.insert("material".into(), "Hot mix asphalt".into());
         lines.push(asphalt);
-        lines.push(line(n + 2, "post.mass", 5.0, "m3")); // wrong unit
-        lines.push(line(n + 3, "post.mass", f64::NAN, "kg"));
+        lines.push(line(n + 2, "post.length", 5.0, "m3")); // wrong unit
+        lines.push(line(n + 3, "post.length", f64::NAN, "m"));
         lines
     }
 
@@ -516,6 +647,7 @@ mod tests {
     fn partition_invariant() {
         let lines = mixed_lines();
         let mut set = set_of(vec![factor("steel post", 2.0), factor("pavement: hot mix asphalt", 3.0)]);
+        set.factors[0].t_per_m = Some(0.5);
         set.factors[1].t_per_m3 = Some(2.0);
         let s = Settings { lighting: crate::LightingUse { hours_per_year: Some(1.0), ..Default::default() }, ..Settings::default() };
         for factors in [None, Some(&set)] {
@@ -525,10 +657,13 @@ mod tests {
             assert!(a.energy_lines >= 1 && a.excluded >= 1 && a.unmatched >= 1);
         }
         let a = assess(&lines, Some(&set), &s);
-        assert_eq!(a.counted, 2, "post.mass and the asphalt line: {:?}", a.rows.iter().filter(|r| r.outcome == Outcome::Counted).collect::<Vec<_>>());
-        let post = a.rows.iter().find(|r| r.category == "post.mass" && r.outcome == Outcome::Counted).unwrap();
-        assert_eq!(post.tonnes, (1.0 + post_index() as f64) / 1000.0);
+        assert_eq!(a.counted, 2, "post.length and the asphalt line: {:?}", a.rows.iter().filter(|r| r.outcome == Outcome::Counted).collect::<Vec<_>>());
+        let post = a.rows.iter().find(|r| r.category == "post.length" && r.outcome == Outcome::Counted).unwrap();
+        assert_eq!(post.tonnes, (1.0 + post_index() as f64) * 0.5);
         assert_eq!(a.by_material.len(), 2);
+        // the post's own mass line is excluded with its reason, not counted twice
+        let mass = a.rows.iter().find(|r| r.category == "post.mass").unwrap();
+        assert!(matches!(&mass.outcome, Outcome::Excluded(w) if w.contains("built-in steel density")));
     }
 
     #[test]
@@ -568,8 +703,9 @@ mod tests {
         let mut bad = rule_for("c", "m3", Use::Material { key: "m".into() });
         bad.waste_pct = Some(-1.0);
         assert!(reason(bad, line(0, "c", 1.0, "m3")).contains("waste_pct"));
-        let attr = rule_for("c", "m3", Use::MaterialFromAttribute { attribute: "material".into(), prefix: "p: ".into() });
+        let attr = rule_for("c", "m3", Use::MaterialFromAttribute { attribute: "material".into(), prefix: "p: ".into(), fallback: None });
         assert_eq!(reason(attr, line(0, "c", 1.0, "m3")), "the line has no attribute 'material'");
+        assert_eq!(reason(rule_for("c", "m3", Use::Material { key: "m".into() }), line(0, "c", -2.0, "m3")), "negative quantity");
     }
 
     #[test]
@@ -599,6 +735,111 @@ mod tests {
         assert_eq!(a.rows[0].outcome, Outcome::Excluded("first".into()));
         assert_eq!(a.excluded, 1);
         assert_eq!(a.embodied_kgco2e, None);
+    }
+
+    #[test]
+    fn a_second_rule_for_a_category_in_another_unit_is_reached() {
+        let mut f = factor("m", 10.0);
+        f.t_per_m2 = Some(0.5);
+        let set = set_of(vec![f]);
+        let rules = vec![rule_for("c", "m3", Use::Excluded { reason: "volume is not used".into() }), rule_for("c", "m2", Use::Material { key: "m".into() })];
+        let a = assess(&[line(0, "c", 4.0, "m2"), line(1, "c", 4.0, "m3"), line(2, "c", 4.0, "kg")], Some(&set), &settings_with(rules));
+        assert_eq!(a.rows[0].outcome, Outcome::Counted);
+        assert_eq!(a.rows[0].total_kg, 4.0 * 0.5 * 10.0);
+        assert_eq!(a.rows[1].outcome, Outcome::Excluded("volume is not used".into()));
+        // a unit no rule has: the category is looked at only for the message, never to exclude
+        assert_eq!(a.rows[2].outcome, Outcome::Unmatched("the rule for c expects m3 or m2, the line is in kg".into()));
+        // with two counting rules, the message names both units
+        let rules = vec![rule_for("c", "m3", Use::Material { key: "m".into() }), rule_for("c", "m2", Use::Material { key: "m".into() })];
+        let a = assess(&[line(0, "c", 1.0, "kg")], Some(&set), &settings_with(rules));
+        assert_eq!(a.rows[0].outcome, Outcome::Unmatched("the rule for c expects m3 or m2, the line is in kg".into()));
+    }
+
+    #[test]
+    fn the_other_spelling_of_number_is_read_as_nr() {
+        let mut f = factor("m", 10.0);
+        f.t_per_nr = Some(2.0);
+        let set = set_of(vec![f]);
+        let r = one(&set, rule_for("c", "nr", Use::Material { key: "m".into() }), line(0, "c", 3.0, " No "));
+        assert_eq!(r.outcome, Outcome::Counted);
+        assert_eq!(r.tonnes, 6.0);
+    }
+
+    #[test]
+    fn zero_and_negative_quantities_are_not_counted() {
+        let mut f = factor("m", 10.0);
+        f.t_per_m3 = Some(2.0);
+        let set = set_of(vec![f]);
+        let rules = vec![rule_for("c", "m3", Use::Material { key: "m".into() }), rule_for("lighting.luminaire", "nr", Use::LightingEnergy)];
+        let a = assess(&[line(0, "c", 0.0, "m3"), line(1, "lighting.luminaire", 0.0, "nr")], Some(&set), &settings_with(rules.clone()));
+        assert_eq!(a.rows[0].outcome, Outcome::Excluded("quantity is 0: not modelled".into()));
+        assert_eq!(a.rows[1].outcome, Outcome::Excluded("quantity is 0: not modelled".into()));
+        assert_eq!((a.counted, a.excluded, a.energy_lines), (0, 2, 0));
+        assert_eq!(a.embodied_kgco2e, None, "nothing non-zero was counted");
+        // one real line beside a zero line: the total is the real one
+        let a = assess(&[line(0, "c", 0.0, "m3"), line(1, "c", 3.0, "m3")], Some(&set), &settings_with(rules.clone()));
+        assert_eq!((a.counted, a.excluded), (1, 1));
+        assert_eq!(a.embodied_kgco2e, Some(60.0));
+        // negative
+        let a = assess(&[line(0, "c", -1.0, "m3"), line(1, "lighting.luminaire", -1.0, "nr")], Some(&set), &settings_with(rules));
+        assert_eq!(a.rows[0].outcome, Outcome::Unmatched("negative quantity".into()));
+        assert_eq!(a.rows[1].outcome, Outcome::Unmatched("negative quantity".into()));
+        assert_eq!(a.embodied_kgco2e, None);
+    }
+
+    fn gantry_line(id: usize, element: u64, mark: &str, category: &str, unit: &str) -> LineIn {
+        LineIn { element: Some(element), mark: mark.into(), ..line(id, category, 2.0, unit) }
+    }
+
+    #[test]
+    fn a_gantry_without_steel_mass_says_so_instead_of_vanishing() {
+        let mut f = factor("structural steel", 5.0);
+        f.t_per_m = Some(0.1);
+        let set = set_of(vec![f]);
+        let lines = vec![
+            // gantry G1 has steel mass: its count line stays excluded
+            gantry_line(0, 1, "G1", "gantry.count", "nr"),
+            gantry_line(1, 1, "G1", "gantry.leg_length", "m"),
+            gantry_line(2, 1, "G1", "gantry.steel_mass", "kg"),
+            // gantry G2 has none: a member has no mass per metre
+            gantry_line(3, 1, "G2", "gantry.count", "nr"),
+            gantry_line(4, 1, "G2", "gantry.leg_length", "m"),
+            // the same mark on another element is another gantry
+            gantry_line(5, 2, "G1", "gantry.count", "nr"),
+        ];
+        let a = assess(&lines, Some(&set), &Settings::default());
+        assert!(matches!(&a.rows[0].outcome, Outcome::Excluded(w) if w.contains("steel mass carries")), "{:?}", a.rows[0]);
+        assert_eq!(a.rows[2].outcome, Outcome::Counted);
+        assert_eq!(a.rows[3].outcome, Outcome::Unmatched("no steel mass: a member has no mass per metre".into()));
+        assert!(matches!(a.rows[4].outcome, Outcome::Excluded(_)));
+        assert_eq!(a.rows[5].outcome, Outcome::Unmatched("no steel mass: a member has no mass per metre".into()));
+        assert_eq!(a.counted + a.excluded + a.unmatched + a.energy_lines, lines.len());
+        assert_eq!(a.unmatched, 2);
+        assert!(a.notes.iter().any(|n| n.starts_with("2 line(s) are unmatched")));
+        // the sign panel is not said to be in the steel mass
+        let rules = default_rules();
+        let Use::Excluded { reason } = &rules.iter().find(|r| r.category == "gantry.sign_area").unwrap().use_ else { panic!() };
+        assert!(reason.contains("not in the structural steel mass"), "{reason}");
+    }
+
+    #[test]
+    fn a_post_is_counted_from_its_length_by_section() {
+        let mut steel = factor("steel post 60x3 CHS", 4.0);
+        steel.t_per_m = Some(0.01);
+        let mut plain = factor("steel post", 4.0);
+        plain.t_per_m = Some(0.02);
+        let set = set_of(vec![steel, plain]);
+        let mut with_section = line(0, "post.length", 3.0, "m");
+        with_section.attributes.insert("section".into(), "60x3 CHS".into());
+        let no_section = line(1, "post.length", 3.0, "m");
+        let mass = line(2, "post.mass", 24.0, "kg");
+        let a = assess(&[with_section, no_section, mass], Some(&set), &Settings::default());
+        assert_eq!(a.rows[0].material_key, "steel post 60x3 CHS");
+        assert_eq!(a.rows[0].tonnes, 0.03);
+        assert_eq!(a.rows[1].material_key, "steel post");
+        assert_eq!(a.rows[1].tonnes, 0.06);
+        assert_eq!(a.rows[2].outcome, Outcome::Excluded("derived from a built-in steel density; posts are counted by length".into()));
+        assert_eq!(a.counted, 2);
     }
 
     #[test]

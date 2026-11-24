@@ -46,10 +46,15 @@ pub fn collect(doc: &Document, signs: &[SignQuantity]) -> QuantitySet {
     crate::ext_markings_glue::collect_into(doc, &mut set);
     // The civil quantities sent from EARTHWORKS: category, description, quantity, unit.
     for e in doc.elements().iter().filter(|e| e.category == crate::civil::CORRIDOR || e.category == crate::civil::PIPENET || e.category == crate::civil::GRADING) {
-        if let Some(lines) = e.properties.get(crate::civil_quantities::PROP_BILL).and_then(|t| serde_json::from_str::<Vec<(String, String, f64, String)>>(t).ok()) {
-            for (category, description, quantity, unit) in lines {
-                set.push(Some(e.id), &e.name, &category, &description, quantity, &unit, &[]);
+        let Some(text) = e.properties.get(crate::civil_quantities::PROP_BILL) else { continue };
+        match serde_json::from_str::<Vec<(String, String, f64, String)>>(text) {
+            Ok(lines) => {
+                for (category, description, quantity, unit) in lines {
+                    set.push(Some(e.id), &e.name, &category, &description, quantity, &unit, &[]);
+                }
             }
+            // An unreadable bill property is not an empty one: say that its lines are missing.
+            Err(err) => set.skipped.push(afrobim_cost::SkippedSource { source: "civil bill".to_string(), mark: e.name.clone(), reason: format!("the property {} could not be read: {err}", crate::civil_quantities::PROP_BILL) }),
         }
     }
     set

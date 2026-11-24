@@ -40,7 +40,7 @@ fn not_entered() -> f64 {
 
 /// One row of the factor file: a carbon factor and the conversions that turn a quantity into
 /// tonnes. Every figure is the user's, with the source and edition they took it from.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Factor {
     /// What rules refer to; matched case-insensitively with white space trimmed and collapsed.
@@ -56,6 +56,35 @@ pub struct Factor {
     pub t_per_nr: Option<f64>,
     pub source: String,
     pub edition: String,
+}
+
+/// Equal, with NaN ("not entered") equal to NaN.
+fn same(a: f64, b: f64) -> bool {
+    a == b || (a.is_nan() && b.is_nan())
+}
+
+fn same_opt(a: Option<f64>, b: Option<f64>) -> bool {
+    match (a, b) {
+        (Some(x), Some(y)) => same(x, y),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+/// Field-wise equality in which a NaN `kgco2e_per_t` ("not entered") equals another NaN, so a
+/// factor left blank in the file compares equal to itself.
+impl PartialEq for Factor {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+            && self.material == other.material
+            && same(self.kgco2e_per_t, other.kgco2e_per_t)
+            && same_opt(self.t_per_m3, other.t_per_m3)
+            && same_opt(self.t_per_m2, other.t_per_m2)
+            && same_opt(self.t_per_m, other.t_per_m)
+            && same_opt(self.t_per_nr, other.t_per_nr)
+            && self.source == other.source
+            && self.edition == other.edition
+    }
 }
 
 impl Default for Factor {
@@ -82,7 +111,7 @@ impl Factor {
 }
 
 /// A factor file: its provenance and its factors.
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct FactorSet {
     pub name: String,
@@ -94,6 +123,19 @@ pub struct FactorSet {
     pub transport_kgco2e_per_tkm: Option<f64>,
     pub grid_kgco2e_per_kwh: Option<f64>,
     pub grid_source: String,
+}
+
+impl PartialEq for FactorSet {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.source == other.source
+            && self.edition == other.edition
+            && self.boundary == other.boundary
+            && self.factors == other.factors
+            && same_opt(self.transport_kgco2e_per_tkm, other.transport_kgco2e_per_tkm)
+            && same_opt(self.grid_kgco2e_per_kwh, other.grid_kgco2e_per_kwh)
+            && self.grid_source == other.grid_source
+    }
 }
 
 impl FactorSet {
@@ -354,6 +396,21 @@ mod tests {
         assert!(!back.has_carbon());
         let missing: Factor = serde_json::from_str("{\"key\":\"k\"}").unwrap();
         assert!(!missing.has_carbon());
+    }
+
+    #[test]
+    fn a_blank_factor_equals_itself() {
+        let set = FactorSet { factors: vec![Factor { key: "k".into(), ..Factor::default() }], ..FactorSet::default() };
+        assert!(set.factors[0].kgco2e_per_t.is_nan());
+        assert_eq!(set, set.clone());
+        let mut other = set.clone();
+        other.factors[0].kgco2e_per_t = 1.0;
+        assert_ne!(set, other);
+        let mut other = set.clone();
+        other.grid_kgco2e_per_kwh = Some(0.5);
+        assert_ne!(set, other);
+        let back: FactorSet = serde_json::from_str(&serde_json::to_string(&set).unwrap()).unwrap();
+        assert_eq!(back, set);
     }
 
     #[test]
