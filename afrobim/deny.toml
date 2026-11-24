@@ -7,12 +7,13 @@
 
 [licenses]
 # A crate passes when its SPDX expression is satisfied by this list, so "MIT OR Apache-2.0"
-# needs only one of the two. The list was read from the 246 of the 420 locked crates that were
-# on the machine it was written on (cargo-deny itself was not available there); the Windows,
-# Wayland, X11, Android and wasm only crates were not, so the first CI run is the check that
-# nothing was missed.
+# needs only one of the two. The list was read from the licence of every one of the 420
+# locked crates (from the local source for 246 and from crates.io for the other 173; one,
+# objc2-cloud-kit, could not be looked up, and its siblings are Zlib OR Apache-2.0 OR MIT).
+# cargo-deny itself was not available, so the first CI run is the real check.
 allow = [
     "MIT",
+    "BSL-1.0",        # clipboard-win and error-code (the Windows clipboard), no alternative
     "Apache-2.0",
     "BSD-2-Clause",   # an alternative in zerocopy's expression; kept because it is permissive
     "BSD-3-Clause",   # subtle and endi have no alternative
