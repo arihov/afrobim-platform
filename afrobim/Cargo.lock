@@ -384,6 +384,7 @@ dependencies = [
  "afrobim-kernel",
  "image",
  "png",
+ "roxmltree 0.20.0",
  "serde",
  "serde_json",
  "tiff",
