@@ -68,6 +68,7 @@ pub struct AfroBimApp {
     pub(crate) under: crate::underlay::UnderlayState,
     /// Georeferenced images: textures and placements.
     pub(crate) imagery: crate::imagery::ImageryState,
+    pub(crate) green: crate::green_glue::GreenUi,
     /// The online background map.
     pub(crate) basemap: crate::basemap::BasemapState,
     /// The sign schedule import windows.
@@ -232,6 +233,7 @@ impl AfroBimApp {
             anno: Default::default(),
             under: Default::default(),
             imagery: Default::default(),
+            green: Default::default(),
             basemap: Default::default(),
             signsched: Default::default(),
             projset: Default::default(),
@@ -1582,6 +1584,7 @@ impl AfroBimApp {
             }
             Action::Underlay => self.under.window_open = true,
             Action::Imagery => self.imagery.window_open = true,
+            Action::GreenBim => self.green.window_open = true,
             Action::Basemap => {
                 let mut s = crate::basemap::settings(&self.doc);
                 s.enabled = !s.enabled;
@@ -2403,6 +2406,7 @@ impl AfroBimApp {
         self.anno_windows(ctx);
         self.underlay_window(ctx);
         self.imagery_window(ctx);
+        self.green_window(ctx);
         self.signsched_windows(ctx);
         self.projset_window(ctx);
         self.defaults_window(ctx);

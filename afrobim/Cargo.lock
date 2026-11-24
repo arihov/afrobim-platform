@@ -68,6 +68,7 @@ dependencies = [
  "afrobim-fabrication",
  "afrobim-gantry",
  "afrobim-grading",
+ "afrobim-green",
  "afrobim-ifc",
  "afrobim-junction",
  "afrobim-kernel",
@@ -246,6 +247,14 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "afrobim-green"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

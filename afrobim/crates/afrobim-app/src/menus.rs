@@ -423,6 +423,7 @@ impl AfroBimApp {
                         a(ui, &mut pick, Action::Rates, "Rate library…");
                         a(ui, &mut pick, Action::Currency, "Currency…");
                         a(ui, &mut pick, Action::Estimate, "Estimate…");
+                        a(ui, &mut pick, Action::GreenBim, "Green BIM: carbon and energy…");
                         a(ui, &mut pick, Action::CashFlow, "Cash flow…");
                         a(ui, &mut pick, Action::Certificate, "Interim payment certificate…");
                     });

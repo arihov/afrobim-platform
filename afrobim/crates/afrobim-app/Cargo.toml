@@ -30,6 +30,7 @@ afrobim-pavement = { path = "../afrobim-pavement" }
 afrobim-coordination = { path = "../afrobim-coordination" }
 afrobim-schedule = { path = "../afrobim-schedule" }
 afrobim-cost = { path = "../afrobim-cost" }
+afrobim-green = { path = "../afrobim-green" }
 afrobim-progress = { path = "../afrobim-progress" }
 afrobim-sheets = { path = "../afrobim-sheets" }
 afrobim-design = { path = "../afrobim-design" }

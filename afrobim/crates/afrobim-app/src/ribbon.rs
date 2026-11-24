@@ -229,6 +229,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
         Panel { title: "Bill", items: &[Big(Icon::Bill, "Bill of quantities", "BILL")] },
         Panel { title: "Rates", items: &[Big(Icon::Rates, "Rate library", "RATES"), Big(Icon::Currency, "Currency", "CURRENCY")] },
         Panel { title: "Estimate", items: &[Big(Icon::Estimate, "Estimate", "ESTIMATE")] },
+        Panel { title: "Green BIM", items: &[Big(Icon::Quantities, "Carbon and energy", "GREENBIM")] },
         Panel { title: "Time", items: &[Big(Icon::CashFlow, "Cash flow", "CASHFLOW")] },
         Panel { title: "Payment", items: &[Big(Icon::Certificate, "Interim certificate", "CERTIFICATE")] },
         Panel { title: "Export", items: &[Big(Icon::Csv, "Cost reports", "COSTCSV")] },

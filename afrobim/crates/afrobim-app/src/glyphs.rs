@@ -190,6 +190,7 @@ pub fn glyph(action: Action) -> Option<&'static str> {
         A::Basemap => ph::GLOBE_HEMISPHERE_EAST,
         A::MapExport => ph::GLOBE,
         A::MapCapture => ph::CAMERA,
+        A::GreenBim => ph::LEAF,
         A::SignSchedule => ph::FILE_ARROW_DOWN,
         A::SignScheduleOut => ph::FILE_ARROW_UP,
         A::SignScheduleTemplate => ph::FILE_DOTTED,

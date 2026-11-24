@@ -138,6 +138,7 @@ mod imagery;
 mod basemap;
 mod gis_io;
 mod map_capture;
+mod green_glue;
 mod workspace;
 mod zoom_cmds;
 mod view3d;
