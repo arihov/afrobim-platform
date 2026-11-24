@@ -158,6 +158,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "afrobim-culvert"
+version = "0.1.0"
+dependencies = [
+ "afrobim-drainage",
+ "afrobim-draw",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "afrobim-defaults"
 version = "0.1.0"
 dependencies = [
