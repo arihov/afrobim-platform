@@ -16,9 +16,11 @@
 //! texture over that grid.
 
 pub mod cache;
+pub mod capture;
 pub mod decode;
 pub mod georef;
 pub mod tiles;
+pub mod vector;
 
 pub use cache::{DiskCache, TileFetcher, TileResult, TileService};
 pub use decode::{decode, Decoded, DecodeOptions};

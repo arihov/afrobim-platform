@@ -137,6 +137,8 @@ pub struct BasemapState {
     /// Frames in a row with every tile of the view shown.
     settled: u32,
     created: Instant,
+    /// MAPCAPTURE controls and the capture in flight.
+    pub capture: crate::map_capture::CaptureUi,
 }
 
 impl Default for BasemapState {
@@ -158,6 +160,7 @@ impl Default for BasemapState {
             missing: 0,
             settled: 0,
             created: Instant::now(),
+            capture: Default::default(),
         }
     }
 }
@@ -402,8 +405,8 @@ pub fn map_type(provider: &str) -> Option<usize> {
 
 pub fn settings_ui(ui: &mut egui::Ui, s: &mut BasemapSettings, st: &mut BasemapState, project: Option<&ProjectCrs>) {
     ui.horizontal(|ui| {
-        for (label, id) in MAP_TYPES {
-            if ui.selectable_label(s.provider == *id, *label).clicked() {
+        for (i, (label, id)) in MAP_TYPES.iter().enumerate() {
+            if ui.selectable_label(map_type(&s.provider) == Some(i), *label).clicked() {
                 s.provider = id.to_string();
                 s.enabled = true;
             }

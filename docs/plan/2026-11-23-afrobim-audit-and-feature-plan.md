@@ -196,6 +196,26 @@ release build.
 - streaming of full-resolution orthophotos;
 - a labels overlay (Esri reference layers).
 
+### 4.1 Map workflow modelled on CADEarth and Spatial Manager (added 2026-11-24)
+
+The owner asked for the map to work like the AutoCAD plugins CADEarth and Spatial Manager. The table lists their capabilities against AfroBIM. **MVP** marks what is built on this branch; the rest is planned.
+
+| Capability | Status | Notes |
+|---|---|---|
+| Set the drawing's coordinate system, Uganda defaults | **MVP** | CRS command has one-click WGS 84 / UTM 35N, 35S, 36N, 36S and Arc 1960 / UTM 35N, 35S, 36N, 36S. Every preset is tested to resolve and to have a plan to WGS 84. |
+| Live georeferenced background map that follows pan and zoom, on and off | **MVP** | BASEMAP. Satellite, Street and Terrain quick switch (Esri World Imagery, OpenStreetMap, OpenTopoMap), plus custom HTTPS templates and keyed providers. |
+| Transparency and draw order | **MVP** | Opacity on the map and on each image; images can be sent back or brought forward. The online map always sits under every image. |
+| Capture the map at a chosen resolution as a georeferenced raster | **MVP** | MAPCAPTURE: the current view, resampled into the project system at a chosen ground resolution, written as PNG + .pgw + .prj (+ attribution note) and attached as an image underlay. Capped at 400 tiles per capture to respect provider terms. |
+| Export geometry to Google Earth KML | **MVP** | MAPEXPORT: selection or everything to KML (one folder per layer) or GeoJSON, reprojected to WGS 84. Arcs cut into chords within 20 mm; lettering left out. |
+| Import GIS data (GeoJSON, KML, GPX, CSV lon/lat) with reprojection | Engine built, app import next | The readers are in `afrobim-raster::vector` with tests. Bringing the features in as a read-only overlay in the project system is the next step. |
+| Import SHP (with DBF attributes and .prj) | Planned | Needs a shapefile reader; reproject through the .prj like images. |
+| KMZ import and export | Planned | Needs a zip dependency; KMZ GroundOverlay import also gives image underlays from Google Earth. |
+| Terrain: DEM to surface and contours | Planned | Read SRTM / Copernicus GLO-30 GeoTIFF heights (float TIFF, which the image decoder refuses on purpose), sample on a grid in the project system, build a TIN with the existing surface engine, contour from it. Vertical datum (EGM96 / EGM2008 against local levels) must be stated on the surface. |
+| Point and attribute query on the map (lat/lon of a pick) | Partly there | The status bar already shows lat/lon and WGS 84 for the cursor. |
+| Search a place by name | Planned | Needs a geocoding service and a decision on which provider's terms are acceptable. |
+
+**Privacy:** a received document with the map switched on fetches tiles for its site when it opens, which tells the tile provider roughly where the project is. The map starts off in every new document; a future setting should ask before fetching tiles for a document that came from someone else.
+
 ## 5. Plan
 
 The plan is ordered by risk first, then by value to a highway engineer in Uganda.

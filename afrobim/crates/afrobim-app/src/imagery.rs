@@ -578,6 +578,7 @@ impl crate::app::AfroBimApp {
         let mut open = true;
         let (mut attach, mut detach, mut accept, mut zoom) = (false, None, None, None);
         let mut reorder: Option<(ElementId, bool)> = None;
+        let mut capture = false;
         let mut changes: Vec<(ElementId, ImageDef)> = Vec::new();
         let mut map_changed: Option<crate::basemap::BasemapSettings> = None;
         let project = project_crs(&self.doc);
@@ -589,9 +590,12 @@ impl crate::app::AfroBimApp {
                 let mut s = crate::basemap::settings(&self.doc);
                 let before = s.clone();
                 crate::basemap::settings_ui(ui, &mut s, &mut self.basemap, project.as_ref());
+                let can_capture = s.enabled && crate::basemap::plans_for(project.as_ref()).is_ok();
                 if s != before {
                     map_changed = Some(s);
                 }
+                ui.add_space(6.0);
+                capture = crate::map_capture::capture_ui(ui, &mut self.basemap.capture, can_capture);
                 ui.add_space(6.0);
                 crate::ui_kit::heading(ui, "Attached images");
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An image attached here is a read-only background. The document keeps its path, a hash and its placement, not the pixels: it is read again when the document opens. The placement comes from GeoTIFF tags or a world file (.pgw, .jgw, .tfw, .wld) beside the image, and its coordinate system from the GeoTIFF or a .prj file. When the image's system is not the project's, it is moved through the same datum transformations the CRS command uses.");
@@ -767,6 +771,9 @@ impl crate::app::AfroBimApp {
             if let Some(path) = rfd::FileDialog::new().add_filter("Georeferenced image", EXTENSIONS).add_filter("any file", &["*"]).set_title("Attach a georeferenced image").pick_file() {
                 self.attach_image(&path);
             }
+        }
+        if capture {
+            self.run(ctx, crate::commands::Action::MapCapture);
         }
         if let Some((id, forward)) = reorder {
             if shift_order(&mut self.doc, id, forward) {

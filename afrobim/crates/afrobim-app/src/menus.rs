@@ -144,6 +144,7 @@ impl AfroBimApp {
                     });
                     submenu(ui, egui_phosphor::regular::FILE_ARROW_UP, "Export", |ui| {
                         a(ui, &mut pick, Action::ExportDxf, "DXF…");
+                        a(ui, &mut pick, Action::MapExport, "Google Earth KML or GeoJSON…");
                         a(ui, &mut pick, Action::ExportIfc, "IFC 4.3…");
                         a(ui, &mut pick, Action::LandXmlOut, "Alignment as LandXML…");
                         a(ui, &mut pick, Action::ExportQuantities, "Quantities (BoQ)…");
@@ -251,6 +252,7 @@ impl AfroBimApp {
                     a(ui, &mut pick, Action::Underlay, "DXF underlay…");
                     a(ui, &mut pick, Action::Imagery, "Georeferenced image…");
                     a(ui, &mut pick, Action::Basemap, "Background map on or off");
+                    a(ui, &mut pick, Action::MapCapture, "Capture the map as an image…");
                     a(ui, &mut pick, Action::IfcRef, "IFC reference model…");
                 });
                 ui.menu_button("Civil", |ui| {

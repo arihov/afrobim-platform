@@ -136,6 +136,8 @@ mod ui_kit;
 mod underlay;
 mod imagery;
 mod basemap;
+mod gis_io;
+mod map_capture;
 mod workspace;
 mod zoom_cmds;
 mod view3d;

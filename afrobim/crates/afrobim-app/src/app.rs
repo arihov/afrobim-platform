@@ -1131,6 +1131,22 @@ impl AfroBimApp {
                     self.export_dxf(path);
                 }
             }
+            Action::MapCapture => {
+                let s = crate::basemap::settings(&self.doc);
+                let name = crate::map_capture::default_name(&s.provider, self.basemap.capture.m_per_px);
+                self.imagery.window_open = true;
+                if let Some(path) = rfd::FileDialog::new().add_filter("PNG with world file", &["png"]).set_file_name(&name).set_title("Save the captured map").save_file() {
+                    self.start_map_capture(path.with_extension("png"));
+                }
+            }
+            Action::MapExport => {
+                if self.doc.elements().is_empty() {
+                    self.status = "Nothing to export.".into();
+                } else if let Some(path) = rfd::FileDialog::new().add_filter("Google Earth KML", &["kml"]).add_filter("GeoJSON", &["geojson", "json"]).set_file_name("drawing.kml").save_file() {
+                    let path = if path.extension().is_none() { path.with_extension("kml") } else { path };
+                    self.export_gis(path);
+                }
+            }
             Action::ExportIfc => {
                 if self.doc.elements().is_empty() {
                     self.status = "Nothing to export.".into();
@@ -3216,6 +3232,10 @@ impl AfroBimApp {
         }
         if self.imagery.busy() {
             ctx.request_repaint_after(std::time::Duration::from_millis(60));
+        }
+        self.finish_map_capture();
+        if self.basemap.capture.busy.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(200));
         }
         if self.basemap.sync(ctx, &self.doc, &self.view, self.ctl.viewport) {
             ctx.request_repaint_after(std::time::Duration::from_millis(120));
