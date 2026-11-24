@@ -261,12 +261,18 @@ The plan is ordered by risk first, then by value to a highway engineer in Uganda
 | 9.12 | **PDF underlay** (vector where possible) and **DWG export** through the ODA converter | Drawings arrive as PDF; deliverables are asked for in DWG | New | M |
 | 9.13 | **Shared work**: file locks for data shortcuts, then a sync folder with conflict detection | More than one designer per project | New | L |
 | 9.14 | Lane-graph traffic animation for junction presentations | Presentation only; lowest priority | ACP `traffic.js` | M |
+| 9.15 | **Green BIM, part 1: embodied carbon and waste from the quantities.** Carbon factors per material (cement and concrete by class, bitumen and asphalt, steel, aggregates, timber) applied to the BoQ the 5D module already produces; earthworks haul emissions from the mass-haul diagram; a waste allowance per item. Compare design options side by side (flexible against rigid pavement, gabion against concrete wall, cut and fill balance) in kgCO2e per km and per item, with every factor's source and edition shown | Clients and funders (World Bank, AfDB, EU) increasingly ask for a carbon figure at design stage; the cheapest saving is the one chosen before construction | New; builds on 5D quantities and mass haul | M |
+| 9.16 | **Green BIM, part 2: operational energy and daylight for buildings** (ACP park buildings, toll plazas, weighbridges, offices): sun path from the project location, solar gain on facades, roof area for solar PV yield, a simple energy estimate; export to gbXML or IFC for a full simulation tool | Lower running costs and a smaller footprint over the building's life | ACP buildings; sun position from 9.11 | M to L |
 
 ### Suggested order
 
 Rounds 7.1 to 7.3 and 7.5 first: about a week, and they remove the ways of losing work. Then 9.1
 to 9.5, which build on the imagery now in place, while 8.1 runs alongside because every later
 feature is cheaper after it.
+
+Green BIM part 1 (9.15) follows straight after 9.2, because it reuses the quantities and the
+design-option comparison already in place and needs no new geometry. Its factors must come from a
+named, dated source that the owner chooses (open question 4).
 
 ## 6. Open questions for the owner
 
@@ -277,3 +283,7 @@ feature is cheaper after it.
    (the custom URL field supports it) is the safer route.
 3. Which design vehicles and which manual editions should 9.2 and 9.3 cite first (MoWT Road
    Design Manual 2010, AASHTO 2018)?
+4. Which carbon factor source should Green BIM use: the ICE database (Inventory of Carbon and
+   Energy, Circular Ecology), manufacturers' EPDs where a Ugandan supplier publishes one, or a
+   client's own figures? And at which boundary (cradle to gate A1 to A3, or including transport
+   A4 and construction A5)?
