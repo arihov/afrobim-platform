@@ -45,14 +45,58 @@ Notes that apply to every tool:
 - A `definition` is a sign definition object as `document_list` returns it, for example
   `{"kind":"StackType","speed_kph":60,"background":"Green","destinations":[{"name":"Kasese","direction":"Ahead"}]}`.
 - Input schemas are strict: an argument the tool does not declare is refused.
-- Relative paths resolve against the folder that holds `packs/` (the checkout or install root),
-  or against the working directory when the pack is not in a folder called `packs`.
+- Every path a tool reads or writes must lie inside the project root (see "Project root and
+  read-only mode" below), and relative paths resolve against that root.
 - `csv_path` must be an existing `.csv` file. `export_dxf` writes only directly inside the
   `out_dir` it is given: sign codes are made into safe file names, a name that would land outside
   `out_dir` or on a link is refused, and duplicate codes get `-2`, `-3`, … suffixes. Document
   paths must end in `.afrobim` and DXF paths in `.dxf`.
 - A tool that fails returns `isError: true` with the reason, so the assistant can correct the
   call. The server keeps running.
+
+## Project root and read-only mode
+
+The server only touches files inside a **project root**, so an assistant cannot read or overwrite
+anything else on the machine.
+
+| What | Flag | Environment variable | Default |
+|------|------|----------------------|---------|
+| Project root | `--root <folder>` | `AFROBIM_ROOT` | the server's working directory |
+| Read-only mode | `--read-only` | `AFROBIM_READ_ONLY` (`1`, `true`, `yes` or `on`; `0`, `false`, `no` or `off`) | off |
+
+The flag wins over the environment variable. A root that does not exist, or a read-only value
+that is neither a yes nor a no, stops the server at start-up with a message and exit code 2
+rather than leaving it less confined than you asked.
+
+- **With no root given the working directory is the root.** The server says so on standard error
+  when it starts (`project root: … (no --root or AFROBIM_ROOT given, so the working directory is
+  used)`), together with the read-only state. A client that starts the server somewhere broad
+  (a desktop client may start it in a folder unrelated to your project) should always be given
+  `--root`; the server warns when the root is a whole drive.
+- **Every path is resolved before it is used**: `.` and `..` are folded away, then the deepest
+  part that exists is resolved through every symbolic link, and the result must lie inside the
+  root. This covers `csv_path`, `out_dir`, and every document and DXF path (`path`, `save_as`,
+  `out_path`). A path that escapes by `..`, by an absolute path or by a link that points outside is
+  refused with a message naming the root.
+- **Nothing is written through a link.** A write is refused when any existing part of the path
+  below the root is a symbolic link, even one that points back inside the root, and a folder is
+  never created before its path has been checked. Reading through a link is allowed when it ends
+  inside the root. Write a path under the root as you gave it to `--root` (or as the system
+  resolves it); a third spelling of the same folder is refused because it cannot be checked.
+- **Read-only mode refuses every tool that writes**: `export_dxf`, `document_new`,
+  `document_add_sign`, `document_remove_element`, `document_save` and `document_export_dxf`. The
+  other tools work as usual. The refusal comes before the tool runs, and the path check refuses
+  a write too if a tool were ever added without the right annotation.
+- The rule pack and the fonts are server settings (`--pack`, `--fonts`, `AFROBIM_PACK`,
+  `AFROBIM_FONTS`), not tool arguments, so they are not confined to the root. A pack is
+  addressed by id only, never by path.
+- The check and the use are two steps, so a second local process that swaps a folder for a link
+  between them could win the race. The root is not a sandbox against other programs on the
+  machine; it stops an assistant, not an attacker with a shell.
+
+```
+afrobim-mcp --root D:/projects/kasese-road --read-only
+```
 
 ## Rule pack and fonts
 
@@ -108,7 +152,9 @@ or add it to a project-scope `.mcp.json`:
 ```
 
 Start `claude` in the repository root, approve the server when asked and check it with `/mcp`.
-To use a pack or fonts kept elsewhere, pass them as arguments
+Claude Code starts the server in the folder it was started in, which is then the project root.
+To choose another, add `"--root", "D:/projects/kasese-road"` to `args` (or set `AFROBIM_ROOT`),
+and `"--read-only"` to forbid writes. To use a pack or fonts kept elsewhere, pass them as arguments
 (`"args": ["--pack", "D:/standards/UK-TSM-2019.json", "--fonts", "D:/fonts/transport"]`) or set
 `AFROBIM_PACK` and `AFROBIM_FONTS` in `env`.
 
@@ -131,8 +177,9 @@ Desktop:
 
 The server finds `packs/` by walking up from the binary, so it does not depend on the folder
 Claude Desktop starts it in. If you copy the binary out of the checkout, add
-`"--pack", "D:/path/to/UK-TSM-2019.json"` to `args`. Give `out_dir`, `csv_path` and document
-paths as absolute paths there.
+`"--pack", "D:/path/to/UK-TSM-2019.json"` to `args`. Always give
+`--root` there (`"--root", "D:/projects/kasese-road"`), and give `out_dir`, `csv_path` and
+document paths inside it, as absolute paths or relative to it.
 
 ## Example session
 

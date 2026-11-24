@@ -15,18 +15,21 @@ pub fn repo_root() -> PathBuf {
 }
 
 /// The UK pack and the Transport fonts of the checkout; relative paths resolve against the
-/// repository root.
+/// repository root. The tests of the tools write into system temporary folders and read the
+/// checkout's examples, so these settings confine nothing; the confinement itself is tested in `paths` and over stdio with an explicit root.
 pub fn settings() -> Settings {
     settings_with_fonts(&repo_root().join("fonts"))
 }
 
 pub fn settings_with_fonts(fonts: &Path) -> Settings {
     let root = repo_root();
-    Settings::new(
+    let mut settings = Settings::new(
         Ok(root.join("packs").join("UK-TSM-2019.json")),
         Ok(fonts.to_path_buf()),
         &root,
-    )
+    );
+    settings.guard = crate::paths::Guard::unconfined(&root);
+    settings
 }
 
 /// A fresh folder under the system temporary directory, removed when dropped.
