@@ -85,6 +85,9 @@ impl crate::app::AfroBimApp {
         let settings = crate::basemap::settings(&self.doc);
         let project = afrobim_kernel::project_crs(&self.doc);
         let result = (|| -> Result<(CapturePlan, String, String, String, TransformPlan), String> {
+            if let Some(why) = crate::basemap::capture_refusal(&settings) {
+                return Err(why);
+            }
             let (url, provider, attribution, max_zoom) = crate::basemap::source(&settings, &self.basemap.key)?;
             let (to, _, _) = crate::basemap::plans_for(project.as_ref())?;
             let (l, t, w, h) = self.ctl.viewport;
@@ -142,7 +145,7 @@ impl crate::app::AfroBimApp {
 }
 
 /// The capture controls for the map window. True when the user asked to capture.
-pub fn capture_ui(ui: &mut egui::Ui, c: &mut CaptureUi, enabled: bool) -> bool {
+pub fn capture_ui(ui: &mut egui::Ui, c: &mut CaptureUi, enabled: bool, refusal: Option<&str>) -> bool {
     let mut go = false;
     crate::ui_kit::heading(ui, "Capture the map");
     ui.horizontal(|ui| {
@@ -153,14 +156,17 @@ pub fn capture_ui(ui: &mut egui::Ui, c: &mut CaptureUi, enabled: bool) -> bool {
             }
         });
         let busy = c.busy.is_some();
-        if ui.add_enabled(enabled && !busy, egui::Button::new(if busy { "Capturing..." } else { "Capture the view..." })).on_hover_text("Saves the map of the current view as a georeferenced PNG in the project system and attaches it as an image").clicked() {
+        if ui.add_enabled(enabled && !busy && refusal.is_none(), egui::Button::new(if busy { "Capturing..." } else { "Capture the view..." })).on_hover_text("Saves the map of the current view as a georeferenced PNG in the project system and attaches it as an image").clicked() {
             go = true;
         }
     });
+    if let Some(why) = refusal {
+        ui.label(egui::RichText::new(format!("Capture is off: {why}")).small().color(crate::theme::warn()));
+    }
     if !c.last.is_empty() {
         ui.label(egui::RichText::new(&c.last).small());
     }
-    ui.label(egui::RichText::new("A capture works offline afterwards. AfroBIM fetches at most 400 tiles per capture to keep the load on the provider light. The imagery stays under the provider's terms of use: check them before printing or sharing, and keep the attribution note saved beside the image with it.").small().weak());
+    ui.label(egui::RichText::new("A capture works offline afterwards. AfroBIM fetches at most 400 tiles per capture to keep the load on the provider light. The imagery stays under the provider's terms of use: check them before printing or sharing, and keep the attribution note (.attribution.txt) saved beside the image with it. Only providers whose terms allow saving tiles can be captured; a custom tile URL is your own source, so its terms are yours to check.").small().weak());
     go
 }
 
@@ -228,6 +234,7 @@ mod tests {
         let (to, _, _) = crate::basemap::plans_for(Some(&crs)).unwrap();
         let mut spec = frame_m(Pt::new(179_100_000.0, 9_909_000_000.0), Pt::new(179_500_000.0, 9_909_300_000.0));
         spec.m_per_px = 0.5;
+        // Live check only: Esri's keyless tiles are evaluation use, not for delivered work.
         let p = tiles::provider("esri-imagery").unwrap();
         let plan = plan_capture(&spec, &lonlat_of(&to), p.max_zoom).unwrap();
         let fetcher = afrobim_raster::cache::HttpFetcher::new();

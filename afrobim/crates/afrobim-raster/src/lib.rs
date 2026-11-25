@@ -25,4 +25,4 @@ pub mod vector;
 pub use cache::{DiskCache, TileFetcher, TileResult, TileService};
 pub use decode::{decode, Decoded, DecodeOptions};
 pub use georef::{read_georef, resolve_crs, Affine, Georef};
-pub use tiles::{Provider, TileKey, PROVIDERS};
+pub use tiles::{CommercialUse, Provider, TileKey, PROVIDERS};
