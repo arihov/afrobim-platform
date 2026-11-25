@@ -306,3 +306,8 @@ named, dated source that the owner chooses (open question 4).
    Energy, Circular Ecology), manufacturers' EPDs where a Ugandan supplier publishes one, or a
    client's own figures? And at which boundary (cradle to gate A1 to A3, or including transport
    A4 and construction A5)?
+   **Decided (25 November 2026): ICE, cradle to gate A1 to A3, with A4 added only where a haul
+   distance is entered; manufacturers' EPDs or the client's figures override ICE per material.**
+   Finding: ICE's terms do not allow its values to be redistributed inside software, so AfroBIM
+   ships no ICE numbers; it ships an ICE template and an Import ICE factors action for the user's
+   own licensed spreadsheet. See `docs/reference/green-carbon-factors.md`.

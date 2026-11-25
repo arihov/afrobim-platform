@@ -156,6 +156,30 @@ impl FactorSet {
     }
 }
 
+impl FactorSet {
+    /// The provenance line for the window and exports, built only from what the file states:
+    /// `Source: ICE v5.0 (Circular Ecology), A1-A3`. Rows whose own source differs from the
+    /// file's (a supplier's EPD, the client's figures) are counted in a trailing clause. Nothing
+    /// stated gives `Source: not stated`.
+    pub fn source_label(&self) -> String {
+        let src = self.source.trim();
+        let mut parts: Vec<&str> = Vec::new();
+        if !src.is_empty() {
+            parts.push(src);
+        }
+        let b = self.boundary.trim();
+        if !b.is_empty() {
+            parts.push(b);
+        }
+        let mut out = if parts.is_empty() { "Source: not stated".to_string() } else { format!("Source: {}", parts.join(", ")) };
+        let other = self.factors.iter().filter(|f| f.has_carbon() && !f.source.trim().is_empty() && !src.is_empty() && !f.source.trim().starts_with(src)).count();
+        if other > 0 {
+            out.push_str(&format!("; {other} material(s) use their own source"));
+        }
+        out
+    }
+}
+
 fn number_cell(text: &str, column: &str, line: usize) -> Result<Option<f64>, String> {
     let t = text.trim();
     if t.is_empty() {

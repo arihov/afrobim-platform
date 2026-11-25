@@ -16,6 +16,7 @@ pub fn assessment_csv(a: &Assessment) -> String {
     let mut o = String::new();
     o.push_str(&row(&["Factor set"]));
     o.push_str(&row(&["name and edition", &a.factor_set]));
+    o.push_str(&row(&["source", &a.factor_source]));
     o.push('\n');
 
     o.push_str(&row(&["Lines"]));

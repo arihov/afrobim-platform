@@ -195,6 +195,25 @@ pub fn needed_keys(lines: &[LineIn], settings: &Settings) -> Vec<String> {
     keys
 }
 
+/// Fills the blank rows of the document's factor file (or of a new one made from `keys`) from the
+/// user's ICE export. Entered figures (the user's, an EPD) are never overwritten.
+pub fn import_ice_factors(current: Option<&FactorSet>, keys: &[String], ice_csv: &str, version: &str) -> Result<(FactorSet, String), String> {
+    let version = version.trim();
+    if version.is_empty() {
+        return Err("type the ICE edition of your spreadsheet first (for example v5.0)".into());
+    }
+    let base = match current {
+        Some(f) => f.clone(),
+        None => {
+            let refs: Vec<&str> = keys.iter().map(String::as_str).collect();
+            afrobim_green::factors_from_csv(&afrobim_green::ice_template_csv(&refs, version))?
+        }
+    };
+    let r = afrobim_green::import_ice(&base, ice_csv, version)?;
+    let msg = format!("ICE import: {} filled from column '{}', {} left blank{}.", r.filled.len(), r.column, r.skipped.len(), if r.skipped.is_empty() { String::new() } else { format!(" ({})", r.skipped.iter().take(3).map(|(k, w)| format!("{k}: {w}")).collect::<Vec<_>>().join("; ")) });
+    Ok((r.set, msg))
+}
+
 /// Groups the digits of a number in threes with a thin space, to `decimals` places.
 fn grouped(v: f64, decimals: usize) -> String {
     let s = format!("{:.*}", decimals, v.abs());
@@ -259,6 +278,8 @@ pub struct GreenUi {
     pub window_open: bool,
     pub last: Option<Assessment>,
     pub option_name: String,
+    /// The ICE edition the user's spreadsheet is, as they type it (e.g. as printed on its cover).
+    pub ice_version: String,
     /// The record as edited while the pointer is down (a drag in progress); stored on release.
     pending: Option<GreenDoc>,
     /// The factor file and settings the last assessment was worked out with.
@@ -330,7 +351,7 @@ fn result_ui(ui: &mut egui::Ui, a: &Assessment) {
             ui.label(egui::RichText::new("No total: nothing could be counted").strong());
         }
     }
-    crate::ui_kit::note(ui, format!("{} of {total} quantity lines counted, {} excluded on purpose, {} unmatched, {} lighting. Factor file: {}.", a.counted, a.excluded, a.unmatched, a.energy_lines, if a.factor_set.is_empty() { "none" } else { &a.factor_set }));
+    crate::ui_kit::note(ui, format!("{} of {total} quantity lines counted, {} excluded on purpose, {} unmatched, {} lighting. Factor file: {}. {}", a.counted, a.excluded, a.unmatched, a.energy_lines, if a.factor_set.is_empty() { "none" } else { &a.factor_set }, a.factor_source));
     for n in &a.notes {
         crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, n.clone());
     }
@@ -450,7 +471,7 @@ impl crate::app::AfroBimApp {
         let load_error = loaded.as_ref().err().cloned();
         let stored = loaded.unwrap_or_default();
         let mut g = self.green.pending.take().unwrap_or_else(|| stored.clone());
-        let (mut load_file, mut save_template, mut run, mut save_option, mut reset_record) = (false, false, false, false, false);
+        let (mut load_file, mut save_template, mut save_ice_template, mut import_ice, mut run, mut save_option, mut reset_record) = (false, false, false, false, false, false, false);
         let mut remove_option: Option<usize> = None;
         let last = self.green.last.clone();
         let problems = g.settings.problems();
@@ -472,7 +493,8 @@ impl crate::app::AfroBimApp {
                 match &g.factors {
                     Some(f) => {
                         ui.label(egui::RichText::new(format!("{}  ({} factors)", f.name, f.factors.len())).strong());
-                        crate::ui_kit::note(ui, format!("Source: {}   Edition: {}   Boundary: {}", f.source, f.edition, f.boundary));
+                        crate::ui_kit::note(ui, f.source_label());
+                        crate::ui_kit::note(ui, format!("Edition: {}   Boundary: {}", f.edition, f.boundary));
                         crate::ui_kit::note(
                             ui,
                             format!(
@@ -483,7 +505,7 @@ impl crate::app::AfroBimApp {
                         );
                     }
                     None => {
-                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No factor file loaded, so no carbon total is shown. AfroBIM ships no carbon factors: choose a source (for example the ICE database, a supplier's EPD or the client's own figures), fill the blank template with its values, densities and edition, and load it.");
+                        crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "No factor file loaded, so no carbon total is shown. AfroBIM ships no carbon factors. ICE (Circular Ecology) is the default source, but its terms do not let AfroBIM carry its values: use your own licensed ICE spreadsheet with Import ICE factors, or fill the blank template from a supplier's EPD or the client's figures, and load it.");
                     }
                 }
                 ui.horizontal(|ui| {
@@ -493,6 +515,14 @@ impl crate::app::AfroBimApp {
                     if ui.button("Save blank template…").on_hover_text("A CSV with the material keys this model needs and every number left blank").clicked() {
                         save_template = true;
                     }
+                    if ui.button("Save ICE template…").on_hover_text("Material list with the ICE material name and sheet to look under for each row; no numbers").clicked() {
+                        save_ice_template = true;
+                    }
+                    if ui.button("Import ICE factors…").on_hover_text("Reads the CSV you export from your own ICE spreadsheet and fills the blank rows by name; rows you already entered (EPDs, client figures) are kept").clicked() {
+                        import_ice = true;
+                    }
+                    ui.label("ICE edition");
+                    ui.add(egui::TextEdit::singleline(&mut self.green.ice_version).hint_text("e.g. v5.0").desired_width(60.0));
                     if g.factors.is_some() && ui.button("Remove").clicked() {
                         g.factors = None;
                     }
@@ -615,6 +645,29 @@ impl crate::app::AfroBimApp {
                         g.factors = Some(f);
                     }
                     Err(e) => self.status = format!("Could not load {}: {e}", path.display()),
+                }
+            }
+        }
+        if save_ice_template || import_ice {
+            let signs = crate::cost_glue::sign_rows(self.engine.as_deref(), &self.doc);
+            let lines = lines_in(&crate::cost_glue::collect(&self.doc, &signs));
+            let keys = needed_keys(&lines, &g.settings);
+            if save_ice_template {
+                let refs: Vec<&str> = keys.iter().map(String::as_str).collect();
+                if let Some(path) = rfd::FileDialog::new().add_filter("CSV", &["csv"]).set_file_name("ice-factors.csv").set_title("Save an ICE factor template").save_file() {
+                    self.status = match std::fs::write(&path, afrobim_green::ice_template_csv(&refs, self.green.ice_version.trim())) {
+                        Ok(()) => format!("Wrote an ICE template with {} materials to {}.", keys.len(), path.display()),
+                        Err(e) => format!("Could not write {}: {e}", path.display()),
+                    };
+                }
+            } else if let Some(path) = rfd::FileDialog::new().add_filter("ICE export (CSV)", &["csv"]).set_title("Import ICE factors from your ICE spreadsheet export").pick_file() {
+                match std::fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|t| import_ice_factors(g.factors.as_ref(), &keys, &t, &self.green.ice_version)) {
+                    Ok((set, msg)) => {
+                        g.factors = Some(set);
+                        self.status = msg;
+                        load_file = true;
+                    }
+                    Err(e) => self.status = format!("Could not import {}: {e}", path.display()),
                 }
             }
         }
@@ -993,5 +1046,24 @@ mod tests {
         let a = assess_set(&set, &g);
         assert_eq!(a.counted, 1);
         assert_eq!(a.embodied_kgco2e, Some(12.0 * 0.5 * 10.0));
+    }
+
+    #[test]
+    fn green_ice_import_fills_blanks_keeps_entered_and_labels_source() {
+        const ICE: &str = "Material,Sub-material,Embodied Carbon A1-A3 (kgCO2e per kg)\nAsphaltX,,0.25\nSteelX,,2.0\n";
+        let current = afrobim_green::factors_from_csv("key,material,kgco2e_per_t,t_per_m3,t_per_m2,t_per_m,t_per_nr,source,edition\nasphalt,AsphaltX,,2.4,,,,,\nsteel,SteelX,9000,,,,,client EPD,e1\nnone,Missing,,,,,,,\n").unwrap();
+        assert!(import_ice_factors(Some(&current), &[], ICE, " ").is_err(), "the edition is required");
+        let (set, _) = import_ice_factors(Some(&current), &[], ICE, "v5.0").unwrap();
+        assert_eq!(set.find("asphalt").unwrap().kgco2e_per_t, 250.0);
+        assert_eq!(set.find("asphalt").unwrap().t_per_m3, Some(2.4), "densities are the user's");
+        assert_eq!(set.find("steel").unwrap().kgco2e_per_t, 9000.0, "the entered figure wins");
+        assert!(set.find("none").unwrap().kgco2e_per_t.is_nan());
+        assert!(set.source_label().starts_with("Source: ICE v5.0 (Circular Ecology), A1-A3"));
+        let a = afrobim_green::assess(&[], Some(&set), &Settings::default());
+        assert!(a.factor_source.starts_with("Source: ICE v5.0"));
+        assert!(afrobim_green::assessment_csv(&a).contains("Source: ICE v5.0 (Circular Ecology), A1-A3"));
+        // with no file the template is made from the keys and nothing is filled
+        let (fresh, _) = import_ice_factors(None, &["concrete C30/37".to_string()], "Material,Embodied Carbon (kgCO2e per kg)\nzzz,1\n", "v5.0").unwrap();
+        assert!(fresh.find("concrete C30/37").unwrap().kgco2e_per_t.is_nan());
     }
 }
