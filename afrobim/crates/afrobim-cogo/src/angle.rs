@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Bearings and angles.
 //!
 //! A bearing in this crate is a whole circle bearing: degrees clockwise from grid north, in

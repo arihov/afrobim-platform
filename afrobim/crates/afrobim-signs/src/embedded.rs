@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Embedded restriction signs: the miniature warning-triangle and regulatory-roundel frames a
 //! guidance panel carries when a restriction (height, weight, no entry ...) is essential to the
 //! route choice (App.1 §2.1.3; pack sections `embeddedSigns` and `embeddedShapes`). Port of C#

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Designed alignments in the app: making one from PIs, editing it, and keeping every module that
 //! stands on it in step.
 //!

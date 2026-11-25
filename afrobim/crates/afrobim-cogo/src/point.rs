@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! COGO points and the point store.
 //!
 //! Points keep the coordinates they were given (metres: easting, northing, elevation). Nothing in

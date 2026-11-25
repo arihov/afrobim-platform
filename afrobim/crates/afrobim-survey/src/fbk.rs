@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Reader for a subset of the Autodesk Civil 3D field book (.fbk) survey command language.
 //!
 //! SOURCES (Autodesk Civil 3D 2027 help, retrieved 2026-11-16 through the Autodesk Product Help

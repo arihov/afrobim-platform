@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The engineer's interface preferences, kept in one small JSON file in the user's configuration
 //! folder: the look, the interface scale, the last workspace, the recent files and where the
 //! dialogs were left. A missing or damaged file gives the defaults; nothing here touches a drawing.

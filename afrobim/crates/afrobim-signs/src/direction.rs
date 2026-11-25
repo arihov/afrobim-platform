@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Rectangular direction signs. Port of C# `DirectionSignLayout` for a pack with stack-type
 //! section rules (UK TSM Chapter 7 §7.11, Figure 7-4).
 //!

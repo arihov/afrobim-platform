@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Canonical JSON and content hashes.
 //!
 //! A hash must not change because a file was saved again: key order, whitespace and the way a

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Variants (1, 2, 3 cells; pipes and boxes; skew; asymmetric road), refusals and hydraulics.
 
 use afrobim_culvert::*;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 use afrobim_cogo::*;
 
 const FILE: &str = "1,500000.1234,9999999.1234,12.345,EP 3.5\n2,500010.0001,9999990.0002,12.5,TREE oak\n3,500020.5,9999980.25,13.0,CL\n4,500030,9999970,,BM\n";

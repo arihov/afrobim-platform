@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Roundabout geometry against closed forms. All dimensions are arbitrary test values.
 //!
 //! Centre (E0, N0), inscribed diameter 40 (radius 20), circulatory width 7, apron 2, so the carriageway

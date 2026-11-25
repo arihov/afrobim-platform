@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Polygon triangulation (ear clipping with hole bridging) and the solids built from profiles.
 
 use super::xform::{cross, dot, unit, V3};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Sign visibility in the app (`VISIBILITY`): the inputs dialog, the run, the results with the
 //! check lines and their citations, the plan envelope and sight-line profile drawings, a 3D overlay
 //! of the limiting sight line and its obstruction, and the road-wide CSV export.

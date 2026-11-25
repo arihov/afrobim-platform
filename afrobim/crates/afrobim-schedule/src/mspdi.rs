@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Microsoft Project XML (MSPDI) exchange: tasks, predecessor links with type and lag, calendars'
 //! working weekdays and holidays, constraints, percent complete and actual dates.
 //!

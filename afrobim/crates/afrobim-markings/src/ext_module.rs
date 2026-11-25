@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The kernel module for extension markings (category `marking_ext`), the helpers that add them
 //! to a document, and their quantities.
 

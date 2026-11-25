@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! TRANSFORM and CALIBRATE, the transform log tab of the project settings, and the choice the
 //! import dialogs offer when a file's coordinate system differs from the project's.
 //!

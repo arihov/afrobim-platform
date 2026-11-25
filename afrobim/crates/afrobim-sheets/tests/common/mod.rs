@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A test road: an alignment with a profile and a station equation, a ground surface, a corridor
 //! and two road markings.
 

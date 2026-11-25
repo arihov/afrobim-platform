@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The road cross-section at the culvert and the original ground line.
 //!
 //! Offsets are in metres from the road centreline, negative to the left looking up-station.

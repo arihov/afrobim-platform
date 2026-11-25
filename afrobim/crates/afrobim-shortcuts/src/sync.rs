@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Status and synchronise.
 //!
 //! A reference follows the *published* state of its shortcut: the hash and revision in the

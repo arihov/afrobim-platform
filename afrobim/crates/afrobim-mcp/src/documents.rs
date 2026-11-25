@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The document tools: build and export an `.afrobim` model the desktop app can open.
 //!
 //! These have no C# counterpart. They are stateless: every call loads the file it is given,

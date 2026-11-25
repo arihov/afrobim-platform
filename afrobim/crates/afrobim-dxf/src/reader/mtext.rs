@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Plain text from TEXT and MTEXT content.
 //!
 //! The inline codes handled here are those listed in `ezdxf` 1.4.5 (`ezdxf/tools/text.py`, the

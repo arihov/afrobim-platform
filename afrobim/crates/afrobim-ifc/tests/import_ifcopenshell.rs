@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Verification of the IFC importer against IfcOpenShell's geometry iterator.
 //!
 //! For each sample file (directory in `IFC_SAMPLES_DIR`, default `/home/user/ifcsamples/files`) and

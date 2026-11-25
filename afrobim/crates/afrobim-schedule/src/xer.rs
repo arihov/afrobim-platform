@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Primavera P6 XER exchange.
 //!
 //! XER is a tab-separated text file: a first line `ERMHDR` with the export header, then for each

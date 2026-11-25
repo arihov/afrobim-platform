@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The windows of the drawing sheets: project information, the sheet-set manager, the title
 //! block editor and the sheet preview, and the PDF and DXF exports.
 //!

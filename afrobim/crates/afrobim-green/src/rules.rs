@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Rules: which quantity lines carry carbon, and how. The default rules say only which category
 //! is used and which are left out to avoid counting the same thing twice. They hold no numbers.
 

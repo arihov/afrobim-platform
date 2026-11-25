@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Angle units and the vertical angle types. Inside the database every angle is decimal degrees,
 //! every length is metres and every vertical angle is a zenith angle. Other units only enter or leave
 //! through these conversions, with explicit factors for distances.

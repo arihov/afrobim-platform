@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Annotations in DXF export and on composed sheets.
 //!
 //! **DXF.** R12 has TEXT but no MTEXT, no dimension entity this crate could write faithfully and

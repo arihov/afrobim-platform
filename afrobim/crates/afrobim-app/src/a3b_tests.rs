@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tests of the round 6 work package A3, second part: the derived rows of the Properties panel for
 //! the round 6 categories, and that the targets a corridor declares block a corridor until bound.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The slippy-map tile grid and the tile providers.
 //!
 //! Web map tiles are 256-pixel squares of the spherical Web Mercator projection (EPSG:3857) on

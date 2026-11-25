@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Horizontal alignment tables and rules of the Uganda MoWT Road Design Manual Volume I (January 2010), and the
 //! manual's worked examples. Page numbers are printed page (PDF page, printed + 9).
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The MoWT (Uganda) design basis for side drains and pipe culverts.
 //!
 //! # Design basis

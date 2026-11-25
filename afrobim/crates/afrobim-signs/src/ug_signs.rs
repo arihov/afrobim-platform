@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Warning and regulatory signs drawn to the Uganda Traffic Signs Manual: the plain warning
 //! triangle, the prohibitory and mandatory discs with their slashes, arrows and numerals, the
 //! Stop octagon and the Give Way triangle. Port of C# `WarningSignLayout` and

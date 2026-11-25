@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! COGO engine: points, point files, description keys, point groups, coordinate geometry,
 //! traverses and parcels. No user interface and no rendering: display helpers return plain geometry
 //! and label text. See the README for scope, methods and limits.

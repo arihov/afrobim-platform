@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Description keys: raw description codes to full description, styles, layer and classification.
 //!
 //! A key's `code` pattern is split at blanks. The first word is the code and may use the wildcards

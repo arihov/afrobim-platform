@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Critical path method over working-day calendars. The formulae are in the README; the helper
 //! functions here follow its notation.
 

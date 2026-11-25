@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A small XML writer: nesting, escaping, attributes. Text is escaped and characters XML 1.0
 //! does not allow are dropped.
 

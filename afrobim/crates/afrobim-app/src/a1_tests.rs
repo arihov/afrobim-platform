@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tests of the round 6 work package A1: the defaults in the interface, pipe networks, grading and
 //! intersections as document elements.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The LandXML import dialog. The file is read first and the dialog shows what is in it: the
 //! alignments (station range, length, whether the file gave a profile, station equations and
 //! superelevation) and the TIN surfaces (points, triangles, extent), with the readers' own notes.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Lookup in the superelevation tables 6-4 to 6-9 (data in `se_data.rs`).
 
 use serde::Serialize;

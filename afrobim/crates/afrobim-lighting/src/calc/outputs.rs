@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Drawings and CSV of a calculation: iso-illuminance contours, the grid of values in plan, the
 //! polar diagram of a luminaire, and the grid as CSV.
 //!

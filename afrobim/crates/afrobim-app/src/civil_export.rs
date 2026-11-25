@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML out of everything civil that the document holds: the alignments with their profiles,
 //! point sets as CgPoints, parcels, surfaces (with the source data of a definition), ground
 //! profiles, the cross sections of sample line groups, and the project coordinate system. All at

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! DXF underlays: read-only background drawings attached by path and hash.
 //!
 //! An underlay is a document element (category [`CATEGORY`]) that holds only the file's path, a

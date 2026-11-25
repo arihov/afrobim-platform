@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Vector GIS exchange for the CAD/BIM application.
 //!
 //! Reads and writes GeoJSON and KML, reads GPX and geographic CSV point files.

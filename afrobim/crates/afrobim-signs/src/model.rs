@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The sign definition: what the designer asks for. Mirrors the C# `SignCore.Model` records
 //! (`SignDefinition`, `Destination` and their enums) field for field, so a schedule written by
 //! either engine describes the same sign.

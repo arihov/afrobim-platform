@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Quantities: pipe length by size and material, structure count by type, and trench excavation.
 //!
 //! No rate, bedding thickness, trench width or depth band is built in: each is an input.

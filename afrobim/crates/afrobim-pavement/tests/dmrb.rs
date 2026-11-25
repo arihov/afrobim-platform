@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! UK DMRB CD 224 Revision 0 (March 2020) and CD 226 Version 0.1.0 (November 2021): the tables,
 //! the three worked examples of CD 224 and worked example A1.1 of CD 226.
 

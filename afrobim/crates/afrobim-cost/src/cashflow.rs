@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Time-phased cost: when the money is spent.
 //!
 //! The input is deliberately small and owned by this crate: for an item, an element or an

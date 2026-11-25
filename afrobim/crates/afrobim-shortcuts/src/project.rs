@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The shortcut project: a folder with a manifest, and the operations on it.
 
 use std::collections::HashMap;

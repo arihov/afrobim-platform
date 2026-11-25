@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The little of TrueType the PDF writer needs: character-to-glyph mapping, advance widths, the
 //! metrics a PDF font descriptor quotes, and a subset font program holding only the glyphs a
 //! document uses.

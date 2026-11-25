@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! BCF import. Reads 2.1 (and, with a warning, 2.0 and 1.x, whose markup this reader handles as
 //! 2.1 and whose extra elements it reports as skipped). BCF 3.0 uses a different markup layout
 //! and is refused. Unknown content is never an error: it is counted in the report.

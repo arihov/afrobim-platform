@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Calendar dates by plain arithmetic (proleptic Gregorian), no external date crate.
 
 use std::fmt;

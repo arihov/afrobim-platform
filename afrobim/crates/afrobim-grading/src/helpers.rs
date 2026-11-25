@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Common site-design helpers built on feature lines, gradings and groups.
 //!
 //! None of them has a default engineering value: slopes, levels, crossfall, distances and

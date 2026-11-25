@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Golden tests: the 1 x 1200 mm CPC at Km 39+136 (Iganga-Bulopa-Kamuli road, Uganda).
 //!
 //! Tests named `documented_difference_*` pin a figure we do not reproduce. The full reference bar

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Map capture (MAPCAPTURE): a north-up raster in the project's own coordinate system, resampled
 //! from slippy-map tiles and written as a PNG with a world file and a `.prj`, so that
 //! [`crate::read_georef`] reads it back exactly and the application can attach it as an image

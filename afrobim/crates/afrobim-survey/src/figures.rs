@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Survey figures and the linework code set of this crate.
 //!
 //! The code set is modelled on the linework code set documented in the Autodesk Civil 3D help (pages

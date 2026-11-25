@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Street (road) lighting as model elements: installations along an alignment and single
 //! columns, with layout, a schematic plan and solids, a column schedule, quantities and a
 //! report of requirement checks.

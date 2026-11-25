@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Measures legends on their character tiles. Port of C# `TextTileMeasurer`.
 //!
 //! Transport Medium (white lettering on dark grounds) and Transport Heavy (black lettering on

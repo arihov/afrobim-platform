@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road modules that share one pattern in the app: an element is added on an alignment with
 //! placeholder dimensions, edited in Properties, checked, measured, and shown in the 3D site
 //! view from its solids. Drainage (side drains, pipe culverts) and gantries are wired here, with

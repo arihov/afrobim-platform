@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Imports one IFC file and prints the coverage report, the time taken and the peak memory.
 //!
 //!     cargo run -p afrobim-ifc --example import_stats -- model.ifc [--map]

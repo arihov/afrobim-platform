@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A planar arrangement of polylines: split every line where it meets another, merge vertices closer
 //! than a tolerance, and trace the faces. Used by the topology report and the parcel split.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The built-in `mowt_2010` design basis for `run_checks`, the list of built-in bases for the app, the checks
 //! that stay "not checked" under it, and the slips found in the manual.
 

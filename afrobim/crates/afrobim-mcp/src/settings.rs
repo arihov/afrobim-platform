@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Where the server finds its rule pack and the Transport fonts.
 //!
 //! Resolved the way the desktop app resolves them: the `AFROBIM_PACK` (pack file) and

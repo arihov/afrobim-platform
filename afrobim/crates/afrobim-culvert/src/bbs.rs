@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Reinforcement: an editable table of bar rules per element, the BS 8666:2020 cutting-length
 //! formulas, BS 4449 unit masses and the bar bending schedule.
 //!

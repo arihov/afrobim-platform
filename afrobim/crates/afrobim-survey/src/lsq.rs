@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Weighted nonlinear least squares by Gauss-Newton iteration, with the quality measures of the
 //! adjustment.
 //!

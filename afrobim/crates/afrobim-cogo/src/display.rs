@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Display helpers: plain geometry and label text for a point, no rendering.
 
 use serde::{Deserialize, Serialize};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A whole alignment design (horizontal plus optional vertical) and the `afrobim-alignment`
 //! [`Alignment`] it produces.
 

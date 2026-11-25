@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Vertical design: a profile defined by PVIs with parabolic vertical curves.
 //!
 //! Stations are internal stations (m), elevations metres, grades ratios (m/m, +0.02 is 2 % up

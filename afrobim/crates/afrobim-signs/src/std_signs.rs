@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Layout of the standard (catalog) sign families: information signs, the UK warning and
 //! regulatory signs of TSRGD 2016 with their plates, and supplementary plates.
 //!

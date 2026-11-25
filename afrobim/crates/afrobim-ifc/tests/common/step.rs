@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A reader for the STEP text the exporter writes, just enough for the tests to follow
 //! references and placements without an IFC toolkit.
 

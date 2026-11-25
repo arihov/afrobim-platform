@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Writes a [`FabricationSheet`] as an ASCII DXF R12 drawing in sheet millimetres. Port of C#
 //! `SheetDxfWriter`, byte for byte.
 //!

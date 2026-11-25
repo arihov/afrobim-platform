@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Opening a DWG: AfroBIM's built-in reader first, ODA File Converter as the fallback.
 //!
 //! The order, when a DWG is attached or dropped on the window (see [`super::read_file_with`]):

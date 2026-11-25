@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Geometry the reader needs: bulge arcs, the arbitrary axis algorithm, ellipses, NURBS curves
 //! and curve flattening. Pure functions on [`Pt2`], angles in degrees unless a name says radians.
 

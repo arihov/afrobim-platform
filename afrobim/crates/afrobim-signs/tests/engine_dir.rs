@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The destination-column family through the public API: direction, confirmatory, place
 //! identification, lane pre-selection and diversion signs, checked by hand-worked dimensions
 //! rather than by the golden fixtures.

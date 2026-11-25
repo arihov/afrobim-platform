@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The AutoCAD Colour Index to RGB table, generated from `ezdxf.colors.DXF_DEFAULT_COLORS`
 //! (ezdxf 1.4.5, MIT licence), which holds the default palette AutoCAD uses. Index 0 (by block)
 //! and 256 (by layer) are not colours; 7 is white here and a front end shows it as the

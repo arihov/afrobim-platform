@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Rates and currencies: the rate library (CSV in and out), optional rate build-ups, currencies
 //! and the exchange rates the user entered with the date they were taken.
 //!

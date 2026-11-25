@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Geometry checks shared by the public fixture test and the private-file test: how well the
 //! alignments the reader built agree with the points the file states.
 //!

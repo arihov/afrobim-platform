@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! AfroBIM culvert engine: a parametric culvert designer that turns user data into geometry,
 //! quantities and a bar bending schedule. Phase 1 is the engine only; an app window drives it
 //! through [`design`].

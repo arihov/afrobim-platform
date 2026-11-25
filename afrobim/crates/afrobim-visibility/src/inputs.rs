@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The inputs of a visibility check, kept on the sign they were entered for.
 //!
 //! They are stored as JSON text in the sign's property set under [`KEY`] (`check.visibility`).

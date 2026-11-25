@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road pavement as AfroBIM model elements: a layer stack along an alignment, its typical
 //! cross-section, 3D slabs, layer quantities, and a pavement structure design check.
 //!

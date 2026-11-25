@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Terrain surface engine for AfroBIM: an ordered, rebuildable TIN surface definition, contours,
 //! analysis and volumes. No user interface. See the README for scope, methods and limits.
 #![forbid(unsafe_code)]

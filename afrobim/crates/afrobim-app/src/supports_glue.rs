@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Posts and foundations in the app: registering their modules, the generic definition editor,
 //! and the hand-over to `afrobim-supports` for adding supports to a sign and measuring them.
 //!

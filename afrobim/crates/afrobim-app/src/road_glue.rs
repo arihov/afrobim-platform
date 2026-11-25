@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Street lighting, road restraint, pavement and corridor in the app: what the "add" dialogs
 //! collect, how that becomes a definition in the crate, the checks, the pavement design
 //! methods, the corridor's 3D surfaces and its cross-sections.

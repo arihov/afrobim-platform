@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Alignment geometry against answers known independently of the code under test.
 
 use std::f64::consts::{FRAC_PI_2, PI, TAU};

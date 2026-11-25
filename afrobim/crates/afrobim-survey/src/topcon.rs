@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Reader for Topcon GTS-7 raw records, STRUCTURE ONLY.
 //!
 //! SOURCE: Maptek Vulcan help, "Survey, Appendix C, Data Recorder Interfaces, TOPCON GTS-7"

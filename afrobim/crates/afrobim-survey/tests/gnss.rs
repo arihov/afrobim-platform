@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! GNSS baselines, known azimuths and weighted control coordinates in the adjustment.
 
 use afrobim_survey::*;

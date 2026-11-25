@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The Rust DXF writer must produce exactly the text the C# `DxfWriter` produces for the same
 //! primitives. `tools/GoldenDxf` (C#) reads primitive lists (the sign engine's golden fixtures
 //! plus a synthetic one covering bands, hairlines, arcs and symbol placeholders), runs the C#

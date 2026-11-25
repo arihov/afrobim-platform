@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! 4D: the state of each linked model element on a given date.
 
 use afrobim_kernel::{Document, Element, ElementId};

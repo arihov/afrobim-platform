@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Where windows open. Every floating window of the app is made here, so that none can open over
 //! the menu bar or the ribbon, or be dragged under them: each opens just inside the central area
 //! (the part of the screen left once the menu, ribbon, toolbar, side panels and status bar have

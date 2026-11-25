@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The drawn form of a proxy entity (`ACAD_PROXY_ENTITY`).
 //!
 //! A program that saves an object of its own class, such as a Civil 3D alignment, surface,

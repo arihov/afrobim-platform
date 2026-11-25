@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Drafting aids: grid snap, ortho, grid display stepping and typed point entry.
 
 use crate::Pt;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The element of the second set and of the Uganda manual: its definition, its checks against
 //! the catalogue, and the laying out of its geometry.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The sign tools ported from the C# `SignCoreTools`: `list_packs`, `search_catalog`,
 //! `layout_sign`, `export_dxf` and `validate_schedule`. Each public method is one tool; the
 //! registry (`registry.rs`) binds JSON arguments to them and tests call them directly. Results

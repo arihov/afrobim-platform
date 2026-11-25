@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Minimal CSV: RFC 4180 quoting, comma separated, `\n` line ends on output, `\r\n` or `\n` on
 //! input, optional byte-order mark.
 

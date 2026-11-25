@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Temporary diversion signs. Port of C# `DiversionSignLayout` (Uganda TSM Appendix 3 §4 pages
 //! G31, diversion ahead, and G32, diverted traffic).
 //!

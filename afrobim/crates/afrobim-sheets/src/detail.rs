@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The detail view: any `Drawing` at a scale with a caption (a sign face, a Gantt chart, an
 //! S-curve).
 

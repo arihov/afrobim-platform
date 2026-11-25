@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Document-level project settings.
 //!
 //! The kernel had no store for settings that belong to the whole document rather than to one

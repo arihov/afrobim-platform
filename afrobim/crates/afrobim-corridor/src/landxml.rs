@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML import of TIN surfaces.
 //!
 //! Reads `LandXML/Surfaces/Surface/Definition` as laid down by the LandXML 1.2 schema

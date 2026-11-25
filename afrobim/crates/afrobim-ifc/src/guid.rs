@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Deterministic IFC GlobalIds.
 //!
 //! An `IfcGloballyUniqueId` is a 128-bit UUID written as 22 characters of a base-64 alphabet

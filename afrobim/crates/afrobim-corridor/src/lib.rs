@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road corridor: a typical cross-section carried along an alignment, cut and filled against an
 //! existing ground surface, with cross-sections and earthwork volumes.
 //!

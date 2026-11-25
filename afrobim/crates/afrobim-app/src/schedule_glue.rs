@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The construction programme in the app: where it is kept, how model elements are offered to
 //! links, and the conversion between the date types of the schedule and cost crates.
 //!

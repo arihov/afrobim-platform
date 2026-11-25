@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Physics relations used by the design checks, each derived here from first principles.
 //!
 //! These contain **no standard's values**. Friction factors, reaction times, eye and object

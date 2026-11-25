@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A DXF reader for attaching a drawing as a read-only underlay.
 //!
 //! Reads ASCII DXF from R12 through the current release as AutoCAD and Civil 3D write it, keeps

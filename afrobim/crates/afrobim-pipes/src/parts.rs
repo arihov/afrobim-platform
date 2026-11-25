@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Parts lists and the parts catalogue: user data, never built in.
 //!
 //! The crate ships no pipe sizes, materials or wall thicknesses. A catalogue is loaded from a

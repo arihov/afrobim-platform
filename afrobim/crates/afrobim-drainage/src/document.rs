@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Adding drains and culverts to a document, and keeping them in step with their alignments.
 //!
 //! A drainage element names its alignment. The alignment is read from the document's element of

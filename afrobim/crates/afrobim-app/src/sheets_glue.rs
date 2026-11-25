@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Drawing sheets in the app: live data for the schedule and chart sheets, composing a stored
 //! sheet set from the live model, the exports (PDF, DXF, headless), and the demo sheet set.
 //!

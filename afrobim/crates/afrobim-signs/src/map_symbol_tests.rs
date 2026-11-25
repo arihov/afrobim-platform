@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Unit tests of the map-type layout (`map_symbol.rs`), worked by hand from UK TSM Chapter 7
 //! Figures 5-2, 5-3, 5-5, 5-7 and 5-13 rather than read back from the engine.
 

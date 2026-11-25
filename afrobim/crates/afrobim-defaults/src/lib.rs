@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Default engineering values with citations.
 //!
 //! A default is a pre-filled starting value for a field. It is never a requirement of the

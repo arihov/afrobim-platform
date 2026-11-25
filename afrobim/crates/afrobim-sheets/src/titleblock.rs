@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The title block: a data-driven block of rows and cells, a revision table, a logo placeholder,
 //! a north arrow and a scale bar.
 //!

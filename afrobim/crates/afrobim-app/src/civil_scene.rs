@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! What a civil object draws: lines, filled polygons, text and point markers in model millimetres
 //! (the source coordinates times 1000), and a mesh for the 3D view. A scene is built off the UI
 //! thread (`civil_build`) and painted here every frame, culled to the view.

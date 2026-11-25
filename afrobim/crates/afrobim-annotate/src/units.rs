@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Display units: how lengths, stations, areas, volumes and angles are shown and typed.
 //!
 //! The model is in millimetres (areas mm2, volumes mm3, angles degrees anticlockwise from +X).

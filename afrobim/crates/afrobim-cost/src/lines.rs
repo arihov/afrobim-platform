@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Quantity lines: the neutral record every collector produces and the bill reads.
 
 use std::collections::BTreeMap;

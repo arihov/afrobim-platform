@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Sign gantries (portal and cantilever) as AfroBIM model elements.
 //!
 //! A gantry stands at a station on an alignment, square or at an entered skew, and carries signs

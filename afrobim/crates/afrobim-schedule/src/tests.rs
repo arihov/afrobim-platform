@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 use afrobim_draw::Primitive;
 use afrobim_kernel::{Document, Module, Pt, Severity};
 

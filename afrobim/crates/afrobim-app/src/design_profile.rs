@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! `PROFILEDESIGN`: the profile editor window. A profile view of the designed alignment with the
 //! ground line along the centreline when a survey surface exists, PVIs to click and drag, the PVI
 //! table, a vertical exaggeration control and "Fit to ground".

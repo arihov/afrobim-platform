@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Classification code meanings, taken from the published LAS specification.
 //!
 //! Source: *LAS Specification 1.4*, OGC Community Standard 17-030r1 (ASPRS document version

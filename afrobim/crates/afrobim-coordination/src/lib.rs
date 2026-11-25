@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Coordination: clash detection between model elements.
 //!
 //! Build [`Body`] values (an element's solids in world millimetres), wrap them in a [`Scene`],

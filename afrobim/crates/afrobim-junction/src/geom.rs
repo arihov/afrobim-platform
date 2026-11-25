@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Plan geometry helpers: vectors, slicing an alignment, offsetting an alignment.
 //!
 //! # Offsetting an element (derivation)

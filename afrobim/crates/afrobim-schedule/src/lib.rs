@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! 4D BIM: a construction programme linked to model elements.
 //!
 //! A [`Programme`] holds activities, logic (four relationship types with lags), calendars, progress

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Quantities: the payable items and the quantity lines.
 //!
 //! The lines have the same shape as `afrobim-cost`'s quantity lines (category, description,

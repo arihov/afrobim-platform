@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A designed alignment in the document: stored as an ordinary alignment element, editable again,
 //! drawn by its module, and usable by the other modules.
 

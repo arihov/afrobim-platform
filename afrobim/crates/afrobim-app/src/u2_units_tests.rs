@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Glue tests: typed MOVE/COPY offsets are read in the document's length unit.
 
 use afrobim_annotate::{DisplayUnits, LengthUnit};

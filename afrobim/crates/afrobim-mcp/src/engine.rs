@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Pack discovery, loading and font binding shared by the tools (port of C# `SignCoreEngine`).
 //!
 //! Packs are addressed by id only (never by path), so a caller cannot point the server at an

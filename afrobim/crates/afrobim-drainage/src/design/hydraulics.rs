@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Open-channel hydraulics that belong to no design basis: section geometry, Manning's
 //! equation, normal depth, the Froude number and critical depth in a pipe.
 //!

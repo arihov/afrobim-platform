@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! BCF (BIM Collaboration Format) 2.1 exchange of [`crate::Issue`]s.
 //!
 //! Format source: the buildingSMART/BCF-XML repository, tag `v2.1` (`Schemas/markup.xsd`,

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Assemblies and subassemblies: named, reusable, parametric parts of a cross-section.
 //!
 //! A [`Subassembly`] is one part (a lane, a kerb, a ditch ...) with typed parameters. It is

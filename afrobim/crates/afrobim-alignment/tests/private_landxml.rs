@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tests against a private LandXML file (a real Civil 3D export that is not in this repository and
 //! must never be). They skip, passing with a printed note, unless the environment says where it is:
 //!

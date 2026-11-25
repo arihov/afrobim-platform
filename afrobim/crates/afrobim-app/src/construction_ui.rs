@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The Construction tab's windows: site record entry, the records table, the roll-up and update
 //! of the programme, earned value, the look-ahead and delay lists, and the 3D colouring by
 //! recorded progress. The book itself is a document element (`construction_glue`).

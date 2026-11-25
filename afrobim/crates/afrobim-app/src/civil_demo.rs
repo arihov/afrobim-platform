@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The civil demonstration data (`--demo civil`, the CIVILDEMO command). Every object is named and
 //! sourced as demonstration data with example values: nothing here is a design, a survey or a
 //! standard. The coordinates are of true UTM size (WGS 84 / UTM zone 36S, easting about 450 000 m,

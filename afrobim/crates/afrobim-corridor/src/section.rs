@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Cross-sections: the template set on the profile at a station, the ground under it, the
 //! daylight points and the cut and fill areas.
 //!

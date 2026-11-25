@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! DXF output in paper millimetres: one drawing unit is one millimetre on the printed sheet.
 //!
 //! The file is R12 (AC1009), as written by `afrobim-dxf`. Each composed sheet has its lower left

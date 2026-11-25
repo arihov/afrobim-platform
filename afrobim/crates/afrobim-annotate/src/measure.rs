@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Measuring: answers without creating an element.
 //!
 //! Every function takes model coordinates (millimetres) and returns a [`MeasureResult`]: the

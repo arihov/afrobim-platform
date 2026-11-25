@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Take-off for side drains and pipe culverts, by geometry only.
 //!
 //! Every figure is the entered dimensions put through the formula stated on its field. No figure

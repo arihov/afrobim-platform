@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Gravity pipe networks for road and site drainage: the pipe network object of a design package,
 //! as an engine for BIM use.
 //!

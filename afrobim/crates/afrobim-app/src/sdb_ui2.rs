@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The survey database in the application, part two: the observation editor with the face 1 and
 //! face 2 reduction spreads, traverse analysis, the network adjustment with its results, applying
 //! adjusted coordinates, figures, and the link of survey points to the drawing.

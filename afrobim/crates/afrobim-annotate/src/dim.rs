@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Dimensions: definition points in, measured value and drawn geometry out.
 //!
 //! A [`DimData`] stores only definition points and a style. The measured value is recomputed from

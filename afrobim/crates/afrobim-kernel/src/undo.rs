@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 /// Snapshot undo/redo. The owner hands over the whole state after each edit; undo and redo
 /// return the state to restore. A commit equal to the current state is dropped, so undo never
 /// appears to do nothing.

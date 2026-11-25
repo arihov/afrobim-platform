@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Colour mapping helpers: colours as data (`[u8; 3]`), never drawn here.
 //!
 //! The ramps and the class palette are cosmetic choices of this crate, not a standard.

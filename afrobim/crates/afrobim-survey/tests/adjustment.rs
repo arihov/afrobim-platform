@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Adjustment tests: simulated networks with known truth, closed forms and the published levelling
 //! example of Teunissen, Network Quality Control (TU Delft OPEN, 2024), section 4.2.4.
 

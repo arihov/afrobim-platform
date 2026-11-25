@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The user's factor file: carbon factors, conversions to tonnes, the transport factor and the
 //! grid factor, read from and written to CSV. Nothing here supplies a number.
 

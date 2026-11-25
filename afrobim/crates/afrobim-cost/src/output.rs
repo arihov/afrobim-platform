@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! CSV outputs. Amounts are written with their currency's decimals, quantities and rates exactly
 //! as held.
 

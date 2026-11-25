@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Reads a DXF and prints what was read, how long it took and the peak memory of the process.
 //!
 //! `cargo run -p afrobim-dxf --example dxfstat -- FILE.dxf [--drawing] [--snaps]`

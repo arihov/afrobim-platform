@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Line weights, text heights and the layer-to-pen mapping.
 //!
 //! Every value here is entered by the user. The defaults are neutral starting values chosen so a

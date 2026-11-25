@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Requirement checks on a gantry's geometry against the UK DMRB.
 //!
 //! **Passing these checks does not mean the gantry is structurally adequate.** A gantry is a

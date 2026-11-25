@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! AfroBIM desktop application.
 
 mod aids;
@@ -135,6 +137,7 @@ mod u2_tests;
 mod menus;
 mod palette;
 mod ui_kit;
+mod licences;
 mod underlay;
 mod imagery;
 mod basemap;

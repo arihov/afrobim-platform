@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Analysis of a TIN: slope and aspect, elevation and slope bands, slope arrows, flow paths,
 //! sections, extremes and areas.
 //!

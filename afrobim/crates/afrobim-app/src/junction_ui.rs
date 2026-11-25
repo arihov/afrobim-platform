@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The INTERSECTION and ROUNDABOUT commands: pick the roads, list the crossings found, choose the
 //! corridor type, edit the edge offsets, widening tables and the kerb return of each quadrant with a
 //! live plan preview, with the defaults basis filling the fields whose condition the dialog knows.

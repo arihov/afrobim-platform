@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The programme as a model element: category `schedule`, drawn as a Gantt chart.
 
 use std::collections::BTreeMap;

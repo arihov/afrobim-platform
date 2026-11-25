@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The intersection object: inputs, the build, the result.
 //!
 //! [`build_intersection`] takes [`IntersectionInputs`] (which name the two alignments, never hold

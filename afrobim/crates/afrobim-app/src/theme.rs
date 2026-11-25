@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The design tokens of the interface: one source for colours, spacing, radii, shadow and font
 //! sizes, in a dark glass, a light glass and a solid variant, applied through `egui::Style` and
 //! `egui::Visuals`.

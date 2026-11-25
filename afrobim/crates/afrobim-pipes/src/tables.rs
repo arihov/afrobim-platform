@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Structure and pipe tables, with CSV export.
 
 use serde::{Deserialize, Serialize};

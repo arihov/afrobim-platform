@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Opens every registered command headlessly for a few frames, in the dark and in the light
 //! look, so that a dialog that panics (or a command that leaves the window empty) is found
 //! without a screen. `ctx.run` drives the application the way eframe would, with no window.

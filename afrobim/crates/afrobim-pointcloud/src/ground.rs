@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Ground points: use an existing classification, or filter an unclassified cloud.
 //!
 //! Every threshold, window and cell size is an input. The structs below have no `Default`: the

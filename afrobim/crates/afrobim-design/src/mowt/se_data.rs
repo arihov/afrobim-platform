@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tables 6-4 to 6-9 of the manual (superelevation rates and minimum runoff lengths), transcribed.
 //!
 //! Source: Uganda MoWT Road Design Manual Volume I: Geometric Design, January 2010, printed pages 98 to 103

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! 4D playback: how every linked element's state changes over a range of dates, worked out in one
 //! pass so an animation does not reschedule or re-resolve the links for each frame.
 

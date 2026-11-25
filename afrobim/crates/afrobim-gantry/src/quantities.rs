@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Take-off for gantries, by geometry only. No rates.
 //!
 //! Every figure is the entered dimensions put through the formula stated on its field. Steel

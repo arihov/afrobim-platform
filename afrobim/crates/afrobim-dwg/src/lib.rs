@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary AND (MIT OR Apache-2.0)
+// Copyright (c) 2026 AfroBIM. All rights reserved.
+// Portions ported from BIMCraft (Copyright 2026 IPedrax and the BIMCraft contributors,
+// MIT OR Apache-2.0) keep that licence; see the notice below and NOTICE.
 //! Built-in DWG reading and writing, as ASCII DXF text.
 //!
 //! AfroBIM reads DXF with its own reader (`afrobim-dxf`). This crate is the bridge that lets it

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Existing ground profiles (sampled from a surface along an alignment, kept up to date) and
 //! profile views drawn in the model.
 

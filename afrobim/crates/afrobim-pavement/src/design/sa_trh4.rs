@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! South African design basis: design traffic, traffic classes, road categories, design
 //! reliability, climatic class and subgrade preparation, as set out in SAPEM Chapter 10 and the
 //! TRH4 values it reproduces.

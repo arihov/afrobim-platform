@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! `ALIGNCHECK` (design checks against a limits table the user loads) and `OPTIONS` (an option set,
 //! its comparison, weighted scoring and CSV export).
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Two dimensional least squares adjustment of a survey network: directions (with one orientation
 //! unknown per setup), distances, known azimuths, GNSS baseline components (E and N), and weighted
 //! control coordinates. Heights are adjusted separately (`level.rs`); a 3D adjustment is not delivered.

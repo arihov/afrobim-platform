@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Quantities: earthworks between sections by average end area or by the prismoidal formula,
 //! material volumes per shape code, and the mass haul with a free haul distance.
 //!

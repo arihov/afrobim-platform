@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Layout, rules, checks, grade lines and interference. Sizes, roughness, limits and clearances
 //! are test inputs chosen for easy arithmetic. Coordinates are at true UTM magnitude (northing
 //! near 9 960 000 m).

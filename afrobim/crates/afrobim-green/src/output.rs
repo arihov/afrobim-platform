@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 use crate::assess::{Assessment, Outcome, EMBODIED_BASIS};
 use crate::csv::row;
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The second set of markings (UK TSM Chapter 5 2018, R2) and the Uganda manual's markings (R3),
 //! as data.
 //!

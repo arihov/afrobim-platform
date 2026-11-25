@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The menu bar and the context menus. Every item is a command from the command table, with its
 //! icon, its label and, right-aligned, its keyboard shortcut (or the command to type when it has
 //! none). The menus are File, Edit, View, Insert, Modify, Analyse, Tools, Window and Help.

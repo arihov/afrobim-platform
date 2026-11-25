@@ -178,7 +178,7 @@ jobs:
           $p = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /l*v install.log" -Wait -PassThru
           if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 60; throw "install failed: $($p.ExitCode)" }
           $dir = "$env:ProgramFiles\AfroBIM"
-          foreach ($f in 'afrobim.exe', 'packs\UK-TSM-2019.json', 'packs\UG-TSM-2004\pack.xml') {
+          foreach ($f in 'afrobim.exe', 'LICENSE.txt', 'EULA.md', 'NOTICE', 'THIRD-PARTY-NOTICES.md', 'packs\UK-TSM-2019.json', 'packs\UG-TSM-2004\pack.xml') {
             if (-not (Test-Path "$dir\$f")) { throw "missing after install: $f" }
           }
           if (-not (Test-Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\AfroBIM\AfroBIM.lnk")) { throw 'Start menu shortcut missing' }

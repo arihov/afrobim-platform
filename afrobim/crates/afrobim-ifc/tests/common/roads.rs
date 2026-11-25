@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A document with at least one element of every road module, built through each module's own
 //! API on one alignment with a profile: road markings, a side drain, two pipe culverts (one with
 //! two barrels), a portal and a cantilever gantry with a sign hung on the portal, a street

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road markings in the app: registering the module, the hand-over to `afrobim-markings` for
 //! adding a longitudinal line along an alignment, and its quantities.
 //!

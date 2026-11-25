@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Photometry for street lighting (`PHOTOMETRY`): choose an IES or LDT luminaire file for a lighting
 //! installation, read the file's own checks and its polar diagram BEFORE any calculation, confirm
 //! the orientation assumption against the diagram, enter the calculation settings, run, and use the

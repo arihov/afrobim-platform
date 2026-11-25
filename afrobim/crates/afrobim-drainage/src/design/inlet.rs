@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Culvert inlet control by the equations of FHWA HDS-5, in SI.
 //!
 //! # Sources

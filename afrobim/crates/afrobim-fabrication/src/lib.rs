@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Sign-face quantities (BoQ) and fabrication sheets: a Rust port of the C# reference
 //! (`SignCore.Layout.SignQuantities`, `SignCore.Fabrication` and the `FabricationBatch` driver).
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Hand-worked geometry. All lengths in millimetres.
 
 use afrobim_coordination::geom::*;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Calculation of horizontal (and, derived here, vertical and semi-cylindrical) illuminance on
 //! user-defined grids from the luminaires of a lighting element, and of luminance when the user
 //! supplies an r-table. See [`engine`] for the formulae, their derivation and the limits.

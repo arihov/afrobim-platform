@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Roundabouts: circles, entry and exit kerbs, splitter islands and the figures an engineer checks.
 //!
 //! **Every dimension is entered; no limit is applied.** No geometric design document held in this

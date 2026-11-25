@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Section views of a sample line group for the section sheets: the group is cut here (the sheets
 //! crate does not know the civil objects) and handed over as drawings, the same kind the
 //! corridor's own sections give, so that both kinds of section share the sheet layout.

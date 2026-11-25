@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The cross-section view: corridor sections arranged in a grid at a scale, with their labels.
 
 use afrobim_corridor::{corridor_of, section_drawing, LabelKind, Section};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Cross-check of the DXF reader against ezdxf.
 //!
 //! `tests/ezdxf_gen.py` builds a DXF with ezdxf covering each entity type (lines, arcs, circles,

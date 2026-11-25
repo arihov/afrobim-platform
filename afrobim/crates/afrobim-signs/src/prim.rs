@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The layout's own primitives, before lettering is turned into glyph outlines.
 
 use afrobim_draw::Pt2;

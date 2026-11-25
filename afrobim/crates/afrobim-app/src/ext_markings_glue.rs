@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The second set of road markings in the app: transverse lines (stop, give way, with the
 //! triangle), arrows, hatching and chevrons, yellow lines, road studs and worded markings, with a
 //! choice of basis (UK Traffic Signs Manual Chapter 5, 2018, or the Uganda Traffic Signs Manual,

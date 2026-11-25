@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! From ground points to a surface: thinning, decimation, output for `afrobim-terrain` and a fit report.
 //!
 //! * [`thin_to_grid`]: one point per grid cell at an input cell size: the lowest point, the mean

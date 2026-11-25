@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Builds the scene of a civil element from its data. Pure functions of cloned elements, so the
 //! work can run on a worker thread (`civil_cache`).
 

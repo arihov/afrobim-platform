@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Time and memory of the importer on a large generated file. Ignored by default (it writes a
 //! file of a few tens of megabytes to the temp directory):
 //!

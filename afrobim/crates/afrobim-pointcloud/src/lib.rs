@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Point cloud engine for a road BIM application: survey scans, drone photogrammetry and lidar as
 //! reference data and as a source for ground surfaces. No user interface.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Sign visibility along an alignment (work package A2, analysis stage).
 //!
 //! For a sign with a site placement, a driver's eye is swept along the approach and sight lines

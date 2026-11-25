@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Reads the sample files (directory in `IFC_SAMPLES_DIR`, default `/home/user/ifcsamples/files`)
 //! and prints coverage. Skipped when the directory is missing.
 

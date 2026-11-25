@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The complete pipe culvert check under the MoWT basis: inlet control, outlet control, the
 //! greater of the two, and the limits.
 //!

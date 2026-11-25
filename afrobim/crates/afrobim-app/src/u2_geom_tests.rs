@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Glue test: the solids of each second-set marking land where the alignment puts the station.
 
 use afrobim_kernel::{Document, ModuleRegistry};

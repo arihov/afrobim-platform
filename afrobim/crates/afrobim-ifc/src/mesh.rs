@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Sign artwork as triangle meshes: one mesh per colour and paint layer.
 //!
 //! A [`Drawing`] is a painter's list: later primitives cover earlier ones. In 3D that order has

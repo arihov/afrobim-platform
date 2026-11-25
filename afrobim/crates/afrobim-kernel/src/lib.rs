@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! AfroBIM kernel: the document every module and front end shares.
 //!
 //! A [`Document`] is a set of [`Element`]s. An element is a typed building-information

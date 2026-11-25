@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Applying the valid rows of a plan to a document.
 //!
 //! Everything the sign engine is needed for goes through [`SignBuilder`], which the app

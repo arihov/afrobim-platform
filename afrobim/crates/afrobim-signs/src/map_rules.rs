@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The rule-pack sections the map-type layout reads: route arms, text-to-arm spacing, the
 //! Figure 5-7 route symbol, the Figure 5-13 roundabout and the drawn sign border.
 //!

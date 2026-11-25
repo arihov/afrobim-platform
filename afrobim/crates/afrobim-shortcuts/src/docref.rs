@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! External references of whole documents: attach another project as an underlay.
 //!
 //! The list is kept in the host's project settings under [`DOCUMENT_REFERENCES_KEY`], so it is

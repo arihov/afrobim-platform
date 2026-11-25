@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Drawings and meshes of a corridor: the cross-section sheet, the 3D surfaces and the plan lines.
 
 use afrobim_draw::{Colour, Drawing, Extents, Mesh3, Primitive, Pt2};

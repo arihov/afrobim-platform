@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Sample lines and section views: lines square to an alignment at chosen stations, each with its
 //! own swath widths, sampling any number of surfaces and a corridor.
 //!

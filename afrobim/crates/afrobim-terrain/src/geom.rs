@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Small plan-geometry helpers shared by the modules. Not public API.
 
 use robust::{orient2d, Coord};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Windows only: embeds the application icon and the version information in `afrobim.exe`, so the
 //! file shows the icon in Explorer and the taskbar and a Details tab in its Properties.
 //!

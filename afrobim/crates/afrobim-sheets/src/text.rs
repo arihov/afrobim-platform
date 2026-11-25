@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Text metrics and wrapping for the sheet's built-in lettering.
 //!
 //! Sheets are lettered in the PDF standard Helvetica and Helvetica-Bold faces, which every PDF

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Parcels: boundaries of straight lines and circular arcs, with area, perimeter, centroid,
 //! closure and point-in-parcel.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The public API as the desktop app uses it, on things the C# reference files do not cover:
 //! measuring options, the batch's edge cases and the default PDF stamp.
 

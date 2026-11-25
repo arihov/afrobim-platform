@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The South African (SANRAL) design basis for side drains, channels and culverts.
 //!
 //! # Design basis

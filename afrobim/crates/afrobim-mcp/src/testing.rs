@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Shared by the unit tests: the checkout's pack and fonts, and a temporary folder.
 
 use std::path::{Path, PathBuf};

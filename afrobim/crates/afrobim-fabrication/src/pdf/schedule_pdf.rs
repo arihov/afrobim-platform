@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The printable sign-schedule report. Port of C# `SchedulePdfWriter`.
 //!
 //! A4 landscape, one row per sign (code, type, size, x-height, face area, and quantity, total

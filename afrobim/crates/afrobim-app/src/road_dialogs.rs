@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The dialogs of street lighting, road restraint, pavement, pavement design and corridors, and
 //! the cross-section window.
 //!

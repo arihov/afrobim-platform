@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Data shortcuts in the application: the working project folder, publishing objects of this
 //! document, references to objects of other documents (with the dependency closure shown before
 //! confirming), state badges, synchronising, promoting, repairing paths, validating, attaching a

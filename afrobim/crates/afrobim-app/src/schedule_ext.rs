@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The 4D tab's second round: the work breakdown structure and its roll-up, the critical path
 //! basis, Primavera XER exchange, the time-location chart and 4D playback.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Vertical geometry notes for profile views: PVI station and level, the grade of each tangent in
 //! percent, the length of each vertical curve, its start and end stations, and the K value
 //! (length per percent of grade change, L / A) as a computed number.

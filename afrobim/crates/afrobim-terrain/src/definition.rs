@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The surface object: a name, a role, a source record, a status and an ordered definition.
 //!
 //! The definition is a list of operations, like the definition of a TIN surface in a civil

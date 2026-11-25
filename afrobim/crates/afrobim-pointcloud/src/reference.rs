@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! `PointCloudReference`: what a document stores about a point cloud, without embedding points.
 //!
 //! It holds the source path, the SHA-256 of the source, the header facts, the coordinate system

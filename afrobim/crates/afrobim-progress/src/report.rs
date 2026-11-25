@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Period reporting: the monthly table, S-curve data and drawing, the look-ahead list, the delay
 //! list, and the CSV text of each.
 

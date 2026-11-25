@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Sign-face take-off for a bill of quantities. Port of C# `SignCore.Layout.SignQuantities`.
 //!
 //! A laid-out sign becomes the quantities a QS prices: panel size, face area, ground colour and

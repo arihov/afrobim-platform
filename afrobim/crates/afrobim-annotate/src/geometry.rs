@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Point helpers and the generated form of an annotation: strokes, fills and labels.
 //!
 //! Everything an annotation draws is first reduced to an [`AnnGeometry`] in the element's local

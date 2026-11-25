@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Small helpers the civil dialogs share: numeric fields that return their value, a chooser over
 //! the objects of a category, and a find-by-name over the document.
 

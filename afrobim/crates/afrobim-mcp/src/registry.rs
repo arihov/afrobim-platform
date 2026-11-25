@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The MCP tool list: names, titles, descriptions, strict input schemas and the annotations
 //! that tell a client which tools only read, plus the binding from JSON arguments to the typed
 //! tool methods (port of C# `ToolRegistry`).

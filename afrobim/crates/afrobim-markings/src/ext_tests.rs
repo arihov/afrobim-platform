@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tests of the second set and of the Uganda basis.
 //!
 //! Every catalogue test names the figure, table or page its numbers were read from in a comment.

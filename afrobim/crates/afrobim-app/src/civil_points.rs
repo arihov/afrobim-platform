@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! COGO points in the application: import, create, the point table, point groups, description
 //! keys, export, the COGO tools and traverse entry.
 //!

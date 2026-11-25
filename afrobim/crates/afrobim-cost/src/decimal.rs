@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Exact decimal arithmetic for money, quantities and rates.
 //!
 //! Amounts are never `f64`. A binary float cannot hold 0.1 or 1250.35 exactly, and a bill adds

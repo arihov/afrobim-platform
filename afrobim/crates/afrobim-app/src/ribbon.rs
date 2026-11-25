@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The ribbon: tabs of panels of icon buttons, in the manner of AutoCAD and Civil 3D.
 //!
 //! Every button runs a command from `commands::COMMANDS`, so the ribbon, the menus, the palette

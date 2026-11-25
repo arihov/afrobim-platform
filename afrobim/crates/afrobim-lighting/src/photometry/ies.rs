@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! IES LM-63 reader. See the module documentation of [`crate::photometry`] for what each field
 //! rests on.
 

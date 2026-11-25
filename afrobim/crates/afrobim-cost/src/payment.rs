@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Interim payment support, kept generic.
 //!
 //! For a period: the quantity done to date per item (entered, or worked out from the percent

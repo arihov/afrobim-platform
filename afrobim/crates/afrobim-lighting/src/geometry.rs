@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The schematic plan and solids of lighting columns.
 //!
 //! A diagram, not a product model. Only the positions, the mounting height, the outreach and the

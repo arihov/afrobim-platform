@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The standard a marking is taken from: the UK Traffic Signs Manual Chapter 5 (2018) or the
 //! Uganda Traffic Signs Manual (2004).
 //!

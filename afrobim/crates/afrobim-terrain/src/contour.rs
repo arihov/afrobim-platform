@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Contours of a TIN: minor and major, traced as polylines.
 //!
 //! Method: marching triangles, the two-dimensional member of the family introduced by

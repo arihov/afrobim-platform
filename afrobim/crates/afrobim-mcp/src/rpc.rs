@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The MCP server loop: JSON-RPC 2.0 over stdio, one message per line.
 //!
 //! Framed as the C# SignCore server (the official MCP C# SDK) frames it:

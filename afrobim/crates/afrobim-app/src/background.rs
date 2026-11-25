@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Slow work off the UI thread, with a progress indicator and a Cancel button.
 //!
 //! A job runs on a worker thread and hands one result back over a channel, as the reference model

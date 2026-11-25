@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML import of alignments: horizontal geometry, vertical profile, station equations and
 //! superelevation.
 //!

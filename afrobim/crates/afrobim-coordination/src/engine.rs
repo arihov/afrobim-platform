@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Broad phase (sweep and prune on boxes) and narrow phase (triangle tests) for one clash test.
 
 use crate::geom::*;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! What the reader keeps of a drawing, in the file's own units.
 
 use std::collections::{BTreeMap, BTreeSet};

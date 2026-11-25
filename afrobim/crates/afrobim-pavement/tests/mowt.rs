@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The MoWT Road Design Manual Volume 3 Part I (January 2010) design data, table by table, and
 //! its Appendix D worked example.
 

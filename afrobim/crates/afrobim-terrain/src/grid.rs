@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Grid surfaces to TIN, and point reduction (simplification) of a TIN.
 //!
 //! # Grid to TIN

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Cross-section slices: the points within a thickness of a section line, projected to offset
 //! along the line and elevation, for drawing over design sections.
 

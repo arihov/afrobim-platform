@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Supplementary plates, and the bordered plate outline they share with other rectangular
 //! signs. Port of C# `SupplementaryPlateLayout` and `SignPlate`.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Small synthetic photometric files for the committed tests. They are written by hand for
 //! these tests (no manufacturer data), in the layouts the cited descriptions give.
 

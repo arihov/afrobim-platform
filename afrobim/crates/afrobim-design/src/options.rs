@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Alignment options and their comparison.
 //!
 //! An [`OptionSet`] holds several named alignment options, each an [`AlignmentDesign`] (the

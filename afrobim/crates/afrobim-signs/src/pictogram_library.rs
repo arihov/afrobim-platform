@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The drawn pictogram artwork library. Port of C# `PictogramLibrary`.
 //!
 //! App.1 §2.1.4 aircraft, App.3 §5 service/place pictograms and the §5 road and traffic plates

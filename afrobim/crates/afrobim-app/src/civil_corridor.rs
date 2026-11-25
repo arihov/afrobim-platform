@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The corridor from the new model (baseline, regions with an assembly each, a frequency and a
 //! ground surface), sample line groups with a per-line swath edit, and the section view array.
 //! The older CORRIDOR command, with its single typical section, stays for old documents.

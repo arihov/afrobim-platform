@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The 4D tab's windows: the activity table with logic, the calendar, the CPM results, the Gantt
 //! chart, baseline and variance, progress, element links and their report, the 4D date control and
 //! the MS Project exchange. The programme itself is a document element (`schedule_glue`).

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Minimal TrueType metric and outline reader for the Transport typefaces. Reads
 //! head/maxp/hhea/hmtx/cmap/loca/glyf only. A line-for-line port of C# `FontMetrics`, kept as
 //! its own reader (rather than a general font crate) so advances, the measured baseline and

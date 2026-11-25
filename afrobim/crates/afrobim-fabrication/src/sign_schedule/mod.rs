@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The AfroBIM sign schedule: a CSV of the signs of a road, with the station and offset each one
 //! stands at.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Attribute filters: class set, elevation range, intensity range and return selection.
 //!
 //! Every limit is an input; nothing here has an engineering default. An empty [`PointFilter`]

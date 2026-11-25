@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The surface and corridor elements in a document, and a timing on a large surface.
 //!
 //! All dimensions are arbitrary test numbers, not design values.

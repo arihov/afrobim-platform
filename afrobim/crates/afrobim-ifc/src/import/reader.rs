@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The importer proper: schema layout, units, placements, geometry items, properties, tree.
 
 use std::collections::{BTreeMap, HashMap};

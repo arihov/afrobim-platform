@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Coordinate geometry: inverse, direct, intersections, offsets.
 //!
 //! Plane formulae, standard in any surveying text (for example Ghilani and Wolf, *Elementary

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Screenshot aids: `--aid <name>` fills a dialog with arbitrary test values so that its look can
 //! be checked on a machine without a desktop (the headless screenshot cannot click). Every value
 //! here is an arbitrary test value, not an engineering value, and nothing is kept in the document

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The review table: every number in a pack beside its source, for a highway engineer to check
 //! line by line against the documents.
 

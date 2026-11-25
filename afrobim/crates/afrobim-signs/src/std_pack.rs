@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The rule-pack sections of the standard (catalog) signs: the full sign catalog, the TSRGD
 //! 2016 sign bodies and pictograms, the sizes of warning and regulatory signs and their
 //! plates, and the plate border.

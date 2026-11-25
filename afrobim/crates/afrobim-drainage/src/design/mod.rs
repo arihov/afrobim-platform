@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Hydrology and hydraulics for side drains and pipe culverts, by design basis.
 //!
 //! # Structure

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! DXF export.
 //!
 //! Writes [`Drawing`]s as an R12 (AC1009) ASCII DXF in millimetres, the format the C# SignCore

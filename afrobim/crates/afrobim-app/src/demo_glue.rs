@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Demo records for `--demo`: a small made-up programme linked to the demo elements, a neutral
 //! bill with mapping rules and arbitrary rates, two clash tests, and a few made-up site records and
 //! actual costs.

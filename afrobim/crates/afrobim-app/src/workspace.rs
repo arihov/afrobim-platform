@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Workspaces: which ribbon tabs (and which panels of a shared tab) and which tool palettes show,
 //! by module. "All" is everything, as before. Home and Annotate show in every workspace, and the
 //! project tabs (Manage, View, Help) follow them.

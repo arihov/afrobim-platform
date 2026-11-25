@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Kerb returns against closed forms.
 //!
 //! Right-angle cross, primary along +X, secondary along +Y, crossing at (E0, N0). Edge offsets

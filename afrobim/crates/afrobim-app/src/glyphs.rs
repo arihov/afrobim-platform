@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The icon of every command, from the bundled Phosphor icon font (see `theme::install_fonts`).
 //!
 //! `glyph` is the one table: the ribbon, the menus, the toolbar, the context menus, the command

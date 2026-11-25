@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Place-identification signs. Port of C# `PlaceIdentificationLayout` (Uganda TSM Appendix 3
 //! page G22: `G22.1` entry, `G22.2` exit).
 //!

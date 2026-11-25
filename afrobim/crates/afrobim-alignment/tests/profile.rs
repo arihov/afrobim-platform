@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Vertical profile.
 //!
 //! Every expected value is worked by hand from the closed forms written beside it. The grades,

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The superelevation of an imported alignment: the table as the LandXML file wrote it is kept on
 //! the alignment element, and the alignment's Properties show it beside the cross-falls the
 //! engine derived from it, which are the ones a corridor lane that follows superelevation takes.

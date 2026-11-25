@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 #![allow(dead_code)] // the kit is the public API of the dialogs: not every piece is used yet
 //! The dialog kit: shared building blocks so that every window looks and behaves the same.
 //!

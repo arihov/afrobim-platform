@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The rule-pack sections only the Uganda pack carries: the speed-class body-size ladders
 //! (`standardSizes`) and the warning / regulatory body outlines with their stated slash forms
 //! (`roundelsTriangles`).

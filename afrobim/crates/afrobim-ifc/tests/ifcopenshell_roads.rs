@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Validation of the road modules' export by an independent IFC toolkit.
 //!
 //! Exports the document of `tests/common/roads.rs` (an element of every module), writes what the

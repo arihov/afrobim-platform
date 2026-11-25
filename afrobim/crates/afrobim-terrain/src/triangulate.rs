@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Constrained Delaunay triangulation with a local shift and exact predicates. Not public API.
 //!
 //! Method: a constrained Delaunay triangulation (CDT) is the triangulation of a point set that

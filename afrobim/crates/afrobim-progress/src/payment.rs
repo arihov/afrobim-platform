@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Link to interim payment: progress at a date as the `quantities_to_date` input of
 //! [`afrobim_cost::certify`].
 

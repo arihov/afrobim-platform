@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Glue tests: the alignment check against the built-in MoWT basis, the overlay and old stored
 //! selections. Every number is an arbitrary test value.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Rule-pack sections the destination-column family reads beyond the stack-type ones: the
 //! drawn sign border (`signBorder`) and the route-arm lengths (`routeArms`). Port of C#
 //! `SignBorderRules` and `RouteArmRules` with the checks `RulePackLoader` makes on them.

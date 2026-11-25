@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The kernel module for lighting elements and the helpers that add them to a document.
 
 use std::collections::BTreeMap;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Baseline: a stored copy of a schedule, and variance of the current schedule against it.
 
 use serde::{Deserialize, Serialize};

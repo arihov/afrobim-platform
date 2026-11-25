@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road drainage: side drains and pipe culverts as model elements.
 //!
 //! The crate has two parts, as `afrobim-supports` does.

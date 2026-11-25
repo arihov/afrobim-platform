@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Turning schedule rows into a plan: what would be created, or why a row cannot be.
 //!
 //! Nothing here touches a document and nothing here needs the sign engine (fonts). The inputs

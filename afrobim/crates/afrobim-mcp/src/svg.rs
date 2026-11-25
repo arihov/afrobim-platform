@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Renders a laid-out sign (the same primitives the DXF is written from, lettering as Transport
 //! glyph outlines) to a standalone SVG in millimetres. Port of C# `SvgPreview`: stroke-width
 //! space is Y up, so Y is flipped; colours follow the C# desktop app's display palette, so the

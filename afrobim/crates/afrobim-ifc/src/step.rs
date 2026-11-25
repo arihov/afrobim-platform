@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! ISO 10303-21 (STEP physical file) encoding: strings, reals and the instance list.
 
 /// A string as a STEP literal, quotes included.

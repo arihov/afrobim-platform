@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! 3x3 rotations, row-major: `m[row][column]`, the columns being the images of the unit axes.
 //!
 //! Used by the linear placement: an element placed on an alignment is given the frame of the

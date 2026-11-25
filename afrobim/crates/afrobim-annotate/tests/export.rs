@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Annotation output through the DXF writer, read back by ezdxf and by this workspace's own
 //! reader. Skipped (with a printed note) when Python 3 or ezdxf is missing. No DXF written here
 //! has been opened in AutoCAD.

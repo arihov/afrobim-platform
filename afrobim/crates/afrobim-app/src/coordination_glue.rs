@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Clash detection in the app: the scene the tests run on, and where tests and results are kept.
 //!
 //! The scene holds one `Body` per element that has solids, moved to world millimetres with exactly

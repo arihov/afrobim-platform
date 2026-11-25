@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Horizontal alignment: minimum radius with `e` and `f` (Table 6-1), relative gradient and runoff
 //! (Tables 6-2, 6-3), superelevation rates and minimum runoff lengths (Tables 6-4 to 6-9), widening
 //! on curves (Table 6-10), transition (spiral) rules, the rules the text states, and sight distance

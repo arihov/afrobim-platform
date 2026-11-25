@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Layout and editing: create a run from a sequence of positions, insert, move and delete
 //! structures, swap parts, connect and disconnect, set inverts by slope, drop or cover, and apply
 //! a rule set.

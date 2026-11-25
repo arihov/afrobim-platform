@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The in-memory point store: parallel columns (structure of arrays).
 //!
 //! Coordinates are `f64` exactly as the file gives them after its scale and offset (true UTM

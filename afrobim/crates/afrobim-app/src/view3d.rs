@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The 3D view: the model's elements as upright plates, seen through an orbit camera.
 //!
 //! The sheet is mapped to the world the same way IFC export does it: sheet X → world X, sheet Y →

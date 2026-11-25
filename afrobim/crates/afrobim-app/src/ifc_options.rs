@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The IFC export options dialog: how alignments are written (`IfcOptions::alignment`). The choice
 //! is kept in the document's project settings (`ifc.alignment`), so the next export starts from it.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tests of the round 6 work package A3. The ones that read a real Civil 3D export run only when
 //! `AFROBIM_PRIVATE_LANDXML` names it and say nothing about what is in it.
 

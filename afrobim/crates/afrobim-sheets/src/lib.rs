@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Documentation stage: drawing sheets composed from the live model.
 //!
 //! A [`SheetSet`] is stored in the document (category `sheets`) and lists sheets: a [`Page`]

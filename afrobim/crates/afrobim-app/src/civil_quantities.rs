@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! EARTHWORKS: the earthworks table of a corridor (average end area or prismoidal), the material
 //! volumes by shape code, the mass haul diagram with a free haul distance, CSV and the send to the
 //! bill. The calculation runs on a background job.

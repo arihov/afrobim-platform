@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! At-grade intersections and roundabouts for AfroBIM: engine only. See the README for scope,
 //! constructions and limits.
 //!

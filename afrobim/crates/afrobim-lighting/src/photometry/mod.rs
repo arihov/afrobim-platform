@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Luminaire photometric files: IES LM-63 and EULUMDAT, read into one [`Photometry`] model.
 //!
 //! Neither format's standard text is held. Each field below rests on the descriptions named,

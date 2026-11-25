@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Map-type advance direction signs drawn to UK TSM Chapter 7 §5 (used when the rule pack has
 //! a `mapSymbol` section). Port of C# `MapSymbolLayout`, of the `MapSignLayout` dispatch that
 //! reaches it, and of the part of `SignLayout.Layout` that follows a map-type layout.

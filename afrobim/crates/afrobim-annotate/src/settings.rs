@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Annotation settings stored in the document: display units, annotation scale, the named text
 //! and dimension styles, and the layer properties the kernel does not model.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The longitudinal lines of Traffic Signs Manual Chapter 5, as data.
 //!
 //! Every number in this file was read from the edition named by [`EDITION`] and carries the

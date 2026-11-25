@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The alignment design tools: the plan editor on the canvas (PI grips, create, insert, delete),
 //! the PI table, and the entry points of the design commands.
 //!

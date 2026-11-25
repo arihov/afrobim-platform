@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Expanding an underlay for display: blocks inserted, curves flattened, colours resolved.
 //!
 //! INSERT places a block with `T(insert) * R(rotation) * S(sx, sy) * T(-base)`. A MINSERT array

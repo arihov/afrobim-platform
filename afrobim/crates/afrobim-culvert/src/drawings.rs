@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Drawings: plan, sections A-A, D-D, B-B and C-C and the front elevation, as
 //! [`afrobim_draw::Drawing`]s in millimetres.
 //!

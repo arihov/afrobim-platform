@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The input dialog of the street lighting CHECK.
 //!
 //! The checks of `afrobim_lighting::design` take what the engineer has established elsewhere:

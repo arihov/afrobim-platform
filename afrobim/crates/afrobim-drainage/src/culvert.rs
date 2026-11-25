@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Pipe culverts: the definition stored in an element's `data` and the kernel module that
 //! draws it.
 

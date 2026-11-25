@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Keys the AfroBIM dialogs ask for. `missing()` lists those a pack does not hold, with the
 //! reason the DMRB pack does not hold them (what was looked at and what was found).
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Model-space painting: grid, axes, elements, and the CAD cursor furniture on top.
 
 use afrobim_kernel::{display_spacing_fine, BBox, CanvasTool, Pt};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Take-off and column schedule. Counts and sums of entered data only: no rates, no cable or
 //! electrical quantities, nothing from a product table.
 

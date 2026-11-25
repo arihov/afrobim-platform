@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The coordinate system of a project: a document-level setting, as in a Civil 3D drawing's
 //! zone setting, plus the transverse Mercator maths to say where on the Earth a coordinate is.
 //!

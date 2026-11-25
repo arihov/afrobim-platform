@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! IFC reference models: other disciplines' IFC files read for display and clash checking only.
 //!
 //! A reference model is **not** embedded in the document. The document keeps, in one record

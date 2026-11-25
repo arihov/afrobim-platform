@@ -101,7 +101,9 @@ mkdir -p "$mnt"
 hdiutil attach "$dmg" -mountpoint "$mnt" -nobrowse -readonly -quiet
 ok=1
 for p in AfroBIM.app/Contents/MacOS/afrobim AfroBIM.app/Contents/Info.plist AfroBIM.app/Contents/Resources/AfroBIM.icns \
-         AfroBIM.app/Contents/Resources/packs/UK-TSM-2019.json AfroBIM.app/Contents/Resources/packs/UG-TSM-2004/pack.xml; do
+         AfroBIM.app/Contents/Resources/packs/UK-TSM-2019.json AfroBIM.app/Contents/Resources/packs/UG-TSM-2004/pack.xml \
+         AfroBIM.app/Contents/Resources/LICENSE AfroBIM.app/Contents/Resources/EULA.md AfroBIM.app/Contents/Resources/NOTICE \
+         AfroBIM.app/Contents/Resources/THIRD-PARTY-NOTICES.md; do
   [ -e "$mnt/$p" ] || { echo "missing in image: $p" >&2; ok=0; }
 done
 [ -L "$mnt/Applications" ] || { echo "missing Applications link" >&2; ok=0; }

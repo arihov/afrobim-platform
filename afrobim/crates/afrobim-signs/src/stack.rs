@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Stack-type advance direction signs: the panelled layout of UK TSM Chapter 7 §4.2–4.3
 //! (Figure 4-9). Port of C# `StackSignLayout.PanelledLayout` with `SignPalette` and
 //! `ConstraintValidator`.

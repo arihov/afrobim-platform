@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Intersections and roundabouts as civil objects.
 //!
 //! An intersection element holds the inputs of the `afrobim-junction` engine (the two alignments are

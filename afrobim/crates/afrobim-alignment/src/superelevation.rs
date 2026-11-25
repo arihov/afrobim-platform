@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Superelevation as stored data: cross-fall on each side of the centreline at stated stations.
 //!
 //! **This is data handling only.** Nothing here works out a superelevation rate from a speed and

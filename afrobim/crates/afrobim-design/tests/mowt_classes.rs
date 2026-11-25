@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tables 4-2a, 4-2b and 4-3 to 4-9 of the Uganda MoWT Road Design Manual Volume I (January 2010), cell by cell
 //! as read from the rendered pages, and the cross-checks between the class tables and the manual's own speed tables.
 //!

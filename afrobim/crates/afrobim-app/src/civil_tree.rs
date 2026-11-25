@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The toolspace: a Prospector-style tree of the civil objects (and the other element categories
 //! below them), with a Settings tab. Collapsible nodes with icons and counts, a right-click menu
 //! on every object, double-click to zoom, rename, properties, delete, show and hide.

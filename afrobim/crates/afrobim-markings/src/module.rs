@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The marking as a kernel element: category `"marking"`, its plan drawing and solids, and the
 //! helpers that add markings to a document and keep them in step with their alignments.
 

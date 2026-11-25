@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Route-number text rules (UK TSM Chapter 7). Port of C# `RouteNumbers`.
 
 use crate::model::{Destination, RouteStatus};

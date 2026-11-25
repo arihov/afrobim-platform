@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Display helpers: plain polylines and triangles in source coordinates. No rendering, no colour,
 //! no drawing-library types; a front end draws them as it likes.
 //!

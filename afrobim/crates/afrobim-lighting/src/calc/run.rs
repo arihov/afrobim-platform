@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Running a calculation for a lighting element, keeping what is needed to repeat it on the
 //! element, and filling [`PhotometricResults`] from it.
 //!

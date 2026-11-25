@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The command table: one entry per command, shared by the menus, the toolbar, the palette and
 //! the command line, so every route runs the same action and the `?` list is always complete.
 

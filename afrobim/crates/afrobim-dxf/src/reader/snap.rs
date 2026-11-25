@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Snap points for object snap on an underlay.
 //!
 //! Endpoint, midpoint, centre, quadrant and node points come out of the same expansion that draws

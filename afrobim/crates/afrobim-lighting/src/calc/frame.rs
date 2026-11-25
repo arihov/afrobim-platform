@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The coordinate transforms between the site and a luminaire's photometric (C, gamma) system.
 //!
 //! These are first-principles geometry, derived here and tested against hand-worked values; no

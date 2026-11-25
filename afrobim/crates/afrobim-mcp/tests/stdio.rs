@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! End to end: starts the built `afrobim-mcp` binary as a child process and talks to it over
 //! stdio the way an MCP client does, one JSON-RPC message per line. Mirrors the C#
 //! `McpServerStdioTests` and goes further: a layout, DXF exports, a schedule check, a document

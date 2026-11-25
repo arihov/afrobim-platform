@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The pixels of an image, decimated while they are read.
 //!
 //! An orthophoto from a drone survey is often tens of thousands of pixels square: decoding it

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Point groups: named, ordered sets of points defined by rules.
 //!
 //! A point is in a group when it matches at least one include rule (or the group includes all

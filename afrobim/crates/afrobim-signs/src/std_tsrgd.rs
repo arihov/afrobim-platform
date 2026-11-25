@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! UK warning and regulatory signs drawn from TSRGD 2016 pack data, and the sign with its
 //! associated plate. Port of C# `TsrgdSign`.
 //!

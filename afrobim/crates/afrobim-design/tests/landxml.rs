@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML export: round trip through the `afrobim-alignment` importer.
 //!
 //! Stated tolerance: after export and import, every element's start point, heading, length and

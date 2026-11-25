@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! GIS exchange of the drawing: export to Google Earth KML and GeoJSON (WGS 84), the way
 //! CADEarth and Spatial Manager do it.
 //!

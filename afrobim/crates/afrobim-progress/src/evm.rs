@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Earned value at a data date. The definitions are in the README; each formula is also in the
 //! doc comment of the item that computes it.
 //!

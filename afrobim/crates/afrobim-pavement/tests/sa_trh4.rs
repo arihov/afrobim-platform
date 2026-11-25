@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! South African design basis from SAPEM Chapter 10 (second edition 2014): the tables read from
 //! the rendered pages, and the worked examples of the chapter. Page numbers are the printed
 //! page numbers of the chapter; the flip-book page is the printed page plus 11.

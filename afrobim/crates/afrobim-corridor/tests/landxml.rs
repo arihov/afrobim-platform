@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML surface import.
 //!
 //! `tests/landxml/surface.xml` and `surface_feet.xml` were built by hand to the LandXML 1.2

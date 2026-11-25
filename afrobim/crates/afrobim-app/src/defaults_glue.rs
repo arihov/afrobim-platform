@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Engineering defaults in the interface.
 //!
 //! The values come only from `afrobim-defaults` (the DMRB pack today). A field bound to a key that

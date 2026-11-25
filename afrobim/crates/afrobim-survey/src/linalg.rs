@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Small dense linear algebra: a row-major matrix, Cholesky factorisation of a symmetric positive
 //! definite matrix, solution of linear systems and inverse. Written here so that the crate keeps no
 //! linear algebra dependency. The factorisation is the textbook Cholesky-Banachiewicz recurrence

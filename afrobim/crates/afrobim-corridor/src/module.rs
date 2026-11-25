@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The surface and the corridor as kernel elements, and the helpers that put them in a document.
 //!
 //! A kernel module sees one element at a time, never the document. So:

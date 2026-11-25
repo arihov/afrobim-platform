@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! AfroBIM 5D: a bill of quantities and cost estimate built from the model's quantities.
 //!
 //! ```text

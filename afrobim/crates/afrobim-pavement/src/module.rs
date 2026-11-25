@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The pavement as a kernel element: category `"pavement"`, `data` = the serialised
 //! [`PavementDefinition`], and the helpers that put one in a document.
 

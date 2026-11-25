@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Statistics that can be accumulated chunk by chunk, so they work on files larger than memory:
 //! density grid (points per square metre), class histogram and elevation histogram.
 

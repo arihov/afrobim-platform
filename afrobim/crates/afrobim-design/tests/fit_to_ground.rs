@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Fit to ground: a starting-point helper, tested on ground whose answer is known.
 
 use afrobim_corridor::Tin;

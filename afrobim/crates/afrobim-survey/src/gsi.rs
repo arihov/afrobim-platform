@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Reader for Leica GSI-8 and GSI-16 measurement files.
 //!
 //! SOURCE: the format description of the Total Open Station documentation, page "leica_gsi"

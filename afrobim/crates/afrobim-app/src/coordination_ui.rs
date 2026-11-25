@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The Coordination tab's windows: the clash tests manager, the run, the results window with
 //! zoom to clash, and the CSV export. Clash markers are drawn by the 3D view from `CoordUi`.
 

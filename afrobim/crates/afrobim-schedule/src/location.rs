@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Linear works: where along an alignment each activity is, and the time-location (time-chainage)
 //! chart that plots station against date.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A ground surface as the checks see it: a level at an easting and northing.
 
 use afrobim_corridor::Tin;

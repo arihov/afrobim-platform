@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The corridor description of an intersection: a `CorridorModel` for `afrobim_corridor::build_model`.
 //!
 //! # What is returned

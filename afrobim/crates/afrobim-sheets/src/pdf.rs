@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! PDF output: one page per sheet, vector strokes and fills, text as real text.
 //!
 //! A small writer of its own. The fabrication crate's PDF writer is tied to its own sheet type and
