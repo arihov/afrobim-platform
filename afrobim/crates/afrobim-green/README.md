@@ -101,6 +101,10 @@ that name the 1-based line. An empty `kgco2e_per_t` is kept as "not entered" (Na
 `null` in JSON); the line is reported unmatched, never priced at zero.
 `template_csv(&[(key, material), ...])` writes a blank file to fill from the source you choose.
 
+## ICE import
+
+ICE's terms do not allow redistribution inside software, so `ice_template_csv` writes only material names and sheet references and `import_ice` fills the blank rows of a factor set from the user's own ICE CSV export (kgCO2e per kg, converted to per tonne; matched by name; entered figures never overwritten; no match stays NaN). `FactorSet::source_label()` gives `Source: ICE v5.0 (Circular Ecology), A1-A3`. See `docs/reference/green-carbon-factors.md`.
+
 ## Output
 
 `assessment_csv` writes blocks separated by a blank line: factor set, every line with outcome,

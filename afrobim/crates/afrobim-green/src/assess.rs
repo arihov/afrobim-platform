@@ -94,6 +94,8 @@ pub struct LightingResult {
 pub struct Assessment {
     /// Factor file name and edition; empty when no file was loaded.
     pub factor_set: String,
+    /// Where the factors come from, e.g. `Source: ICE v5.0 (Circular Ecology), A1-A3`; empty with no factor file.
+    pub factor_source: String,
     pub rows: Vec<Row>,
     pub by_material: Vec<MaterialTotal>,
     /// Sum of the counted lines' `total_kg`: A1-A3 for every counted line, plus A4 for the lines
@@ -236,7 +238,7 @@ struct Meta {
 
 /// Assesses the lines. See the crate documentation for every formula.
 pub fn assess(lines: &[LineIn], factors: Option<&FactorSet>, settings: &Settings) -> Assessment {
-    let mut a = Assessment { factor_set: factors.map(FactorSet::label).unwrap_or_default(), ..Assessment::default() };
+    let mut a = Assessment { factor_set: factors.map(FactorSet::label).unwrap_or_default(), factor_source: factors.map(FactorSet::source_label).unwrap_or_default(), ..Assessment::default() };
     let mut energy: Vec<&LineIn> = Vec::new();
     let mut rows: Vec<Row> = Vec::with_capacity(lines.len());
     let mut metas: Vec<Meta> = Vec::with_capacity(lines.len());

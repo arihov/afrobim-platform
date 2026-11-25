@@ -61,10 +61,12 @@
 mod assess;
 mod csv;
 mod factors;
+mod ice;
 mod output;
 mod rules;
 
 pub use assess::{assess, Assessment, LightingResult, LineIn, MaterialTotal, Outcome, Row, EMBODIED_BASIS};
 pub use factors::{factors_from_csv, factors_to_csv, normalise_key, template_csv, Factor, FactorSet, FACTOR_COLUMNS};
+pub use ice::{ice_hint, ice_template_csv, import_ice, IceImport};
 pub use output::assessment_csv;
 pub use rules::{default_rules, LightingUse, Overrides, Rule, RuleOverride, Settings, Use};
