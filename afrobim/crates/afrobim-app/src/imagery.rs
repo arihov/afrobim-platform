@@ -609,11 +609,12 @@ impl crate::app::AfroBimApp {
                 let before = s.clone();
                 crate::basemap::settings_ui(ui, &mut s, &mut self.basemap, project.as_ref());
                 let can_capture = s.enabled && crate::basemap::plans_for(project.as_ref()).is_ok();
+                let refusal = crate::basemap::capture_refusal(&s);
                 if s != before {
                     map_changed = Some(s);
                 }
                 ui.add_space(6.0);
-                capture = crate::map_capture::capture_ui(ui, &mut self.basemap.capture, can_capture);
+                capture = crate::map_capture::capture_ui(ui, &mut self.basemap.capture, can_capture, refusal.as_deref());
                 ui.add_space(6.0);
                 crate::ui_kit::heading(ui, "Attached images");
                 crate::ui_kit::callout(ui, crate::ui_kit::Level::Info, "An image attached here is a read-only background. The document keeps its path, a hash and its placement, not the pixels: it is read again when the document opens. The placement comes from GeoTIFF tags or a world file (.pgw, .jgw, .tfw, .wld) beside the image, and its coordinate system from the GeoTIFF or a .prj file. When the image's system is not the project's, it is moved through the same datum transformations the CRS command uses.");

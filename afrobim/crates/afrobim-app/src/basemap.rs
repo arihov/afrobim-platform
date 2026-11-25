@@ -26,6 +26,8 @@ use egui::{pos2, Color32, FontId, Painter, Rect, TextureHandle};
 use serde::{Deserialize, Serialize};
 
 pub const SETTINGS_KEY: &str = "basemap";
+/// The provider a new document starts with: commercial use allowed, no key needed.
+pub const DEFAULT_PROVIDER: &str = "osm";
 /// The id of a custom template provider.
 pub const CUSTOM: &str = "custom";
 /// The most tiles drawn for one view; beyond it the zoom is coarsened.
@@ -49,7 +51,7 @@ pub struct BasemapSettings {
 
 impl Default for BasemapSettings {
     fn default() -> Self {
-        BasemapSettings { enabled: false, provider: tiles::PROVIDERS[0].id.into(), custom_url: String::new(), custom_attribution: String::new(), opacity: 1.0 }
+        BasemapSettings { enabled: false, provider: DEFAULT_PROVIDER.into(), custom_url: String::new(), custom_attribution: String::new(), opacity: 1.0 }
     }
 }
 
@@ -394,19 +396,57 @@ pub fn tile_grid(from_geo: &TransformPlan, z: u8, x: u32, y: u32, n: usize) -> O
     Some(out)
 }
 
-/// The background map part of the window.
-/// The quick map types and the built-in provider each one picks.
-pub const MAP_TYPES: &[(&str, &str)] = &[("Satellite", "esri-imagery"), ("Street", "osm"), ("Terrain", "opentopomap")];
+/// The quick map types and the providers each may use, best first. Every one has commercial use
+/// allowed (see `docs/reference/tile-provider-terms.md`): keyed providers need the user's own key
+/// on a plan that covers commercial work, the others work without one.
+pub const MAP_TYPES: &[(&str, &[&str])] = &[
+    ("Satellite", &["mapbox-satellite", "maptiler-satellite", "azure-imagery", "stadia-satellite"]),
+    ("Street", &["osm", "mapbox-streets", "maptiler-streets", "azure-road"]),
+    ("Terrain", &["opentopomap", "maptiler-topo", "thunderforest-outdoors", "stadia-outdoors"]),
+];
 
-/// Which quick map type a provider is, if any.
+/// Which quick map type a provider belongs to, if any.
 pub fn map_type(provider: &str) -> Option<usize> {
-    MAP_TYPES.iter().position(|(_, id)| *id == provider)
+    MAP_TYPES.iter().position(|(_, ids)| ids.contains(&provider))
+}
+
+/// The default provider of quick map type `i`: with a key set, the first keyed candidate;
+/// otherwise the first candidate that needs no key. `None` when the type has no provider that
+/// works without a key (the button then says it needs one).
+pub fn default_provider(i: usize, have_key: bool) -> Option<&'static tiles::Provider> {
+    let cands = || MAP_TYPES[i].1.iter().filter_map(|id| tiles::provider(id)).filter(|p| p.commercial_safe());
+    if have_key {
+        if let Some(p) = cands().find(|p| p.needs_key) {
+            return Some(p);
+        }
+    }
+    cands().find(|p| !p.needs_key)
+}
+
+/// The warning shown while an evaluation-only provider is selected.
+pub fn evaluation_warning(provider: &str) -> Option<String> {
+    let p = tiles::provider(provider)?;
+    (p.commercial == tiles::CommercialUse::NonCommercialOnly).then(|| format!("{}: evaluation only. Its terms do not allow commercial work: use a commercial map type (Satellite, Street or Terrain) for client deliverables.", p.name))
+}
+
+/// Why MAPCAPTURE may not save the chosen provider's tiles, or `None` when it may. A custom URL is
+/// the user's own source: they answer for its terms.
+pub fn capture_refusal(s: &BasemapSettings) -> Option<String> {
+    if s.provider == CUSTOM {
+        return None;
+    }
+    tiles::provider(&s.provider).and_then(|p| p.capture_refusal())
 }
 
 pub fn settings_ui(ui: &mut egui::Ui, s: &mut BasemapSettings, st: &mut BasemapState, project: Option<&ProjectCrs>) {
     ui.horizontal(|ui| {
-        for (i, (label, id)) in MAP_TYPES.iter().enumerate() {
-            if ui.selectable_label(map_type(&s.provider) == Some(i), *label).clicked() {
+        let have_key = !st.key.trim().is_empty();
+        for (i, (label, ids)) in MAP_TYPES.iter().enumerate() {
+            let pick = default_provider(i, have_key);
+            let text = if pick.is_some() { label.to_string() } else { format!("{label} (needs a key)") };
+            if ui.selectable_label(map_type(&s.provider) == Some(i), text).clicked() {
+                // No provider without a key: choose the first keyed one, which asks for the key.
+                let id = pick.map(|p| p.id).unwrap_or(ids[0]);
                 s.provider = id.to_string();
                 s.enabled = true;
             }
@@ -420,13 +460,18 @@ pub fn settings_ui(ui: &mut egui::Ui, s: &mut BasemapSettings, st: &mut BasemapS
         ui.label("Provider");
         let label = if s.provider == CUSTOM { "Custom tile URL".to_string() } else { tiles::provider(&s.provider).map(|p| p.name.to_string()).unwrap_or_else(|| s.provider.clone()) };
         egui::ComboBox::from_id_salt("basemap-provider").selected_text(label).width(300.0).show_ui(ui, |ui| {
-            ui.label(egui::RichText::new("Free").small().weak());
-            for p in tiles::PROVIDERS.iter().filter(|p| !p.needs_key) {
+            ui.label(egui::RichText::new("Free (commercial use allowed)").small().weak());
+            for p in tiles::PROVIDERS.iter().filter(|p| !p.needs_key && p.commercial_safe()) {
                 ui.selectable_value(&mut s.provider, p.id.to_string(), p.name);
             }
             ui.separator();
-            ui.label(egui::RichText::new("Needs your own key or token").small().weak());
+            ui.label(egui::RichText::new("Needs your own key or token (commercial plan)").small().weak());
             for p in tiles::PROVIDERS.iter().filter(|p| p.needs_key) {
+                ui.selectable_value(&mut s.provider, p.id.to_string(), p.name);
+            }
+            ui.separator();
+            ui.label(egui::RichText::new("Evaluation only (not for commercial work)").small().weak());
+            for p in tiles::PROVIDERS.iter().filter(|p| !p.commercial_safe()) {
                 ui.selectable_value(&mut s.provider, p.id.to_string(), p.name);
             }
             ui.separator();
@@ -457,6 +502,9 @@ pub fn settings_ui(ui: &mut egui::Ui, s: &mut BasemapSettings, st: &mut BasemapS
     if s.enabled {
         let colour = if st.status.starts_with("Zoom") { crate::theme::success() } else { crate::theme::warn() };
         ui.label(egui::RichText::new(&st.status).small().color(colour));
+        if let Some(w) = evaluation_warning(&s.provider) {
+            ui.label(egui::RichText::new(w).small().color(crate::theme::warn()));
+        }
         if let Some(e) = &st.last_error {
             ui.label(egui::RichText::new(format!("Last tile error: {e}")).small().weak());
         }
@@ -471,14 +519,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn each_quick_map_type_names_a_built_in_provider_without_a_key() {
-        for (i, (label, id)) in MAP_TYPES.iter().enumerate() {
-            let p = tiles::provider(id).unwrap_or_else(|| panic!("{label}: no provider {id}"));
-            assert!(!p.needs_key, "{label}");
-            assert_eq!(map_type(id), Some(i));
+    fn every_quick_map_type_has_only_commercial_safe_providers_and_a_safe_default() {
+        for (i, (label, ids)) in MAP_TYPES.iter().enumerate() {
+            for id in ids.iter() {
+                let p = tiles::provider(id).unwrap_or_else(|| panic!("{label}: no provider {id}"));
+                assert!(p.commercial_safe(), "{label}: {id} is not commercial-safe");
+                assert_eq!(map_type(id), Some(i));
+            }
+            for have_key in [false, true] {
+                if let Some(p) = default_provider(i, have_key) {
+                    assert!(p.commercial_safe(), "{label} default {}", p.id);
+                    assert_eq!(p.needs_key, have_key, "{label}: a key selects a keyed provider, none a keyless one");
+                }
+            }
         }
-        assert!(tiles::provider(MAP_TYPES[0].1).unwrap().imagery, "Satellite is a photograph");
-        assert_eq!(map_type("mapbox-satellite"), None);
+        // Street and Terrain work without a key; Satellite has no keyless commercial provider.
+        assert_eq!(default_provider(1, false).unwrap().id, "osm");
+        assert_eq!(default_provider(2, false).unwrap().id, "opentopomap");
+        assert!(default_provider(0, false).is_none());
+        assert_eq!(default_provider(0, true).unwrap().id, "mapbox-satellite");
+        assert!(default_provider(0, true).unwrap().imagery, "Satellite is a photograph");
+        assert_eq!(map_type("esri-imagery"), None);
+        // A new document starts on a commercial-safe, keyless provider.
+        let d = tiles::provider(BasemapSettings::default().provider.as_str()).unwrap();
+        assert!(d.commercial == tiles::CommercialUse::Allowed && !d.needs_key);
+    }
+
+    #[test]
+    fn evaluation_providers_warn_and_capture_is_refused_where_terms_forbid_saving() {
+        assert!(evaluation_warning("esri-imagery").unwrap().contains("evaluation only"));
+        assert!(evaluation_warning("osm").is_none() && evaluation_warning("mapbox-satellite").is_none());
+        let mut s = BasemapSettings::default();
+        for p in tiles::PROVIDERS.iter().filter(|p| !p.capture_allowed) {
+            s.provider = p.id.into();
+            assert!(capture_refusal(&s).unwrap().contains("not saved"), "{}", p.id);
+        }
+        s.provider = CUSTOM.into();
+        assert!(capture_refusal(&s).is_none());
     }
 
     #[test]
@@ -495,7 +572,10 @@ mod tests {
     fn the_source_needs_a_key_where_the_provider_does_and_checks_custom_urls() {
         let mut s = BasemapSettings::default();
         let (url, id, attr, _) = source(&s, "").unwrap();
-        assert!(url.contains("World_Imagery") && id == "esri-imagery" && attr.contains("Esri"));
+        assert!(url.contains("openstreetmap.org") && id == "osm" && attr.contains("OpenStreetMap"));
+        s.provider = "esri-imagery".into();
+        let (url, _, attr, _) = source(&s, "").unwrap();
+        assert!(url.contains("World_Imagery") && attr.contains("Esri"), "evaluation providers still display");
         s.provider = "mapbox-satellite".into();
         assert!(source(&s, "").unwrap_err().contains("key"));
         assert!(source(&s, "tok").is_ok());
@@ -572,7 +652,7 @@ mod tests {
         assert!(st.missing > 0);
         assert!(st.textures.is_empty());
         assert!(st.last_error.as_deref().unwrap_or("").contains("not used in tests"));
-        assert!(st.attribution.contains("Esri"));
+        assert!(st.attribution.contains("OpenStreetMap"));
     }
 
     #[test]
