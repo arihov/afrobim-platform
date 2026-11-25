@@ -32,7 +32,7 @@ on:
         type: boolean
         default: false
       bundle_fonts:
-        description: "Include the third-party Transport fonts in the packages (licence decision pending, see docs)"
+        description: "Include the Transport fonts in the packages (owner decision 2026-11-25: yes)"
         type: boolean
         default: true
   push:

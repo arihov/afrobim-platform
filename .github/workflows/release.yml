@@ -36,9 +36,9 @@ env:
   WORKSPACE: afrobim
   PACKAGING: afrobim/packaging
   RELEASES_REPO: arihov/afrobim-releases
-  # The Transport fonts are third-party and their licence decision is open (roadmap 10.2). They are left
-  # out of public installers unless the repository variable RELEASE_BUNDLE_FONTS is set to true.
-  BUNDLE_FONTS: ${{ vars.RELEASE_BUNDLE_FONTS == 'true' }}
+  # Owner decision 2026-11-25: the Transport fonts ship in public installers (testers are mainly MoWT
+  # staff). Set the repository variable RELEASE_BUNDLE_FONTS to false to leave them out.
+  BUNDLE_FONTS: ${{ vars.RELEASE_BUNDLE_FONTS != 'false' }}
 
 jobs:
   version:

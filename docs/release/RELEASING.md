@@ -71,3 +71,24 @@ Counts are per file and include the checksum file. Add `--paginate` once there a
 - `installers.yml` (tags `afrobim-v*`) still exists and makes a draft release in the private repository. Retire it once this workflow has worked.
 - Linux and Windows are x86_64 only. macOS Intel is cross-compiled on an Apple silicon runner and is untested on Intel hardware.
 - Unsigned installers show SmartScreen and Gatekeeper warnings (see `afrobim/docs/installing.md`).
+
+## Free signing for the testing phase (owner decision 2026-11-25)
+
+No paid certificates until clients pay. What is free, and what testers see:
+
+| Platform | Free route | What the tester does |
+|---|---|---|
+| macOS | Ad hoc signature (`codesign -s -`), already applied by `build-dmg.sh`. Notarisation needs the paid Apple programme, so there is no free way to avoid the Gatekeeper prompt. | Open the app once, then System Settings > Privacy & Security > "Open Anyway". Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/AfroBIM.app` |
+| Windows | Unsigned, or signed with a free self-signed AfroBIM test certificate (`WINDOWS_CERT_PFX_BASE64` + `WINDOWS_CERT_PASSWORD`). A self-signed certificate does not satisfy SmartScreen on its own. | SmartScreen: "More info" > "Run anyway". For MoWT machines, MoWT IT can deploy the AfroBIM test certificate to Trusted Publishers by Group Policy, after which the installer opens without warnings on those machines. |
+
+Free programmes such as SignPath Foundation and Certum open-source certificates are for open-source projects only, so they do not fit AfroBIM's proprietary licence.
+
+To make the self-signed test certificate (Windows, PowerShell):
+
+```powershell
+$c = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=AfroBIM Test" -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddYears(3)
+Export-PfxCertificate -Cert $c -FilePath afrobim-test.pfx -Password (Read-Host -AsSecureString)
+Export-Certificate -Cert $c -FilePath afrobim-test.cer   # give this .cer to MoWT IT
+```
+
+Base64-encode the `.pfx` into the `WINDOWS_CERT_PFX_BASE64` secret. Keep the `.pfx` and password private. When clients pay, move to the paid route in roadmap 10.1.
