@@ -160,6 +160,8 @@ pub struct IntForm {
     ext: [String; 4],
     // returns
     ret_basis: usize,
+    /// Index into DV-1..DV-5 (DV-5 the largest); the default is the largest.
+    design_vehicle: usize,
     rets: Vec<RetRow>,
     // visibility reference
     vis_type: usize,
@@ -196,7 +198,7 @@ impl IntForm {
             p_left: e("3.5"), p_right: e("3.5"), s_left: e("3"), s_right: e("3"), primary_road: Default::default(), secondary_type: 0, widen: vec![],
             taper_basis: 0, setting: 0, speed_idx: 0, grad_case: 0, h_taper: String::new(), h_len: String::new(), h_width: String::new(), add_to: 0,
             ext: [e("60"), e("60"), e("50"), e("50")],
-            ret_basis: 0, rets: vec![RetRow { on: true, kind: 0, r1: String::new(), r2: String::new(), r3: String::new(), o1: String::new(), o3: String::new(), leg_p: String::new(), leg_s: String::new() }; 4],
+            ret_basis: 0, design_vehicle: 4, rets: vec![RetRow { on: true, kind: 0, r1: String::new(), r2: String::new(), r3: String::new(), o1: String::new(), o3: String::new(), leg_p: String::new(), leg_s: String::new() }; 4],
             vis_type: 0, vertical: false, crossfall_from_alignment: false, cf_p: String::new(), cf_s: String::new(), tie_in: e("20"), edge_spacing: e("5"), return_spacing: e("2"),
             corridor_on: false, ground, asm: [None; 5], freq: [e("10"), e("10"), e("10"), e("5")], target_step: e("1"), end_inset: e("0.2"),
             preview: None, message: String::new(),
@@ -494,6 +496,22 @@ impl AfroBimApp {
                     });
                 });
                 ui_kit::section(ui, "Kerb returns, one per quadrant", |ui| {
+                    let (dvs, dv_src) = dg::design_vehicles();
+                    if !dvs.is_empty() {
+                        let labels: Vec<String> = dvs.iter().map(|v| format!("{} ({:.1} m long)", v.symbol, v.overall_length_m)).collect();
+                        f.design_vehicle = f.design_vehicle.min(dvs.len() - 1);
+                        ui_kit::form(ui, "int-dv", |fm| {
+                            fm.row_note("Design vehicle", "Vehicles of the Uganda MoWT Geometric Design Manual, Table 5-1; DV-5 is the largest", |ui| {
+                                ui_kit::combo_owned(ui, "int-dvc", &mut f.design_vehicle, &labels);
+                            });
+                        });
+                        let v = &dvs[f.design_vehicle];
+                        let wb = match v.wheelbase_second_m {
+                            Some(b) => format!("{} and {} m", v.wheelbase_first_m, b),
+                            None => format!("{} m", v.wheelbase_first_m),
+                        };
+                        ui_kit::note(ui, format!("{}: width {} m, height {} m, overall length {} m, front overhang {} m, rear overhang {} m, wheelbase {}, minimum turning radius {} m, minimum inside radius {} m ({}). The kerb radius below is not derived from this vehicle: check it against these radii.", v.symbol, v.width_m, v.height_m, v.overall_length_m, v.front_overhang_m, v.rear_overhang_m, wb, v.min_turning_radius_m, v.min_inside_radius_m, dv_src));
+                    }
                     ui_kit::form(ui, "int-rbasis", |fm| {
                         fm.row_note("Radius basis", "Fills the simple radius of every quadrant from the defaults basis", |ui| {
                             ui_kit::combo(ui, "int-rb", &mut f.ret_basis, &["No basis: typed", "No design vehicle, urban", "No design vehicle, rural", "Design vehicle, urban", "Design vehicle, rural", "Design vehicle, staggered", "Ghost island, no tapers"]);

@@ -110,3 +110,20 @@ fn a_document_saved_before_round_six_still_loads() {
         assert!(reg.categories().any(|(cat, _)| cat == c), "{c} is registered");
     }
 }
+
+#[test]
+fn new_projects_default_to_the_uganda_basis_and_dmrb_stays_selectable() {
+    let doc = afrobim_kernel::Document::default();
+    dg::sync(&doc, true);
+    assert_eq!(dg::basis_id(), "ug-mowt-2010");
+    let ids: Vec<String> = dg::bases().into_iter().map(|b| b.0).collect();
+    assert!(ids.contains(&"dmrb".to_string()));
+    let (v, _) = dg::design_vehicles();
+    assert_eq!(v.len(), 5);
+    assert_eq!(v.last().unwrap().symbol, "DV-5");
+    dg::set_basis("dmrb");
+    assert_eq!(dg::basis_id(), "dmrb");
+    // the vehicles are still offered from the Uganda pack under the DMRB basis
+    assert_eq!(dg::design_vehicles().0.len(), 5);
+    dg::set_basis("ug-mowt-2010");
+}

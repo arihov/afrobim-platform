@@ -290,3 +290,66 @@ fn no_em_dashes_in_the_data_or_the_documents() {
         assert!(!s.contains('\u{2014}'), "{f} contains an em dash");
     }
 }
+
+fn ug() -> Pack {
+    Pack::ug_mowt()
+}
+
+#[test]
+fn ug_pack_loads_and_every_entry_is_sourced() {
+    let p = ug();
+    assert_eq!(p.id(), UG_MOWT_ID);
+    for e in p.all() {
+        assert!(!e.source.trim().is_empty(), "{}: empty source", e.key);
+        assert!(!e.clause.trim().is_empty() && !e.page.trim().is_empty() && !e.condition.trim().is_empty(), "{}", e.key);
+        assert!(p.documents().contains_key(&e.document), "{}", e.key);
+        assert!(p.citation(&e.key).is_some());
+        assert!(!e.source.contains('\u{2014}') && !e.note.contains('\u{2014}'));
+    }
+}
+
+#[test]
+fn ug_design_vehicles_dv1_to_dv5_match_table_5_1() {
+    let p = ug();
+    let v = design_vehicles(&p);
+    assert_eq!(v.len(), 5);
+    assert_eq!(v[0].symbol, "DV-1");
+    assert_eq!(v[4].symbol, "DV-5");
+    assert_eq!((v[4].overall_length_m, v[4].min_turning_radius_m, v[4].min_inside_radius_m), (21.0, 13.7, 2.9));
+    assert_eq!((v[0].overall_length_m, v[0].min_turning_radius_m, v[0].min_inside_radius_m), (5.8, 7.3, 4.2));
+    assert_eq!(v[3].wheelbase_second_m, Some(9.1));
+    assert_eq!(v[4].wheelbase_second_m, Some(12.8));
+    assert_eq!(v[0].wheelbase_second_m, None);
+    // DV-5 is the largest; overall length is the sum of overhangs and wheelbases
+    assert!(v.windows(2).all(|w| w[1].overall_length_m > w[0].overall_length_m));
+    for d in &v {
+        let sum = d.front_overhang_m + d.wheelbase_first_m + d.wheelbase_second_m.unwrap_or(0.0) + d.rear_overhang_m;
+        assert!((sum - d.overall_length_m).abs() < 1e-9, "{}: {sum}", d.symbol);
+    }
+}
+
+#[test]
+fn dmrb_holds_no_design_vehicles_and_standard_defaults_to_uganda() {
+    assert!(design_vehicles(&Pack::dmrb()).is_empty());
+    let mut d = Defaults::standard();
+    assert_eq!(d.basis_id(), Some(UG_MOWT_ID));
+    assert_eq!(d.bases().len(), 2);
+    let ssd = d.get("link.ssd.min", &Conditions::none().design_speed(80.0)).unwrap();
+    assert_eq!(ssd.number(), Some(115.0));
+    d.set_basis("dmrb").unwrap();
+    assert_eq!(d.basis_id(), Some("dmrb"));
+}
+
+#[test]
+fn ug_class_tables_are_read_by_terrain() {
+    let d = Defaults::standard();
+    let c = Conditions::none().label("terrain", "Rolling");
+    assert_eq!(d.get("link.design_speed.ii", &c).unwrap().number(), Some(70.0));
+    assert_eq!(d.get("link.gradient_desirable_max.c", &c).unwrap().number(), Some(7.0));
+}
+
+#[test]
+fn no_em_dashes_in_the_ug_pack() {
+    let s = std::fs::read_to_string(format!("{}/data/ug-mowt-2010.json", env!("CARGO_MANIFEST_DIR"))).unwrap();
+    assert!(!s.contains('\u{2014}'));
+}
