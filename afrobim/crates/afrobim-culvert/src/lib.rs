@@ -21,9 +21,9 @@ use afrobim_drainage::design::mowt::OutletControlInput;
 use serde::{Deserialize, Serialize};
 
 pub use bbs::{
-    min_bend_radius_mm, raw_cutting_length_mm, schedule, shape_defs, unit_mass_kg_per_m, Applies,
-    BarRule, Basis, Bbs, BbsRow, Count, DimExpr, DimRule, ElementCount, ElementKind,
-    ReinforcementTable, Series, ShapeDef, Q,
+    check_member_counts, min_bend_radius_mm, raw_cutting_length_mm, schedule, shape_defs,
+    unit_mass_kg_per_m, Applies, BarRule, Basis, Bbs, BbsRow, Count, DimExpr, DimRule,
+    ElementCount, ElementKind, MemberCounts, ReinforcementTable, ScheduleLine, Series, ShapeDef, Q,
 };
 pub use drawings::{draw_all, CulvertDrawings};
 pub use error::CulvertError;
@@ -55,6 +55,18 @@ pub struct CulvertDesign {
     pub setting_out: Vec<SettingOutPoint>,
     /// Layout checks plus the plan overlap check.
     pub checks: Vec<Check>,
+}
+
+impl CulvertDesign {
+    /// Warnings where an imported or typed schedule's member counts disagree with this design's
+    /// geometry, naming the marks (see [`check_member_counts`]).
+    pub fn check_schedule(
+        &self,
+        input: &CulvertInput,
+        lines: &[ScheduleLine],
+    ) -> Result<Vec<String>, CulvertError> {
+        check_member_counts(input, &self.layout, lines)
+    }
 }
 
 /// Designs a culvert: validates the input, derives the geometry, schedules the reinforcement,

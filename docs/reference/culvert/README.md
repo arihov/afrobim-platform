@@ -40,6 +40,6 @@ Corrected schedule total: 1,498.176 - 396.190 = **1,101.986 kg (about 1.10 t)**,
 
 A smaller point to check: the headwall callout "6Y8-11(a-f)" appears on both sides of the pipe, which suggests 2 per mark per headwall (4 in total), while the schedule has 2. That would add 4.107 kg.
 
-The reference CSV keeps the drawing exactly as issued, so the golden test still totals 1,498.176 kg. The engine should generate 2 aprons.
+The reference CSV keeps the drawing exactly as issued, so the golden test still totals 1,498.176 kg. The engine now generates 2 aprons and both-sides mark 11 (1,106.096 kg; see `afrobim/crates/afrobim-culvert/README.md`, "Member counts").
 
-The engine (`afrobim-culvert`) follows the schedule, not the payable table, and reproduces all 85 rows (see `afrobim/crates/afrobim-culvert/README.md`).
+The engine (`afrobim-culvert`) follows the geometry, not the payable table, and reproduces all 85 rows as issued except the two corrected counts (see `afrobim/crates/afrobim-culvert/README.md`).

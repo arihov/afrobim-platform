@@ -214,7 +214,7 @@ fn documented_difference_end_structure_blinding() {
         22.8,
         0.5,
     );
-    near("blinding at 50 mm", q.end_blinding_m3, 1.14, 0.02);
+    near("blinding at 50 mm", q.end_blinding_m3, 1.14, 0.01);
     assert!(
         (q.end_blinding_m3 - 7.360).abs() / 7.360 > 0.5,
         "if this now matches, update the README"
@@ -223,12 +223,13 @@ fn documented_difference_end_structure_blinding() {
 
 #[test]
 fn documented_difference_steel_in_the_bbs_and_the_payable_table() {
-    // The drawing's payable table lists 1.329 t of steel; its own bar bending schedule totals
-    // 1498.176 kg. The engine follows the schedule, so the two differ by about 169 kg.
+    // The drawing's payable table lists 1.329 t of steel and its issued schedule totals
+    // 1498.176 kg because it counts 4 aprons for a structure that has 2. The engine counts
+    // members from the geometry: 1101.986 kg with 2 aprons, plus 4.107 kg for the mark 11
+    // headwall links on both sides of the pipe = 1106.093 kg.
     let d = reference();
     let kg = d.bbs.total_kg;
-    near("BBS total", kg, 1498.176, 0.001);
-    assert!(1329.0 < kg);
+    near("BBS total", kg, 1106.093, 0.01);
     near(
         "steel lines add up to the BBS",
         d.quantities
@@ -314,35 +315,26 @@ fn bbs_rows_read_from_bs_8666() {
     let d = reference();
     let n = f64::NAN;
     for w in [
-        g("01a", 4, 4, 16, 650.0, 200, &[100.0, 500.0, 100.0], 9.235),
-        g(
-            "01l",
-            4,
-            4,
-            16,
-            2520.0,
-            200,
-            &[100.0, 2370.0, 100.0],
-            35.804,
-        ),
+        g("01a", 4, 2, 8, 650.0, 200, &[100.0, 500.0, 100.0], 4.618),
+        g("01l", 4, 2, 8, 2520.0, 200, &[100.0, 2370.0, 100.0], 17.902),
         g(
             "02",
             18,
-            4,
-            72,
+            2,
+            36,
             2580.0,
             200,
             &[100.0, 2430.0, 100.0],
-            164.955,
+            82.477,
         ),
-        g("03a", 2, 4, 8, 2530.0, 200, &[100.0, 2380.0, 100.0], 17.973),
-        g("03k", 2, 4, 8, 6610.0, 200, &[170.0, 6440.0, 50.0], 46.957),
+        g("03a", 2, 2, 4, 2530.0, 200, &[100.0, 2380.0, 100.0], 8.987),
+        g("03k", 2, 2, 4, 6610.0, 200, &[170.0, 6440.0, 50.0], 23.479),
         g("06", 28, 4, 112, 880.0, 111, &[100.0, 800.0], 87.521),
         g("06Ba", 1, 4, 4, 1540.0, 200, &[710.0, 170.0, 710.0], 5.470),
         g("07", 8, 2, 16, 2000.0, 111, &[100.0, 1920.0], 28.416),
         g("08a", 2, 2, 4, 1980.0, 500, &[768.0, 120.0, 160.0], 7.033),
         g("10", 4, 2, 8, 1670.0, 200, &[800.0, 120.0, 800.0], 11.864),
-        g("11a", 1, 2, 2, 1180.0, 500, &[404.0, 120.0, 105.0], 0.932),
+        g("11a", 2, 2, 4, 1180.0, 500, &[404.0, 120.0, 105.0], 1.864),
         g("12", 2, 2, 4, 710.0, 500, &[168.0, 120.0, 105.0], 1.122),
         g("17", 5, 2, 10, 630.0, 111, &[150.0, 500.0], 2.489),
         g("13", 6, 2, 12, 6930.0, 200, &[150.0, 6673.0, 150.0], 73.846),
@@ -572,36 +564,153 @@ fn reference_csv_cutting_lengths_and_masses_are_exact() {
     near("CSV grand total", total, 1498.176, 0.001);
 }
 
+/// Marks whose counts differ from the issued schedule: the aprons (issued with 4, the structure
+/// has 2) and the mark 11 headwall links (issued with 2, the callout shows both sides, so 4).
+fn is_apron(mark: &str) -> bool {
+    mark.starts_with("01") || mark == "02" || mark.starts_with("03")
+}
+
+fn is_mark_11(mark: &str) -> bool {
+    mark.starts_with("11")
+}
+
 #[test]
-fn the_engine_reproduces_the_reference_schedule() {
+fn the_engine_reproduces_the_issued_schedule_except_the_two_count_errors() {
     let rows = reference_rows();
     let d = reference();
     assert_eq!(d.bbs.rows.len(), rows.len(), "row count");
+    let mut total = 0.0;
     for (e, r) in d.bbs.rows.iter().zip(&rows) {
         assert_eq!(e.mark, r.mark, "mark order");
         assert_eq!(e.diameter_mm, r.dia, "{} bar size", r.mark);
         assert_eq!(e.shape_code, r.code, "{} shape", r.mark);
         assert_eq!(e.dims, r.dims, "{} dimensions", r.mark);
         assert_eq!(e.cutting_length_mm, r.cut, "{} cutting length", r.mark);
-        assert_eq!(e.total_bars, r.total, "{} total bars", r.mark);
+        let want_total = if is_apron(&r.mark) {
+            r.total / 2
+        } else if is_mark_11(&r.mark) {
+            r.total * 2
+        } else {
+            r.total
+        };
+        assert_eq!(e.total_bars, want_total, "{} total bars", r.mark);
+        let want_kg = r.kg * want_total as f64 / r.total as f64;
         assert!(
-            (e.mass_kg - r.kg).abs() < 1e-9,
+            (e.mass_kg - want_kg).abs() < 0.0011,
             "{} mass {} against {}",
             r.mark,
             e.mass_kg,
-            r.kg
+            want_kg
         );
-        // The schedule's two count columns read the other way round from the engine's: the CSV
-        // gives the elements first, then the bars in each. Only add4 (20 bars shared by the two
-        // ends) cannot be split in the same way.
-        if r.mark != "add4" {
-            assert_eq!(
-                (e.bars_per_element, e.elements),
-                (r.elements, r.bars_per_element),
-                "{} bars per element and elements",
-                r.mark
-            );
+        total += e.mass_kg;
+    }
+    near("sum of rows", total, d.bbs.total_kg, 1e-6);
+    near("BBS total", d.bbs.total_kg, 1106.093, 0.01);
+}
+
+#[test]
+fn engine_total_with_two_aprons() {
+    let d = reference();
+    let apron = d.bbs.element_kg(ElementKind::Apron);
+    near("apron steel", apron, 396.190, 0.01);
+    // 1498.176 - 396.190 = 1101.986, plus 4.107 for mark 11.
+    near("total", d.bbs.total_kg, 1106.093, 0.01);
+    near(
+        "total without the mark 11 correction",
+        d.bbs.total_kg - 4.107,
+        1101.986,
+        0.01,
+    );
+}
+
+#[test]
+fn issued_schedule_double_counts_aprons() {
+    // The issued CSV counts 4 aprons; the structure has 2. The difference is exactly the apron half.
+    let rows = reference_rows();
+    let issued_apron: f64 = rows
+        .iter()
+        .filter(|r| is_apron(&r.mark))
+        .map(|r| r.kg)
+        .sum();
+    near("issued apron steel", issued_apron, 792.380, 0.001);
+    let issued_total: f64 = rows.iter().map(|r| r.kg).sum();
+    near("issued total", issued_total, 1498.176, 0.001);
+    let corrected = issued_total - issued_apron / 2.0;
+    near(
+        "half of the apron steel",
+        issued_apron / 2.0,
+        396.190,
+        0.001,
+    );
+    near("corrected total", corrected, 1101.986, 0.001);
+    // The engine's apron steel is exactly that half (within the rounding of the printed rows).
+    let d = reference();
+    near(
+        "engine apron steel = half the issued",
+        d.bbs.element_kg(ElementKind::Apron),
+        issued_apron / 2.0,
+        0.01,
+    );
+    // With the mark 11 correction the engine is 4.107 kg above the corrected issued figure.
+    near("engine total", d.bbs.total_kg, corrected + 4.107, 0.01);
+}
+
+#[test]
+fn members_are_counted_from_the_geometry() {
+    let d = reference();
+    let m = MemberCounts::from_layout(&d.layout);
+    assert_eq!(
+        (m.aprons, m.wing_walls, m.headwalls, m.toe_beams),
+        (2, 4, 2, 2)
+    );
+    for r in &d.bbs.rows {
+        if r.element == ElementKind::Apron {
+            assert_eq!(r.elements, m.aprons, "{} elements", r.mark);
         }
     }
-    near("BBS total", d.bbs.total_kg, 1498.176, 0.001);
+    // Unequal ends are scheduled once per end: one apron each.
+    let mut input = reference_split();
+    input.right_end.apron.length_mm += 300.0;
+    input.right_end.wing.length_mm += 600.0;
+    let d = design(&input).expect("unequal ends");
+    let left: Vec<_> = d.bbs.rows.iter().filter(|r| r.mark == "02").collect();
+    let right: Vec<_> = d.bbs.rows.iter().filter(|r| r.mark == "02R").collect();
+    assert_eq!((left.len(), right.len()), (1, 1));
+    assert_eq!((left[0].elements, right[0].elements), (1, 1));
+}
+
+#[test]
+fn the_check_flags_the_issued_schedule_and_passes_the_engines_own() {
+    let rows = reference_rows();
+    let input = CulvertInput::reference();
+    let d = design(&input).expect("design");
+    let issued: Vec<ScheduleLine> = rows
+        .iter()
+        .map(|r| ScheduleLine {
+            mark: r.mark.clone(),
+            total_bars: r.total,
+        })
+        .collect();
+    let w = d.check_schedule(&input, &issued).expect("check");
+    assert_eq!(w.len(), 2, "{w:?}");
+    let apron = w
+        .iter()
+        .find(|t| t.starts_with("Apron"))
+        .expect("apron warning");
+    for m in ["01a", "01l", "02", "03a", "03k"] {
+        assert!(apron.contains(m), "{m} in {apron}");
+    }
+    assert!(
+        apron.contains("counted as 4 members") && apron.contains("geometry has 2"),
+        "{apron}"
+    );
+    let hw = w
+        .iter()
+        .find(|t| t.starts_with("Headwall"))
+        .expect("headwall warning");
+    assert!(hw.contains("11a") && hw.contains("11f"), "{hw}");
+    assert!(!w.iter().any(|t| t.contains("Wing") || t.contains("Toe")));
+    // The engine's own schedule agrees with its geometry.
+    let own = ScheduleLine::from_bbs(&d.bbs);
+    assert!(d.check_schedule(&input, &own).expect("check").is_empty());
 }

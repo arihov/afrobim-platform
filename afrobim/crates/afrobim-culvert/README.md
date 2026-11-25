@@ -127,7 +127,7 @@ With `b = 0.5 r + d` (24 mm for Y12). There is no allowance or adjustment table:
 length is the formula of its shape code (`shape_defs()`, `raw_cutting_length_mm`), then rounded
 to the nearest 10 mm with halves rounded up (Excel `ROUND`, not banker's rounding). The formulas
 were derived from the full reference schedule (`docs/reference/culvert/`), and all 85 of its
-rows reproduce.
+rows reproduce as issued (see "Member counts" for the two counts that the engine corrects).
 
 | Drawing code | BS 8666 shape | Cutting length |
 |---|---|---|
@@ -142,7 +142,7 @@ rows reproduce.
 | 900 | four-bend crank | A + B + C + D + E - 4 (0.5 r + d) |
 
 Row masses are rounded to three decimals, as the schedule prints them, so the grand total is
-the sum of the printed rows (1498.176 kg for the reference). A dimension that the drawing shows
+the sum of the printed rows (1,106.096 kg for the reference; see "Member counts" below). A dimension that the drawing shows
 as a letter (`C`, `D`) is not a length and is left empty.
 
 Bars whose dimensions the geometry explains are `Basis::Geometry`: the toe bar B (overall width
@@ -159,7 +159,7 @@ an `R` after the mark.
 
 Exact (to the figure printed): headwall 1850 x 2000 (1500 above the apron, 500 below), wings
 3267 at 45 degrees (2310 in elevation), overall width 6753 (6753.1), apron plus toe 2310,
-the whole bar bending schedule (all 85 rows of the reference CSV: mark, shape, dimensions, cutting length, total number and mass, grand total 1498.176 kg, see below), C20 blinding under the pipe 1.530 m3, C20 bedding 6.120 m3, weep holes 0.8 m,
+the 85 rows of the bar bending schedule (mark, shape, dimensions and cutting length; the counts of the aprons and of mark 11 are corrected, see "Member counts"), C20 blinding under the pipe 1.530 m3, C20 bedding 6.120 m3, weep holes 0.8 m,
 the centre invert 1107.470 (from the end inverts and the 8347 / 8653 split), and the setting-out
 points 1 to 6 within 5 mm from point 1 or from point 2 and the axis bearing (the test uses the
 drawing's own split, and separately the computed length).
@@ -179,20 +179,59 @@ Documented differences, not forced:
 * **End-structure blinding 7.360 m3.** At 50 mm that is 147 m2; both end structures cover about
   23 m2 (our blinding is 1.14 m3). Unexplained.
 * **Steel: drawing and schedule disagree.** The drawing's payable items table (page 3) lists
-  1.329 t of steel; its own bar bending schedule totals 1,498.176 kg (169 kg more). The engine
-  follows the schedule. Which figure is right is for the owner to confirm.
+  1.329 t of steel; its issued bar bending schedule totals 1,498.176 kg because it counts 4 aprons
+  for a structure that has 2. The engine counts the members from the geometry and totals
+  1,106.096 kg (see "Member counts"), which is 0.223 t below the payable 1.329 t. The owner should
+  confirm which figure stands.
 * **Section D-D.** The drawing uses a different datum (FRL 1092.720, cover 873), so its levels are
   not reproduced; the widths 200 | 100 | 1200 | 100 | 200 and the layers are. Our blinding is as
   wide as the surround (1800), where the drawing shows 1900.
 * **Embankment slope** 1:1.77 and the OGL (1107.5 to 1107.9) are back-calculated and read by eye.
 
+## Member counts
+
+The engine counts members from the geometry and not from the issued drawing: aprons = the number
+of end structures (2 for inlet and outlet; with unequal ends each end is scheduled alone with 1),
+wing walls = 2 per end, headwalls and toe beams = 1 per end. `MemberCounts::from_layout` gives
+these numbers. The issued schedule counts 4 aprons (marks 01a to 01l, 02 and 03a to 03k), so those
+rows were `PerEnd(2)`; they are now `PerEnd(1)` and the apron steel halves from 792.380 kg to
+396.190 kg. The model always carries both ends, so a culvert with only one end detailed is not
+yet an input; the per-end rule above is what it would use.
+
+**Mark 11 correction adopted.** The headwall callout "6Y8-11(a-f)" is drawn on both sides of the
+pipe, so the engine schedules 2 links per mark per pipe at each headwall, 4 in total for one
+pipe (the issued schedule has 2). This adds 4.107 kg. Why: the callout is the only evidence of the
+count and it reads as both sides; the effect is small, and the schedule remains a draft for the
+engineer to confirm. To use the issued count set mark 11's `per_element` back to `Count::PerCell(1)`.
+
+| Figure | kg |
+|---|---|
+| Issued schedule (85 rows, `reference_csv...` test) | 1,498.176 |
+| Less half the apron steel (792.380 / 2) | 1,101.986 |
+| Plus mark 11 on both sides of the pipe | 1,106.093 |
+| Engine total (sum of rows each rounded to 3 decimals) | 1,106.096 |
+
+The 0.003 kg between the last two lines is the rounding of the halved rows.
+
+**Checking a schedule.** `check_member_counts(input, layout, lines)` (or
+`CulvertDesign::check_schedule`) compares the total bars of each mark of an imported or typed
+schedule (`ScheduleLine { mark, total_bars }`) with what the geometry gives and returns one
+warning per element, naming the marks and the member count they imply, for example "Apron marks
+01a, 01b, ..., 03k carry N bars in the schedule against N/2 from the geometry (counted as 4
+members; the geometry has 2): check the member count". Marks the engine does not schedule are
+left alone, and an empty list means the counts agree.
+
 ## The reference schedule and what the engine generates
 
-`docs/reference/culvert/km39136-1x1200-cpc-bbs.csv` is the full 85-row schedule. For the 1 x 1200
-CPC reference the engine generates all 85 rows, in the same order, with the same marks, shape
-codes, bar sizes, dimensions, cutting lengths, total numbers and masses (`golden.rs`:
-`reference_csv_cutting_lengths_and_masses_are_exact` checks the formulas on the CSV alone;
-`the_engine_reproduces_the_reference_schedule` checks the engine against it). No row is missing.
+`docs/reference/culvert/km39136-1x1200-cpc-bbs.csv` is the full 85-row schedule exactly as
+issued (1,498.176 kg), kept unchanged. For the 1 x 1200 CPC reference the engine generates the
+same 85 rows, in the same order, with the same marks, shape codes, bar sizes, dimensions and
+cutting lengths. The counts and masses are the same except for marks 01a to 01l, 02 and 03a to 03k
+(half the issued number) and 11a to 11f (twice). `golden.rs`:
+`reference_csv_cutting_lengths_and_masses_are_exact` parses the CSV as issued and proves the
+cutting-length rules and the 1,498.176 kg total; `issued_schedule_double_counts_aprons` shows the
+difference to the engine is exactly the apron half (396.190 kg);
+`the_engine_reproduces_the_issued_schedule_except_the_two_count_errors` checks every row.
 Where the engine differs from the CSV, in presentation only:
 
 * **Bars and elements.** The CSV's two count columns read the other way round from the engine's:
@@ -214,7 +253,7 @@ design needs those rows edited. The 03 series scales with the overall width.
 
 ## Checks and tests
 
-`cargo test -p afrobim-culvert` runs the unit tests of the road and the golden and variant tests:
+`cargo test -p afrobim-culvert` runs the unit tests of the road and the golden and variant tests (35 in all):
 the reference, 1, 2 and 3 cells of 900 and 1200 pipes, 1, 2 and 3 cell boxes (2.0 x 1.5 m), a 60
 degree skew, an asymmetric road with a walkway, unequal ends, every length rule, refusals, drawings'
 text, quantity categories, auto-select. Every variant must have no plan overlaps (`plan_overlaps`,

@@ -319,7 +319,7 @@ impl ReinforcementTable {
                     Some(leg_slab.clone()),
                 ]),
                 Count::Fixed(4),
-                ElementCount::PerEnd(2),
+                ElementCount::PerEnd(1),
                 Basis::DrawingFixed,
             )
             .with_series(12, step(c(170.0))),
@@ -346,7 +346,7 @@ impl ReinforcementTable {
                     length: DimExpr::of(0.0, &[(1.0, Q::OverallWidth)]),
                     spacing_mm: 380.0,
                 },
-                ElementCount::PerEnd(2),
+                ElementCount::PerEnd(1),
                 Basis::Geometry,
             ),
             H::row(
@@ -358,7 +358,7 @@ impl ReinforcementTable {
                 200,
                 dims(vec![None, None, None]),
                 Count::Fixed(2),
-                ElementCount::PerEnd(2),
+                ElementCount::PerEnd(1),
                 Basis::DrawingFixed,
             )
             .with_series(11, none6())
@@ -596,7 +596,7 @@ impl ReinforcementTable {
                 None,
                 500,
                 dims(vec![None, Some(hw_wall.clone()), some(105.0)]),
-                Count::PerCell(1),
+                Count::PerCell(2),
                 ElementCount::PerEnd(1),
                 Basis::DrawingFixed,
             )
@@ -1298,4 +1298,121 @@ impl Bbs {
         ));
         out
     }
+}
+
+/// The structural members of the culvert counted from the geometry: one set per end structure.
+/// This is what a schedule's member counts are checked against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemberCounts {
+    /// End structures (inlet and outlet): 2 for a culvert detailed at both ends.
+    pub end_structures: u32,
+    /// One apron for each end structure.
+    pub aprons: u32,
+    /// Two wing walls for each end structure.
+    pub wing_walls: u32,
+    /// One headwall for each end structure.
+    pub headwalls: u32,
+    /// One toe beam for each end structure.
+    pub toe_beams: u32,
+}
+
+impl MemberCounts {
+    /// Counts from the layout: the left and right end structures.
+    pub fn from_layout(_layout: &Layout) -> MemberCounts {
+        // The layout always carries both ends (inlet and outlet).
+        let n = 2;
+        MemberCounts {
+            end_structures: n,
+            aprons: n,
+            wing_walls: 2 * n,
+            headwalls: n,
+            toe_beams: n,
+        }
+    }
+
+    /// The count of members of one element kind (a box barrel is one member).
+    pub fn of(&self, e: ElementKind) -> u32 {
+        match e {
+            ElementKind::Apron => self.aprons,
+            ElementKind::WingWall => self.wing_walls,
+            ElementKind::Headwall => self.headwalls,
+            ElementKind::ToeBeam => self.toe_beams,
+            ElementKind::BoxBarrel => 1,
+        }
+    }
+}
+
+/// A line of an imported or typed schedule: the mark and the total number of bars it carries.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScheduleLine {
+    pub mark: String,
+    pub total_bars: u32,
+}
+
+impl ScheduleLine {
+    /// The lines of a schedule the engine made.
+    pub fn from_bbs(bbs: &Bbs) -> Vec<ScheduleLine> {
+        bbs.rows
+            .iter()
+            .map(|r| ScheduleLine {
+                mark: r.mark.clone(),
+                total_bars: r.total_bars,
+            })
+            .collect()
+    }
+}
+
+/// Compares the bar counts of an imported or typed schedule with the members the geometry gives.
+/// Each mark that the engine also schedules is compared by its total number of bars; marks the
+/// engine does not know are left alone. Returns one warning per element kind, naming the marks
+/// whose counts disagree, for example when the aprons were counted twice. An empty list means
+/// the counts agree with the geometry.
+pub fn check_member_counts(
+    input: &CulvertInput,
+    layout: &Layout,
+    lines: &[ScheduleLine],
+) -> Result<Vec<String>, CulvertError> {
+    let engine = schedule(input, layout)?;
+    let members = MemberCounts::from_layout(layout);
+    let mut warnings = Vec::new();
+    for kind in [
+        ElementKind::Apron,
+        ElementKind::WingWall,
+        ElementKind::Headwall,
+        ElementKind::ToeBeam,
+        ElementKind::BoxBarrel,
+    ] {
+        let mut marks = Vec::new();
+        let (mut got, mut want) = (0u32, 0u32);
+        let mut ratios = Vec::new();
+        for row in engine.rows.iter().filter(|r| r.element == kind) {
+            if let Some(l) = lines.iter().find(|l| l.mark == row.mark) {
+                if l.total_bars != row.total_bars {
+                    marks.push(row.mark.clone());
+                    got += l.total_bars;
+                    want += row.total_bars;
+                    ratios.push(l.total_bars as f64 / row.total_bars as f64);
+                }
+            }
+        }
+        if marks.is_empty() {
+            continue;
+        }
+        let uniform = ratios.windows(2).all(|w| (w[0] - w[1]).abs() < 1e-9);
+        let counted = if uniform && ratios[0] > 0.0 {
+            format!(
+                " (counted as {} members; the geometry has {})",
+                (ratios[0] * members.of(kind) as f64).round(),
+                members.of(kind)
+            )
+        } else {
+            format!(" (the geometry has {})", members.of(kind))
+        };
+        warnings.push(format!(
+            "{} marks {} carry {got} bars in the schedule against {want} from the geometry{counted}: check the member count",
+            kind.label(),
+            marks.join(", ")
+        ));
+    }
+    Ok(warnings)
 }
