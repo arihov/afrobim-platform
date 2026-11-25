@@ -1,0 +1,17 @@
+[package]
+name = "afrobim-culvert"
+description = "AfroBIM parametric culvert designer: road section, barrel length, end structures, drawings, quantities and a BS 8666 bar bending schedule"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+afrobim-draw = { path = "../afrobim-draw" }
+afrobim-drainage = { path = "../afrobim-drainage" }
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
