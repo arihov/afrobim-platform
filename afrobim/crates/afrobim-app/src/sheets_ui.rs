@@ -1826,6 +1826,8 @@ fn field_name(k: &FieldKey) -> String {
         FieldKey::Project => "Project".into(),
         FieldKey::Client => "Client".into(),
         FieldKey::ContractNumber => "Contract number".into(),
+        FieldKey::Consultant => "Consultant".into(),
+        FieldKey::Contractor => "Contractor".into(),
         FieldKey::DrawingTitle => "Drawing title".into(),
         FieldKey::DrawingNumber => "Drawing number".into(),
         FieldKey::Revision => "Revision".into(),
@@ -1839,10 +1841,12 @@ fn field_name(k: &FieldKey) -> String {
     }
 }
 
-const STANDARD_FIELDS: [FieldKey; 12] = [
+const STANDARD_FIELDS: [FieldKey; 14] = [
     FieldKey::Project,
     FieldKey::Client,
     FieldKey::ContractNumber,
+    FieldKey::Consultant,
+    FieldKey::Contractor,
     FieldKey::DrawingTitle,
     FieldKey::DrawingNumber,
     FieldKey::Revision,

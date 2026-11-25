@@ -53,6 +53,12 @@ pub fn dxf_layer_name(name: &str) -> String {
     }
 }
 
+/// How many rasters the sheets hold that a DXF cannot carry (map tiles, images). The writer
+/// leaves them out; the caller says so.
+pub fn skipped_rasters(sheets: &[ComposedSheet]) -> usize {
+    sheets.iter().map(ComposedSheet::image_count).sum()
+}
+
 /// One sheet as DXF text.
 pub fn write_dxf(sheet: &ComposedSheet, pens: &PenTable) -> String {
     write_dxf_set(std::slice::from_ref(sheet), pens, 0.0)
@@ -78,6 +84,8 @@ pub fn write_dxf_set(sheets: &[ComposedSheet], pens: &PenTable, gap_mm: f64) -> 
                         doc.add_polyline(&dxf_layer_name(layer), aci_for_rgb(*rgb), &ring.iter().map(at).collect::<Vec<_>>(), true, 0.0);
                     }
                 }
+                // DXF R12 has no raster: images are left out (see `skipped_rasters`).
+                Item::Image(_) => {}
                 Item::Text(t) => doc.add_text(&DxfText {
                     text: t.text.clone(),
                     at: at(&t.at),

@@ -24,6 +24,10 @@ pub enum FieldKey {
     Project,
     Client,
     ContractNumber,
+    /// The consulting engineer.
+    Consultant,
+    /// The contractor.
+    Contractor,
     DrawingTitle,
     DrawingNumber,
     Revision,
@@ -102,6 +106,9 @@ pub enum Block {
     RevisionTable { rows: usize, header_height_mm: f64, row_height_mm: f64, columns: Vec<RevColumn> },
     /// A rectangle for a logo, with the project's `logo_text` centred in it.
     Logo { height_mm: f64 },
+    /// A framed space for the north point, drawn pointing north on the sheet (or as far round as
+    /// the first viewport's twist turns it).
+    NorthPoint { height_mm: f64 },
     Spacer { height_mm: f64 },
 }
 
@@ -110,7 +117,7 @@ impl Block {
         match self {
             Block::Rows(rows) => rows.iter().map(|r| r.height_mm).sum(),
             Block::RevisionTable { rows, header_height_mm, row_height_mm, .. } => header_height_mm + *rows as f64 * row_height_mm,
-            Block::Logo { height_mm } | Block::Spacer { height_mm } => *height_mm,
+            Block::Logo { height_mm } | Block::NorthPoint { height_mm } | Block::Spacer { height_mm } => *height_mm,
         }
     }
 }
@@ -206,6 +213,68 @@ impl Default for TitleBlockLayout {
     }
 }
 
+/// What Ministry of Works and Transport (Uganda) is called in its title block.
+pub const MOWT_NAME: &str = "Ministry of Works and Transport";
+
+impl TitleBlockLayout {
+    /// The title block of Ministry of Works and Transport (Uganda) drawings, 80 mm wide down the
+    /// right of the frame: revision table, north point space, project, contract number, the
+    /// client (fixed: MoWT), consultant, contractor, drawing title, drawing number with
+    /// "sheet n of m", scale and date, and drawn / checked / approved. Sizes are working
+    /// defaults, adjustable like every other `TitleBlockLayout`; the names and the order follow
+    /// what a MoWT drawing carries, not a copy of any one form.
+    pub fn mowt() -> Self {
+        let w = 80.0;
+        let third = w / 3.0;
+        let fixed_client = Cell { width_mm: w, content: CellContent::Text { label: "Client".into(), text: MOWT_NAME.into() }, value_height_mm: None, bold: true };
+        TitleBlockLayout {
+            placement: TitlePlacement::RightColumn,
+            width_mm: w,
+            blocks: vec![
+                Block::RevisionTable {
+                    rows: 5,
+                    header_height_mm: 5.0,
+                    row_height_mm: 5.0,
+                    columns: vec![
+                        RevColumn { header: "Rev".into(), width_mm: 9.0, field: RevField::Rev },
+                        RevColumn { header: "Description".into(), width_mm: 37.0, field: RevField::Description },
+                        RevColumn { header: "Date".into(), width_mm: 17.0, field: RevField::Date },
+                        RevColumn { header: "By".into(), width_mm: 8.5, field: RevField::By },
+                        RevColumn { header: "Chk".into(), width_mm: 8.5, field: RevField::Checked },
+                    ],
+                },
+                Block::NorthPoint { height_mm: 30.0 },
+                Block::Rows(vec![
+                    Row { height_mm: 16.0, cells: vec![Cell::field(w, FieldKey::Project, "Project")] },
+                    Row { height_mm: 10.0, cells: vec![Cell::field(w, FieldKey::ContractNumber, "Contract no.")] },
+                    Row { height_mm: 10.0, cells: vec![fixed_client] },
+                    Row { height_mm: 12.0, cells: vec![Cell::field(w, FieldKey::Consultant, "Consultant")] },
+                    Row { height_mm: 12.0, cells: vec![Cell::field(w, FieldKey::Contractor, "Contractor")] },
+                    Row { height_mm: 22.0, cells: vec![Cell::field(w, FieldKey::DrawingTitle, "Drawing title").with_height(3.5).bold()] },
+                    Row { height_mm: 10.0, cells: vec![Cell::field(w * 0.6, FieldKey::DrawingNumber, "Drawing no.").bold(), Cell::field(w * 0.4, FieldKey::SheetOf, "Sheet no. of total")] },
+                    Row { height_mm: 10.0, cells: vec![Cell::field(w * 0.5, FieldKey::Scale, "Scale"), Cell::field(w * 0.5, FieldKey::Date, "Date")] },
+                    Row {
+                        height_mm: 10.0,
+                        cells: vec![
+                            Cell::field(third, FieldKey::DrawnBy, "Drawn"),
+                            Cell::field(third, FieldKey::CheckedBy, "Checked"),
+                            Cell::field(third, FieldKey::ApprovedBy, "Approved"),
+                        ],
+                    },
+                ]),
+            ],
+        }
+    }
+
+    /// The layout of a style (`afrobim_kernel::TitleStyle`).
+    pub fn for_style(style: afrobim_kernel::TitleStyle) -> Self {
+        match style {
+            afrobim_kernel::TitleStyle::Afrobim => TitleBlockLayout::default(),
+            afrobim_kernel::TitleStyle::Mowt => TitleBlockLayout::mowt(),
+        }
+    }
+}
+
 /// Values a sheet sets for itself: what the project information does not say, or says otherwise.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct SheetFields {
@@ -218,6 +287,9 @@ pub struct SheetFields {
     /// Overrides the printed scale text (for example "AS SHOWN" or "NTS").
     pub scale_text: Option<String>,
     pub user_fields: Vec<UserField>,
+    /// The direction north points on the sheet, degrees anticlockwise from +X, for the north
+    /// point block. `None` is straight up the sheet (90).
+    pub north_deg: Option<f64>,
 }
 
 /// Everything a title block needs to resolve its fields.
@@ -239,6 +311,8 @@ impl TitleValues<'_> {
             FieldKey::Project => self.info.project.clone(),
             FieldKey::Client => self.info.client.clone(),
             FieldKey::ContractNumber => self.info.contract_number.clone(),
+            FieldKey::Consultant => self.info.consultant.clone(),
+            FieldKey::Contractor => self.info.contractor.clone(),
             FieldKey::DrawingTitle => self.title.to_string(),
             FieldKey::DrawingNumber => self.number.to_string(),
             FieldKey::Revision => pick(&self.fields.revision, &self.info.current_revision()),
@@ -312,6 +386,11 @@ pub fn draw_title_block(sheet: &mut ComposedSheet, layout: &TitleBlockLayout, re
                 sheet.rect(layers::TITLE_BLOCK, &area, pen.weight_mm, pen.rgb);
                 let c = area.centre();
                 sheet.text(mk_text(layers::TEXT, Pt2::new(c.x, c.y - styles.text.normal / 2.0), styles.text.normal, values.info.logo_text.clone(), Align::Centre, 0.0, false, pen.rgb));
+            }
+            Block::NorthPoint { .. } => {
+                sheet.rect(layers::TITLE_BLOCK, &area, pen.weight_mm, pen.rgb);
+                let size = (area.height() * 0.5).min(area.width() * 0.5).max(4.0);
+                north_arrow(sheet, area.centre(), size, values.fields.north_deg.unwrap_or(90.0), styles);
             }
             Block::Spacer { .. } => {}
         }
@@ -532,5 +611,49 @@ mod tests {
         let top = sheet.strokes().find_map(|i| if let crate::item::Item::Stroke { points, .. } = i { Some(points[0]) } else { None }).unwrap();
         assert!(top.distance_to(Pt2::new(50.0, 55.0)) < 1e-9);
         assert!(sheet.texts().any(|t| t.text == "N"));
+    }
+
+    #[test]
+    fn the_mowt_layout_adds_up_has_the_required_fields_and_no_em_dash() {
+        let l = TitleBlockLayout::mowt();
+        assert_eq!(l.width_mm, 80.0);
+        // Revision table 30, north point 30, rows 16 + 10 + 10 + 12 + 12 + 22 + 10 + 10 + 10 = 112.
+        assert_eq!(l.height_mm(), 172.0);
+        for b in &l.blocks {
+            match b {
+                Block::Rows(rows) => {
+                    for r in rows {
+                        assert!((r.cells.iter().map(|c| c.width_mm).sum::<f64>() - l.width_mm).abs() < 1e-9);
+                    }
+                }
+                Block::RevisionTable { columns, .. } => assert!((columns.iter().map(|c| c.width_mm).sum::<f64>() - l.width_mm).abs() < 1e-9),
+                _ => {}
+            }
+        }
+        let json = serde_json::to_string(&l).unwrap();
+        assert!(!json.contains('\u{2014}') && !json.contains('\u{2013}'));
+        for key in [FieldKey::Project, FieldKey::ContractNumber, FieldKey::Consultant, FieldKey::Contractor, FieldKey::DrawingTitle, FieldKey::DrawingNumber, FieldKey::SheetOf, FieldKey::Scale, FieldKey::Date, FieldKey::DrawnBy, FieldKey::CheckedBy, FieldKey::ApprovedBy] {
+            assert!(
+                l.blocks.iter().any(|b| matches!(b, Block::Rows(rows) if rows.iter().any(|r| r.cells.iter().any(|c| matches!(&c.content, CellContent::Field { key: k, .. } if *k == key))))),
+                "{key:?} is in the MoWT block"
+            );
+        }
+        assert!(l.blocks.iter().any(|b| matches!(b, Block::RevisionTable { .. })) && l.blocks.iter().any(|b| matches!(b, Block::NorthPoint { .. })));
+        assert!(json.contains(MOWT_NAME), "the client is MoWT");
+        let back: TitleBlockLayout = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, l);
+        assert_eq!(TitleBlockLayout::for_style(afrobim_kernel::TitleStyle::Mowt), l);
+        assert_eq!(TitleBlockLayout::for_style(afrobim_kernel::TitleStyle::Afrobim), TitleBlockLayout::default());
+    }
+
+    #[test]
+    fn consultant_and_contractor_resolve_and_old_project_information_still_reads() {
+        let info = ProjectInfo { consultant: "C1".into(), contractor: "C2".into(), ..ProjectInfo::default() };
+        let f = SheetFields::default();
+        let v = values(&info, &f);
+        assert_eq!((v.get(&FieldKey::Consultant).as_str(), v.get(&FieldKey::Contractor).as_str()), ("C1", "C2"));
+        let old = serde_json::json!({"project":"P","client":"C","contract_number":"1","drawn_by":"","checked_by":"","approved_by":"","date":"","revisions":[],"user_fields":[],"logo_text":""});
+        let back = ProjectInfo::from_value(&old).unwrap();
+        assert_eq!((back.consultant.as_str(), back.contractor.as_str()), ("", ""));
     }
 }

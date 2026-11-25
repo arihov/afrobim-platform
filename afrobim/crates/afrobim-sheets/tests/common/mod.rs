@@ -37,6 +37,7 @@ pub fn project() -> ProjectInfo {
         ],
         user_fields: vec![UserField { label: "Phase".into(), value: "Detailed design".into() }],
         logo_text: "LOGO".into(),
+        ..ProjectInfo::default()
     }
 }
 

@@ -640,6 +640,7 @@ pub fn demo_project_info() -> ProjectInfo {
         revisions: vec![Revision { rev: "D0".into(), date: "DEMO".into(), description: "DEMO revision, not real".into(), by: "D".into(), checked: "D".into() }],
         user_fields: vec![UserField { label: "Status".into(), value: "DEMO, not for construction".into() }],
         logo_text: "DEMO".into(),
+        ..ProjectInfo::default()
     }
 }
 

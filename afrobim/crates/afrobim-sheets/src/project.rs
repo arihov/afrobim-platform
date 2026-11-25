@@ -36,6 +36,12 @@ pub struct ProjectInfo {
     pub project: String,
     pub client: String,
     pub contract_number: String,
+    /// The consulting engineer (printed by the MoWT title block).
+    #[serde(default)]
+    pub consultant: String,
+    /// The contractor (printed by the MoWT title block).
+    #[serde(default)]
+    pub contractor: String,
     pub drawn_by: String,
     pub checked_by: String,
     pub approved_by: String,

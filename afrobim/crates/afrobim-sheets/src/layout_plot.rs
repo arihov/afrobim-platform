@@ -11,7 +11,7 @@
 //! of a viewport is plotted when it asks for one.
 
 use afrobim_draw::Pt2;
-use afrobim_kernel::layout::{point_in_polygon, Layout, Viewport};
+use afrobim_kernel::layout::{point_in_polygon, Layout, TitleStyle, Viewport};
 use afrobim_kernel::Element;
 
 use crate::draw::draw_drawing;
@@ -46,7 +46,7 @@ pub fn layout_from_template(name: &str, size: PaperSize, orientation: Orientatio
     let m = page.margins;
     l.margins = [m.left, m.right, m.top, m.bottom];
     if title_block {
-        l.title_block_mm = TitleBlockLayout::default().width_mm;
+        l.title_block_mm = title_block_width(l.title_style);
     }
     l
 }
@@ -68,7 +68,30 @@ pub fn paper_of(layout: &Layout) -> Option<(PaperSize, Orientation)> {
 
 /// Extra content drawn into a viewport, in paper millimetres, after the elements: the app adds
 /// what the sheets crate cannot know (annotation). It must draw within the given rectangle.
-pub type Extras<'a> = &'a mut dyn FnMut(&Viewport, &Rect, &mut ComposedSheet);
+/// What the callback is asked to add. `Under` comes before the module drawings (rasters, DXF
+/// underlays, GIS overlays and civil objects sit behind the model drawing, as on the screen);
+/// `Over` comes after them (annotation).
+pub type Extras<'a> = &'a mut dyn FnMut(Stage, &Viewport, &Rect, &mut ComposedSheet);
+
+/// Where in the stacking order of a viewport the callback draws.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stage {
+    Under,
+    Over,
+}
+
+/// The title block column width of a style, mm.
+pub fn title_block_width(style: TitleStyle) -> f64 {
+    TitleBlockLayout::for_style(style).width_mm
+}
+
+/// Chooses the title block of a layout. A layout with a title block keeps one, at the new width.
+pub fn set_title_style(layout: &mut Layout, style: TitleStyle) {
+    layout.title_style = style;
+    if layout.title_block_mm > 0.0 {
+        layout.title_block_mm = title_block_width(style);
+    }
+}
 
 /// Composes one layout. `position` is its 1-based place among `total` layouts being plotted.
 pub fn compose_layout(model: &Model, styles: &Styles, info: &ProjectInfo, layout: &Layout, position: usize, total: usize, extras: Extras) -> ComposedSheet {
@@ -90,16 +113,21 @@ pub fn compose_layout(model: &Model, styles: &Styles, info: &ProjectInfo, layout
 
     // Title block, over the viewports so nothing hides it.
     if layout.title_block_mm > 0.0 {
-        let tb = TitleBlockLayout::default();
+        let tb = TitleBlockLayout::for_style(layout.title_style);
         let x = frame.x1 - tb.width_mm.min(frame.width());
         out.line(layers::FRAME, Pt2::new(x, frame.y0), Pt2::new(x, frame.y1), frame_pen.weight_mm, frame_pen.rgb);
-        let scale_text = match layout.viewports.iter().find(|v| v.on) {
-            Some(first) if layout.viewports.iter().filter(|v| v.on).all(|v| v.scale_den == first.scale_den) => viewport_scale(first).label(),
+        let shown = || layout.viewports.iter().filter(|v| v.on);
+        let scale_text = match shown().next() {
+            Some(first) if shown().all(|v| v.scale_den == first.scale_den) => viewport_scale(first).label(),
             Some(_) => "AS SHOWN".to_string(),
             None => String::new(),
         };
-        let fields = SheetFields::default();
-        let values = TitleValues { info, fields: &fields, number: &layout.name, title: &layout.name, scale_text: &scale_text, sheet: (position, total) };
+        // North follows the twist of the first viewport: up the sheet for an untwisted one.
+        let north = 90.0 + shown().next().map(|v| v.twist_deg).unwrap_or(0.0);
+        let fields = SheetFields { revision: Some(layout.revision.trim().to_string()).filter(|r| !r.is_empty()), north_deg: Some(north), ..SheetFields::default() };
+        let number = if layout.sheet_no.trim().is_empty() { layout.name.as_str() } else { layout.sheet_no.trim() };
+        let title = if layout.drawing_title.trim().is_empty() { layout.name.as_str() } else { layout.drawing_title.trim() };
+        let values = TitleValues { info, fields: &fields, number, title, scale_text: &scale_text, sheet: (position, total) };
         draw_title_block(&mut out, &tb, &tb.rect_in(&frame), &values, styles);
     }
     out
@@ -114,6 +142,7 @@ fn compose_viewport(out: &mut ComposedSheet, model: &Model, styles: &Styles, v: 
     let k = paper_per_model(v);
     let pc = v.paper_centre();
     let mut tmp = ComposedSheet::new(&out.number, &out.title, out.width_mm, out.height_mm);
+    extras(Stage::Under, v, &rect, &mut tmp);
     let doc = model.doc;
     for e in doc.elements() {
         if !element_shows_in(doc, e, v) {
@@ -126,19 +155,24 @@ fn compose_viewport(out: &mut ComposedSheet, model: &Model, styles: &Styles, v: 
             Ok(g) => {
                 // Local mm -> model offset from the view centre (taken first, so a far-away
                 // model keeps its precision) -> paper mm.
-                let m = Aff::translate(e.origin.x - v.centre.x, e.origin.y - v.centre.y).then(&Aff::scale_rotate(k, 0.0)).then(&Aff::translate(pc.x, pc.y));
+                let m = Aff::translate(e.origin.x - v.centre.x, e.origin.y - v.centre.y).then(&Aff::scale_rotate(k, v.twist_deg)).then(&Aff::translate(pc.x, pc.y));
                 draw_drawing(&mut tmp, styles, &g.drawing, &m, &rect, &e.layer);
             }
             Err(err) => out.warn(format!("Element '{}' is not drawn: {err}", e.name)),
         }
     }
-    extras(v, &rect, &mut tmp);
+    extras(Stage::Over, v, &rect, &mut tmp);
     for w in std::mem::take(&mut tmp.warnings) {
         out.warn(w);
     }
     match &v.clip {
         Some(poly) if poly.len() >= 3 => merge_clipped(out, tmp, poly),
         _ => out.items.extend(tmp.items),
+    }
+
+    if v.plot_border {
+        let pen = styles.pens.pen(layers::VIEWPORT);
+        out.stroke(layers::VIEWPORT, v.outline(), true, pen.weight_mm, pen.rgb);
     }
 
     if v.show_label {
@@ -192,6 +226,8 @@ fn merge_clipped(out: &mut ComposedSheet, tmp: ComposedSheet, poly: &[Pt2]) {
                     out.text(t);
                 }
             }
+            // A raster is cut to the boundary when it is made (see `PaperRaster::mask_outside`).
+            Item::Image(img) => out.image(img),
         }
     }
     if approximate {
@@ -338,7 +374,7 @@ mod tests {
 
     fn compose(doc: &Document, reg: &ModuleRegistry, l: &Layout) -> ComposedSheet {
         let m = Model { doc, registry: reg };
-        compose_layout(&m, &Styles::default(), &ProjectInfo::default(), l, 1, 1, &mut |_, _, _| {})
+        compose_layout(&m, &Styles::default(), &ProjectInfo::default(), l, 1, 1, &mut |_, _, _, _| {})
     }
 
     #[test]
@@ -430,7 +466,7 @@ mod tests {
         let m = Model { doc: &doc, registry: &reg };
         let a = layout_from_template("A", PaperSize::A3, Orientation::Landscape, true);
         let b = layout_from_template("B", PaperSize::A4, Orientation::Portrait, true);
-        let sheets = compose_layouts(&m, &Styles::default(), &ProjectInfo::default(), &[&a, &b], &mut |_, _, _| {});
+        let sheets = compose_layouts(&m, &Styles::default(), &ProjectInfo::default(), &[&a, &b], &mut |_, _, _, _| {});
         let text = String::from_utf8_lossy(&crate::pdf::write_pdf(&sheets, "all")).into_owned();
         assert!(text.contains("/Count 2") && text.contains(&format!("/MediaBox [0 0 {} {}]", fmt_pt(210.0), fmt_pt(297.0))));
         // And a DXF of a layout is written in paper millimetres.
@@ -467,5 +503,169 @@ mod tests {
         assert_eq!((p.width_mm, p.height_mm), (210.0, 297.0));
         set_paper(&mut p, PaperSize::A2, Orientation::Landscape);
         assert_eq!((p.width_mm, p.height_mm, p.size.as_str()), (594.0, 420.0, "A2"));
+    }
+
+    fn texts_of(sheet: &ComposedSheet) -> Vec<String> {
+        sheet.texts().map(|t| t.text.clone()).collect()
+    }
+
+    #[test]
+    fn a_twisted_viewport_turns_the_model_on_the_paper() {
+        let (doc, reg) = model_doc();
+        for deg in [0.0, 30.0, 90.0] {
+            let mut l = layout_from_template("P1", PaperSize::A3, Orientation::Landscape, false);
+            let id = l.add_viewport(Pt::new(50.0, 50.0), Pt::new(250.0, 150.0), Pt::new(1_025_000.0, 2_000_000.0), 500.0).unwrap();
+            assert!(l.viewport_mut(id).unwrap().set_twist(deg));
+            let sheet = compose(&doc, &reg, &l);
+            let pts = sheet.items.iter().find_map(|i| match i {
+                Item::Stroke { layer, points, .. } if layer == "Roads" => Some(points.clone()),
+                _ => None,
+            });
+            let v = l.viewport(id).unwrap();
+            // The plot puts the line's ends where the screen transform (`Viewport::to_paper`) does.
+            let pts = pts.unwrap_or_else(|| panic!("{deg}: the line is on the sheet"));
+            let (a, b) = (v.to_paper(Pt::new(1_000_000.0, 2_000_000.0)), v.to_paper(Pt::new(1_050_000.0, 2_000_000.0)));
+            let clipped_len = ((pts[1].x - pts[0].x).powi(2) + (pts[1].y - pts[0].y).powi(2)).sqrt();
+            if deg == 90.0 {
+                // Turned upright, the 100 mm line is cut by the 100 mm tall boundary to what shows.
+                assert!(clipped_len <= 100.0 + 1e-9);
+                assert!((pts[0].x - 150.0).abs() < 1e-6 && (pts[1].x - 150.0).abs() < 1e-6, "{pts:?}");
+            } else {
+                assert!((clipped_len - 100.0).abs() < 1e-6 || deg == 30.0, "{deg}: {clipped_len}");
+                let (e0, e1) = (a, b);
+                let ok = |p: Pt2, q: Pt| (p.x - q.x).abs() < 1e-6 && (p.y - q.y).abs() < 1e-6;
+                assert!((ok(pts[0], e0) && ok(pts[1], e1)) || deg == 30.0, "{deg}: {pts:?} vs {e0:?} {e1:?}");
+            }
+            if deg == 30.0 {
+                // Every plotted point lies on the line the transform gives.
+                for p in &pts {
+                    let m = v.to_model(Pt::new(p.x, p.y));
+                    assert!((m.y - 2_000_000.0).abs() < 1e-3, "{m:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_viewport_border_is_plotted_only_when_asked() {
+        let (doc, reg) = model_doc();
+        let mut l = layout_from_template("P1", PaperSize::A3, Orientation::Landscape, false);
+        let id = l.add_viewport(Pt::new(50.0, 50.0), Pt::new(250.0, 150.0), Pt::new(1_025_000.0, 2_000_000.0), 500.0).unwrap();
+        let border = |s: &ComposedSheet| s.items.iter().filter(|i| i.layer() == layers::VIEWPORT).count();
+        assert_eq!(border(&compose(&doc, &reg, &l)), 0, "off by default");
+        l.viewport_mut(id).unwrap().plot_border = true;
+        let sheet = compose(&doc, &reg, &l);
+        assert_eq!(border(&sheet), 1);
+        let Item::Stroke { points, closed, .. } = sheet.items.iter().find(|i| i.layer() == layers::VIEWPORT).unwrap() else { panic!("a stroke") };
+        assert!(*closed && points.len() == 4);
+        let b = afrobim_kernel::layout::bbox_of(points);
+        assert_eq!(b, [50.0, 50.0, 250.0, 150.0]);
+        // A polygon viewport has a polygon border.
+        l.viewport_mut(id).unwrap().set_clip(vec![Pt::new(50.0, 50.0), Pt::new(250.0, 50.0), Pt::new(150.0, 150.0)]);
+        let sheet = compose(&doc, &reg, &l);
+        let Item::Stroke { points, .. } = sheet.items.iter().find(|i| i.layer() == layers::VIEWPORT).unwrap() else { panic!("a stroke") };
+        assert_eq!(points.len(), 3);
+    }
+
+    #[test]
+    fn sheet_number_revision_and_title_come_from_the_layout() {
+        let (doc, reg) = model_doc();
+        let mut l = layout_from_template("Plan 1", PaperSize::A3, Orientation::Landscape, true);
+        let t = texts_of(&compose(&doc, &reg, &l));
+        assert!(t.iter().filter(|x| x.as_str() == "Plan 1").count() >= 2, "the layout name is both number and title by default: {t:?}");
+        l.sheet_no = "R-03".into();
+        l.drawing_title = "Plan and profile km 0+000 to 1+000".into();
+        l.revision = "C".into();
+        let t = texts_of(&compose(&doc, &reg, &l));
+        assert!(t.iter().any(|x| x == "R-03"), "{t:?}");
+        assert!(t.iter().any(|x| x.contains("Plan and profile") || x == "km 0+000 to 1+000"), "{t:?}");
+        assert!(t.iter().any(|x| x == "C"), "the revision shows: {t:?}");
+        assert!(!t.iter().any(|x| x == "Plan 1"), "the layout name no longer fills the fields: {t:?}");
+    }
+
+    #[test]
+    fn the_mowt_title_block_prints_its_fields_and_the_choice_is_per_layout() {
+        let (doc, reg) = model_doc();
+        let m = Model { doc: &doc, registry: &reg };
+        let info = ProjectInfo { project: "Kampala Road Upgrade".into(), contract_number: "MOWT/WRKS/2026/001".into(), consultant: "Example Consultants".into(), contractor: "Example Contractors".into(), date: "2026-11-25".into(), ..ProjectInfo::default() };
+        let mut l = layout_from_template("A", PaperSize::A3, Orientation::Landscape, true);
+        l.add_viewport(Pt::new(30.0, 30.0), Pt::new(250.0, 150.0), Pt::new(1_025_000.0, 2_000_000.0), 500.0).unwrap();
+        let mut other = l.clone();
+        set_title_style(&mut l, TitleStyle::Mowt);
+        assert_eq!(l.title_block_mm, 80.0, "the viewport area follows the wider block");
+        assert_eq!(other.title_style, TitleStyle::Afrobim);
+        assert_eq!(other.title_block_mm, 70.0);
+        let sheet = compose_layout(&m, &Styles::default(), &info, &l, 2, 5, &mut |_, _, _, _| {});
+        let t = texts_of(&sheet);
+        for want in ["Kampala Road Upgrade", "MOWT/WRKS/2026/001", "Ministry of Works and Transport", "Example Consultants", "Example Contractors", "2 of 5", "1:500", "2026-11-25", "N", "Sheet no. of total", "Contract no.", "Drawing title"] {
+            assert!(t.iter().any(|x| x == want), "{want} is missing from {t:?}");
+        }
+        let default_sheet = compose_layout(&m, &Styles::default(), &info, &other, 1, 1, &mut |_, _, _, _| {});
+        assert!(!texts_of(&default_sheet).iter().any(|x| x == "Ministry of Works and Transport"));
+        assert!(!texts_of(&default_sheet).iter().any(|x| x == "Example Consultants"));
+        // The block fits the A4 landscape frame (190 mm tall) and A3.
+        assert!(TitleBlockLayout::mowt().height_mm() < 190.0);
+        other.title_style = TitleStyle::Mowt;
+        assert!(compose_layout(&m, &Styles::default(), &info, &other, 1, 1, &mut |_, _, _, _| {}).warnings.is_empty());
+    }
+
+    #[test]
+    fn the_north_point_follows_the_twist_of_the_first_viewport() {
+        let (doc, reg) = model_doc();
+        let mut l = layout_from_template("A", PaperSize::A3, Orientation::Landscape, true);
+        set_title_style(&mut l, TitleStyle::Mowt);
+        let id = l.add_viewport(Pt::new(30.0, 30.0), Pt::new(250.0, 150.0), Pt::new(1_025_000.0, 2_000_000.0), 500.0).unwrap();
+        let arrow_tip_y = |s: &ComposedSheet| {
+            let rgb = Styles::default().pens.pen(layers::PLAN_FURNITURE).rgb;
+            s.items.iter().find_map(|i| match i {
+                Item::Fill { layer, rings, rgb: c } if layer == layers::PLAN_FURNITURE && *c == rgb => Some((rings[0][0].x, rings[0][0].y)),
+                _ => None,
+            })
+        };
+        let up = arrow_tip_y(&compose(&doc, &reg, &l)).expect("a north arrow");
+        l.viewport_mut(id).unwrap().set_twist(90.0);
+        let turned = arrow_tip_y(&compose(&doc, &reg, &l)).expect("a north arrow");
+        assert!((up.0 - turned.0).abs() > 1.0, "the arrow tip moved sideways: {up:?} {turned:?}");
+    }
+
+    #[test]
+    fn rasters_from_the_callback_reach_the_pdf_and_stay_out_of_the_dxf() {
+        let (doc, reg) = model_doc();
+        let m = Model { doc: &doc, registry: &reg };
+        let mut l = layout_from_template("P1", PaperSize::A4, Orientation::Landscape, false);
+        l.add_viewport(Pt::new(20.0, 20.0), Pt::new(120.0, 100.0), Pt::new(1_025_000.0, 2_000_000.0), 500.0).unwrap();
+        let mut extras = |stage: Stage, v: &Viewport, rect: &Rect, sheet: &mut ComposedSheet| {
+            if stage != Stage::Under {
+                return;
+            }
+            let mut r = crate::raster::PaperRaster::new(rect, 50.0, 2000).unwrap();
+            let px: Vec<u8> = (0..4).flat_map(|_| [200u8, 30, 30, 255]).collect();
+            let q = [Pt2::new(rect.x0, rect.y1), Pt2::new(rect.x1, rect.y1), Pt2::new(rect.x1, rect.y0), Pt2::new(rect.x0, rect.y0)];
+            r.blit_quad(q, crate::raster::Texture { width: 2, height: 2, rgba: &px }, 1.0);
+            r.mask_outside(&v.outline());
+            if let Some(img) = r.into_image("MAP") {
+                sheet.image(img);
+            }
+        };
+        let sheets = compose_layouts(&m, &Styles::default(), &ProjectInfo::default(), &[&l], &mut extras);
+        assert_eq!(sheets[0].image_count(), 1);
+        let pdf = crate::pdf::write_pdf(&sheets, "t");
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("/Subtype /Image") && text.contains("/XObject << /Im0 "), "an image object is in the PDF");
+        assert!(text.contains("/DeviceRGB"));
+        // An opaque raster has no soft mask; a cut one has.
+        assert!(!text.contains("/SMask"), "fully opaque over a rectangle");
+        l.viewport_mut(1).unwrap().set_clip(vec![Pt::new(20.0, 20.0), Pt::new(120.0, 20.0), Pt::new(70.0, 100.0)]);
+        let sheets = compose_layouts(&m, &Styles::default(), &ProjectInfo::default(), &[&l], &mut extras);
+        let text = String::from_utf8_lossy(&crate::pdf::write_pdf(&sheets, "t")).to_string();
+        assert!(text.contains("/SMask"), "the cut corner is transparent");
+        // The xref still points at every object.
+        let bytes = crate::pdf::write_pdf(&sheets, "t");
+        let xref = String::from_utf8_lossy(&bytes);
+        let objs = xref.matches(" 0 obj").count();
+        assert!(xref.contains(&format!("/Size {}", objs + 1)));
+        assert_eq!(crate::dxf_out::skipped_rasters(&sheets), 1);
+        let dxf = crate::dxf_out::write_dxf_set(&sheets, &Styles::default().pens, 0.0);
+        assert!(!dxf.is_empty());
     }
 }

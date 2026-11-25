@@ -32,11 +32,14 @@ pub struct ViewTransform {
     /// Screen position (px) of the anchor.
     pub screen_x: f64,
     pub screen_y: f64,
+    /// Degrees the model is turned anticlockwise on the screen about the anchor (the twist of a
+    /// layout viewport). Zero for the model tab.
+    pub twist_deg: f64,
 }
 
 impl Default for ViewTransform {
     fn default() -> Self {
-        Self { scale: 0.1, anchor_x: 0.0, anchor_y: 0.0, screen_x: 0.0, screen_y: 0.0 }
+        Self { scale: 0.1, anchor_x: 0.0, anchor_y: 0.0, screen_x: 0.0, screen_y: 0.0, twist_deg: 0.0 }
     }
 }
 
@@ -55,12 +58,12 @@ impl ViewTransform {
 
     /// A view with the model origin at screen (`origin_x`, `origin_y`) and `scale` px per mm.
     pub fn from_origin(scale: f64, origin_x: f64, origin_y: f64) -> Self {
-        Self { scale, anchor_x: 0.0, anchor_y: 0.0, screen_x: origin_x, screen_y: origin_y }
+        Self { scale, anchor_x: 0.0, anchor_y: 0.0, screen_x: origin_x, screen_y: origin_y, twist_deg: 0.0 }
     }
 
     /// A view that shows model point `centre` at screen position `at`, at `scale` px per mm.
     pub fn centred_on(centre: Pt, at: Pt, scale: f64) -> Self {
-        Self { scale, anchor_x: centre.x, anchor_y: centre.y, screen_x: at.x, screen_y: at.y }
+        Self { scale, anchor_x: centre.x, anchor_y: centre.y, screen_x: at.x, screen_y: at.y, twist_deg: 0.0 }
     }
 
     /// Screen position (px) of the model origin. Only a convenience: far from the origin this is
@@ -78,22 +81,37 @@ impl ViewTransform {
         Pt::new(self.anchor_x, self.anchor_y)
     }
 
+    /// The same view with the model turned `deg` degrees anticlockwise about the anchor.
+    pub fn with_twist(mut self, deg: f64) -> Self {
+        self.twist_deg = if deg.is_finite() { deg } else { 0.0 };
+        self
+    }
+
+    /// Turns the vector (x, y) by the twist (`sign` 1) or back (`sign` -1).
+    fn turned(&self, x: f64, y: f64, sign: f64) -> (f64, f64) {
+        if self.twist_deg == 0.0 {
+            return (x, y);
+        }
+        let (s, c) = (sign * self.twist_deg).to_radians().sin_cos();
+        (x * c - y * s, x * s + y * c)
+    }
+
     pub fn to_screen(&self, world: Pt) -> Pt {
-        Pt::new(self.screen_x + (world.x - self.anchor_x) * self.scale, self.screen_y - (world.y - self.anchor_y) * self.scale)
+        let (dx, dy) = self.turned((world.x - self.anchor_x) * self.scale, (world.y - self.anchor_y) * self.scale, 1.0);
+        Pt::new(self.screen_x + dx, self.screen_y - dy)
     }
 
     /// Screen position of the point `local` (mm) from `origin` (model mm). The difference between
     /// `origin` and the anchor is taken first and `local` added to it after, so a mesh held in
     /// element-local numbers is placed without ever adding a small number to a large one.
     pub fn to_screen_local(&self, origin: Pt, local_x: f64, local_y: f64) -> Pt {
-        Pt::new(
-            self.screen_x + ((origin.x - self.anchor_x) + local_x) * self.scale,
-            self.screen_y - ((origin.y - self.anchor_y) + local_y) * self.scale,
-        )
+        let (dx, dy) = self.turned(((origin.x - self.anchor_x) + local_x) * self.scale, ((origin.y - self.anchor_y) + local_y) * self.scale, 1.0);
+        Pt::new(self.screen_x + dx, self.screen_y - dy)
     }
 
     pub fn to_world(&self, screen: Pt) -> Pt {
-        Pt::new(self.anchor_x + (screen.x - self.screen_x) / self.scale, self.anchor_y - (screen.y - self.screen_y) / self.scale)
+        let (dx, dy) = self.turned(screen.x - self.screen_x, self.screen_y - screen.y, -1.0);
+        Pt::new(self.anchor_x + dx / self.scale, self.anchor_y + dy / self.scale)
     }
 
     /// Screen to model space (millimetres). Same as [`to_world`](Self::to_world).
@@ -114,8 +132,8 @@ impl ViewTransform {
         }
         if x.abs() > Self::RENORMALISE_PX || y.abs() > Self::RENORMALISE_PX {
             // Move the anchor to the model point at screen (0, 0) so the pixel numbers stay small.
-            let ax = self.anchor_x - x / self.scale;
-            let ay = self.anchor_y + y / self.scale;
+            let w = ViewTransform { screen_x: x, screen_y: y, ..self.clone() }.to_world(Pt::new(0.0, 0.0));
+            let (ax, ay) = (w.x, w.y);
             if ax.is_finite() && ay.is_finite() {
                 self.anchor_x = ax;
                 self.anchor_y = ay;
@@ -388,5 +406,46 @@ mod tests {
         let b = v.to_screen(Pt::new(FAR.x, FAR.y + 1.0e-5));
         let px = (a.y - b.y) / v.scale;
         assert!((px - 1.0e-5).abs() <= spacing, "{px}");
+    }
+
+    #[test]
+    fn a_twisted_view_round_trips_and_turns_the_model_anticlockwise() {
+        for deg in [0.0, 30.0, 90.0, -135.0] {
+            let v = ViewTransform::centred_on(Pt::new(5000.0, -2000.0), Pt::new(400.0, 300.0), 0.2).with_twist(deg);
+            for p in [Pt::new(5000.0, -2000.0), Pt::new(9000.0, 1000.0), Pt::new(-30.0, 77.0)] {
+                let back = v.to_world(v.to_screen(p));
+                close(back.x, p.x);
+                close(back.y, p.y);
+            }
+            let s = v.to_screen(Pt::new(5000.0, -2000.0));
+            close(s.x, 400.0);
+            close(s.y, 300.0);
+        }
+        // 90 degrees: a point east of the anchor is shown above it (north), the screen's y going down.
+        let v = ViewTransform::centred_on(Pt::new(0.0, 0.0), Pt::new(100.0, 100.0), 1.0).with_twist(90.0);
+        let s = v.to_screen(Pt::new(10.0, 0.0));
+        close(s.x, 100.0);
+        close(s.y, 90.0);
+        // to_screen_local agrees with to_screen.
+        let (a, b) = (v.to_screen(Pt::new(13.0, 4.0)), v.to_screen_local(Pt::new(10.0, 0.0), 3.0, 4.0));
+        close(a.x, b.x);
+        close(a.y, b.y);
+    }
+
+    #[test]
+    fn zoom_and_a_far_pan_keep_a_twisted_view_consistent() {
+        let mut v = ViewTransform::centred_on(Pt::new(1000.0, 1000.0), Pt::new(200.0, 200.0), 0.5).with_twist(30.0);
+        let cursor = Pt::new(250.0, 180.0);
+        let before = v.to_world(cursor);
+        v.zoom_about(cursor, 1.7);
+        let after = v.to_world(cursor);
+        close(before.x, after.x);
+        close(before.y, after.y);
+        let p = Pt::new(1234.0, 987.0);
+        let at = v.to_screen(p);
+        v.pan(2.0e5, -3.0e5); // beyond the renormalise limit: the anchor moves
+        let moved = v.to_screen(p);
+        close(moved.x, at.x + 2.0e5);
+        close(moved.y, at.y - 3.0e5);
     }
 }

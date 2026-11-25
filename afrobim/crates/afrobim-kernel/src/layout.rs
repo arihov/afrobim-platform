@@ -82,6 +82,52 @@ pub struct Viewport {
     /// Print the title and scale label under the viewport.
     #[serde(default)]
     pub show_label: bool,
+    /// Twist: the model is shown turned this many degrees anticlockwise about the view centre
+    /// (VPROTATE). Zero is north (the model's Y axis) up the paper.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub twist_deg: f64,
+    /// Plot the boundary of the viewport (a frame around it). Off by default, as for a
+    /// non-plotting viewport layer in CAD.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub plot_border: bool,
+    /// Zooming in the viewport steps through the standard scale list instead of making a custom
+    /// scale. Applies only while the viewport is not locked.
+    #[serde(default = "yes")]
+    pub snap_scale: bool,
+}
+
+fn is_zero(v: &f64) -> bool {
+    *v == 0.0
+}
+
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+
+/// The turn by `deg` degrees anticlockwise of the vector `(x, y)`.
+fn turn(x: f64, y: f64, deg: f64) -> (f64, f64) {
+    if deg == 0.0 {
+        return (x, y);
+    }
+    let (s, c) = deg.to_radians().sin_cos();
+    (x * c - y * s, x * s + y * c)
+}
+
+/// The next standard scale denominator above (`up`) or below `den`, or `den` itself at the end of
+/// the list. A custom `den` between two standard ones moves to the nearer neighbour in that
+/// direction.
+pub fn step_standard_scale(den: f64, up: bool) -> f64 {
+    let eps = den * 1e-9;
+    if up {
+        STANDARD_SCALES.iter().copied().find(|s| *s > den + eps).unwrap_or(den)
+    } else {
+        STANDARD_SCALES.iter().rev().copied().find(|s| *s < den - eps).unwrap_or(den)
+    }
+}
+
+/// The standard scale nearest to `den` on a logarithmic scale.
+pub fn nearest_standard_scale(den: f64) -> f64 {
+    STANDARD_SCALES.iter().copied().min_by(|a, b| (a / den).ln().abs().total_cmp(&(b / den).ln().abs())).unwrap_or(den)
 }
 
 impl Viewport {
@@ -98,6 +144,9 @@ impl Viewport {
             frozen: Vec::new(),
             title: String::new(),
             show_label: false,
+            twist_deg: 0.0,
+            plot_border: false,
+            snap_scale: true,
         }
     }
 
@@ -131,13 +180,48 @@ impl Viewport {
     /// The paper point where the model point `m` (mm) is shown.
     pub fn to_paper(&self, m: Pt) -> Pt {
         let (c, k) = (self.paper_centre(), self.paper_per_model());
-        Pt::new(c.x + (m.x - self.centre.x) * k, c.y + (m.y - self.centre.y) * k)
+        let (x, y) = turn((m.x - self.centre.x) * k, (m.y - self.centre.y) * k, self.twist_deg);
+        Pt::new(c.x + x, c.y + y)
     }
 
     /// The model point (mm) shown at the paper point `p`.
     pub fn to_model(&self, p: Pt) -> Pt {
         let (c, k) = (self.paper_centre(), self.paper_per_model());
-        Pt::new(self.centre.x + (p.x - c.x) / k, self.centre.y + (p.y - c.y) / k)
+        let (x, y) = turn(p.x - c.x, p.y - c.y, -self.twist_deg);
+        Pt::new(self.centre.x + x / k, self.centre.y + y / k)
+    }
+
+    /// The bounding box (x0, y0, x1, y1, model mm) of the model the boundary box shows. With a
+    /// twist this is the box around the turned window, larger than the window itself.
+    pub fn model_window(&self) -> [f64; 4] {
+        let r = self.rect;
+        bbox_of(&[self.to_model(Pt::new(r[0], r[1])), self.to_model(Pt::new(r[2], r[1])), self.to_model(Pt::new(r[2], r[3])), self.to_model(Pt::new(r[0], r[3]))])
+    }
+
+    /// Turns the view to `deg` degrees (VPROTATE), kept in (-180, 180]. Refused (false) for a
+    /// locked viewport or a number that is not finite.
+    pub fn set_twist(&mut self, deg: f64) -> bool {
+        if self.locked || !deg.is_finite() {
+            return false;
+        }
+        let mut d = deg % 360.0;
+        if d > 180.0 {
+            d -= 360.0;
+        } else if d <= -180.0 {
+            d += 360.0;
+        }
+        self.twist_deg = d;
+        true
+    }
+
+    /// The scale one standard step up (a larger denominator, the view shows more) or down, for
+    /// zooming that snaps. The scale is set about the centre of the view. Refused when locked.
+    pub fn step_scale(&mut self, up: bool) -> bool {
+        let next = step_standard_scale(self.scale_den, up);
+        if next == self.scale_den {
+            return false;
+        }
+        self.set_scale(next)
     }
 
     /// The boundary as a polygon on the paper: the clip, or the four corners of the box.
@@ -177,7 +261,8 @@ impl Viewport {
         let (old_c, k) = (self.paper_centre(), self.paper_per_model());
         self.rect = new_rect;
         let new_c = self.paper_centre();
-        self.centre = Pt::new(self.centre.x + (new_c.x - old_c.x) / k, self.centre.y + (new_c.y - old_c.y) / k);
+        let (dx, dy) = turn(new_c.x - old_c.x, new_c.y - old_c.y, -self.twist_deg);
+        self.centre = Pt::new(self.centre.x + dx / k, self.centre.y + dy / k);
     }
 
     /// Moves the viewport on the paper by `(dx, dy)` mm. The contents move with it.
@@ -430,6 +515,27 @@ impl PaperShape {
     }
 }
 
+/// Which title block a layout prints.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum TitleStyle {
+    /// The neutral AfroBIM block.
+    #[default]
+    Afrobim,
+    /// The block of Ministry of Works and Transport (Uganda) drawings.
+    Mowt,
+}
+
+impl TitleStyle {
+    pub const ALL: [TitleStyle; 2] = [TitleStyle::Afrobim, TitleStyle::Mowt];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            TitleStyle::Afrobim => "AfroBIM default",
+            TitleStyle::Mowt => "Ministry of Works and Transport (Uganda)",
+        }
+    }
+}
+
 /// One layout tab: a sheet of paper and what is on it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Layout {
@@ -445,6 +551,18 @@ pub struct Layout {
     /// Width of the title block column on the right of the frame, mm; 0 for no title block.
     #[serde(default)]
     pub title_block_mm: f64,
+    /// Which title block is printed.
+    #[serde(default)]
+    pub title_style: TitleStyle,
+    /// The sheet number printed in the title block; empty prints the layout name.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub sheet_no: String,
+    /// The revision printed in the title block; empty prints the project's current revision.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub revision: String,
+    /// The drawing title printed in the title block; empty prints the layout name.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub drawing_title: String,
     #[serde(default)]
     pub viewports: Vec<Viewport>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -468,6 +586,10 @@ impl Layout {
             height_mm,
             margins: [10.0; 4],
             title_block_mm: 0.0,
+            title_style: TitleStyle::default(),
+            sheet_no: String::new(),
+            revision: String::new(),
+            drawing_title: String::new(),
             viewports: Vec::new(),
             shapes: Vec::new(),
             new_viewport_frozen: Vec::new(),
@@ -577,6 +699,16 @@ impl Layout {
         let n = self.viewports.len();
         self.viewports.retain(|v| v.id != id);
         self.viewports.len() != n
+    }
+
+    /// A copy of the viewport exactly where it is (Ctrl-drag of a grip copies, then drags the
+    /// copy). Returns the new id.
+    pub fn copy_viewport_in_place(&mut self, id: u64) -> Option<u64> {
+        let mut v = self.viewport(id)?.clone();
+        v.id = self.take_id();
+        let nid = v.id;
+        self.viewports.push(v);
+        Some(nid)
     }
 
     /// A copy of the viewport, moved 10 mm up and right. Returns the new id.
@@ -937,5 +1069,138 @@ mod tests {
         // Ids are not reused after a delete.
         let e = list.add(Layout::new("E", "A3", true, 420.0, 297.0)).unwrap();
         assert!(e > d);
+    }
+
+    fn close(a: Pt, b: Pt, tol: f64) -> bool {
+        (a.x - b.x).abs() < tol && (a.y - b.y).abs() < tol
+    }
+
+    #[test]
+    fn twist_round_trips_at_0_30_and_90_degrees() {
+        for deg in [0.0, 30.0, 90.0, -45.0, 180.0] {
+            let mut v = Viewport::new(1, Pt::new(10.0, 20.0), Pt::new(250.0, 180.0), Pt::new(123_456.0, -98_765.0), 500.0);
+            assert!(v.set_twist(deg));
+            for p in [Pt::new(10.0, 20.0), Pt::new(130.0, 100.0), Pt::new(250.0, 180.0), Pt::new(33.3, 171.7)] {
+                assert!(close(v.to_paper(v.to_model(p)), p, 1e-9), "{deg} {p:?}");
+            }
+            let m = Pt::new(124_000.0, -98_000.0);
+            assert!(close(v.to_model(v.to_paper(m)), m, 1e-6), "{deg}");
+            assert_eq!(v.to_paper(v.centre), v.paper_centre(), "the centre stays at the middle");
+        }
+    }
+
+    #[test]
+    fn a_twist_of_90_turns_the_model_anticlockwise_on_the_paper() {
+        let mut v = Viewport::new(1, Pt::new(0.0, 0.0), Pt::new(100.0, 100.0), Pt::new(0.0, 0.0), 100.0);
+        v.set_twist(90.0);
+        // 1 m east of the centre is 10 mm at 1:100, and shows 10 mm north of the paper centre.
+        let p = v.to_paper(Pt::new(1000.0, 0.0));
+        assert!(close(p, Pt::new(50.0, 60.0), 1e-9), "{p:?}");
+        // 30 degrees keeps lengths: 1 m is still 10 mm on the paper.
+        v.set_twist(30.0);
+        let q = v.to_paper(Pt::new(1000.0, 0.0));
+        assert!((((q.x - 50.0).powi(2) + (q.y - 50.0).powi(2)).sqrt() - 10.0).abs() < 1e-9);
+        assert!(close(q, Pt::new(50.0 + 10.0 * 30f64.to_radians().cos(), 50.0 + 10.0 * 30f64.to_radians().sin()), 1e-9));
+    }
+
+    #[test]
+    fn twist_is_normalised_refused_when_locked_and_stays_under_a_boundary_stretch() {
+        let mut v = vp_1000();
+        assert!(v.set_twist(270.0));
+        assert_eq!(v.twist_deg, -90.0);
+        assert!(v.set_twist(-180.0));
+        assert_eq!(v.twist_deg, 180.0);
+        assert!(!v.set_twist(f64::NAN));
+        v.set_twist(30.0);
+        let probe = Pt::new(100.0, 80.0);
+        let before = v.to_model(probe);
+        v.drag_grip(VpGrip::Edge(1), Pt::new(210.0, 85.0), Pt::new(300.0, 85.0));
+        assert!(close(v.to_model(probe), before, 1e-6), "stretching keeps the contents in place");
+        v.locked = true;
+        assert!(!v.set_twist(10.0));
+        assert_eq!(v.twist_deg, 30.0);
+    }
+
+    #[test]
+    fn model_window_of_a_twisted_viewport_covers_the_turned_window() {
+        let mut v = Viewport::new(1, Pt::new(0.0, 0.0), Pt::new(100.0, 50.0), Pt::new(0.0, 0.0), 1.0);
+        assert_eq!(v.model_window(), [-50.0, -25.0, 50.0, 25.0]);
+        v.set_twist(90.0);
+        let w = v.model_window();
+        assert!((w[0] + 25.0).abs() < 1e-9 && (w[2] - 25.0).abs() < 1e-9 && (w[1] + 50.0).abs() < 1e-9 && (w[3] - 50.0).abs() < 1e-9, "{w:?}");
+    }
+
+    #[test]
+    fn twist_border_and_snap_are_saved_and_default_when_absent() {
+        let mut v = vp_1000();
+        v.set_twist(30.0);
+        v.plot_border = true;
+        v.snap_scale = false;
+        let back: Viewport = serde_json::from_str(&serde_json::to_string(&v).unwrap()).unwrap();
+        assert_eq!(back, v);
+        // A viewport saved before these fields existed.
+        let plain = serde_json::to_value(vp_1000()).unwrap();
+        let mut old = plain.clone();
+        for k in ["twist_deg", "plot_border", "snap_scale"] {
+            old.as_object_mut().unwrap().remove(k);
+        }
+        let v: Viewport = serde_json::from_value(old).unwrap();
+        assert_eq!((v.twist_deg, v.plot_border, v.snap_scale), (0.0, false, true));
+        // Defaults are not written, so an untouched viewport is byte for byte what it was.
+        let text = plain.to_string();
+        assert!(!text.contains("twist_deg") && !text.contains("plot_border"), "{text}");
+    }
+
+    #[test]
+    fn standard_scale_steps_and_nearest() {
+        assert_eq!(step_standard_scale(500.0, true), 1000.0);
+        assert_eq!(step_standard_scale(500.0, false), 250.0);
+        assert_eq!(step_standard_scale(700.0, true), 1000.0, "a custom scale moves to the next standard one");
+        assert_eq!(step_standard_scale(700.0, false), 500.0);
+        assert_eq!(step_standard_scale(10_000.0, true), 10_000.0, "the end of the list holds");
+        assert_eq!(step_standard_scale(1.0, false), 1.0);
+        assert_eq!(nearest_standard_scale(480.0), 500.0);
+        assert_eq!(nearest_standard_scale(900.0), 1000.0);
+        let mut v = vp_1000();
+        assert!(v.step_scale(true));
+        assert_eq!(v.scale_den, 1250.0);
+        v.locked = true;
+        assert!(!v.step_scale(true), "locked");
+        assert_eq!(v.scale_den, 1250.0);
+    }
+
+    #[test]
+    fn a_copy_in_place_is_a_new_viewport_with_the_same_look() {
+        let mut l = Layout::new("A", "A3", true, 420.0, 297.0);
+        let id = l.add_viewport(Pt::new(10.0, 10.0), Pt::new(100.0, 100.0), Pt::new(1000.0, 2000.0), 500.0).unwrap();
+        l.viewport_mut(id).unwrap().set_twist(30.0);
+        let copy = l.copy_viewport_in_place(id).unwrap();
+        assert_ne!(copy, id);
+        let (a, b) = (l.viewport(id).unwrap().clone(), l.viewport(copy).unwrap().clone());
+        assert_eq!(Viewport { id: 0, ..a }, Viewport { id: 0, ..b });
+        // Dragging the copy leaves the original.
+        l.viewport_mut(copy).unwrap().drag_grip(VpGrip::Move, Pt::new(55.0, 55.0), Pt::new(155.0, 75.0));
+        assert_eq!(l.viewport(id).unwrap().rect, [10.0, 10.0, 100.0, 100.0]);
+        assert_eq!(l.viewport(copy).unwrap().rect, [110.0, 30.0, 200.0, 120.0]);
+    }
+
+    #[test]
+    fn layout_title_fields_default_and_round_trip() {
+        let mut l = Layout::new("A", "A3", true, 420.0, 297.0);
+        assert_eq!(l.title_style, TitleStyle::Afrobim);
+        l.title_style = TitleStyle::Mowt;
+        l.sheet_no = "R-03".into();
+        l.revision = "B".into();
+        l.drawing_title = "Plan and profile km 0+000 to 1+000".into();
+        let back: Layout = serde_json::from_str(&serde_json::to_string(&l).unwrap()).unwrap();
+        assert_eq!(back, l);
+        // A layout saved before these fields existed.
+        let mut v = serde_json::to_value(Layout::new("B", "A3", true, 420.0, 297.0)).unwrap();
+        for k in ["title_style", "sheet_no", "revision", "drawing_title"] {
+            v.as_object_mut().unwrap().remove(k);
+        }
+        let old: Layout = serde_json::from_value(v).unwrap();
+        assert_eq!((old.title_style, old.sheet_no.as_str(), old.revision.as_str(), old.drawing_title.as_str()), (TitleStyle::Afrobim, "", "", ""));
+        assert!(!serde_json::to_string(&Layout::new("C", "A3", true, 420.0, 297.0)).unwrap().contains("sheet_no"));
     }
 }

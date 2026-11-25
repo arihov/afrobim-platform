@@ -44,6 +44,20 @@ pub enum Item {
     /// A filled region: the rings are filled even-odd, so an inner ring is a hole.
     Fill { layer: String, rings: Vec<Vec<Pt2>>, rgb: [u8; 3] },
     Text(SheetText),
+    /// A raster laid on the sheet, upright and aligned to the paper (PDF only; DXF leaves it out).
+    Image(SheetImage),
+}
+
+/// An RGBA raster on the sheet: `rect` is where its outer edges are, in paper millimetres. Row 0
+/// of `rgba` is the top row. Rasters from several sources (map tiles, georeferenced images) are
+/// flattened into one by [`crate::raster::PaperRaster`] before they get here.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SheetImage {
+    pub layer: String,
+    pub rect: Rect,
+    pub width: u32,
+    pub height: u32,
+    pub rgba: std::sync::Arc<Vec<u8>>,
 }
 
 /// One line of text. `at` is the baseline point the alignment refers to; `height_mm` is the
@@ -65,6 +79,7 @@ impl Item {
         match self {
             Item::Stroke { layer, .. } | Item::Fill { layer, .. } => layer,
             Item::Text(t) => &t.layer,
+            Item::Image(i) => &i.layer,
         }
     }
 }
@@ -124,6 +139,18 @@ impl ComposedSheet {
         }
     }
 
+    /// Puts a raster on the sheet (blank ones, and ones whose size does not match, are dropped).
+    pub fn image(&mut self, img: SheetImage) {
+        if img.width > 0 && img.height > 0 && img.rgba.len() == img.width as usize * img.height as usize * 4 && img.rect.width() > 0.0 && img.rect.height() > 0.0 {
+            self.items.push(Item::Image(img));
+        }
+    }
+
+    /// How many rasters the sheet holds.
+    pub fn image_count(&self) -> usize {
+        self.items.iter().filter(|i| matches!(i, Item::Image(_))).count()
+    }
+
     pub fn texts(&self) -> impl Iterator<Item = &SheetText> {
         self.items.iter().filter_map(|i| if let Item::Text(t) = i { Some(t) } else { None })
     }
@@ -159,6 +186,7 @@ impl ComposedSheet {
                         primitives.push(Primitive::Glyphs { contours: rings.into_iter().cloned().collect(), text: String::new(), ink: Some(c) });
                     }
                 }
+                Item::Image(_) => {}
                 Item::Text(t) => labels.push(SheetLabel {
                     at: t.at,
                     text: t.text.clone(),

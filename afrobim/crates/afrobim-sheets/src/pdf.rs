@@ -14,7 +14,7 @@ use std::io::Write as _;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 
-use crate::item::{ComposedSheet, Item};
+use crate::item::{ComposedSheet, Item, SheetImage};
 use crate::text::{encode, text_width, Align, CAP_HEIGHT};
 
 /// What the PDF names as its producer.
@@ -39,11 +39,40 @@ pub fn write_pdf(sheets: &[ComposedSheet], title: &str) -> Vec<u8> {
     info.extend(b" >>");
     objects.push(info);
 
+    // Rasters come after the pages: object numbers are known before the pages are written.
+    let mut next_obj = 6 + 2 * sheets.len();
+    let mut image_objs: Vec<Vec<(usize, Option<usize>)>> = Vec::new();
+    let mut image_bodies: Vec<Vec<u8>> = Vec::new();
+    for sheet in sheets {
+        let mut ids = Vec::new();
+        for img in sheet.items.iter().filter_map(|i| if let Item::Image(im) = i { Some(im) } else { None }) {
+            let (color, alpha) = image_streams(img);
+            let main = next_obj;
+            next_obj += 1;
+            let smask = alpha.as_ref().map(|_| {
+                let id = next_obj;
+                next_obj += 1;
+                id
+            });
+            image_bodies.push(image_object(img, &color, smask));
+            if let Some(a) = alpha {
+                image_bodies.push(a);
+            }
+            ids.push((main, smask));
+        }
+        image_objs.push(ids);
+    }
+
     for (i, sheet) in sheets.iter().enumerate() {
         let (w, h) = (sheet.width_mm * PT_PER_MM, sheet.height_mm * PT_PER_MM);
+        let xobjects: String = if image_objs[i].is_empty() {
+            String::new()
+        } else {
+            format!(" /XObject << {} >>", image_objs[i].iter().enumerate().map(|(k, (id, _))| format!("/Im{k} {id} 0 R")).collect::<Vec<_>>().join(" "))
+        };
         objects.push(
             format!(
-                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {} {}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {} 0 R >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {} {}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>{xobjects} >> /Contents {} 0 R >>",
                 n2(w),
                 n2(h),
                 page_obj(i) + 1
@@ -59,6 +88,7 @@ pub fn write_pdf(sheets: &[ComposedSheet], title: &str) -> Vec<u8> {
         stream.extend(b"\nendstream");
         objects.push(stream);
     }
+    objects.extend(image_bodies);
 
     let mut out: Vec<u8> = b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n".to_vec();
     let mut offsets = Vec::with_capacity(objects.len());
@@ -122,14 +152,60 @@ fn string_bytes(bytes: &[u8]) -> Vec<u8> {
     out
 }
 
+/// The Flate-compressed RGB data of an image and, when any pixel is not opaque, its alpha plane.
+/// The alpha is returned as a complete soft mask object, the colour as raw stream bytes.
+fn image_streams(img: &SheetImage) -> (Vec<u8>, Option<Vec<u8>>) {
+    let n = img.width as usize * img.height as usize;
+    let mut rgb = Vec::with_capacity(n * 3);
+    let mut a = Vec::with_capacity(n);
+    for px in img.rgba.chunks_exact(4) {
+        rgb.extend_from_slice(&px[0..3]);
+        a.push(px[3]);
+    }
+    let zip = |bytes: &[u8]| {
+        let mut enc = ZlibEncoder::new(Vec::new(), Compression::default());
+        enc.write_all(bytes).expect("writing to memory");
+        enc.finish().expect("compressing in memory")
+    };
+    let alpha = if a.iter().any(|v| *v != 255) {
+        let data = zip(&a);
+        let mut o = format!("<< /Type /XObject /Subtype /Image /Width {} /Height {} /ColorSpace /DeviceGray /BitsPerComponent 8 /Length {} /Filter /FlateDecode >>\nstream\n", img.width, img.height, data.len()).into_bytes();
+        o.extend(data);
+        o.extend(b"\nendstream");
+        Some(o)
+    } else {
+        None
+    };
+    (zip(&rgb), alpha)
+}
+
+fn image_object(img: &SheetImage, color: &[u8], smask: Option<usize>) -> Vec<u8> {
+    let mask = smask.map(|id| format!(" /SMask {id} 0 R")).unwrap_or_default();
+    let mut o = format!(
+        "<< /Type /XObject /Subtype /Image /Width {} /Height {} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Interpolate true{mask} /Length {} /Filter /FlateDecode >>\nstream\n",
+        img.width,
+        img.height,
+        color.len()
+    )
+    .into_bytes();
+    o.extend(color);
+    o.extend(b"\nendstream");
+    o
+}
+
 fn page_content(sheet: &ComposedSheet) -> String {
     let mut c = String::new();
     c.push_str("1 J 1 j\n"); // round caps and joins: thin lines meet cleanly
     let mut stroke_colour = String::new();
     let mut fill_colour = String::new();
     let mut width = f64::NAN;
+    let mut image_no = 0usize;
     for item in &sheet.items {
         match item {
+            Item::Image(img) => {
+                let _ = writeln!(c, "q {} 0 0 {} {} {} cm /Im{image_no} Do Q", pt(img.rect.width()), pt(img.rect.height()), pt(img.rect.x0), pt(img.rect.y0));
+                image_no += 1;
+            }
             Item::Stroke { points, closed, weight_mm, rgb: col, .. } => {
                 if points.len() < 2 {
                     continue;

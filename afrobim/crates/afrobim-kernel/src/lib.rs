@@ -31,7 +31,7 @@ pub use afrobim_draw::Pt2 as Pt;
 pub use atomic::{recover_path, write_atomic, write_atomic_with};
 pub use controller::{CanvasCommand, CanvasController, CanvasEvent, CanvasTool};
 pub use document::{DocState, Document, DocumentError, Element, ElementId, Layer, SelectMode, SitePlacement, FILE_EXTENSION};
-pub use layout::{Layout, LayoutError, LayoutList, PaperShape, Viewport, VpGrip, MODEL_TAB, STANDARD_SCALES};
+pub use layout::{Layout, LayoutError, LayoutList, PaperShape, TitleStyle, Viewport, VpGrip, MODEL_TAB, STANDARD_SCALES};
 pub use drafting::{display_spacing, display_spacing_fine, ortho, parse_point, snap};
 pub use geometry::BBox;
 pub use module::{Generated, Module, ModuleRegistry, Note, Severity};
