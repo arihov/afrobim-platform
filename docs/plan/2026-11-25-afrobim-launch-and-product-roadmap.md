@@ -130,12 +130,32 @@ Yes, add a core drafting set. BIM does not remove 2D: every submission still end
 
 A weekly status note (done, next, blocked, risks) and a dashboard with: downloads by platform and version; weekly active installs; crash-free session rate; feedback received and closed; tool usage top 20; open issues; gate progress. Change requests go into a decision log with impact on time, cost and scope before they are accepted.
 
-## 10. Decisions needed from the owner
+## 10. Owner decisions (recorded 2026-11-25)
 
-1. Create the public repository `arihov/afrobim-releases` for installers and feedback?
-2. Add the download page to afrobim.com (repository `arihov/afrobim`)?
-3. Opt-in usage, crash and feedback reporting: yes or no, and which hosting (Vercel plus a managed Postgres is the suggestion)?
-4. AfroBIM's licence and pricing model (free beta, then free and paid tiers is the suggestion)?
-5. Code-signing budget and who holds the accounts?
-6. Bundle the Transport fonts in public installers or not?
-7. May a cloud run open the pull request (the GitHub login on the laptop has expired)?
+| # | Question | Decision |
+|---|---|---|
+| 1 | Public releases repository | Yes. `arihov/afrobim-releases` created (public, Issues and Discussions on). Source stays private. |
+| 2 | Download page | Drafted as a static page in this repository (`web/download/`), to be copied into afrobim.com. |
+| 3 | Tile providers in a commercial product | Safer route: defaults only from providers whose terms allow commercial use; non-commercial providers marked "Evaluation only"; MAPCAPTURE refused where saving is not allowed. |
+| 4 | Design standards | Ugandan first: MoWT Road Design Manual (Geometric Design 2010 and companion volumes). Design vehicles DV-1 to DV-5 per the Geometric Design Manual. Other standards only where the Ugandan manual is silent. |
+| 5 | Licence and protection | Proprietary licence for the source, EULA for the binaries, CC BY-ND 4.0 for public documents, trademark notice, full third-party notices in the app. Legal texts to be reviewed by a Ugandan advocate. |
+| 6 | Carbon factor source | ICE database (Circular Ecology), A1 to A3, A4 where a haul is entered; EPDs and client figures override. Subject to the ICE redistribution terms. |
+| 7 | Code signing | Costs below; owner to choose. |
+
+### 10.1 Code signing costs (checked 2026-11-25)
+
+| Platform | Option | Cost | Notes |
+|---|---|---|---|
+| macOS | Apple Developer Program | US$99 per year | Needed for Developer ID signing and notarisation. Individual or organisation (organisation needs a D-U-N-S number). |
+| Windows | Azure Artifact Signing (formerly Trusted Signing), Basic | US$9.99 per month (about US$120 per year), 5,000 signatures | Public trust certificates only for organisations in the USA, Canada, EU and UK, and individuals in the USA and Canada. A Ugandan company is not eligible today. |
+| Windows | OV code signing certificate (Sectigo, SSL.com and others) | About US$220 to 380 per year, plus cloud key storage (for example SSL.com eSigner, from about US$20 per month) | Keys must sit in a hardware token or cloud HSM since June 2023. Validity now capped at about 15 months. Available to a registered Ugandan business. |
+| Windows | EV code signing certificate | About US$300 to 600 per year | Not needed any more for SmartScreen reputation; OV is enough. |
+
+Suggested budget for Gate 2: about US$100 (Apple) plus US$450 to 600 (Windows OV with cloud signing), so roughly **US$550 to 700 per year**.
+
+### 10.2 Still open
+
+1. Code-signing purchase and who holds the accounts.
+2. Bundle the Transport fonts in public installers or not.
+3. Written permission from MoWT for the Uganda traffic signs rule pack.
+4. Km 39+136 steel: 1.329 t on the drawing against 1,498 kg in the BBS.
