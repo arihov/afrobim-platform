@@ -10,7 +10,7 @@
 # (see docs/installing.md); the app finds packs/ and fonts/ from its working directory today.
 # The result is AfroBIM-VERSION-macos-<arm64|x86_64|universal>.dmg in DIR.
 #
-# The bundle is signed AD HOC (codesign -s -). That is not a Developer ID signature and does not
+# By default the bundle is signed AD HOC (codesign -s -); set CODESIGN_IDENTITY for Developer ID. That is not a Developer ID signature and does not
 # notarise anything: Gatekeeper will still warn on first launch. Apple silicon is generally
 # documented to refuse arm64 code that carries no signature at all, which is why the ad hoc
 # signature is applied (this was not confirmed against an Apple page in the session that wrote this).
@@ -32,6 +32,13 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$version" ] && [ -n "$out" ] && [ "${#bins[@]}" -ge 1 ] && [ "${#bins[@]}" -le 2 ] || {
   echo "usage: build-dmg.sh --version X.Y.Z --out DIR --bin PATH [--bin PATH] [--bundle-id ID] [--min-macos V] [--launcher] [--no-fonts]" >&2; exit 2; }
+# A version that is not X.Y.Z (with an optional -suffix) is refused here, so a bad value read from a
+# manifest can never end up in a file name.
+case "$version" in
+  [0-9]*.[0-9]*.[0-9]*) ;;
+  *) echo "build-dmg.sh: --version must look like 1.2.3, got '$version'" >&2; exit 2 ;;
+esac
+case "$version" in *[!0-9A-Za-z.+-]*) echo "build-dmg.sh: bad characters in --version '$version'" >&2; exit 2 ;; esac
 [ "$(uname -s)" = Darwin ] || { echo "build-dmg.sh: must run on macOS" >&2; exit 1; }
 
 work="$(mktemp -d)"
@@ -70,9 +77,16 @@ sed -e "s/@VERSION@/$version/g" -e "s/@BUNDLE_ID@/$bundle_id/g" -e "s/@MIN_MACOS
   "$here/Info.plist.in" > "$app/Contents/Info.plist"
 plutil -lint "$app/Contents/Info.plist"
 
-# 3. Ad hoc signature (identity "-"). --deep is deprecated for distribution signing but is fine for
+# 3. Signature. Default is ad hoc (identity "-"). Set CODESIGN_IDENTITY to a "Developer ID Application"
+# identity (the release workflow does when the Apple secrets exist) for a hardened-runtime, timestamped
+# signature that can be notarised. --deep is deprecated for distribution signing but is fine for
 # a bundle with one executable and plain data files.
-codesign --force --deep --sign - "$app"
+identity="${CODESIGN_IDENTITY:--}"
+if [ "$identity" = "-" ]; then
+  codesign --force --deep --sign - "$app"
+else
+  codesign --force --deep --options runtime --timestamp --sign "$identity" "$app"
+fi
 codesign --verify --deep --strict --verbose=2 "$app"
 
 # 4. The disk image: the app and an Applications link, for drag-to-install.
