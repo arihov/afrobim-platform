@@ -1,8 +1,7 @@
 //! Golden tests: the 1 x 1200 mm CPC at Km 39+136 (Iganga-Bulopa-Kamuli road, Uganda).
 //!
-//! Tests named `matched_*` reproduce a figure of the drawing with a formula that is **matched to
-//! the Km 39+136 drawing** and is not a reading of BS 8666; the owner will supply the Excel
-//! formulas. Tests named `documented_difference_*` pin a figure we do not reproduce.
+//! Tests named `documented_difference_*` pin a figure we do not reproduce. The full reference bar
+//! bending schedule is `docs/reference/culvert/km39136-1x1200-cpc-bbs.csv` (85 rows).
 
 use afrobim_culvert::*;
 
@@ -222,21 +221,22 @@ fn documented_difference_end_structure_blinding() {
 
 #[test]
 fn documented_difference_steel_in_the_bbs_and_the_payable_table() {
-    // Our schedule holds every row the brief lists, with the lettered series filled between the
-    // rows given (01b to 01k, 03b to 03j on a straight progression). The brief's grand total is
-    // 1498.176 kg and the payable table says 1.329 t. Neither is reproduced: the lettered rows
-    // not itemised in the brief (the wing and headwall series) are not available to us.
+    // The drawing's payable table lists 1.329 t of steel; its own bar bending schedule totals
+    // 1498.176 kg. The engine follows the schedule, so the two differ by about 169 kg.
     let d = reference();
     let kg = d.bbs.total_kg;
-    assert!((kg - 1148.8).abs() < 1.0, "BBS total {kg}");
-    assert!(kg < 1329.0 && 1329.0 < 1498.176);
+    near("BBS total", kg, 1498.176, 0.001);
+    assert!(1329.0 < kg);
     near(
-        "steel line",
+        "steel lines add up to the BBS",
         d.quantities
-            .find("culvert.steel")
-            .map_or(0.0, |l| l.quantity),
-        d.bbs.by_diameter_kg[&8],
-        1e-9,
+            .lines
+            .iter()
+            .filter(|l| l.category == "culvert.steel")
+            .map(|l| l.quantity)
+            .sum::<f64>(),
+        kg,
+        1e-6,
     );
 }
 
@@ -345,7 +345,7 @@ fn bbs_rows_read_from_bs_8666() {
         g("17", 5, 2, 10, 630.0, 111, &[150.0, 500.0], 2.489),
         g("13", 6, 2, 12, 6930.0, 200, &[150.0, 6673.0, 150.0], 73.846),
         g(
-            "ADD",
+            "add1",
             11,
             2,
             22,
@@ -361,10 +361,9 @@ fn bbs_rows_read_from_bs_8666() {
 }
 
 #[test]
-fn matched_to_the_drawing_rows() {
-    // MATCHED TO THE KM 39+136 DRAWING, not read from BS 8666: shape codes 202 and 213, the
-    // half-round bar's 14.6 mm offset and the Y10 link (mark 14, 10 mm shorter than the
-    // formula gives). The owner will supply the Excel formulas.
+fn rows_with_the_drawings_own_shape_codes() {
+    // Shape codes 202 and 213, the Y10 link (mark 14) and the half-round bar (its 14.6 mm offset
+    // is an input, not an allowance).
     let d = reference();
     let n = f64::NAN;
     for w in [
@@ -387,7 +386,7 @@ fn matched_to_the_drawing_rows() {
             10,
             2480.0,
             213,
-            &[300.0, 300.0, n, 1883.0],
+            &[300.0, 300.0, n, n, 1883.0],
             22.022,
         ),
         g("14", 23, 2, 46, 1240.0, 500, &[420.0, 120.0, 130.0], 35.194),
@@ -395,48 +394,49 @@ fn matched_to_the_drawing_rows() {
     ] {
         check(&d, &w);
     }
-    assert!(shape_defs()
-        .iter()
-        .filter(|s| s.matched_to_drawing)
-        .map(|s| s.code)
-        .collect::<Vec<_>>()
-        .contains(&202));
-    assert_eq!(CulvertInput::reference().reinforcement.adjustments.len(), 1);
+    let defs = shape_defs();
+    assert_eq!(defs.len(), 9);
+    assert!(defs.iter().all(|s| !s.formula.is_empty()));
 }
 
 #[test]
 fn bs_8666_formulas_before_rounding() {
-    let t = ReinforcementTable::reference();
     let dims = |v: &[f64]| {
         let mut d = [None; 6];
         for (i, x) in v.iter().enumerate() {
-            d[i] = Some(*x);
+            if !x.is_nan() {
+                d[i] = Some(*x);
+            }
         }
         d
     };
-    // Shape 11: A + B - 0.5 r - d, r = 2 d for Y12.
+    let n = f64::NAN;
+    let raw = |code, v: &[f64], dia| raw_cutting_length_mm(code, &dims(v), dia).expect("shape");
+    // r = 2 d and b = 0.5 r + d = 24 for Y12.
+    assert_eq!(raw(100, &[500.0], 12.0), 500.0);
+    assert_eq!(raw(117, &[2245.0], 8.0), 2245.0);
+    assert_eq!(raw(111, &[100.0, 800.0], 12.0), 876.0);
+    assert_eq!(raw(113, &[300.0, n, 523.0], 12.0), 823.0);
+    assert_eq!(raw(200, &[100.0, 500.0, 100.0], 12.0), 652.0);
+    assert_eq!(raw(202, &[170.0, 3244.0, 100.0], 12.0), 3490.0);
+    assert_eq!(raw(213, &[300.0, 300.0, n, n, 1883.0], 12.0), 2483.0);
+    // Link: 2 (A + B) + 2 C - 2.5 r - 5 d.
     assert_eq!(
-        raw_cutting_length_mm(111, &dims(&[100.0, 800.0]), 12.0, &t).expect("11"),
-        876.0
+        raw(500, &[168.0, 120.0, 105.0], 8.0),
+        2.0 * 288.0 + 210.0 - 40.0 - 40.0
     );
-    // Shape 21: A + B + C - r - 2 d.
+    // Four-bend crank: sum of A to E less 4 b.
     assert_eq!(
-        raw_cutting_length_mm(200, &dims(&[100.0, 500.0, 100.0]), 12.0, &t).expect("21"),
-        652.0
+        raw(900, &[250.0, 70.0, 250.0, 70.0, 250.0], 12.0),
+        890.0 - 96.0
     );
     // Y20 uses a former of 7 d: r = 3.5 d.
     assert_eq!(min_bend_radius_mm(20.0), 70.0);
-    assert_eq!(
-        raw_cutting_length_mm(111, &dims(&[500.0, 800.0]), 20.0, &t).expect("11 Y20"),
-        1300.0 - 35.0 - 20.0
-    );
-    // Link: 2 (A + B) + 17 d.
-    assert_eq!(
-        raw_cutting_length_mm(500, &dims(&[168.0, 120.0]), 8.0, &t).expect("51"),
-        576.0 + 136.0
-    );
-    // A shape with missing dimensions is refused.
-    assert!(raw_cutting_length_mm(200, &dims(&[100.0, 500.0]), 12.0, &t).is_err());
+    assert_eq!(raw(111, &[500.0, 800.0], 20.0), 1300.0 - 35.0 - 20.0);
+    // A shape with a missing dimension is refused, and so is an unknown code.
+    assert!(raw_cutting_length_mm(200, &dims(&[100.0, 500.0]), 12.0).is_err());
+    assert!(raw_cutting_length_mm(213, &dims(&[300.0, 300.0, n, 1883.0]), 12.0).is_err());
+    assert!(raw_cutting_length_mm(999, &dims(&[1.0]), 12.0).is_err());
 }
 
 #[test]
@@ -472,9 +472,8 @@ fn unit_masses_and_weights() {
 }
 
 #[test]
-fn the_rows_not_listed_in_the_brief_are_flagged_as_ours() {
-    // 01b to 01k and 03b to 03j are filled on a straight progression between the rows the brief
-    // gives; their bars are the same marks with the dimensions stepped.
+fn the_lettered_series_run_in_full() {
+    // 01a to 01l step B by 170 mm; 03a to 03k are the eleven apron bars of the 03 series.
     let d = reference();
     let marks: Vec<&str> = d.bbs.rows.iter().map(|r| r.mark.as_str()).collect();
     assert_eq!(marks.iter().filter(|m| m.starts_with("01")).count(), 12);
@@ -500,4 +499,107 @@ fn section_d_d_widths_and_cover() {
     assert_eq!(b.blinding_mm, 50.0);
     // The drawing's D-D uses another datum (cover 873); ours is computed from the long-section levels.
     near("cover at the centreline", d.layout.cover_cl_mm, 1424.0, 1.0);
+}
+
+/// One row of the reference schedule, read from the CSV.
+struct RefRow {
+    mark: String,
+    dia: u32,
+    bars_per_element: u32,
+    elements: u32,
+    total: u32,
+    cut: f64,
+    code: u16,
+    dims: [Option<f64>; 6],
+    kg: f64,
+}
+
+/// The 85-row reference. A dimension that is a letter in the CSV (a label of the drawing's
+/// sketch, such as `C` or `D`) is not a length and reads as `None`.
+fn reference_rows() -> Vec<RefRow> {
+    const CSV: &str = include_str!("../../../../docs/reference/culvert/km39136-1x1200-cpc-bbs.csv");
+    CSV.lines()
+        .skip(1)
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| {
+            let f: Vec<&str> = l.split(',').collect();
+            assert_eq!(f.len(), 17, "row {l}");
+            let num = |i: usize| f[i].parse::<f64>().ok();
+            let mut dims = [None; 6];
+            for (k, slot) in dims.iter_mut().enumerate() {
+                *slot = num(10 + k);
+            }
+            RefRow {
+                mark: f[1].to_string(),
+                dia: f[4].trim_start_matches('Y').parse().expect("diameter"),
+                bars_per_element: f[5].parse().expect("bars per element"),
+                elements: f[6].parse().expect("elements"),
+                total: f[7].parse().expect("total"),
+                cut: f[8].parse().expect("cutting length"),
+                code: f[9].parse().expect("code"),
+                dims,
+                kg: f[16].parse().expect("weight"),
+            }
+        })
+        .collect()
+}
+
+#[test]
+fn reference_csv_cutting_lengths_and_masses_are_exact() {
+    let rows = reference_rows();
+    assert_eq!(rows.len(), 85);
+    let table = ReinforcementTable::reference();
+    let mut total = 0.0;
+    for r in &rows {
+        let raw = raw_cutting_length_mm(r.code, &r.dims, r.dia as f64)
+            .unwrap_or_else(|e| panic!("{}: {e}", r.mark));
+        // Nearest 10 mm, halves up.
+        let cut = (raw / table.rounding_mm + 0.5).floor() * table.rounding_mm;
+        assert_eq!(cut, r.cut, "{} cutting length (raw {raw})", r.mark);
+        assert_eq!(r.bars_per_element * r.elements, r.total, "{} count", r.mark);
+        let unit = unit_mass_kg_per_m(r.dia).expect("unit mass");
+        let kg = (r.total as f64 * cut / 1000.0 * unit * 1000.0).round() / 1000.0;
+        assert!(
+            (kg - r.kg).abs() < 1e-9,
+            "{} mass {kg} against {}",
+            r.mark,
+            r.kg
+        );
+        total += r.kg;
+    }
+    near("CSV grand total", total, 1498.176, 0.001);
+}
+
+#[test]
+fn the_engine_reproduces_the_reference_schedule() {
+    let rows = reference_rows();
+    let d = reference();
+    assert_eq!(d.bbs.rows.len(), rows.len(), "row count");
+    for (e, r) in d.bbs.rows.iter().zip(&rows) {
+        assert_eq!(e.mark, r.mark, "mark order");
+        assert_eq!(e.diameter_mm, r.dia, "{} bar size", r.mark);
+        assert_eq!(e.shape_code, r.code, "{} shape", r.mark);
+        assert_eq!(e.dims, r.dims, "{} dimensions", r.mark);
+        assert_eq!(e.cutting_length_mm, r.cut, "{} cutting length", r.mark);
+        assert_eq!(e.total_bars, r.total, "{} total bars", r.mark);
+        assert!(
+            (e.mass_kg - r.kg).abs() < 1e-9,
+            "{} mass {} against {}",
+            r.mark,
+            e.mass_kg,
+            r.kg
+        );
+        // The schedule's two count columns read the other way round from the engine's: the CSV
+        // gives the elements first, then the bars in each. Only add4 (20 bars shared by the two
+        // ends) cannot be split in the same way.
+        if r.mark != "add4" {
+            assert_eq!(
+                (e.bars_per_element, e.elements),
+                (r.elements, r.bars_per_element),
+                "{} bars per element and elements",
+                r.mark
+            );
+        }
+    }
+    near("BBS total", d.bbs.total_kg, 1498.176, 0.001);
 }

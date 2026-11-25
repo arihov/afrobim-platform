@@ -19,9 +19,9 @@ use afrobim_drainage::design::mowt::OutletControlInput;
 use serde::{Deserialize, Serialize};
 
 pub use bbs::{
-    min_bend_radius_mm, raw_cutting_length_mm, schedule, shape_defs, unit_mass_kg_per_m,
-    Adjustment, Applies, BarRule, Basis, Bbs, BbsRow, Count, DimExpr, DimRule, ElementCount,
-    ElementKind, ReinforcementTable, Series, ShapeDef, Q,
+    min_bend_radius_mm, raw_cutting_length_mm, schedule, shape_defs, unit_mass_kg_per_m, Applies,
+    BarRule, Basis, Bbs, BbsRow, Count, DimExpr, DimRule, ElementCount, ElementKind,
+    ReinforcementTable, Series, ShapeDef, Q,
 };
 pub use drawings::{draw_all, CulvertDrawings};
 pub use error::CulvertError;

@@ -37,7 +37,7 @@ element's `data`.
 | `Ogl`, `RoadSection::toe` | ground line and the embankment toe |
 | `Barrel::{Pipe(PipeSpec), Box(BoxSpec)}`, `pipe_catalogue()` | barrels |
 | `InvertSpec`, `LengthRule`, `Thresholds`, `Bedding`, `EndStructure`, `ConcreteClasses`, `QuantityOptions` | the rest of the inputs |
-| `ReinforcementTable`, `BarRule`, `DimExpr`, `Count`, `Series`, `Adjustment`, `shape_defs()` | the editable reinforcement table |
+| `ReinforcementTable`, `BarRule`, `DimExpr`, `Count`, `Series`, `shape_defs()` | the editable reinforcement table |
 | `raw_cutting_length_mm`, `min_bend_radius_mm`, `unit_mass_kg_per_m` | BS 8666 and BS 4449 helpers |
 | `plan_solids`, `plan_overlaps` | convex plan polygons of the end structures and the overlap test |
 | `select_pipe`, `select_box`, `HydraulicsInput` | auto-select (pipe through `afrobim-drainage`; box is a marked TODO) |
@@ -116,30 +116,34 @@ does not depend on that crate.
 `ReinforcementTable` is an editable table of `BarRule`s: mark, element, bar size, shape code,
 dimensions A to F each as `constant + sum(k x geometry quantity)` (`DimExpr`), the bars per
 element (fixed, per cell or at a spacing along a length) and the number of elements. A `Series`
-steps dimensions from mark to mark for lettered marks (`01a` to `01l`). Dimensions are rounded to
+steps dimensions from mark to mark for lettered marks (`01a` to `01l`); `DimRule::PerMark` gives
+each mark its own value where the drawing steps irregularly (`05A`, `06B`, `08`, `11`). Dimensions are rounded to
 whole millimetres; cutting lengths are rounded to the nearest 10 mm (half up), as every length of
 the drawing is a multiple of 10. Weight = number x cutting length x unit mass
 (Y8 0.395, Y10 0.617, Y12 0.888, Y16 1.579, Y20 2.466, Y25 3.854 kg/m).
 
 Minimum bend radius (BS 8666:2020 Table 2): former 4 d up to Y16, 7 d above; `r = 2 d` or `3.5 d`.
-With `b = 0.5 r + d` (24 mm for Y12):
+With `b = 0.5 r + d` (24 mm for Y12). There is no allowance or adjustment table: each cutting
+length is the formula of its shape code (`shape_defs()`, `raw_cutting_length_mm`), then rounded
+to the nearest 10 mm with halves rounded up (Excel `ROUND`, not banker's rounding). The formulas
+were derived from the full reference schedule (`docs/reference/culvert/`), and all 85 of its
+rows reproduce.
 
-| Drawing code | BS 8666 shape | Cutting length | Status |
-|---|---|---|---|
-| 100 | 00 | A | BS 8666 |
-| 111 | 11 | A + B - 0.5 r - d | BS 8666 (verified by 06, 07, 17) |
-| 113 | 11 | as 111 | alias, no drawing row to check |
-| 200 | 21 | A + B + C - r - 2 d | BS 8666 (verified by 01, 02, 03, 06B, 10, 13) |
-| 500 | 51 | 2 (A + B) + 17 d | verified by 08a, 11a, 12 |
-| 900 | 99 | sum of legs - (legs - 1) b | verified by the additional bars |
-| 117 | 99, developed arc | A = pi (OD/2 + 14.6) | half-round bar |
-| 202 | none | A + B + C - b | **matched to the Km 39+136 drawing** |
-| 213 | none | A + B + D (C not used) | **matched to the Km 39+136 drawing** |
-| 500, Y10 | 51 | 2 (A + B) + 17 d - 10 | **matched to the Km 39+136 drawing** (link 14) |
+| Drawing code | BS 8666 shape | Cutting length |
+|---|---|---|
+| 100 | 00 | A |
+| 111 | 11 | A + B - 0.5 r - d |
+| 113 | cranked end | A + C |
+| 117 | half round, developed length | A (= pi (OD/2 + 14.6) for the half-round bar) |
+| 200 | 21 | A + B + C - r - 2 d |
+| 202 | U with one angled leg | A + B + C - 0.5 r - d |
+| 213 | three straights | A + B + E |
+| 500 | 51 | 2 (A + B) + 2 C - 2.5 r - 5 d |
+| 900 | four-bend crank | A + B + C + D + E - 4 (0.5 r + d) |
 
-Matched to the Km 39+136 drawing; the owner will supply the Excel formulas. These are in the
-`ReinforcementTable` (`adjustments`, `shape_defs()` with `matched_to_drawing`) so they can be
-replaced without touching code, and the tests that depend on them are named `matched_*`.
+Row masses are rounded to three decimals, as the schedule prints them, so the grand total is
+the sum of the printed rows (1498.176 kg for the reference). A dimension that the drawing shows
+as a letter (`C`, `D`) is not a length and is left empty.
 
 Bars whose dimensions the geometry explains are `Basis::Geometry`: the toe bar B (overall width
 - 2 cover), toe links, headwall L-bars B and their spacing, apron bar 02 and the half-round bars.
@@ -155,9 +159,7 @@ an `R` after the mark.
 
 Exact (to the figure printed): headwall 1850 x 2000 (1500 above the apron, 500 below), wings
 3267 at 45 degrees (2310 in elevation), overall width 6753 (6753.1), apron plus toe 2310,
-weight and cutting length of 01a, 01l, 02, 03a, 03k, 04a, 05Aa, 06, 06Ba, 16, 07, 08a, 09a, 10,
-11a, 12, 17, 13, 14, 15 and the additional bars (21 rows; 14 and the codes 202, 213 by the matched
-allowances above), C20 blinding under the pipe 1.530 m3, C20 bedding 6.120 m3, weep holes 0.8 m,
+the whole bar bending schedule (all 85 rows of the reference CSV: mark, shape, dimensions, cutting length, total number and mass, grand total 1498.176 kg, see below), C20 blinding under the pipe 1.530 m3, C20 bedding 6.120 m3, weep holes 0.8 m,
 the centre invert 1107.470 (from the end inverts and the 8347 / 8653 split), and the setting-out
 points 1 to 6 within 5 mm from point 1 or from point 2 and the axis bearing (the test uses the
 drawing's own split, and separately the computed length).
@@ -176,17 +178,39 @@ Documented differences, not forced:
   1.5 %, and the centre invert 1107.470 agrees with 1.5 %. We report what the levels give.
 * **End-structure blinding 7.360 m3.** At 50 mm that is 147 m2; both end structures cover about
   23 m2 (our blinding is 1.14 m3). Unexplained.
-* **Steel.** Our schedule totals 1148.8 kg. The brief's 1498.176 kg and the payable 1.329 t do
-  not agree with each other (169 kg apart) and we reproduce neither: the brief lists 21 marks and
-  says the lettered series run on (`01a ... 01l`, `03a ... 03k`); we filled 01b to 01k and 03b
-  to 03j on a straight progression and cannot know the other lettered rows (for example further
-  04, 05B and 06B marks) that the drawing's total must include. Our schedule includes every row
-  the brief lists plus those filled-in marks, and nothing else. We found no combination of the
-  listed rows that explains the 169 kg between the two figures.
+* **Steel: drawing and schedule disagree.** The drawing's payable items table (page 3) lists
+  1.329 t of steel; its own bar bending schedule totals 1,498.176 kg (169 kg more). The engine
+  follows the schedule. Which figure is right is for the owner to confirm.
 * **Section D-D.** The drawing uses a different datum (FRL 1092.720, cover 873), so its levels are
   not reproduced; the widths 200 | 100 | 1200 | 100 | 200 and the layers are. Our blinding is as
   wide as the surround (1800), where the drawing shows 1900.
 * **Embankment slope** 1:1.77 and the OGL (1107.5 to 1107.9) are back-calculated and read by eye.
+
+## The reference schedule and what the engine generates
+
+`docs/reference/culvert/km39136-1x1200-cpc-bbs.csv` is the full 85-row schedule. For the 1 x 1200
+CPC reference the engine generates all 85 rows, in the same order, with the same marks, shape
+codes, bar sizes, dimensions, cutting lengths, total numbers and masses (`golden.rs`:
+`reference_csv_cutting_lengths_and_masses_are_exact` checks the formulas on the CSV alone;
+`the_engine_reproduces_the_reference_schedule` checks the engine against it). No row is missing.
+Where the engine differs from the CSV, in presentation only:
+
+* **Bars and elements.** The CSV's two count columns read the other way round from the engine's:
+  `bars per element x elements` in the CSV is the engine's `elements x bars per element` (for
+  example mark 02: CSV 4 x 18, engine 18 bars in each of 4 elements). The products agree on every
+  row. `add4` (20 bars) is split 10 per end by the engine (10 x 2) because one element cannot be
+  shared between two ends.
+* **Spacing column.** The CSV repeats 200 (or 300, 1000) on most rows; the engine fills the
+  spacing only where it drives the bar count (06, 07, 14) or where the drawing prints it.
+* **Descriptions** are the engine's own wording.
+* **Letters.** The CSV holds `B`, `C`, `D` in some dimension columns (labels of the drawing's
+  sketch); the engine leaves those empty.
+
+Which numbers follow the geometry and which are copied from the drawing (`Basis`) is unchanged
+for the 01, 02, 07, 13, 14, 15 bars; the lettered series of the wings and the headwall
+(04, 05, 06A, 06B, 08, 09c, 09d, 11, 16 and the 03 series for the middle marks) are the
+drawing's own numbers, so a culvert of another size gets the same bars there, and a different
+design needs those rows edited. The 03 series scales with the overall width.
 
 ## Checks and tests
 

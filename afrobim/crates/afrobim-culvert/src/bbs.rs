@@ -6,8 +6,8 @@
 //! there are. [`schedule`] evaluates the table against a [`Layout`].
 //!
 //! Shape codes are the Km 39+136 drawing's own. [`shape_defs`] maps each to the BS 8666 shape it
-//! represents and says which formulas are **matched to the drawing** instead of read from the
-//! standard.
+//! represents and gives its cutting-length formula. There is no allowance or adjustment table:
+//! each cutting length is the formula of its shape, rounded to the nearest 10 mm with halves up.
 
 use std::collections::BTreeMap;
 use std::f64::consts::PI;
@@ -128,6 +128,9 @@ pub enum DimRule {
     Hypot(DimExpr, DimExpr),
     /// A half circle of the given radius, `pi x r` (a half-round bar).
     HalfCircle(DimExpr),
+    /// One value for each mark of a series (the last is repeated if the series is longer). For
+    /// dimensions that the drawing steps irregularly from mark to mark.
+    PerMark(Vec<DimExpr>),
 }
 
 /// How many bars sit in one element.
@@ -201,15 +204,6 @@ pub struct BarRule {
     pub applies: Applies,
 }
 
-/// A correction to the cutting length of one shape code and bar size, added before rounding.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Adjustment {
-    pub shape_code: u16,
-    pub diameter_mm: u32,
-    pub add_mm: f64,
-    pub note: String,
-}
-
 /// The editable reinforcement table.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReinforcementTable {
@@ -221,9 +215,6 @@ pub struct ReinforcementTable {
     pub rounding_mm: f64,
     /// Added to the pipe's outside radius for the half-round bars, mm.
     pub half_round_offset_mm: f64,
-    /// A link's hook and bend allowance in bar diameters: `2 (A + B) + this x d`.
-    pub link_allowance_d: f64,
-    pub adjustments: Vec<Adjustment>,
     pub rows: Vec<BarRule>,
 }
 
@@ -232,39 +223,33 @@ pub struct ReinforcementTable {
 pub struct ShapeDef {
     pub code: u16,
     pub bs8666: &'static str,
+    /// The cutting length before rounding, with `r` the bend radius and `d` the bar diameter.
     pub formula: &'static str,
-    /// True where the formula was matched to the drawing and is not a BS 8666 reading.
-    pub matched_to_drawing: bool,
 }
 
-/// The drawing's shape codes. `r` is the minimum bend radius ([`min_bend_radius_mm`]).
+/// The drawing's shape codes and their cutting-length formulas ([`raw_cutting_length_mm`]).
+/// `r` is the bend radius ([`min_bend_radius_mm`], 2 d up to Y16). Derived from the drawing's own
+/// schedule: all 85 rows of the reference reproduce.
 pub fn shape_defs() -> Vec<ShapeDef> {
-    let s = |code, bs8666, formula, matched_to_drawing| ShapeDef {
+    let s = |code, bs8666, formula| ShapeDef {
         code,
         bs8666,
         formula,
-        matched_to_drawing,
     };
     vec![
-        s(100, "00", "A", false),
-        s(111, "11", "A + B - 0.5 r - d", false),
+        s(100, "00 (straight)", "A"),
+        s(111, "11 (L)", "A + B - 0.5 r - d"),
+        s(113, "cranked end", "A + C"),
+        s(117, "half round, developed length", "A"),
+        s(200, "21 (U)", "A + B + C - r - 2 d"),
+        s(202, "U with one angled leg", "A + B + C - 0.5 r - d"),
+        s(213, "three straights", "A + B + E"),
         s(
-            113,
-            "11 (no drawing row; treated as 111)",
-            "A + B - 0.5 r - d",
-            true,
+            500,
+            "51 (closed link with hooks)",
+            "2 (A + B) + 2 C - 2.5 r - 5 d",
         ),
-        s(200, "21", "A + B + C - r - 2 d", false),
-        s(202, "none (matched)", "A + B + C - (0.5 r + d)", true),
-        s(213, "none (matched)", "A + B + D", true),
-        s(117, "99 (half-round, developed length)", "A", false),
-        s(500, "51", "2 (A + B) + link allowance x d", false),
-        s(
-            900,
-            "99",
-            "A + B + C + D + E + F - (legs - 1) (0.5 r + d)",
-            false,
-        ),
+        s(900, "four-bend crank", "A + B + C + D + E - 4 (0.5 r + d)"),
     ]
 }
 
@@ -292,6 +277,31 @@ impl ReinforcementTable {
             s[1] = b;
             s
         };
+        let dims = |v: Vec<Option<DimExpr>>| {
+            let mut a: [Option<DimExpr>; 6] = Default::default();
+            for (i, x) in v.into_iter().enumerate() {
+                a[i] = x;
+            }
+            a
+        };
+        let some = |v: f64| Some(c(v));
+        let list = |v: &[f64]| v.iter().map(|x| c(*x)).collect::<Vec<_>>();
+        // Series B of the 03 bars: the drawing's lengths at the reference overall width, growing
+        // by a tenth of the extra overall width per step so a wider end structure lengthens them.
+        let b03: Vec<DimExpr> = [
+            2380.0, 2790.0, 3190.0, 3600.0, 4010.0, 4410.0, 4820.0, 5220.0, 5630.0, 6040.0, 6440.0,
+        ]
+        .iter()
+        .enumerate()
+        .map(|(k, v)| {
+            // Whole tenths and hundredths, so the table survives a JSON round trip exactly.
+            let f = k as f64 / 10.0;
+            DimExpr::of(
+                ((v - f * 6753.1) * 100.0).round() / 100.0,
+                &[(f, Q::OverallWidth)],
+            )
+        })
+        .collect();
         let rows = vec![
             // Apron
             H::row(
@@ -301,14 +311,11 @@ impl ReinforcementTable {
                 12,
                 None,
                 200,
-                [
+                dims(vec![
                     Some(leg_slab.clone()),
                     Some(hw(-1350.0)),
                     Some(leg_slab.clone()),
-                    None,
-                    None,
-                    None,
-                ],
+                ]),
                 Count::Fixed(4),
                 ElementCount::PerEnd(2),
                 Basis::DrawingFixed,
@@ -321,7 +328,7 @@ impl ReinforcementTable {
                 12,
                 None,
                 200,
-                [
+                dims(vec![
                     Some(leg_slab.clone()),
                     Some(DimExpr::of(
                         0.0,
@@ -332,10 +339,7 @@ impl ReinforcementTable {
                         ],
                     )),
                     Some(leg_slab.clone()),
-                    None,
-                    None,
-                    None,
-                ],
+                ]),
                 Count::Spaced {
                     length: DimExpr::of(0.0, &[(1.0, Q::OverallWidth)]),
                     spacing_mm: 380.0,
@@ -343,32 +347,32 @@ impl ReinforcementTable {
                 ElementCount::PerEnd(2),
                 Basis::Geometry,
             ),
-            {
-                let mut s = none6();
-                s[0] = c(7.0);
-                s[1] = DimExpr::of(-269.3, &[(0.1, Q::OverallWidth)]);
-                s[2] = c(-5.0);
-                H::row(
-                    "03",
-                    ElementKind::Apron,
-                    "Apron U-bar",
-                    12,
-                    None,
-                    200,
-                    [
-                        Some(c(100.0)),
-                        Some(c(2380.0)),
-                        Some(c(100.0)),
-                        None,
-                        None,
-                        None,
-                    ],
-                    Count::Fixed(2),
-                    ElementCount::PerEnd(2),
-                    Basis::DrawingFixed,
-                )
-                .with_series(11, s)
-            },
+            H::row(
+                "03",
+                ElementKind::Apron,
+                "Apron U-bar",
+                12,
+                None,
+                200,
+                dims(vec![None, None, None]),
+                Count::Fixed(2),
+                ElementCount::PerEnd(2),
+                Basis::DrawingFixed,
+            )
+            .with_series(11, none6())
+            .with_per_mark(
+                0,
+                list(&[
+                    100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 170.0, 170.0, 170.0, 170.0, 170.0,
+                ]),
+            )
+            .with_per_mark(1, b03)
+            .with_per_mark(
+                2,
+                list(&[
+                    100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 50.0, 50.0, 50.0, 50.0, 50.0,
+                ]),
+            ),
             // Wing walls
             H::row(
                 "04",
@@ -377,19 +381,16 @@ impl ReinforcementTable {
                 12,
                 None,
                 202,
-                [
-                    Some(c(170.0)),
+                dims(vec![
+                    some(170.0),
                     Some(DimExpr::of(-23.0, &[(1.0, Q::WingLength)])),
-                    Some(c(100.0)),
-                    None,
-                    None,
-                    None,
-                ],
+                    some(100.0),
+                ]),
                 Count::Fixed(3),
                 ElementCount::PerEnd(2),
                 Basis::DrawingFixed,
             )
-            .with_series(1, none6()),
+            .with_series(2, step(c(50.0))),
             H::row(
                 "05A",
                 ElementKind::WingWall,
@@ -397,19 +398,33 @@ impl ReinforcementTable {
                 12,
                 None,
                 202,
-                [
-                    Some(c(170.0)),
-                    Some(c(310.0)),
-                    Some(c(100.0)),
-                    None,
-                    None,
-                    None,
-                ],
+                dims(vec![some(170.0), None, some(100.0)]),
                 Count::Fixed(1),
                 ElementCount::PerEnd(2),
                 Basis::DrawingFixed,
             )
-            .with_series(1, none6()),
+            .with_series(8, none6())
+            .with_per_mark(
+                1,
+                list(&[310.0, 720.0, 1140.0, 1550.0, 1960.0, 2380.0, 2790.0, 3200.0]),
+            ),
+            H::row(
+                "05B",
+                ElementKind::WingWall,
+                "Wing wall U-bar",
+                12,
+                None,
+                202,
+                dims(vec![some(170.0), None, some(100.0)]),
+                Count::Fixed(1),
+                ElementCount::PerEnd(2),
+                Basis::DrawingFixed,
+            )
+            .with_series(8, none6())
+            .with_per_mark(
+                1,
+                list(&[360.0, 770.0, 1190.0, 1600.0, 2010.0, 2430.0, 2840.0, 3250.0]),
+            ),
             H::row(
                 "06",
                 ElementKind::WingWall,
@@ -417,7 +432,7 @@ impl ReinforcementTable {
                 12,
                 Some(120.0),
                 111,
-                [Some(c(100.0)), Some(c(800.0)), None, None, None, None],
+                dims(vec![some(100.0), some(800.0)]),
                 Count::Spaced {
                     length: DimExpr::of(0.0, &[(1.0, Q::WingLength)]),
                     spacing_mm: 120.0,
@@ -426,25 +441,45 @@ impl ReinforcementTable {
                 Basis::DrawingFixed,
             ),
             H::row(
+                "06A",
+                ElementKind::WingWall,
+                "Wing wall L-bar",
+                12,
+                None,
+                111,
+                dims(vec![some(100.0), some(634.0)]),
+                Count::Fixed(2),
+                ElementCount::PerEnd(2),
+                Basis::DrawingFixed,
+            )
+            .with_series(3, step(c(92.0))),
+            H::row(
                 "06B",
                 ElementKind::WingWall,
                 "Wing wall U-bar",
                 12,
                 None,
                 200,
-                [
-                    Some(c(710.0)),
-                    Some(c(170.0)),
-                    Some(c(710.0)),
-                    None,
-                    None,
-                    None,
-                ],
+                dims(vec![None, some(170.0), None]),
                 Count::Fixed(1),
                 ElementCount::PerEnd(2),
                 Basis::DrawingFixed,
             )
-            .with_series(1, none6()),
+            .with_series(14, none6())
+            .with_per_mark(
+                0,
+                list(&[
+                    710.0, 800.0, 890.0, 980.0, 1080.0, 1170.0, 1260.0, 1350.0, 1440.0, 1530.0,
+                    1620.0, 1720.0, 1810.0, 1900.0,
+                ]),
+            )
+            .with_per_mark(
+                2,
+                list(&[
+                    710.0, 800.0, 890.0, 980.0, 1080.0, 1170.0, 1260.0, 1350.0, 1440.0, 1530.0,
+                    1620.0, 1720.0, 1810.0, 1900.0,
+                ]),
+            ),
             H::row(
                 "16",
                 ElementKind::WingWall,
@@ -452,14 +487,11 @@ impl ReinforcementTable {
                 10,
                 None,
                 202,
-                [
+                dims(vec![
                     Some(DimExpr::of(294.0, &[(1.0, Q::WingLength)])),
-                    Some(c(151.0)),
-                    Some(c(100.0)),
-                    None,
-                    None,
-                    None,
-                ],
+                    some(151.0),
+                    some(100.0),
+                ]),
                 Count::Fixed(2),
                 ElementCount::PerEnd(2),
                 Basis::DrawingFixed,
@@ -472,17 +504,13 @@ impl ReinforcementTable {
                 12,
                 Some(250.0),
                 111,
-                [
-                    Some(c(100.0)),
+                dims(vec![
+                    some(100.0),
                     Some(DimExpr::of(
                         0.0,
                         &[(1.0, Q::HeadwallHeight), (-2.0, Q::CoverWall)],
                     )),
-                    None,
-                    None,
-                    None,
-                    None,
-                ],
+                ]),
                 Count::Spaced {
                     length: DimExpr::of(0.0, &[(1.0, Q::HeadwallWidth), (-2.0, Q::CoverWall)]),
                     spacing_mm: 250.0,
@@ -497,19 +525,13 @@ impl ReinforcementTable {
                 12,
                 None,
                 500,
-                [
-                    Some(c(768.0)),
-                    Some(hw_wall.clone()),
-                    Some(c(160.0)),
-                    None,
-                    None,
-                    None,
-                ],
+                dims(vec![None, Some(hw_wall.clone()), some(160.0)]),
                 Count::PerCell(2),
                 ElementCount::PerEnd(1),
                 Basis::DrawingFixed,
             )
-            .with_series(1, none6()),
+            .with_series(3, none6())
+            .with_per_mark(0, list(&[768.0, 650.0, 600.0])),
             H::row(
                 "09",
                 ElementKind::Headwall,
@@ -517,13 +539,41 @@ impl ReinforcementTable {
                 12,
                 None,
                 213,
-                [Some(c(300.0)), Some(c(300.0)), None, None, None, None],
+                dims(vec![some(300.0), some(300.0)]),
                 Count::PerCell(5),
                 ElementCount::PerEnd(1),
                 Basis::DrawingFixed,
             )
-            .with_hypot(3, hw(0.0), c(350.0))
-            .with_series(1, none6()),
+            .with_hypot(4, hw(0.0), c(350.0))
+            .with_series(2, {
+                let mut s = none6();
+                s[4] = c(100.0);
+                s
+            }),
+            H::row(
+                "09c",
+                ElementKind::Headwall,
+                "Headwall bar",
+                12,
+                None,
+                113,
+                dims(vec![some(300.0), None, some(523.0)]),
+                Count::Fixed(2),
+                ElementCount::PerEnd(1),
+                Basis::DrawingFixed,
+            ),
+            H::row(
+                "09d",
+                ElementKind::Headwall,
+                "Headwall bar",
+                12,
+                None,
+                113,
+                dims(vec![some(300.0), None, some(573.0)]),
+                Count::Fixed(2),
+                ElementCount::PerEnd(1),
+                Basis::DrawingFixed,
+            ),
             H::row(
                 "10",
                 ElementKind::Headwall,
@@ -531,14 +581,7 @@ impl ReinforcementTable {
                 12,
                 None,
                 200,
-                [
-                    Some(c(800.0)),
-                    Some(hw_wall.clone()),
-                    Some(c(800.0)),
-                    None,
-                    None,
-                    None,
-                ],
+                dims(vec![some(800.0), Some(hw_wall.clone()), some(800.0)]),
                 Count::PerCell(4),
                 ElementCount::PerEnd(1),
                 Basis::DrawingFixed,
@@ -550,19 +593,13 @@ impl ReinforcementTable {
                 8,
                 None,
                 500,
-                [
-                    Some(c(404.0)),
-                    Some(hw_wall.clone()),
-                    Some(c(105.0)),
-                    None,
-                    None,
-                    None,
-                ],
+                dims(vec![None, Some(hw_wall.clone()), some(105.0)]),
                 Count::PerCell(1),
                 ElementCount::PerEnd(1),
                 Basis::DrawingFixed,
             )
-            .with_series(1, none6()),
+            .with_series(6, none6())
+            .with_per_mark(0, list(&[404.0, 250.0, 177.0, 161.0, 199.0, 299.0])),
             H::row(
                 "12",
                 ElementKind::Headwall,
@@ -570,14 +607,7 @@ impl ReinforcementTable {
                 8,
                 None,
                 500,
-                [
-                    Some(c(168.0)),
-                    Some(hw_wall.clone()),
-                    Some(c(105.0)),
-                    None,
-                    None,
-                    None,
-                ],
+                dims(vec![some(168.0), Some(hw_wall.clone()), some(105.0)]),
                 Count::PerCell(2),
                 ElementCount::PerEnd(1),
                 Basis::DrawingFixed,
@@ -589,41 +619,8 @@ impl ReinforcementTable {
                 8,
                 None,
                 111,
-                [Some(c(150.0)), Some(c(500.0)), None, None, None, None],
+                dims(vec![some(150.0), some(500.0)]),
                 Count::PerCell(5),
-                ElementCount::PerEnd(1),
-                Basis::DrawingFixed,
-            ),
-            H::row(
-                "15",
-                ElementKind::Headwall,
-                "Half-round bar",
-                8,
-                None,
-                117,
-                [None, None, None, None, None, None],
-                Count::PerCell(4),
-                ElementCount::PerEnd(1),
-                Basis::Geometry,
-            )
-            .with_half_circle(0, DimExpr::of(0.0, &[(0.5, Q::PipeOd)]))
-            .pipe_only(),
-            H::row(
-                "ADD",
-                ElementKind::Headwall,
-                "Additional bar",
-                12,
-                None,
-                900,
-                [
-                    Some(c(250.0)),
-                    Some(c(70.0)),
-                    Some(c(250.0)),
-                    Some(c(70.0)),
-                    Some(c(250.0)),
-                    None,
-                ],
-                Count::Fixed(11),
                 ElementCount::PerEnd(1),
                 Basis::DrawingFixed,
             ),
@@ -635,17 +632,14 @@ impl ReinforcementTable {
                 12,
                 None,
                 200,
-                [
-                    Some(c(150.0)),
+                dims(vec![
+                    some(150.0),
                     Some(DimExpr::of(
                         0.0,
                         &[(1.0, Q::OverallWidth), (-2.0, Q::CoverWall)],
                     )),
-                    Some(c(150.0)),
-                    None,
-                    None,
-                    None,
-                ],
+                    some(150.0),
+                ]),
                 Count::Fixed(6),
                 ElementCount::PerEnd(1),
                 Basis::Geometry,
@@ -657,7 +651,7 @@ impl ReinforcementTable {
                 10,
                 Some(300.0),
                 500,
-                [
+                dims(vec![
                     Some(DimExpr::of(
                         0.0,
                         &[(1.0, Q::ToeTotalDepth), (-2.0, Q::CoverWall)],
@@ -666,17 +660,82 @@ impl ReinforcementTable {
                         0.0,
                         &[(1.0, Q::ToeWidth), (-2.0, Q::CoverWall)],
                     )),
-                    Some(c(130.0)),
-                    None,
-                    None,
-                    None,
-                ],
+                    some(130.0),
+                ]),
                 Count::Spaced {
                     length: DimExpr::of(0.0, &[(1.0, Q::OverallWidth), (-2.0, Q::CoverWall)]),
                     spacing_mm: 300.0,
                 },
                 ElementCount::PerEnd(1),
                 Basis::Geometry,
+            ),
+            H::row(
+                "15",
+                ElementKind::ToeBeam,
+                "Half-round bar",
+                8,
+                None,
+                117,
+                dims(vec![None]),
+                Count::PerCell(4),
+                ElementCount::PerEnd(1),
+                Basis::Geometry,
+            )
+            .with_half_circle(0, DimExpr::of(0.0, &[(0.5, Q::PipeOd)]))
+            .pipe_only(),
+            H::row(
+                "add1",
+                ElementKind::ToeBeam,
+                "Additional bar",
+                12,
+                Some(1000.0),
+                900,
+                dims(vec![
+                    some(250.0),
+                    some(70.0),
+                    some(250.0),
+                    some(70.0),
+                    some(250.0),
+                ]),
+                Count::Fixed(11),
+                ElementCount::PerEnd(1),
+                Basis::DrawingFixed,
+            ),
+            H::row(
+                "add2",
+                ElementKind::ToeBeam,
+                "Additional bar",
+                12,
+                Some(1000.0),
+                200,
+                dims(vec![some(100.0), some(70.0), some(70.0)]),
+                Count::Fixed(4),
+                ElementCount::PerEnd(2),
+                Basis::DrawingFixed,
+            ),
+            H::row(
+                "add3",
+                ElementKind::ToeBeam,
+                "Additional bar",
+                12,
+                Some(1000.0),
+                200,
+                dims(vec![some(100.0), some(70.0), some(70.0)]),
+                Count::Fixed(2),
+                ElementCount::PerEnd(1),
+                Basis::DrawingFixed,
+            ),
+            H::row(
+                "add4",
+                ElementKind::ToeBeam,
+                "Additional bar",
+                12,
+                Some(1000.0),
+                100,
+                dims(vec![some(200.0)]),
+                Count::Fixed(10),
+                ElementCount::PerEnd(1),
+                Basis::DrawingFixed,
             ),
             // Box barrel: placeholders pending structural design, all editable.
             H::row(
@@ -789,13 +848,6 @@ impl ReinforcementTable {
             cover_slab_mm: 50.0,
             rounding_mm: 10.0,
             half_round_offset_mm: 14.6,
-            link_allowance_d: 17.0,
-            adjustments: vec![Adjustment {
-                shape_code: 500,
-                diameter_mm: 10,
-                add_mm: -10.0,
-                note: "matched to the Km 39+136 drawing (link 14 at 1240): the owner will supply the Excel formulas".to_string(),
-            }],
             rows,
         }
     }
@@ -806,7 +858,6 @@ impl ReinforcementTable {
         not_negative("the slab cover", self.cover_slab_mm)?;
         positive("the cutting length rounding", self.rounding_mm)?;
         not_negative("the half-round offset", self.half_round_offset_mm)?;
-        positive("the link allowance", self.link_allowance_d)?;
         for r in &self.rows {
             if unit_mass_kg_per_m(r.diameter_mm).is_none() {
                 return invalid(format!(
@@ -878,6 +929,11 @@ impl BarRule {
 
     fn with_hypot(mut self, index: usize, x: DimExpr, y: DimExpr) -> BarRule {
         self.dims[index] = Some(DimRule::Hypot(x, y));
+        self
+    }
+
+    fn with_per_mark(mut self, index: usize, values: Vec<DimExpr>) -> BarRule {
+        self.dims[index] = Some(DimRule::PerMark(values));
         self
     }
 
@@ -974,77 +1030,74 @@ impl Ctx<'_> {
     }
 }
 
-/// Cutting length of one bar, mm, before rounding: the BS 8666 formula of the shape plus any
-/// adjustment. `dims` are A to F in mm.
+/// Cutting length of one bar, mm, before rounding. `dims` are A to F in mm, `diameter_mm` is the
+/// bar diameter `d`, and `r` is the bend radius ([`min_bend_radius_mm`]; 2 d up to Y16). With
+/// `b = 0.5 r + d` (the allowance of one 90 degree bend):
+///
+/// | Code | Shape | Cutting length |
+/// |---|---|---|
+/// | 100 | straight | `A` |
+/// | 111 | L (BS 8666 shape 11) | `A + B - b` |
+/// | 113 | cranked end | `A + C` |
+/// | 117 | half round, developed | `A` |
+/// | 200 | U (shape 21) | `A + B + C - r - 2 d` (two bends) |
+/// | 202 | U, one angled leg | `A + B + C - b` |
+/// | 213 | three straights | `A + B + E` |
+/// | 500 | link (shape 51) | `2 (A + B) + 2 C - 2.5 r - 5 d` |
+/// | 900 | four-bend crank | `A + B + C + D + E - 4 b` |
 pub fn raw_cutting_length_mm(
     code: u16,
     dims: &[Option<f64>; 6],
     diameter_mm: f64,
-    table: &ReinforcementTable,
 ) -> Result<f64, CulvertError> {
-    let g = |i: usize| dims[i].unwrap_or(0.0);
     let d = diameter_mm;
     let r = min_bend_radius_mm(d);
     let bend = 0.5 * r + d;
-    let need = |n: usize| -> Result<(), CulvertError> {
-        if (0..n).all(|i| dims[i].is_some()) {
-            Ok(())
-        } else {
-            invalid(format!(
-                "shape {code} needs dimensions A to {}",
-                ["A", "B", "C", "D", "E", "F"][n - 1]
-            ))
-        }
+    let names = ["A", "B", "C", "D", "E", "F"];
+    // The dimensions a shape uses, which must all be present.
+    let get = |used: &[usize]| -> Result<Vec<f64>, CulvertError> {
+        used.iter()
+            .map(|&i| {
+                dims[i].ok_or_else(|| {
+                    CulvertError::Invalid(format!("shape {code} needs dimension {}", names[i]))
+                })
+            })
+            .collect()
     };
-    let raw = match code {
-        100 | 117 => {
-            need(1)?;
-            g(0)
+    Ok(match code {
+        100 | 117 => get(&[0])?[0],
+        111 => {
+            let v = get(&[0, 1])?;
+            v[0] + v[1] - bend
         }
-        111 | 113 => {
-            need(2)?;
-            g(0) + g(1) - bend
+        113 => {
+            let v = get(&[0, 2])?;
+            v[0] + v[1]
         }
         200 => {
-            need(3)?;
-            g(0) + g(1) + g(2) - 2.0 * bend
+            let v = get(&[0, 1, 2])?;
+            v[0] + v[1] + v[2] - r - 2.0 * d
         }
         202 => {
-            need(3)?;
-            g(0) + g(1) + g(2) - bend
+            let v = get(&[0, 1, 2])?;
+            v[0] + v[1] + v[2] - bend
         }
         213 => {
-            need(2)?;
-            if dims[3].is_none() {
-                return invalid("shape 213 needs dimensions A, B and D");
-            }
-            g(0) + g(1) + g(3)
+            let v = get(&[0, 1, 4])?;
+            v[0] + v[1] + v[2]
         }
         500 => {
-            need(2)?;
-            2.0 * (g(0) + g(1)) + table.link_allowance_d * d
+            let v = get(&[0, 1, 2])?;
+            2.0 * (v[0] + v[1]) + 2.0 * v[2] - 2.5 * r - 5.0 * d
         }
-        900 => {
-            let legs = dims.iter().flatten().count();
-            if legs < 2 {
-                return invalid("shape 900 needs at least two legs");
-            }
-            dims.iter().flatten().sum::<f64>() - (legs as f64 - 1.0) * bend
-        }
+        900 => get(&[0, 1, 2, 3, 4])?.iter().sum::<f64>() - 4.0 * bend,
         other => return invalid(format!("shape code {other} is not known")),
-    };
-    let adjust: f64 = table
-        .adjustments
-        .iter()
-        .filter(|a| a.shape_code == code && a.diameter_mm as f64 == d)
-        .map(|a| a.add_mm)
-        .sum();
-    Ok(raw + adjust)
+    })
 }
 
-/// Rounds `v` to the nearest multiple of `step` (halves up).
+/// Rounds `v` to the nearest multiple of `step`, halves up (Excel `ROUND`, not banker's rounding).
 fn round_to(v: f64, step: f64) -> f64 {
-    (v / step).round() * step
+    (v / step + 0.5).floor() * step
 }
 
 fn count_of(c: &Count, ctx: &Ctx) -> u32 {
@@ -1109,6 +1162,15 @@ pub fn schedule(input: &CulvertInput, layout: &Layout) -> Result<Bbs, CulvertErr
                             DimRule::HalfCircle(r) => {
                                 PI * (ctx.eval(r) + table.half_round_offset_mm)
                             }
+                            DimRule::PerMark(list) => match list.get(k as usize).or(list.last()) {
+                                Some(e) => ctx.eval(e),
+                                None => {
+                                    return invalid(format!(
+                                        "bar mark {}: an empty list of dimensions",
+                                        rule.mark
+                                    ))
+                                }
+                            },
                         };
                         let step = rule.series.as_ref().map_or(0.0, |s| ctx.eval(&s.step[i]));
                         let v = (base + step * k as f64).round();
@@ -1118,8 +1180,7 @@ pub fn schedule(input: &CulvertInput, layout: &Layout) -> Result<Bbs, CulvertErr
                         *slot = Some(v);
                     }
                 }
-                let raw =
-                    raw_cutting_length_mm(rule.shape_code, &dims, rule.diameter_mm as f64, table)?;
+                let raw = raw_cutting_length_mm(rule.shape_code, &dims, rule.diameter_mm as f64)?;
                 let cut = round_to(raw, table.rounding_mm);
                 if cut <= 0.0 {
                     return invalid(format!(
@@ -1148,7 +1209,9 @@ pub fn schedule(input: &CulvertInput, layout: &Layout) -> Result<Bbs, CulvertErr
                     cutting_length_mm: cut,
                     shape_code: rule.shape_code,
                     dims,
-                    mass_kg: total_bars as f64 * cut / 1000.0 * mass_per_m,
+                    // To the three decimals the schedule prints, so the grand total is the sum of the printed rows.
+                    mass_kg: (total_bars as f64 * cut / 1000.0 * mass_per_m * 1000.0).round()
+                        / 1000.0,
                     basis: rule.basis,
                 });
             }

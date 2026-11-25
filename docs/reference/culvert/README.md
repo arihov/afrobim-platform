@@ -21,3 +21,5 @@ Derived from the schedule itself and checked on all 85 rows (85 of 85 reproduce)
 ## Known difference on the same drawing
 
 The payable items table on page 3 lists 1.329 t of steel; the schedule totals 1,498.176 kg. Which one is right is for the owner to confirm.
+
+The engine (`afrobim-culvert`) follows the schedule, not the payable table, and reproduces all 85 rows (see `afrobim/crates/afrobim-culvert/README.md`).
