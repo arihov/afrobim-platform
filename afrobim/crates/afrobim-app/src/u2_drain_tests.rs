@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Glue tests: the three drainage bases, the complete culvert check and the SANRAL methods.
 //! Every number is an arbitrary test value.
 

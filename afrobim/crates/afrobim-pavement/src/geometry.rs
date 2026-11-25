@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Geometry: the offset-strip relations, the typical cross-section and the 3D slabs.
 //!
 //! # A strip beside a curved alignment

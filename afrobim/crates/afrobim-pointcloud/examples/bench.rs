@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Measures indexing of synthetic points. Run each mode as its own process so the peak memory
 //! (VmHWM, Linux) belongs to that mode:
 //!

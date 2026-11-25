@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Flexible pavement structure by the catalogue of the Uganda MoWT *Road Design Manual
 //! Volume 3: Pavement Design, Part I: Flexible Pavements* (January 2010), called "Part I" below.
 //! Part I adopts the SATCC Draft Code of Practice for the Design of Road Pavements (1998,

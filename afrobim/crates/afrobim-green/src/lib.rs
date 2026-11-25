@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! AfroBIM green BIM for road works: embodied carbon, material waste and transport from the
 //! model's quantity lines, and the operational energy of street lighting.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The model export: signs with their posts and foundations, where they stand on site, and the
 //! alignments they were placed from.
 //!

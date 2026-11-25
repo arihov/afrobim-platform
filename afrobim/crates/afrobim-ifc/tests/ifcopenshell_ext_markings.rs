@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The second marking set (category `marking_ext`) in the model export, and its validation by
 //! IfcOpenShell.
 //!

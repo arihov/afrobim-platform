@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The plain text field book format of this crate ("AFROFB").
 //!
 //! This is the crate's own documented format, not a copy of any vendor format. One record per line,

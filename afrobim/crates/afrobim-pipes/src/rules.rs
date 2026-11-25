@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The rule set. Every rule is an input; `RuleSet::default()` has every rule off. No value is
 //! built in: minimum cover, slopes, velocities and the rest come from the project's standard,
 //! which the caller names in `name`.

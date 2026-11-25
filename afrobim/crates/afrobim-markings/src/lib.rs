@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road markings as AfroBIM model elements, to the UK Traffic Signs Manual Chapter 5.
 //!
 //! This first cut holds the **longitudinal lines**: centre lines, lane lines, warning lines,

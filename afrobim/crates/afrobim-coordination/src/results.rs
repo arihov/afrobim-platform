@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Clash records, their review status, merging across runs, and reports.
 
 use afrobim_kernel::ElementId;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road surface reduction coefficients (r-tables), read from a file the user supplies.
 //!
 //! **No r-table ships with this crate.** CIE r-tables are standard content; the only tables

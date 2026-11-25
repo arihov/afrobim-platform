@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! U2: objects at the coordinates of their source. Fixtures with UTM-sized coordinates (easting
 //! about 450 000 m with northing about 35 000 m north of the equator, and about 9 960 000 m south
 //! of it) go through the import paths, and the model positions are checked against the numbers

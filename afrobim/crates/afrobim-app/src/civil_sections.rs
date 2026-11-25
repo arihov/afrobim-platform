@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Cross-sections of a LandXML file as section view objects: one sample line group per alignment
 //! built from the stations of the file, each line carrying the file's named section surfaces. The
 //! comparison mode puts AfroBIM's own cut of the matching document surface over the file's line

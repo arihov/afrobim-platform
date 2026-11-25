@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Statistical distributions computed numerically (no typed tables).
 //!
 //! * `ln_gamma`: Stirling series (DLMF section 5.11, eq. 5.11.1: ln G(z) ~ (z - 1/2) ln z - z +

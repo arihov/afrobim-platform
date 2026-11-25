@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The Rust port against the C# reference.
 //!
 //! `tools/GoldenFab` (C#) runs `SignQuantities`, `SheetComposer`, `SheetDxfWriter`,

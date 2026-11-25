@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Georeferenced export: `IfcProjectedCRS` and `IfcMapConversion`, with the geometry written near a
 //! local origin. The site fixture is moved to UTM-sized coordinates (easting 450 km, northing
 //! 9 960 km) and exported with and without a georeference.

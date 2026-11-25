@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The check framework and the physics relations. Every limit used here is a **test fixture**
 //! chosen to be easy to work by hand. None is taken from any standard.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Sight distance: stopping (Tables 6.19, 6.20), passing (Tables 6.21, 6.22) and meeting sight distance, with
 //! the assumptions the manual states (reaction time, friction, eye and object heights).
 //!

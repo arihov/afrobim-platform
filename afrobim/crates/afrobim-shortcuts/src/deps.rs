@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The dependency table: which fields of an element's `data` name other objects.
 //!
 //! The kernel does not know what a corridor is, so the table is data. Each rule says: for an

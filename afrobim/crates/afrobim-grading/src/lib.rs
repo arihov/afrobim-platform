@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Feature lines, sites and grading objects of a civil design package, as an engine with no user
 //! interface. See the README for scope, methods and limits.
 

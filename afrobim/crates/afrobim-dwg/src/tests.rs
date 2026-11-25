@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 use super::*;
 use afrobim_draw::Pt2;
 use afrobim_dxf::reader::{self, Underlay};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Working calendars: working weekdays and holidays entered by the user.
 
 use std::collections::BTreeSet;

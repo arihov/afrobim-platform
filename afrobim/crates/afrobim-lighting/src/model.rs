@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The definitions stored in a lighting element's `data`. Everything here is entered data; no
 //! field has a default taken from a standard.
 

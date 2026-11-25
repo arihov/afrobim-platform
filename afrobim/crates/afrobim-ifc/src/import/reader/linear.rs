@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! `IfcLinearPlacement`: the placement of a product on the curve of an alignment.
 //!
 //! A linear placement is `PlacementRelTo`, an `IfcAxis2PlacementLinear` whose `Location` is an

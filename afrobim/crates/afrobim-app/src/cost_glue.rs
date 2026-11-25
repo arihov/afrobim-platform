@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The 5D estimate in the app: collecting quantities from the model, storing the estimate and the
 //! user's payment records in the document, and the join between the programme and the cost
 //! crate (which are independent crates).

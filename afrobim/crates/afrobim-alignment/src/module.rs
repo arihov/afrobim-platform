@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The alignment as a kernel element: category `"alignment"`, `data` = the serialised [`Alignment`].
 
 use std::collections::BTreeMap;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The geometric design limits of the Uganda Ministry of Works and Transport, **Road Design Manual
 //! Volume I: Geometric Design, January 2010**, as typed lookups and as a built-in [`DesignBasis`].
 //!

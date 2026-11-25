@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Reader tests on hand-written DXF text, and on what this crate's own writer produces.
 //! Expected values are worked by hand in the comments.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Validation by an independent IFC toolkit.
 //!
 //! Exports the hand-built document, writes what the document says next to it as JSON, and runs

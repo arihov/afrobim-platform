@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Datum transformations: geodesy, methods and the registry records they are used with.
 //!
 //! Nothing in this module changes a document. It is the maths and the data; [`crate::crs_plan`]

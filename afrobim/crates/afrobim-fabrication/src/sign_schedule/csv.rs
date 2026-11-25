@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A small CSV reader and writer for the sign schedule.
 //!
 //! Reads comma, semicolon or tab separated text with quoted fields (`"` doubled inside a quoted

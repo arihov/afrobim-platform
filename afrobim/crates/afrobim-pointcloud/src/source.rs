@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Readers: LAS 1.0 to 1.4, LAZ, E57 and delimited text, all as chunked streams.
 //!
 //! [`read_header`] returns the header facts without loading points (text files need one pass).

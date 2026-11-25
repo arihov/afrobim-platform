@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The plan view: a station range of an alignment at a scale, clipped to a viewport and turned so
 //! the alignment runs along the sheet, with every module's plan drawing, station ticks and
 //! labels (displayed stations), element marks and match lines. Also the plan sheet series.

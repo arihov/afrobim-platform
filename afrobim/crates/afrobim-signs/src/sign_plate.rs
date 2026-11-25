@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The plate of a single-panel sign: its ground and, in a pack with a `signBorder` section,
 //! its drawn border (UK TSM Chapter 7 §2.15, Figure 2-4). Port of C# `SignPlate`.
 //!

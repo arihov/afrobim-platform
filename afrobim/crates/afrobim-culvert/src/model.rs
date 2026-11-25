@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The inputs of a culvert design. Every number is an input; the defaults are those of the
 //! Km 39+136 reference drawing (Iganga-Bulopa-Kamuli road) and [`default_notes`] says which
 //! default came from the drawing, which was back-calculated from it and which is an assumption.

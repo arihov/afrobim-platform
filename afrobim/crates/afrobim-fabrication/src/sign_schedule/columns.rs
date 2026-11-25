@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The schedule's fields and the mapping from a file's headers to them.
 
 use serde::{Deserialize, Serialize};

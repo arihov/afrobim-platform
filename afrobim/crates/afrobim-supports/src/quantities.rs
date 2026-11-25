@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Take-off for posts and foundations, by geometry only.
 //!
 //! Every figure here is the entered dimensions put through a formula stated on the field. No

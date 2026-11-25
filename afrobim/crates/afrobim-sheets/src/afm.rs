@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Glyph advance widths (1/1000 em) of the standard Helvetica and Helvetica-Bold faces, for the
 //! WinAnsi codes 32 to 255 (index = code - 32). Generated from the published Adobe core-14 AFM
 //! metrics as shipped with ReportLab 4 (`pdfmetrics.stringWidth`), not typed by hand. The few

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML: the civil content of a whole-file import that the geometry readers do not hold, kept as
 //! the file states it. Plain data in metres (stations, offsets and levels take the file's linear
 //! unit; percentages and counts are as written).

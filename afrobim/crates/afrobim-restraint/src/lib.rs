@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road restraint systems: safety barrier runs along an alignment as model elements, with
 //! quantities and requirement checks.
 //!

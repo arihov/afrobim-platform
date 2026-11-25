@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A small CSV reader and writer (RFC 4180 quoting) so that no other dependency is needed.
 
 pub(crate) fn escape(field: &str) -> String {

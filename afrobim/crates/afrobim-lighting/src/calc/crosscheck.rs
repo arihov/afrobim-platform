@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Cross-check against an independent open-source reader, run only when it is available.
 //!
 //! The Python package `luxpy` (pip, GPL, https://github.com/ksmet1977/luxpy) has its own IES and

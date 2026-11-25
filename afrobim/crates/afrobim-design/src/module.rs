@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The design and the option set as kernel elements, following the pattern of
 //! `afrobim-schedule` (`add_programme`, `store_programme`, `load_programme`).
 //!

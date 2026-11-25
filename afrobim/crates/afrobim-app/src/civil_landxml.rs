@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML to civil objects: CgPoints become point sets, Parcels become parcel elements, ProfSurf
 //! becomes ground profiles shown in profile views, and a surface keeps its source data (breaklines,
 //! boundaries, contours, data points) as a definition that rebuilds. Everything comes in at the

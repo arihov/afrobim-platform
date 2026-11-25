@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Application state, panels and input routing.
 
 use std::collections::HashMap;
@@ -105,6 +107,7 @@ pub struct AfroBimApp {
     ribbon_tab: crate::ribbon::Tab,
     show_help: bool,
     show_about: bool,
+    licences: crate::licences::Licences,
     show_library: bool,
     library: Vec<signs_glue::LibraryItem>,
     library_filter: String,
@@ -266,6 +269,7 @@ impl AfroBimApp {
             ribbon_tab: options.tab.as_deref().and_then(crate::ribbon::tab_named).unwrap_or(crate::ribbon::Tab::Home),
             show_help: false,
             show_about: false,
+            licences: Default::default(),
             show_library: false,
             library,
             library_filter: String::new(),
@@ -1848,6 +1852,7 @@ impl AfroBimApp {
         if ctx.input(|i| i.key_pressed(Key::Escape)) {
             self.show_help = false;
             self.show_about = false;
+            self.licences.open = false;
             self.show_library = false;
             // Esc in a Properties field belongs to that field; it only cancels an active command.
             if !in_field || self.ctl.is_busy() {
@@ -3103,6 +3108,7 @@ impl AfroBimApp {
         }
 
         let mut about = self.show_about;
+        let mut open_licences = false;
         if about {
             let dlg = crate::ui_kit::Dialog::titled("About AfroBIM").subtitle("Version and licence of this build").resizable(false).show_body(ctx, |ui| {
                 crate::ui_kit::heading(ui, "This build");
@@ -3114,12 +3120,21 @@ impl AfroBimApp {
                 });
                 crate::ui_kit::heading(ui, "Modules loaded");
                 crate::ui_kit::note(ui, self.module_status.clone());
+                crate::ui_kit::heading(ui, "Licence");
+                crate::ui_kit::note(ui, "Copyright (c) 2026 AfroBIM. All rights reserved. Used under the AfroBIM End-User Licence Agreement.");
+                if ui.button("Licences...").clicked() {
+                    open_licences = true;
+                }
             });
             if dlg.closed {
                 about = false;
             }
         }
         self.show_about = about;
+        if open_licences {
+            self.licences.open = true;
+        }
+        self.licences.show(ctx);
     }
 
     /// The categories the registered modules own, with their display names.

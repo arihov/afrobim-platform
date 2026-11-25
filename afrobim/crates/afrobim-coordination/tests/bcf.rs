@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Issues, clash grouping and BCF 2.1 exchange.
 //!
 //! The schema test needs the buildingSMART/BCF-XML `v2.1` schemas (directory in `BCF_XSD_DIR`,

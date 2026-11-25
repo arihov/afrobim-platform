@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tests against closed-form cases. Coordinates are true UTM magnitudes.
 
 use afrobim_corridor::Tin;

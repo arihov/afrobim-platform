@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Toolbar icons as polylines in a 16 × 16 box (Y down), so they stay crisp at any scale and
 //! follow the theme colour. No icon font or image asset is shipped.
 

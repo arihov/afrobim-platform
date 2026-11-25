@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A hand-built document shared by the integration tests: three signs (one without a drawing)
 //! and one element of a category the exporter does not know.
 

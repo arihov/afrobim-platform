@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Progress records: dated site measurements per model element.
 //!
 //! A record says "on this date, this element was this far along", either as a percent complete or

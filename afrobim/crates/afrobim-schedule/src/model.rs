@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The programme: activities, logic, calendars, progress, baseline and 4D links.
 
 use afrobim_kernel::ElementId;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Vertical alignment, sight distance and cross-section tables of the Uganda MoWT Road Design Manual Volume I
 //! (January 2010). Page numbers are printed page (PDF page, printed + 9).
 

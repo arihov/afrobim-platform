@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The coordinate system a survey is in. This is the kernel's [`afrobim_kernel::ProjectCrs`]: the
 //! one coordinate system type of the application, the same one the project setting holds. The
 //! corridor crate used to carry its own `{epsg, name}` type for WGS 84 / UTM only; it is now this

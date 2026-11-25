@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Grading objects: projection from a footprint feature line to a daylight line.
 //!
 //! A [`Grading`] projects from a footprint (the whole line, or a station range) on one side by

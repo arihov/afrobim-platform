@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Kerb returns: the line that joins one road's edge to the other's round a corner.
 //!
 //! A **quadrant** is the corner between one arm of the primary road and one arm of the secondary

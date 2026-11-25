@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A small hand-worked project shared by the tests. The numbers are fixtures chosen to be easy to
 //! check by hand; they are not rates, percentages or prices of any real contract.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! BCF 2.1 export. Element and attribute names are those of `markup.xsd`, `visinfo.xsd`,
 //! `version.xsd` and `project.xsd` of the buildingSMART/BCF-XML release tagged `v2.1`.
 

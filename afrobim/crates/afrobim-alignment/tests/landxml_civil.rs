@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! What a Civil 3D file holds beyond the geometry: `civil3d_like.xml` has the structure that
 //! Autodesk Civil 3D 2025 writes (spirals with `PI`, `ProfSurf` and `ProfAlign`, `CrossSects` with
 //! named `CrossSectSurf`, `Superelevation` elements that are partial or empty, `Feature` and

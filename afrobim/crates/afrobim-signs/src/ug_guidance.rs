@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The guidance layouts a pack without the UK TSM Chapter 7 sections takes (the Uganda pack):
 //!
 //! - stack-type advance direction signs with one arrow per row (App.1 §2.3, Figure 6): the

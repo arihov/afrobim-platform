@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The work breakdown structure: summary tasks whose dates span their children and whose percent
 //! complete rolls up by a stated rule.
 //!

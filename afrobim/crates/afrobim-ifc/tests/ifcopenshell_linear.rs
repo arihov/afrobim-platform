@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Alignment geometry and linear placement, checked by an independent IFC toolkit.
 //!
 //! Exports the model of `tests/common/linear.rs` twice, with `AlignmentExport::Linear` and with

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The complete alignment export, switched on by [`AlignmentExport::Geometry`] and
 //! [`AlignmentExport::Linear`]. The README, "Alignments, complete", gives every entity and rule
 //! with the page of the IFC 4.3 documentation it comes from.

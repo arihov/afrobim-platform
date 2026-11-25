@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The Issues window (`ISSUES`) and the BCF exchange windows (`BCFOUT`, `BCFIN`).
 //!
 //! Issues live in the coordination element (`Coordination::issues`), so they are saved, opened

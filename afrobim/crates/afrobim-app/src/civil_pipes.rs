@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Pipe networks as civil objects: the element data, the scene (plan, profile and 3D) built from the
 //! `afrobim-pipes` engine, and the helpers the dialogs and the toolspace share.
 //!

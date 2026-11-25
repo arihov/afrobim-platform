@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Route confirmatory signs. Port of C# `ConfirmatorySignLayout` for a pack with a `blocks`
 //! section (UK TSM Chapter 7 §8; App.1 §2.5, Figure 8).
 //!

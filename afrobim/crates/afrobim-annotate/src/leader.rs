@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Leaders: a polyline from a pointed-at spot to a text, with an optional landing.
 //!
 //! The first point is the spot pointed at; it carries the terminator. The last point is where

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Assemblies, subassemblies, targets, the corridor model, sample lines and the new quantities,
 //! against hand calculations.
 //!

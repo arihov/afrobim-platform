@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tables and notes: a generic table with column widths and wrapping, builders from CSV text and
 //! plain rows, and wrapped paragraph text.
 //!

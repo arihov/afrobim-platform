@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Reading an ASCII DXF as a stream of records.
 //!
 //! An ASCII DXF is a sequence of lines in pairs: a group code (an integer) and a value. A

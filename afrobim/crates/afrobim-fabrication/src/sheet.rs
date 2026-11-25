@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The composed fabrication sheet. Port of C# `FabricationSheet.cs`.
 
 use afrobim_draw::{Drawing, Pt2};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The model export of the road modules checked without an IFC toolkit: a document with an
 //! element of every module is exported, and the entities, their counts, relationships,
 //! placements, geometry, property sets and quantities are read back from the STEP text and

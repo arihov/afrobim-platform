@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The civil commands: one enum, the table the command list reads, and the icon of each.
 
 use egui_phosphor::regular as ph;

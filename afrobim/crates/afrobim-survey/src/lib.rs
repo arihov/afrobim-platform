@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Survey database engine: networks, control points, setups, observations, figures and import
 //! events; reductions with a stated correction chain; field book import; traverse closure; and least
 //! squares network adjustment with quality measures. No user interface. See the README for scope,

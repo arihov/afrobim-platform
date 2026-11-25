@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Lays out one A3 landscape fabrication sheet. Port of C# `SheetComposer`.
 //!
 //! The sheet carries the sign face at a standard scale with its overall and panel dimensions, a

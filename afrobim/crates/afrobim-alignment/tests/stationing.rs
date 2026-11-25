@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Station equations: internal station ↔ displayed station, gaps, overlaps and labels.
 //!
 //! The example used throughout, on an alignment whose internal stations run 1000 to 1900:

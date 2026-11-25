@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The command palette (Ctrl+K): a search box over every command, showing icon, name, aliases and
 //! help. Up and Down move, Enter runs, Escape or a click outside closes. A command of another
 //! workspace runs like any other: the palette lists everything.

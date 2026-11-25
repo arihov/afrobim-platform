@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Information signs: a symbol on a white sub-panel with an optional arrow and distance, or a
 //! symbol straight on the coloured ground. Port of C# `InformationSignLayout`.
 //!

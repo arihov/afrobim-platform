@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Vertical part of a junction: crossfall, the secondary profile locked to the primary, edge
 //! levels, the blend of a return's profile from its two edges, and low points.
 //!

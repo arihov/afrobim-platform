@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The model export (`export_ifc_model`) checked without an IFC toolkit: what a plain document
 //! gives, entity counts, placements, relationships, units, swept-solid parameters, property
 //! sets, the alignment, and the fallbacks.

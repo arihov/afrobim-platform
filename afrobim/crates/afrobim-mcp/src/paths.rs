@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Resolves and checks every path a tool touches (port of C# `PathGuard`). Schedule reads are
 //! limited to existing `.csv` files, `export_dxf` writes only directly inside the `out_dir` the
 //! caller named, and the document tools only touch `.afrobim` and `.dxf` files.

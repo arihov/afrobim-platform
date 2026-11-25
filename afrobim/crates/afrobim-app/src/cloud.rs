@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Point clouds in the document: the element that holds a `PointCloudReference` (no points), the
 //! cache of opened indexes, the synthetic cloud of the demonstration, and the drawing of a cloud in
 //! plan (a raster of the level-of-detail query for the current view, kept until the view changes)

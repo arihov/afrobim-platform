@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Outputs: plain geometry, slope pattern ticks and CSV tables.
 //!
 //! Geometry is returned as arrays in source coordinates: lines as `Vec<[f64; 3]>`, triangles as

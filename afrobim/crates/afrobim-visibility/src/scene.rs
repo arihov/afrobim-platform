@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The things a sight line can hit: triangles of the ground, corridor surfaces and every other
 //! modelled solid, held in site coordinates in **metres**, with a plan grid so that a sight line
 //! only meets the triangles near it.

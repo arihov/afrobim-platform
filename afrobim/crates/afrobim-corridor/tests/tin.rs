@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The TIN: elevation at a point, section cuts, bounds, the stored encoding.
 //!
 //! Every surface here is small enough that the expected values are worked by hand in the comments.

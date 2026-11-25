@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Annotation on the canvas and its windows: the active command, object snap, grips, the layer
 //! manager, units, the style managers, the measure results and the Properties editor of an
 //! annotation. The logic of each command is in `anno_glue` (a state machine that takes points and

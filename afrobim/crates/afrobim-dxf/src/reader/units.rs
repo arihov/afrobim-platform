@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Drawing units from the header.
 //!
 //! `$INSUNITS` codes and names are those of `ezdxf.units` (1.4.5): 0 unitless, 1 inches, 2 feet,

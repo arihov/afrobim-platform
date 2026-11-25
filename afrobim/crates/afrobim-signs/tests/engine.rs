@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The public API the desktop app codes against, checked by hand-worked dimensions from
 //! UK TSM Chapter 7 rather than by the golden fixtures.
 

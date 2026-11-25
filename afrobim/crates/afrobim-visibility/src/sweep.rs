@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The geometry of the driver's view: a driver's eye is moved along the approach to a sign, and
 //! from each position sight lines are traced to points of the sign face.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The sign-schedule CSV reader: a port of the parsing half of C# `SignCore.Cli.ScheduleCsv` and
 //! the token vocabulary of `SignCore.Model.ScheduleCodec`.
 //!

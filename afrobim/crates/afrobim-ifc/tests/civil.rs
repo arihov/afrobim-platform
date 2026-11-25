@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The civil packages in the model export: what is written, what is refused and why.
 
 use afrobim_draw::Mesh3;

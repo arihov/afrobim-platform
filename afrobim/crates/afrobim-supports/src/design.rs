@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Structural design of a sign's supports: the wind force on the sign, a steel circular hollow
 //! section post, and a planted foundation.
 //!

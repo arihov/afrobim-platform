@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The spatial index: an implicit octree on Morton-ordered points.
 //!
 //! # Choice and justification

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML: everything in a whole-file import except the alignments' own geometry, which
 //! `landxml.rs` reads. Plain data in metres, no dependency on any CRS or surface type: the
 //! application maps what it needs.

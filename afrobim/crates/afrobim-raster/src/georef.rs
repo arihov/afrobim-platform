@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Where an image sits: the affine from pixels to the image's own coordinate system, and that
 //! system.
 //!

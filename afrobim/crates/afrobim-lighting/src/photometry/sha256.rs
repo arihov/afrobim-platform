@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! SHA-256 (FIPS 180-4), implemented here so the crate needs no new dependency. It is used only
 //! to recognise that a photometric file is the one a calculation was made with; it is not used
 //! for anything security relevant. Tested against the published test vectors.

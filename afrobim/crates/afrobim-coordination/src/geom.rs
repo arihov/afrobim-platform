@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Pure geometry: vectors, boxes and triangle tests. Millimetres throughout.
 
 use serde::{Deserialize, Serialize};

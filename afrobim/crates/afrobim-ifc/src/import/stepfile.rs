@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Reader for STEP physical files (ISO 10303-21 clear text encoding): header, and an instance
 //! table over the DATA section.
 //!

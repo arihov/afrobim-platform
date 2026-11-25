@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A hand-built site model for the model export: signs with posts and foundations of every
 //! section and shape, some placed on site and some not, a sign without supports, a post without
 //! a sign, an element of an unknown category and an alignment with every kind of element.

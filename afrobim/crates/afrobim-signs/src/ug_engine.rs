@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Loading a folder rule pack into a [`SignEngine`], and the engine's view of the sections only
 //! the Uganda pack carries.
 

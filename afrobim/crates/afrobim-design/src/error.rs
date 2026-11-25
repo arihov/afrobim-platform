@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Why a design edit or build is refused. Messages are written for the engineer, in plain words.
 
 use serde::{Deserialize, Serialize};

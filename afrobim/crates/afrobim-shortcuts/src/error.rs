@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 use afrobim_kernel::DocumentError;
 
 /// Everything this crate can refuse to do. Each message is a plain sentence for the user.

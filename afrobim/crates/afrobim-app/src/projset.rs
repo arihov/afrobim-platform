@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! PROJECTSETTINGS: the project's rule for meeting a mph threshold with a km/h limit.
 //!
 //! UK requirements are written in mph bands. A posted limit in km/h (80 km/h is 49.71 mph) needs

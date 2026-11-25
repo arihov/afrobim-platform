@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Setting-out points of the end structures in the project coordinate system.
 //!
 //! Points 1 and 2 are the centres of the outer faces of the left and right headwalls on the

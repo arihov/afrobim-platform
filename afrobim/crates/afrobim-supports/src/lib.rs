@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Sign supports: posts and foundations as model elements.
 //!
 //! The modelling side of this crate takes dimensions and turns them into solids, a sheet

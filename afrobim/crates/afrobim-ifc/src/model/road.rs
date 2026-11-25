@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The road modules' elements in the model export: road markings, side drains, pipe culverts,
 //! sign gantries, street lighting, road restraint, pavements, corridors and ground surfaces.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Clip, crop and export: LAS, LAZ and delimited text for a filtered subset, coordinates unchanged.
 //!
 //! LAS stores coordinates as integers times a scale plus an offset. When the scale and offset

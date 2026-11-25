@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Uniform-flow hydraulics of a pipe: full-bore capacity, partial-flow depth and velocity.
 //!
 //! # Methods and sources

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A run resolved against its alignment: the offset line, its length, the posts, the plan
 //! drawing and the schematic solids.
 //!

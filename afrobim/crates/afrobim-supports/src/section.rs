@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Post cross-sections described purely by entered dimensions. There is no section catalogue.
 
 use std::f64::consts::PI;

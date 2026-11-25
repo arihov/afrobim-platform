@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The survey database in the application, part one: the state, loading and saving, the Survey tab
 //! of the toolspace, new and open, the database settings dialog, import of field data and the
 //! import events. Part two (`sdb_ui2`) holds the observation editor, traverse, adjustment, figures

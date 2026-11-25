@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The pavement definition: where it runs, how wide it is and what it is made of.
 
 use afrobim_alignment::Alignment;

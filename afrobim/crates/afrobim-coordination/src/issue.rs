@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Issues: the things people discuss and assign, with comments, related elements, a location
 //! and saved viewpoints. They persist with the coordination data and exchange through BCF.
 

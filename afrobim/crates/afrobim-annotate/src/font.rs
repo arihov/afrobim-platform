@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A small single-stroke font used only to preview text where the draw crate has no text
 //! primitive. It is this crate's own design (a 4 by 6 cell per glyph), not a standard font.
 //!

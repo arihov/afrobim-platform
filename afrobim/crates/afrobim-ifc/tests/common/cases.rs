@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The synthetic importer cases: every geometry path the importer supports, each in one product,
 //! with unusual placements. Built with `synth::B`.
 

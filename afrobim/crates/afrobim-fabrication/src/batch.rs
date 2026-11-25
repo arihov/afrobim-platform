@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Fabrication sheets for a list of signs: `<code>-sheet.dxf` (R12) and `<code>-sheet.pdf` per
 //! sign, and `schedule.pdf` for the run. Port of C# `FabricationBatch.Run` (the entry point the
 //! desktop app's *Fabrication sheets* command uses).

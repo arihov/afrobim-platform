@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The importer's reading of `IfcLinearPlacement` on a file this crate did not write.
 //!
 //! The buildingSMART sample `linear-placement-of-signal.ifc` (IFC4.3.x-sample-models,

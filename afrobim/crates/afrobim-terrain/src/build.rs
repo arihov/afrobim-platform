@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Replaying a definition into a TIN. See [`SurfaceDefinition::build`].
 
 use afrobim_corridor::Tin;

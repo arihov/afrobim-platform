@@ -27,8 +27,10 @@ allow = [
     "MPL-2.0",        # not in the tree yet: acadrust (DWG reader) is licensed MPL-2.0
 ]
 
-# The workspace's own crates declare no licence yet (plan item 7.8) and are never published
-# (publish = false), so they are skipped rather than reported as unlicensed.
+# The workspace's own crates declare license = "LicenseRef-AfroBIM-Proprietary" (see LICENSE) and
+# are never published (publish = false), so they are skipped by `ignore = true` below rather than
+# having the LicenseRef added to the allow list. Do not add it to `allow`: that would let a third
+# party crate under the same non-standard id pass.
 [licenses.private]
 ignore = true
 

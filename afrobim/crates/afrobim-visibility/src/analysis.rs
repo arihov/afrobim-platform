@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Visibility analysis of the signs of a document: the facts of a sign gathered from its
 //! element, the sweep, the checks, and the road-wide run with its CSV.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Writes a `.afrobim` file with `afrobim_kernel::Document` and the sign engine directly,
 //! following the desktop app's glue (`afrobim-app/src/signs_glue.rs` and `App::insert_sign`):
 //! category `sign`, layer `Signs`, the element's name a unique mark, its data the serialised

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A model for the linear placement: one alignment with spirals both ways, a compound spiral,
 //! a profile with every kind of vertical curve, station equations (a gap, an overlap, a
 //! decreasing run) and stored superelevation, and elements placed on it at stations and offsets:

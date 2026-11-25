@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Calculation areas and their grids.
 //!
 //! The grids are **user-defined**. The calculation grid of BS EN 13201-3 (number and position of

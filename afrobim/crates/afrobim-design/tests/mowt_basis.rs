@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The built-in `mowt_2010` basis in the check framework: row contents and sources, refusals, the list of built-in
 //! bases, the user table overriding it, and a full alignment check with hand-worked expected statuses.
 

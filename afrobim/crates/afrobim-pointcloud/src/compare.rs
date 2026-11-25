@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Compare a cloud to a surface: per-point vertical difference to a `Tin`, with a histogram and a
 //! banded result for colouring, for as-built checks. Volumes are left to the terrain crate.
 //!

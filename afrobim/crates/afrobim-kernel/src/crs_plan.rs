@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Reprojection as an explicit, logged operation.
 //!
 //! The rule of the application stays: nothing is reprojected silently. A transform is something

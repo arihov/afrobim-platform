@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Horizontal alignment geometry: tangents, circular arcs and clothoid spirals.
 //!
 //! Everything here is in metres and radians, in plan coordinates X east / Y north. Headings are

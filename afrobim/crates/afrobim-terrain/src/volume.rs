@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Volumes between TIN surfaces, inside a polygon, against a level, and stage-storage.
 //!
 //! # Method (exact)

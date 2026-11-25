@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Hand-worked horizontal tests. The working is in the comments; every figure can be checked
 //! with a calculator.
 

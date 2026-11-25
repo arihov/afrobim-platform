@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Grouping clashes so one issue can cover a group.
 //!
 //! Two clashes belong together when they share an element, or when their points lie within a

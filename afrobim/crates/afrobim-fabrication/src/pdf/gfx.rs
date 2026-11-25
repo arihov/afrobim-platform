@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Page content streams, written the way PDFsharp 6.2.4's `XGraphics` writes them for a page in
 //! millimetres with the y axis pointing down.
 //!

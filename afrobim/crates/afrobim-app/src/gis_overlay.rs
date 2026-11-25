@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! GIS import as a read-only overlay: GeoJSON, KML, GPX and CSV (longitude, latitude) files drawn
 //! behind the model, the way Spatial Manager brings a GIS layer into a drawing.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Glue tests: the report pack lists per check only that check's stored inputs, and its design
 //! basis section names the bases in use.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! `xs:dateTime` text for Unix seconds, without a date library.
 //!
 //! The civil-from-days and days-from-civil conversions are the proleptic Gregorian algorithms

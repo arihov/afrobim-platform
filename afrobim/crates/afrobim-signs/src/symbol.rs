@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Pictogram placement inside a sign panel (App.1 §2.1.4). Port of C# `SymbolResolver`.
 //!
 //! The parking "P" is drawn here; every other symbol is real vector artwork from the

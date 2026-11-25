@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Design checks against a standard whose limits the user supplies.
 //!
 //! **This crate ships no limits.** A [`DesignBasis`] is a table of rows (for instance one per

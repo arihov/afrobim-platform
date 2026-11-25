@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! AfroBIM raster engine: georeferenced images and web map tiles.
 //!
 //! * [`georef`]: where an image sits. A six-term affine from pixel corners to the coordinates of

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The bill of quantities: sections, items, the rules that map quantity lines to items, manual
 //! quantities and adjustments, and the measurement of a [`QuantitySet`] against all of that with
 //! a full audit trail.

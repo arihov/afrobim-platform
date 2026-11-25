@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Converts lettering to Transport glyph outlines. Port of C# `TextOutliner`.
 //!
 //! Each text run becomes one `Glyphs` primitive:

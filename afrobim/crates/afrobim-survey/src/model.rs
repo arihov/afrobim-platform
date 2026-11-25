@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The survey database: settings, equipment, networks (points, directions, setups with
 //! observations, levelling runs, baselines, figures), import events and a change log. The layout is
 //! modelled on the objects of the Autodesk Civil 3D survey database as described in its help

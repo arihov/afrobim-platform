@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Network topology: ordering, loops, branches, and flow accumulation.
 
 use std::collections::{BTreeMap, BTreeSet};

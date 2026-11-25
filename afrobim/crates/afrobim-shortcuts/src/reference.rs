@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! References in a host document: read-only copies of shared objects.
 //!
 //! A reference is an ordinary element of the source's own category, at the source's own

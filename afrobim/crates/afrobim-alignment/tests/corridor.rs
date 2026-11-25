@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML profile, station equations and superelevation, and placing signs with them.
 //!
 //! `tests/landxml/corridor.xml` and `corridor_feet.xml` were built by hand to the LandXML 1.2

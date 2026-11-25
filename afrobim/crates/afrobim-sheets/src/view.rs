@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A view on a sheet: what it shows and where it sits.
 
 use serde::{Deserialize, Serialize};

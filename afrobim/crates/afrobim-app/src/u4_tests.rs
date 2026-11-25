@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tests of the U4 work: what the 3D view receives from the civil objects, and the dependency
 //! refresh of the dependent views.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The existing ground as a TIN (triangulated irregular network): points and triangles.
 //!
 //! Plan X is easting and Y northing, in metres; Z is elevation in metres. The surface is the

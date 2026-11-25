@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road alignments: horizontal geometry, vertical profile, stored superelevation, station
 //! equations, station/offset placement, LandXML import.
 //!

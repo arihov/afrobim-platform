@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The sign catalog: the rule pack's registered sign pages and the ready-to-lay-out
 //! [`SignDefinition`] each one seeds.
 //!

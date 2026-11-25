@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Text: single and multi-line, nine-point justification, wrapping, frame and mask.
 //!
 //! Layout rules (this crate's definitions, stated so they can be checked):

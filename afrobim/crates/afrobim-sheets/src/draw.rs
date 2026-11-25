@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Putting an `afrobim_draw::Drawing` on a sheet through an affine map, clipped to a rectangle.
 
 use afrobim_draw::{Colour, Drawing, Primitive, Pt2};

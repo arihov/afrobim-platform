@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Round trips of what a Civil 3D file holds: `parse_landxml_file`, `write_landxml_file`,
 //! `parse_landxml_file` again, and the two readings compared for exact equality.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The composed sheet: a flat list of strokes, fills and texts in paper millimetres (Y up, origin
 //! at the paper's lower left corner), one layer name each. The PDF and DXF writers and the
 //! on-screen [`SheetDrawing`] all read this one list.

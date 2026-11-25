@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The compiled half of the `afrobim` Python package (`afrobim._native`).
 //!
 //! It is a thin shell over the Rust crates: the sign engine, the DXF writer and the kernel

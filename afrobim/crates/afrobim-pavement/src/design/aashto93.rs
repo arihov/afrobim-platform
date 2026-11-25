@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Flexible pavement design by the *AASHTO Guide for Design of Pavement Structures* (1993):
 //! the empirical design equation solved for the structural number, and the layered structural
 //! number check of an entered structure.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! End to end through the public API: points to surface to contours, analysis and volumes, at
 //! survey magnitudes.
 

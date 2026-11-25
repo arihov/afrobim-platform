@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The zoom commands that need the whole application: zoom to the selection or to one object
 //! (from the model tree and the right-click menu), and the previous view, in 2D and in 3D.
 

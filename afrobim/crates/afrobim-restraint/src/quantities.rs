@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Take-off for barrier runs.
 //!
 //! Every figure is the entered run put through the geometry of its alignment: length along the

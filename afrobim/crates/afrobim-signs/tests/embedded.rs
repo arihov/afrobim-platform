@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A guard on the `emb_*` golden fixtures (`tests/golden.rs` compares them to the C# engine
 //! with every other fixture; this file checks that the set still covers what the embedded-sign
 //! port claims) and the editor-facing queries.

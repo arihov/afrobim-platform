@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The dialogs of the second marking set: one window, opened by a command of the Roads tab for a
 //! group (transverse lines, arrows, hatching and chevrons, yellow lines, studs, worded markings,
 //! Uganda lines), with the basis choice, the engine's refusal where the Uganda manual defines

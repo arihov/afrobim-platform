@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! MAPCAPTURE: the online map of the current view, captured at a chosen ground resolution as a
 //! georeferenced image in the project system (PNG, world file, .prj and an attribution note), and
 //! attached as an image underlay. It works like "capture map" in CADEarth and Spatial Manager.

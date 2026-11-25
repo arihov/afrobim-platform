@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Checks that need no IFC toolkit: determinism, identifiers, STEP syntax and the triangulation.
 
 mod common;

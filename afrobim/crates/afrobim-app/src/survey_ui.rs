@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! SURVEY: a ground surface from a file of survey points.
 //!
 //! The command asks for a point file (CSV or text), then shows a dialog with what the engineer has

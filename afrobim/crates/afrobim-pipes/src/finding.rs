@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The result type of every check: a list of findings, each naming its elements.
 
 use serde::{Deserialize, Serialize};

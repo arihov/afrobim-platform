@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Illuminance (and, with an r-table, luminance) on calculation grids from the luminaires of a
 //! lighting element.
 //!

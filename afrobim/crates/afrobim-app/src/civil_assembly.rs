@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The assembly editor (ASSEMBLY): an assembly built from the subassembly library with a live
 //! cross-section preview, per-part parameters (every one an input, with an Example values button),
 //! left and right sides, mirror, code renames and the BIM classification fields; saved into the

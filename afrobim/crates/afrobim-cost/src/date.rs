@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Calendar dates (proleptic Gregorian) with day counting, for exchange-rate dates, rate dates and
 //! the day-count proration of cash flow. No time zones and no time of day.
 

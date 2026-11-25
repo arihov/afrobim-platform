@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The inputs a check needs, kept on the element they were entered for.
 //!
 //! A check needs what only the engineer knows: the wind basis of a sign, a design flow, a speed

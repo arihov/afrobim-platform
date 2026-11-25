@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Take-off for road markings, by geometry only.
 //!
 //! Every figure is the layout of [`crate::layout`] measured in closed form: lengths along each

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Geometry outputs: plan, profile of a run and section crossings at a station.
 //!
 //! All coordinates are as given (metres, true UTM magnitude). Plan geometry is plain data for a

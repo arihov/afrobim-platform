@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The alignment design check of an imported alignment. An imported alignment has no PI design, so
 //! the engine's solutions (curves, tangents, grades, vertical curves) are worked out from its
 //! elements and its profile, and the limits are one row of the defaults pack at a design speed

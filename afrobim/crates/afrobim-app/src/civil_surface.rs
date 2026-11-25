@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Surfaces in the application: create, the definition (an ordered list of operations that
 //! rebuilds), the style, spot elevation, flow path and the Volumes dashboard.
 

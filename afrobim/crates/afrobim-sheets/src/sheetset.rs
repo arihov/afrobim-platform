@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Sheet sets: definitions, numbering, series expansion, composition, and persistence in the
 //! document as one element of category `sheets`.
 

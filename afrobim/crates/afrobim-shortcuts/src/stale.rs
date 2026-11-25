@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Cheap stale detection, for the application to call often (when a window gains focus, on a
 //! timer, when a file watcher fires). Nothing here opens a document.
 

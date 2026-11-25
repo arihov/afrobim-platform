@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A plain SVG of a drawing in millimetres (Y up, lower-left on the origin).
 //!
 //! One element per primitive, in drawing order, each with a `class` naming its kind:

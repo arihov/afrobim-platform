@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road-sign layout in stroke widths (sw): a Rust port of the SignCore C# engine.
 //!
 //! Scope today: UK **stack-type** advance direction signs (UK TSM Chapter 7 §4.2–4.3) with

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The status bar's layout: which segments fit, and how a long message is shortened.
 //!
 //! The bar holds, left to right: the controls (fixed), the message, then the right-hand

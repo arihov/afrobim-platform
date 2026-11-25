@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The online background map: satellite imagery or a street map drawn behind the model.
 //!
 //! It is off until switched on (command `BASEMAP`, or the Images and background map window), and

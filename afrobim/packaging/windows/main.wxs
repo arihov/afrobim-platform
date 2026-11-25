@@ -12,9 +12,10 @@
     * Per-machine install to Program Files\AfroBIM (needs administrator rights, UAC prompt).
     * UpgradeCode is fixed for the life of the product. Never change it, or a new version will
       install beside the old one instead of replacing it.
-    * No licence dialog: the repository has no LICENSE file, and no licence text is invented here.
-      The owner must decide licensing before the app is sold. When a LICENSE exists, convert it to
-      RTF, delete the two Publish overrides at the end and pass -dWixUILicenseRtf=... to light.
+    * The licence, EULA.md, NOTICE and THIRD-PARTY-NOTICES.md are installed beside afrobim.exe.
+      No licence dialog yet: once an advocate has approved EULA.md, convert it to RTF, delete the
+      two Publish overrides at the end and pass -dWixUILicenseRtf=... to light, so that the
+      installer asks the user to accept it.
     * No bundled runtime: the app is one Rust executable; nothing else is installed.
     * .afrobim file association: the app opens a file given as its first command-line argument.
     * packs\ and fonts\ sit next to afrobim.exe, where the app's resource lookup finds them.
@@ -67,6 +68,22 @@
             <Verb Id="open" Command="Open" TargetFile="afrobim_exe" Argument="&quot;%1&quot;" />
           </Extension>
         </ProgId>
+      </Component>
+    </DirectoryRef>
+
+    <!-- Legal files: the licence, the end-user licence agreement and the third-party notices. -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="c_legal_license" Guid="*" Win64="yes">
+        <File Id="legal_license" Name="LICENSE.txt" Source="$(var.StageDir)\LICENSE" KeyPath="yes" />
+      </Component>
+      <Component Id="c_legal_eula" Guid="*" Win64="yes">
+        <File Id="legal_eula" Source="$(var.StageDir)\EULA.md" KeyPath="yes" />
+      </Component>
+      <Component Id="c_legal_notice" Guid="*" Win64="yes">
+        <File Id="legal_notice" Source="$(var.StageDir)\NOTICE" KeyPath="yes" />
+      </Component>
+      <Component Id="c_legal_third_party" Guid="*" Win64="yes">
+        <File Id="legal_third_party" Source="$(var.StageDir)\THIRD-PARTY-NOTICES.md" KeyPath="yes" />
       </Component>
     </DirectoryRef>
 
@@ -164,6 +181,10 @@
              Level="1" Absent="disallow" ConfigurableDirectory="INSTALLFOLDER" AllowAdvertise="no">
       <ComponentRef Id="c_exe" />
       <ComponentRef Id="c_icon" />
+      <ComponentRef Id="c_legal_license" />
+      <ComponentRef Id="c_legal_eula" />
+      <ComponentRef Id="c_legal_notice" />
+      <ComponentRef Id="c_legal_third_party" />
       <ComponentRef Id="c_uk_pack" />
       <ComponentRef Id="c_ug_arrows_xml" />
       <ComponentRef Id="c_ug_constraints_xml" />

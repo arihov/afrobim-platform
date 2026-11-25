@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Turns a module's [`Drawing`] into GPU triangles once, then places them every frame.
 
 use afrobim_draw::{Colour, Drawing, Primitive, Pt2};

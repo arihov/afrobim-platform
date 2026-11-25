@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The parameters of a sign definition that a schedule can set, and the legend text format.
 //!
 //! A `param:<name>` column sets one field of the [`SignDefinition`] the rule pack's catalog entry

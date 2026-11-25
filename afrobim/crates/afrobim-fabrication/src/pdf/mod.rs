@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! PDF output: the fabrication sheet and the sign-schedule report. Port of C# `SheetPdfWriter`,
 //! `SchedulePdfWriter` and `PdfFonts`.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A ground surface from a file of survey points: reading the file, and triangulating the points.
 //!
 //! # The file

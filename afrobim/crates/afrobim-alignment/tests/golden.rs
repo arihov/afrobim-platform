@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The placement rules against the C# reference.
 //!
 //! `tools/GoldenPlacement` runs `SignPlacement.Resolve` and `LocationReport.Write` from

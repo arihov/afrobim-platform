@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Drawings of a sign's visibility, with their labels returned separately (the draw crate has no
 //! text primitive, so a front end or the sheet composer sets the text).
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! What the views read: the live document, its modules, and station helpers.
 
 use afrobim_alignment::{Alignment, StationDirection};

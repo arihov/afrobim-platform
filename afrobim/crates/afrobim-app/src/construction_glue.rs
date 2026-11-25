@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The construction stage in the app: where site progress is kept, how records are entered for a
 //! set of elements, the roll-up to the programme, earned value and the report tables.
 //!

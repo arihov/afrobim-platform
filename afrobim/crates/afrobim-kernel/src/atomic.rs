@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Safe file writing: a file is written whole or not at all.
 //!
 //! The content goes to a temporary file in the same folder as the target, is flushed and synced to

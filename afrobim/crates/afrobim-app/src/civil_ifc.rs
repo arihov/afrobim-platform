@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! What each civil object becomes in the IFC export. Only mappings verified against the IFC4X3_ADD2
 //! schema (through IfcOpenShell, see `u3_tests`) are written; the rest are reported as not mapped.
 //!

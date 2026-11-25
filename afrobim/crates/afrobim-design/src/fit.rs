@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! "Fit to ground": a starting-point profile proposed from the ground along the centreline.
 //!
 //! **This is a starting point for the engineer, not a design.** It knows nothing about drainage,

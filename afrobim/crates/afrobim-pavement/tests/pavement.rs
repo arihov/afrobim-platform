@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Model, geometry, quantities and the kernel module, against closed-form values.
 
 use afrobim_alignment::{Alignment, AlignmentBuilder, Turn};

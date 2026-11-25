@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Georeferenced images behind the model: orthophotos from a drone survey, satellite scenes,
 //! scanned plans with a world file.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The grading commands: feature lines (create by picking, from an alignment and profile, draped on a
 //! surface, stepped offset), the feature line editor (elevation table with grades, quick edit, fillet,
 //! join, break, weed), sites and their crossings, the grading creation dialog, grading groups with

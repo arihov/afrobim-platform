@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Horizontal design: an alignment defined by PIs, each with a radius and optional spirals.
 //!
 //! Conventions are those of `afrobim-alignment`: metres, radians, X east, Y north, headings

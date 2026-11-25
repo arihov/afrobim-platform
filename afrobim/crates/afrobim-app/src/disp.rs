@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The document's display units applied to the design tools and the sheet windows.
 //!
 //! The design tools and the sheet sources hold metres (a station, a level, a radius, an

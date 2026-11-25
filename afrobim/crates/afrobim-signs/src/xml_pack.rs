@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The folder rule pack: a `pack.xml` manifest (or a directory holding one) that lists one XML
 //! file per concern (text sizes, panel, route arms, palettes, symbols, sign catalog ...) in
 //! load order. This is the format of the Uganda TSM 2004 pack.

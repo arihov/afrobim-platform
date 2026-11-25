@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Roll-up of element progress to activity progress, and the update a programme takes.
 //!
 //! The elements of an activity are the ones its [`afrobim_schedule::ActivityLink`]s reach, by id

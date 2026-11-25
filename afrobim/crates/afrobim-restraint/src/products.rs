@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Optional: a user-supplied list of barrier products.
 //!
 //! **No product data is bundled with this crate.** Lists of systems tested to EN 1317 exist

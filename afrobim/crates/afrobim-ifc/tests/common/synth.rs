@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Hand-written IFC4 STEP files for the importer tests. Every product is a
 //! `IfcBuildingElementProxy` named after the case, so tests find it by name.
 

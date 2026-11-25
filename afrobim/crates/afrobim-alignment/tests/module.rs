@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Placing signs on an alignment, and the alignment as a kernel element.
 
 use std::f64::consts::FRAC_PI_2;

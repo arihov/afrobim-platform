@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Point clouds in the application: attach (LAS, LAZ, E57 and text with a mapping preview, header
 //! facts, the file's coordinate system against the project's, indexing as a background job),
 //! properties and display, clip, section slices, surface from the cloud, comparison with a surface,

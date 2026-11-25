@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The dialogs of the civil commands and the dispatcher that opens them.
 
 use crate::app::AfroBimApp;

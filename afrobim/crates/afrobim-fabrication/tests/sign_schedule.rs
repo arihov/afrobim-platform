@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The sign schedule: template, export, mapping, plan and apply, against the real UK rule pack's
 //! catalog and an alignment with station equations. Hand-worked placements are noted where used.
 

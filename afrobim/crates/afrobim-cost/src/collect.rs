@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Collectors: each turns one crate's quantity output into [`QuantityLine`]s.
 //!
 //! One collector per crate. Each measures the document's elements of that crate's category one at

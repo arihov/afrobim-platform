@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A minimal ZIP writer and reader (PKWARE APPNOTE 6.3.x subset) on top of `flate2`.
 //!
 //! The workspace has no `zip` crate, so this does what BCF needs: entries stored or deflated,

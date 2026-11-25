@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The built scenes of the civil elements, kept until the element (or what it depends on) changes.
 //! A build runs on a worker thread through `background.rs` and the result is applied if the
 //! document did not change meanwhile.

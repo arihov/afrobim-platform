@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Reduction of observations and computation of points by radiation.
 //!
 //! ORDER OF THE CORRECTION CHAIN (each step is applied only when switched on in the settings):

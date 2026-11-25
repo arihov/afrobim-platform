@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Delimited point files: reading, writing and format detection.
 //!
 //! Column orders use the same codes as `afrobim-corridor` (`survey.rs`): `P` point number,

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The corridor model: baselines, regions with their own assembly and frequency, corridor
 //! surfaces from link codes, feature lines from point codes.
 //!

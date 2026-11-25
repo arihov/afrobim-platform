@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Performance requirements of the road lighting classes of **EN 13201-2:2015**, and the class
 //! selection procedure of **CEN/TR 13201-1:2014**, as reproduced in a secondary source.
 //!

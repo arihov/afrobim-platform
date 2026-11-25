@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Parcels (the site): create from corner points or from the courses of a deed, properties,
 //! topology check, split by a road reserve, and the land acquisition schedule with CSV.
 

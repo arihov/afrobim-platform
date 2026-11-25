@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Setting out on the alignment, the sheet elevation and the 3D solids.
 //!
 //! Everything here is plain geometry on the entered dimensions. The members drawn are schematic

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Values taken from the documents held in the repository (`Manuals/`), each with its citation.
 //!
 //! Every number in this module was read from the text or table named in its [`Citation`]; the

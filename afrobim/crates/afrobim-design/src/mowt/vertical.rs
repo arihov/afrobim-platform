@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Vertical alignment: `K` values of crest and sag curves (Tables 6-11, 6-12, 6-13) and the formulas the
 //! manual gives for the minimum length of a vertical curve, maximum gradients (Tables 6-14, 6-15),
 //! the minimum gradient, critical length of gradient (Table 6-16) and climbing lanes (Tables 6-17, 6-18).

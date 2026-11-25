@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road design classes, their traffic ranges, design speeds by terrain, and the class parameter
 //! tables of section 4 (Tables 4-2a, 4-2b and 4-3 to 4-9).
 //!

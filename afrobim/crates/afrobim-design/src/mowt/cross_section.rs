@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Cross-section elements, as lookups for the corridor and pavement modules to use later: lane, carriageway
 //! and shoulder widths and the right of way by design class (Table 4-2b), normal and shoulder cross fall
 //! (class tables and section 7.5), edge strip and edge line widths (Table 7-3) and headroom additions at crests

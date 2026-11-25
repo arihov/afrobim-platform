@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Annotation engine for AfroBIM: text, dimensions, leaders, measuring, display units, styles
 //! and layer helpers. See the crate README for the model, the rules and copy-ready examples.
 //!

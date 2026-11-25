@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Glue tests for the second marking set, the South African pavement basis, the three-way
 //! drainage basis, the MoWT alignment checks, IFC options, per-check report inputs and
 //! background runs. Every number here is an arbitrary test value.

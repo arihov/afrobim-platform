@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! IFC import as a reference model: read an IFC STEP file for display and clash checking.
 //!
 //! Nothing here becomes an editable AfroBIM element. [`import_ifc`] reads the file into a

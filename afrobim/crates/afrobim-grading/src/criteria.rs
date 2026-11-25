@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Grading criteria: how far and how steeply a projection from the footprint goes.
 //!
 //! Every number is an input; the crate has no default slope.

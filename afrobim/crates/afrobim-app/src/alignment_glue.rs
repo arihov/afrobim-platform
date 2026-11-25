@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road alignments in the app: LandXML import, and placing a sign by station and offset.
 //!
 //! An alignment lives in plan (site) coordinates, kilometres away from the design sheet where

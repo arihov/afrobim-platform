@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The Uganda rule pack (`packs/UG-TSM-2004`, a folder of XML files) through the public API:
 //! loading it by manifest and by folder, its catalog and the definition each entry seeds, its
 //! body-size ladder and roundel / triangle section (all checked against what the C# loader and

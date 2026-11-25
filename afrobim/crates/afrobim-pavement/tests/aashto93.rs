@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! AASHTO 1993 flexible design as reproduced in FHWA NHI-05-037 Appendix C ("FHWA") and in the
 //! University of Anbar lecture notes by Fadhil and Ahmed ("Notes"): the published worked
 //! examples and the tables.

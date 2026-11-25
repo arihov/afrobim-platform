@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The CAD interaction state machine: pointer and keyboard input in; selection changes, moves,
 //! view changes, prompts and [`CanvasEvent`]s out. It holds no GUI types.
 

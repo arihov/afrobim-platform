@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Interference (clearance) check in 3D: pipe to pipe and pipe to structure, within a network
 //! and between two networks.
 //!

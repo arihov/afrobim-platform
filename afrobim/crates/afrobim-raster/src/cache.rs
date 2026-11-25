@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Fetching map tiles: worker threads, a disk cache and de-duplication.
 //!
 //! The view asks for the tiles it needs each frame with [`TileService::request`]; a tile already

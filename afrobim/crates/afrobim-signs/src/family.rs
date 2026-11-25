@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Human labels for sign families. Port of C# `SignFamily.Label(SignFamily.Token(kind), …)`,
 //! the label diagnostics use to name a sign's family.
 

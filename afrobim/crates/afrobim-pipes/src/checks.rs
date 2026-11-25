@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Checks. Each returns a list of [`Finding`]s with element ids and plain sentences.
 //!
 //! No check has a default limit: a limit is checked only when the rule set gives it.

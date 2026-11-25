@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Delimited text point files: XYZ, XYZ with intensity, XYZRGB, PTS and any other column order.
 //!
 //! [`detect_text_format`] reads the start of a file and proposes a delimiter, the number of lines

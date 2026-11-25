@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Superelevation: stored cross-fall and interpolation between stated stations.
 //!
 //! The cross-falls and stations here are arbitrary test numbers, not design values. Expected

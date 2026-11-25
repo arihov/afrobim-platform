@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The calculation report pack (`REPORTPACK`): one A4 portrait PDF, a plain-text variant and a CSV
 //! variant of every check the model-wide check can make, with the summaries of the clash, quantity,
 //! estimate and programme records.

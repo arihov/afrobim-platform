@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The sign schedule in the app: SIGNSCHEDULE (CSV in), SIGNSCHEDULEOUT (the model's signs out)
 //! and the blank template.
 //!

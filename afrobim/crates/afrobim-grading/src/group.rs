@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Grading groups: several gradings and infills forming one surface, with rebuild data,
 //! volumes, raise and lower, and auto-balance.
 //!

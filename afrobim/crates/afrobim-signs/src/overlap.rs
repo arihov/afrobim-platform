@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Geometry overlap check on a laid-out guidance sign. Port of the rectangular-border path of
 //! C# `LayoutOverlapCheck` (the path every stack-type sign takes).
 //!

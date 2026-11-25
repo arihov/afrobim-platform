@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Column positions from an arrangement, a spacing and an alignment.
 //!
 //! The rules are this crate's own and are stated here because TD 501 Version 0.1.0 gives none

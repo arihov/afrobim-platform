@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! One dimensional (height) least squares adjustment of levelling runs.
 //!
 //! Observation equation of a height difference from `from` to `to`: dh = H_to - H_from + noise,

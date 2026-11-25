@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The cache file beside the source, so reopening is fast.
 //!
 //! `<source file name>.afrocloud` holds the finished index: a JSON block (format version, the

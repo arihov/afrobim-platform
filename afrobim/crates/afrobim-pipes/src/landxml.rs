@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML 1.2 `PipeNetworks`: read and write.
 //!
 //! Worked from the schema <http://www.landxml.org/schema/LandXML-1.2/LandXML-1.2.xsd> (fetched

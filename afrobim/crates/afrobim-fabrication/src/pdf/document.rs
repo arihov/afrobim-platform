@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The PDF file around the page content: the objects PDFsharp 6.2.4 writes for a document of
 //! pages set in two TrueType faces, in the same order and with the same dictionaries, so that
 //! the Rust and C# files can be compared object for object.

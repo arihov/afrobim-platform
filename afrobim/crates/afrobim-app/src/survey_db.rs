@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The open survey database of the document: where it lives (a file beside the project, its path
 //! stored in the project settings), loading and saving, the import with strict or lenient reading,
 //! the COGO point set with its link back to the database, update when the database changes, figures

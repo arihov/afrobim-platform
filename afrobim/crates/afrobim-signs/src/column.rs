@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! One direction's destinations laid out as UK TSM Chapter 7 destination blocks, with route
 //! numbers, route-number patches and panels (§3.2–3.3, §3.5–3.7). Port of C#
 //! `DestinationColumn`.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The Appearance dialog: the interface look (dark glass, light glass, solid) and its scale. A
 //! change applies at once and is kept in the preferences file.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Whole-file LandXML import: `parse_landxml_file` / `read_landxml_file`.
 //!
 //! `full_utm_north.xml` and `full_utm_south.xml` were written by hand to the LandXML 1.2 schema

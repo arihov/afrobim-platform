@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Annotation commands, without any drawing code: text, dimensions, leaders and measuring.
 //!
 //! Every command is a small state machine, [`Session`]. The canvas (or the command line) feeds it

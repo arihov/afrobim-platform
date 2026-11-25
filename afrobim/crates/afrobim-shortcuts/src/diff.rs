@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A field-level summary of how a reference changed on synchronise.
 
 use afrobim_kernel::Element;

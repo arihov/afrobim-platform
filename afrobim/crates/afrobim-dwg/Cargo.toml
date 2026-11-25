@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [dependencies]
 # MPL-2.0, file-level copyleft: used unmodified as a separate library (see NOTICE at the repository

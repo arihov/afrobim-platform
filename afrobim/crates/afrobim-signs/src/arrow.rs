@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The standard guidance arrow as a closed stroke-width outline driven entirely by
 //! [`ArrowRules`]. Port of the parts of C# `ArrowGeometry` the stack-type layout uses.
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Regenerates REVIEW.md from data/dmrb.json:
 //! `cargo run -p afrobim-defaults --example write_review`
 use afrobim_defaults::review::review_markdown;

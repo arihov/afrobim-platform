@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Road reserve tools: split a parcel by the right-of-way edge, the land acquisition schedule, the
 //! parcel area table.
 //!

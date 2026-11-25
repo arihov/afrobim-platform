@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Feature lines, sites and grading groups as civil objects, with the plan, slope pattern and 3D
 //! scenes built from the `afrobim-grading` engine.
 //!

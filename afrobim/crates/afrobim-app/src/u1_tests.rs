@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Glue tests that cross the new modules: annotation through save and open and the DXF export,
 //! layers, units, annotation on a composed plan sheet, the speed band in the checks.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! AfroBIM MCP server: lets an AI assistant search the sign catalog, lay out and check signs,
 //! write DXFs and build `.afrobim` documents, over the Model Context Protocol on stdio.
 //!

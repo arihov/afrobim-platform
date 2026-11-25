@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Autosave, the recovery file and the panic hook (plan item 7.1).
 //!
 //! While there are unsaved changes the app writes a copy of the document, atomically, every few

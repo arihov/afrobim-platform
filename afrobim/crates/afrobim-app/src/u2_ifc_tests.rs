@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Glue tests: what the IFC export does with the second marking set, and the export options.
 
 use afrobim_ifc::AlignmentExport;

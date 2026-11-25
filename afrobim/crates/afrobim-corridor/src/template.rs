@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The template (typical cross-section) and the corridor definition. Every number in these types
 //! is entered by the engineer; none has a built-in value.
 

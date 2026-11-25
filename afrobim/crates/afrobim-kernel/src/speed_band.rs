@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The speed band rule: how a posted speed limit is compared with a standard's thresholds.
 //!
 //! UK requirements are written in mph bands ("50 mph or more"). Uganda posts km/h limits, and

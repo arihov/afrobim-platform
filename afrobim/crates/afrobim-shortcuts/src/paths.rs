@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Paths in a manifest. Stored with forward slashes on every system, relative to the project
 //! folder where the file is inside it, absolute only when it is outside.
 

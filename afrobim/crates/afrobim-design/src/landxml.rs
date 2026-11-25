@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML 1.2 export of an alignment with its profile and station equations.
 //!
 //! Element and attribute names were checked against the schema retrieved from

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! LandXML import.
 //!
 //! The files in `tests/landxml/` were built by hand to the LandXML 1.2 schema (they validate

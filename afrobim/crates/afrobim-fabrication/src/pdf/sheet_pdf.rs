@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Draws a [`FabricationSheet`] as a one-page A3 landscape PDF. Port of C# `SheetPdfWriter`.
 //!
 //! The geometry is the sheet the DXF carries; in addition the sign face is filled in its print

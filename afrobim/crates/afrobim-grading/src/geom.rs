@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Plan geometry helpers. Arithmetic that mixes many points is done relative to a local origin
 //! (the first point of the data), and results are returned as `local + origin`, so true UTM
 //! coordinates keep their precision.

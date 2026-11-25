@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 use crate::model::{PipeId, StructureId};
 
 /// Why an operation on a pipe network was refused.

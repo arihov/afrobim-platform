@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The estimate as a kernel element: category `"estimate"`, `data` = the serialised
 //! [`EstimateElement`] (the estimate the user entered and, after a refresh, a summary of its last
 //! computation), and the helpers that put one in a document.

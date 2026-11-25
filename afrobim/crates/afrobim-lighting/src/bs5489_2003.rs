@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Data from **BS 5489-1:2003** (incorporating Corrigendum No. 1), *Code of practice for the
 //! design of road lighting, Part 1: Lighting of roads and public amenity areas*.
 //!

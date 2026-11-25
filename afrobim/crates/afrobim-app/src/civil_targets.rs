@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Corridor targets as the interface edits them: an offset target (a fixed offset, a station table or
 //! a plan line taken from an alignment or a feature line by name), an elevation target (a fixed level,
 //! a station table, the profile of an alignment or the alignment nearest the section point), and the

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The profile view: the vertical profile of an alignment over a station range, with a level
 //! datum, separate horizontal and vertical scales, a grid, and a data band of stations and levels.
 //!

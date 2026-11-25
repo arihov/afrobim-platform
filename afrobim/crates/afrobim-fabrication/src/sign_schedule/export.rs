@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Writing the blank template and the model's signs in the schedule format.
 
 use afrobim_alignment::{format_station, place_with, Alignment, PlaceOptions, SignLocation as AlignLocation, SignSide, StationReference, TrafficSide};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Plain 2D coordinates in metres. Easting is `e`, northing is `n`.
 //!
 //! Coordinates are stored exactly as given. Differences of two UTM-sized values (northing near

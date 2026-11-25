@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The definition of a barrier run: what the engineer enters.
 
 use afrobim_kernel::{Note, Severity};

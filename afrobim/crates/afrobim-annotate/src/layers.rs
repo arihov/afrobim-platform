@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Layer table helpers.
 //!
 //! The kernel models a layer as a name with `visible` and `locked` flags and lets an element name

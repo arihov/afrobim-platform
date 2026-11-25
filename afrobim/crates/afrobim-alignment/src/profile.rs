@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Vertical profile: PVIs joined by straight grades, with a vertical curve at any interior PVI.
 //!
 //! Stations here are **internal** stations (the alignment's continuous stations, before any

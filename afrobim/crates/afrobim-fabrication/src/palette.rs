@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The colours a sign resolves to, and names for colours. Port of C# `SignPalette.Resolve`
 //! (afrobim-signs has the same resolution but keeps it private) and of the print palette
 //! `SignColours.Rgb` the PDF writers use.

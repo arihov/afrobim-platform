@@ -2,7 +2,8 @@
 # Stages an AfroBIM install tree: the binary plus the run-time files it loads from disk.
 #
 # Every platform package is built from the same tree, so a layout fault shows up on Linux first:
-#   Linux portable archive   <dest>/afrobim, <dest>/packs, <dest>/fonts
+#   Linux portable archive   <dest>/afrobim, <dest>/packs, <dest>/fonts, plus LICENSE, EULA.md,
+#                            NOTICE and THIRD-PARTY-NOTICES.md
 #   Windows .msi             the same tree, installed under Program Files\AfroBIM
 #   macOS AfroBIM.app        binary in Contents/MacOS, packs and fonts in Contents/Resources
 #
@@ -43,6 +44,14 @@ install -m 0755 "$bin" "$dest/$(basename "$bin")"
 # $PACKS_REL/Schema are only for authoring; the app does not read them.
 install -m 0644 "$packs/UK-TSM-2019.json" "$res/packs/"
 install -m 0644 "$packs"/UG-TSM-2004/*.xml "$res/packs/UG-TSM-2004/"
+
+# Legal files. Every installer carries the licence, the end-user licence agreement and the notices
+# (the open-source licences require the notices to travel with the binary). Regenerate
+# THIRD-PARTY-NOTICES.md with scripts/gen-notices.sh before a release.
+for f in LICENSE EULA.md NOTICE THIRD-PARTY-NOTICES.md; do
+  [ -f "$repo/$f" ] || { echo "stage.sh: missing legal file $repo/$f" >&2; exit 1; }
+  install -m 0644 "$repo/$f" "$res/$f"
+done
 
 if [ "$fonts" = 1 ]; then
   mkdir -p "$res/fonts"

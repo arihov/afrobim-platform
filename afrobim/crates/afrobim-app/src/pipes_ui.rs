@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The pipe network commands: create by picking structure positions, the parts list manager, network
 //! properties and rule set, the edit tools, the checks window, the tables, the quantities with trench
 //! volumes, and the profile of a run drawn in the model. The calculations are the `afrobim-pipes`

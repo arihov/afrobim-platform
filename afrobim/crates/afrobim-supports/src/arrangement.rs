@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Where the posts of a sign stand and how long they are: plain geometry from entered values.
 
 use serde::{Deserialize, Serialize};

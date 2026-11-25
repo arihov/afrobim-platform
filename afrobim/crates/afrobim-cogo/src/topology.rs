@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Parcel topology for a site: shared boundaries, gaps and overlaps.
 //!
 //! Method. Every parcel boundary is flattened (arcs to chords within `arc_tol_m`) and turned

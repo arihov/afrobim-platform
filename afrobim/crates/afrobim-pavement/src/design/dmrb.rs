@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Design traffic and flexible pavement requirements of the UK *Design Manual for Roads and
 //! Bridges*: CD 224 "Traffic assessment" and CD 226 "Design for new pavement construction".
 //!

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tests of the civil objects in the application: document round trip of each element, placement at
 //! source coordinates, the command table and icons, LandXML in and out, the IFC mapping of
 //! surfaces (checked with IfcOpenShell where it is installed), and the size of a large point set.

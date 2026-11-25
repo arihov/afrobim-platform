@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Map-type signs through the public API the desktop app codes against, and a guard on the
 //! `map_*` golden fixtures (`tests/golden.rs` compares them to the C# engine with every other
 //! fixture; this file checks that the set still covers what the map-type port claims).

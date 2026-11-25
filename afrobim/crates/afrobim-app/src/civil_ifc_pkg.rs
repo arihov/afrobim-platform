@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The civil objects as packages for the IFC exporter (see `afrobim_ifc::CivilPackage`): corridor
 //! shapes as courses, kerbs and other classified parts with solids between the sections, cut and
 //! fill solids from the earthworks lines, and pipe networks as segments, chambers and a system.

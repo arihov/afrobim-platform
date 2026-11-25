@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The windows of the model-wide check: the report (`CHECKALL`), the culvert and side drain input
 //! dialogs and the rational method dialog (`RATIONAL`).
 //!

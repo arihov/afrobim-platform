@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Pavement structure design checks, one sub-module per published method.
 //!
 //! Which method governs a project is the engineer's choice (or the client's); nothing here

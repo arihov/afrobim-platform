@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Checks on a loaded distribution: flux by integration over the sphere, flux fractions, peak.
 
 use serde::{Deserialize, Serialize};

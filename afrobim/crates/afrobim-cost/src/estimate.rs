@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The estimate: a bill priced from the rate library, section and grand totals, the user's
 //! additions in the order the user defined, and comparison of two estimates.
 

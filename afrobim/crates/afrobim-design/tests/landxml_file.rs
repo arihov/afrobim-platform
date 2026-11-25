@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Whole-file LandXML round trips: `parse_landxml_file` then `write_landxml_file` then
 //! `parse_landxml_file` again.
 //!

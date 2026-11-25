@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Concept design of road alignments.
 //!
 //! - [`HorizontalDesign`]: PIs with a radius and optional spirals; tangent points, spiral and

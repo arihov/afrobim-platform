@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The pipe network object: structures, pipes and the shapes, materials and roughness they carry.
 //!
 //! Units are metres, cubic metres per second and radians throughout. Coordinates are exactly the

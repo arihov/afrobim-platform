@@ -1,0 +1,32 @@
+AfroBIM Proprietary Licence
+
+Copyright (c) 2026 AfroBIM. All rights reserved.
+
+SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+
+This repository, and every file in it that is not marked as the work of a third party, is the
+confidential and proprietary property of AfroBIM. It includes the source code, the rule packs
+as arranged and compiled by AfroBIM, the documentation, the icons and every other original
+work of AfroBIM.
+
+No licence or other right is granted to you, whether by implication, estoppel or otherwise,
+except under a separate written licence signed by AfroBIM. In particular, without that written
+licence you may not copy, modify, merge, publish, distribute, sublicense, sell, host, make
+available over a network, reverse engineer or create derivative works of this software or any
+part of it, and you may not use it to train or evaluate a machine learning system.
+
+Binary installers that AfroBIM publishes are licensed to end users only under the AfroBIM
+End-User Licence Agreement (EULA.md), not under this file.
+
+Third-party components. Some files and libraries used by AfroBIM belong to other people and
+are licensed to AfroBIM under their own terms. Those terms stay in force for those components
+and are not changed by this licence. They are listed in NOTICE and THIRD-PARTY-NOTICES.md.
+The words "AfroBIM" and the AfroBIM logo are trademarks of AfroBIM (see TRADEMARKS.md); this
+licence grants no right to use them.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL AFROBIM BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+Enquiries about a licence: see the contact details in EULA.md.

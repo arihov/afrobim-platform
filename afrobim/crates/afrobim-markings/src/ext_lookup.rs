@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Catalogue lookup by basis, road stud rows, and the siting tables of Chapter 5 that go with
 //! the second set (Table 9-1 lane arrows, Table 2-6 deflection arrows and tapers).
 

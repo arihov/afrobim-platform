@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! GREENBIM: embodied carbon, material waste and transport of the model, and the energy of its
 //! street lighting, from the same quantity lines the 5D estimate uses.
 //!

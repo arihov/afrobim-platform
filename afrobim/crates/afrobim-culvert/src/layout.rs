@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Derived geometry: barrel length from the road section, invert levels, end-structure extents
 //! and the design checks. Everything here is a function of [`CulvertInput`]; nothing is stored.
 //!

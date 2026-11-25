@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The check lines: the sweep and the sign's facts compared with the provisions of the held
 //! manuals. Each line has a status and cites its source.
 //!

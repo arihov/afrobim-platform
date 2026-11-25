@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Import events: parse a text with one of the readers, merge the result into a network, record what
 //! was added so the event can be removed or reprocessed.
 

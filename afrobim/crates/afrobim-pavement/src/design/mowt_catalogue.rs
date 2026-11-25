@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The design catalogue of the MoWT Road Design Manual Volume 3, Part I (January 2010),
 //! Appendix C: charts D1 to D5 (dry regions) and W1 to W5 (wet regions), pages C-2 to C-11.
 //!

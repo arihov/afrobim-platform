@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Hydraulics against hand-worked numbers. The pipe sizes, roughness values and viscosity here are
 //! test inputs chosen for easy arithmetic; they are not recommendations.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Scenes of corridors and sample line groups (see `civil_build`).
 
 use std::sync::Arc;

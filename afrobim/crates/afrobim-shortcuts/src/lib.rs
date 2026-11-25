@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Data shortcuts for AfroBIM: a road project split over several documents, each referencing named
 //! objects from the others, read-only, and told when a source changed.
 //!

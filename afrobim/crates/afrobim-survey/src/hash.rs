@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! SHA-256 (FIPS 180-4) for import event file hashes. The round constants K are the first 32 bits of
 //! the fractional parts of the cube roots of the first 64 primes and the initial hash values H are the
 //! same for the square roots of the first 8 primes (FIPS 180-4 sections 4.2.2 and 5.3.3); they are

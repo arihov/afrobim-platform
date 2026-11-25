@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Golden tests against the C# reference engine.
 //!
 //! Every `tests/golden/<name>.json` was written by `tools/GoldenDump` (C#): a sign definition

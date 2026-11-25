@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Where a sign stands beside an alignment.
 //!
 //! [`resolve`], [`rotation`], [`normalize_rad`] and [`location_report`] are a port of the C#

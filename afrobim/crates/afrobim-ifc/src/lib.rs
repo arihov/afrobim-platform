@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! IFC 4.3 export of AfroBIM documents.
 //!
 //! [`write_ifc`] turns a [`Document`] and the generated drawings of its elements into an

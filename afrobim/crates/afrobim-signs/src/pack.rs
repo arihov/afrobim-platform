@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The rule pack: every dimension the layout uses, read from a pack JSON file.
 //!
 //! Port of the JSON half of C# `SignCore.Rules.RulePackLoader` and of the `RulePack` sections

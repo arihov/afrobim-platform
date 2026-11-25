@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The progress book as a model element: category `progress`, drawn as an S-curve.
 //!
 //! The element stores the records, the entered actual costs and, after [`refresh_progress`], the

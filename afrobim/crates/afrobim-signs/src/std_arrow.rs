@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Detached arrow heads: the head a stroked shaft is capped with on supplementary and
 //! information plates. Port of the head half of C# `ArrowGeometry` (`PlaceHead`,
 //! `PlaceTriangleHead` and the pack-selected route head); the whole-arrow outline is in

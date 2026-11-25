@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Number formatting as the C# reference writes it.
 //!
 //! The C# code formats with custom patterns such as `"0.####"` and `"0.000"` in the invariant

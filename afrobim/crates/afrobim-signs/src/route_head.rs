@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The arrowhead that caps a route arm drawn as a stroked line (stack, direction, lane and
 //! diversion arrows). Port of the pack-selected route-arm head of C# `ArrowGeometry`
 //! (`RouteArmStroke`, `RouteHeadLength`, `PlaceRouteHead`, `PlaceTriangleHead`, `PlaceHead`,

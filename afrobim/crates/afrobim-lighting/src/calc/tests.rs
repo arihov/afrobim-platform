@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 use std::f64::consts::PI;
 
 use afrobim_alignment::AlignmentBuilder;

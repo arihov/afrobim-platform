@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Traverses: computation, misclosure and adjustment.
 //!
 //! Sources: the compass (Bowditch) rule and the transit rule are the standard traverse adjustments

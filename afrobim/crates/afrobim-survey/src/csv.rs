@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Delimited observation tables with a column mapping.
 //!
 //! One row is one observation. A new setup starts when the station value changes. The mapping names

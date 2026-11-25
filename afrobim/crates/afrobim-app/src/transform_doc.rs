@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The one place that knows how every kind of element carries coordinates, and so the one place
 //! that can move a document from one coordinate system to another.
 //!

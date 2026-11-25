@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The standard (catalog) signs through the public API: the sign catalog and the definition
 //! each entry seeds (checked against what the C# engine's `CatalogSign.Build` gives, written by
 //! `tools/GoldenDump` to `tests/golden/std/catalog.json`), and hand-worked dimensions of the

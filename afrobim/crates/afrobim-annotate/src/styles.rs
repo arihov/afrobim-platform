@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Named text styles and dimension styles.
 //!
 //! Every number here is a default the user edits; none is taken from a drafting standard, and no

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! A small single-stroke lettering set, so that the cross-section carries its own labels.
 //!
 //! The draw crate has no text primitive (its `Glyphs` are outlines of a loaded font), so labels

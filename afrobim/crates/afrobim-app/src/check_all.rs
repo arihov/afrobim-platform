@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The model-wide check (`CHECKALL`): every check an engine has, run on every element it applies to,
 //! gathered into one report.
 //!

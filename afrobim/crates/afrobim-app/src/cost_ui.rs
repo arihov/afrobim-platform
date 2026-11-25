@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The 5D tab's windows: the bill with its mapping rules and measured quantities, the rate
 //! library, currencies, the estimate (priced bill, additions, audit trail, revisions), the cash
 //! flow with its S-curve, and the interim payment certificate.

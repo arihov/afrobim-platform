@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Tests for the WBS roll-up, XER exchange, the time-location chart, 4D playback, several
 //! constraints and the longest path. Every expected number is worked by hand in the comments.
 

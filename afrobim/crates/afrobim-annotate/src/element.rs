@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Annotations as document elements, and their `Module` implementations.
 //!
 //! One element per annotation, in one of the categories [`TEXT_CATEGORY`], [`DIM_CATEGORY`] and

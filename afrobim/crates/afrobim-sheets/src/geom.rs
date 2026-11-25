@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Plane geometry for composing sheets: affine maps, rectangles and clipping.
 //!
 //! Everything here is in one consistent unit chosen by the caller (paper millimetres in practice).

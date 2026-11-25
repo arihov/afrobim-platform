@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The project coordinate system in the application: the "Coordinate system" tab of the project
 //! settings (command `CRS`, alias `COORDSYS`), the status bar read-outs, and the `WHERE` command.
 //!

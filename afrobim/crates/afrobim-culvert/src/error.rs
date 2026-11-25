@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Errors. Impossible inputs are refused with a message that says what to change.
 
 /// Why a culvert cannot be designed.

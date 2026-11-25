@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Header facts, read without loading points, and the coordinate system as plain data.
 //!
 //! No coordinate reference system type is used: the WKT text, the EPSG code(s) found and the raw

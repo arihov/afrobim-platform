@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Option comparison on two options over a synthetic flat ground, with volumes checked by
 //! independent methods. All numbers (template widths, slopes, the rate) are test fixtures.
 //!

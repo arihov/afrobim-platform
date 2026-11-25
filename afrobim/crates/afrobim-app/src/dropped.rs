@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! Files dropped on the window.
 //!
 //! On macOS, double-clicking an `.afrobim` file in Finder (or dropping one on the Dock icon) sends

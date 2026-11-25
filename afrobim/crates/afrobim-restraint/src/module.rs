@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The barrier run as a kernel element: category `"restraint"`, `data` = [`BarrierElement`].
 //!
 //! A kernel module sees one element at a time, so it cannot look the alignment up. The element

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-AfroBIM-Proprietary
+// Copyright (c) 2026 AfroBIM. All rights reserved.
 //! The whole build: corridor description fed to `build_model`, serde, CSV, dependencies, islands.
 
 mod common;
