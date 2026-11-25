@@ -398,12 +398,13 @@ pub fn tile_grid(from_geo: &TransformPlan, z: u8, x: u32, y: u32, n: usize) -> O
     Some(out)
 }
 
-/// The quick map types and the providers each may use, best first. Every one has commercial use
+/// The quick map types and the providers each may use, best first. MapTiler is the recommended
+/// keyed provider (owner decision 2026-11-25), so one MapTiler key serves all three types. Every one has commercial use
 /// allowed (see `docs/reference/tile-provider-terms.md`): keyed providers need the user's own key
 /// on a plan that covers commercial work, the others work without one.
 pub const MAP_TYPES: &[(&str, &[&str])] = &[
-    ("Satellite", &["mapbox-satellite", "maptiler-satellite", "azure-imagery", "stadia-satellite"]),
-    ("Street", &["osm", "mapbox-streets", "maptiler-streets", "azure-road"]),
+    ("Satellite", &["maptiler-satellite", "mapbox-satellite", "azure-imagery", "stadia-satellite"]),
+    ("Street", &["osm", "maptiler-streets", "mapbox-streets", "azure-road"]),
     ("Terrain", &["opentopomap", "maptiler-topo", "thunderforest-outdoors", "stadia-outdoors"]),
 ];
 
@@ -539,7 +540,9 @@ mod tests {
         assert_eq!(default_provider(1, false).unwrap().id, "osm");
         assert_eq!(default_provider(2, false).unwrap().id, "opentopomap");
         assert!(default_provider(0, false).is_none());
-        assert_eq!(default_provider(0, true).unwrap().id, "mapbox-satellite");
+        assert_eq!(default_provider(0, true).unwrap().id, "maptiler-satellite");
+        assert_eq!(default_provider(1, true).unwrap().id, "maptiler-streets");
+        assert_eq!(default_provider(2, true).unwrap().id, "maptiler-topo");
         assert!(default_provider(0, true).unwrap().imagery, "Satellite is a photograph");
         assert_eq!(map_type("esri-imagery"), None);
         // A new document starts on a commercial-safe, keyless provider.

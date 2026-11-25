@@ -96,7 +96,7 @@ Result: no built-in provider allows MAPCAPTURE. A capture needs a custom tile UR
 ## Behaviour in AfroBIM
 
 - Default for a new document: OpenStreetMap (commercial use allowed, no key).
-- Quick map types: Satellite uses Mapbox, MapTiler, Azure or Stadia (own key; none works without one), Street uses OpenStreetMap or a keyed provider, Terrain uses OpenTopoMap or a keyed provider. With a key typed in, the first keyed provider of the type is chosen.
+- Quick map types: Satellite uses MapTiler (recommended, owner decision 2026-11-25), Mapbox, Azure or Stadia (own key; none works without one), Street uses OpenStreetMap or a keyed provider, Terrain uses OpenTopoMap or a keyed provider. With a key typed in, the first keyed provider of the type is chosen, which is MapTiler in all three types, so one MapTiler key covers Satellite, Street and Terrain. Customers get the key from cloud.maptiler.com (the free plan is non-commercial; client work needs a paid plan).
 - The list groups providers as Free (commercial use allowed), Needs your own key, and Evaluation only (not for commercial work). A warning shows while an evaluation provider is selected.
 - MAPCAPTURE refuses every provider with `capture_allowed = false` and says why. The attribution is always drawn on the map and written to the capture's `.attribution.txt`.
 
