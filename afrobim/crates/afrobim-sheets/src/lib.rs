@@ -26,6 +26,7 @@ pub mod draw;
 pub mod dxf_out;
 pub mod geom;
 pub mod item;
+pub mod layout_plot;
 pub mod model;
 pub mod paper;
 pub mod pdf;
