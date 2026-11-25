@@ -21,7 +21,7 @@ fn run(ctx: &egui::Context, app: &mut AfroBimApp, name: &str) {
 fn frame_with(ctx: &egui::Context, app: &mut AfroBimApp, events: Vec<egui::Event>, time: f64) {
     let mut f = eframe::Frame::_new_kittest();
     let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, time: Some(time), ..Default::default() };
-    ctx.run(input, |ctx| eframe::App::update(app, ctx, &mut f));
+    let _ = ctx.run(input, |ctx| eframe::App::update(app, ctx, &mut f));
 }
 
 fn double_click(at: egui::Pos2) -> Vec<egui::Event> {

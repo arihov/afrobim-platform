@@ -757,7 +757,7 @@ impl AfroBimApp {
                         None => self.status = "Switch to a layout tab to copy it.".into(),
                     },
                     "LIST" | "L" | "?" => {
-                        let mut line = format!("{MODEL_TAB}");
+                        let mut line = MODEL_TAB.to_string();
                         for l in self.doc.layouts().iter() {
                             line.push_str(&format!(", {} ({})", l.name, l.size));
                         }
@@ -1195,6 +1195,7 @@ impl AfroBimApp {
         let mut l = layout.clone();
         let current = lp::paper_of(&l);
         let (mut size, mut orient) = current.unwrap_or((PaperSize::A3, if l.landscape { Orientation::Landscape } else { Orientation::Portrait }));
+        let initial = (size, orient);
         let mut tb = l.title_block_mm > 0.0;
         let dlg = ui_kit::Dialog::titled("Page setup").subtitle(format!("Paper of the layout {}", l.name)).width(420.0).show_body(ctx, |ui| {
             ui_kit::form(ui, "pagesetup", |fm| {
@@ -1230,9 +1231,7 @@ impl AfroBimApp {
             });
             ui_kit::callout(ui, ui_kit::Level::Info, "The dashed line on the layout is the printable area. Viewports stay where they are when the paper changes.");
         });
-        if current.map(|c| c != (size, orient)).unwrap_or(false) || (current.is_none() && size.name() != l.size) {
-            lp::set_paper(&mut l, size, orient);
-        } else if current.is_some_and(|c| c == (size, orient)) && (orient == Orientation::Landscape) != l.landscape {
+        if (size, orient) != initial {
             lp::set_paper(&mut l, size, orient);
         }
         l.title_block_mm = if tb { afrobim_sheets::TitleBlockLayout::default().width_mm } else { 0.0 };

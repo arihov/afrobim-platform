@@ -418,11 +418,9 @@ impl AfroBimApp {
                 }
             }
             if let Some((id, kind, last)) = self.lay.drag {
-                if down {
-                    if (p.x - last.x).abs() > 1e-9 || (p.y - last.y).abs() > 1e-9 {
-                        self.with_vp(ctx, id, |v| v.drag_grip(kind, last, p));
-                        self.lay.drag = Some((id, kind, p));
-                    }
+                if down && ((p.x - last.x).abs() > 1e-9 || (p.y - last.y).abs() > 1e-9) {
+                    self.with_vp(ctx, id, |v| v.drag_grip(kind, last, p));
+                    self.lay.drag = Some((id, kind, p));
                 }
                 if released || !down {
                     self.lay.drag = None;
