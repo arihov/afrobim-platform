@@ -1,0 +1,370 @@
+name: Release
+
+# Builds the installers and publishes them as a GitHub Release in the PUBLIC repository
+# arihov/afrobim-releases. The source repository stays private.
+#
+# Runs on a pushed tag vX.Y.Z (which must match [workspace.package] version in afrobim/Cargo.toml) or
+# by hand. A manual run builds everything but publishes only if "publish" is ticked; the release is then
+# tagged v<workspace version>. Steps to cut a release: docs/release/RELEASING.md.
+#
+# Cost: a macOS minute counts 10x and a Windows minute 2x, so a full run is not cheap.
+# Signing is optional: each signing step runs only when its secrets exist, and an unsigned build is
+# published as an unsigned beta (the download page says so).
+#
+# Every third-party action is pinned to a full commit SHA (see ci.yml for how to update one). The
+# release itself is made with the gh CLI that the runners ship, so no release action is needed.
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a GitHub Release in arihov/afrobim-releases (off: build and keep the files as workflow artifacts only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  WORKSPACE: afrobim
+  PACKAGING: afrobim/packaging
+  RELEASES_REPO: arihov/afrobim-releases
+  # The Transport fonts are third-party and their licence decision is open (roadmap 10.2). They are left
+  # out of public installers unless the repository variable RELEASE_BUNDLE_FONTS is set to true.
+  BUNDLE_FONTS: ${{ vars.RELEASE_BUNDLE_FONTS == 'true' }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      publish: ${{ steps.v.outputs.publish }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - id: v
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          PUBLISH_INPUT: ${{ inputs.publish }}
+        run: |
+          # Read the version from the [workspace.package] table only. A plain grep for ^version can
+          # hit a crate line such as `version.workspace = true`, which is what once ended up in a file name.
+          version="$(awk '/^\[/{t=($0=="[workspace.package]")} t && /^version[[:space:]]*=/{gsub(/.*=[[:space:]]*"|".*/,""); print; exit}' "${WORKSPACE}/Cargo.toml")"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::could not read a plain X.Y.Z version from [workspace.package] in ${WORKSPACE}/Cargo.toml (got '$version')"
+            exit 1
+          fi
+          tag="v${version}"
+          if [ "$EVENT" = push ] && [ "${GITHUB_REF_NAME}" != "$tag" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match the workspace version ${tag}"
+            exit 1
+          fi
+          publish=false
+          if [ "$EVENT" = push ] || [ "$PUBLISH_INPUT" = true ]; then publish=true; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "version $version, tag $tag, publish $publish"
+
+  linux:
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            afrobim/target
+          key: release-linux-${{ hashFiles('afrobim/Cargo.lock') }}
+
+      - name: Build release binary
+        working-directory: afrobim
+        run: cargo build --release --locked -p afrobim-app
+
+      - name: Packaging layout check
+        run: |
+          rm -rf "$RUNNER_TEMP/stage"
+          fonts=""; [ "$BUNDLE_FONTS" = true ] || fonts="--no-fonts"
+          "$PACKAGING/stage.sh" --bin "$WORKSPACE/target/release/afrobim" --dest "$RUNNER_TEMP/stage" $fonts
+          python3 "$PACKAGING/check_layout.py" "$RUNNER_TEMP/stage" || echo "::warning::check_layout.py reported a problem (it may expect the fonts)"
+
+      - name: Archive
+        run: |
+          fonts=""; [ "$BUNDLE_FONTS" = true ] || fonts="--no-fonts"
+          "$PACKAGING/linux/build-archive.sh" "$WORKSPACE/target/release/afrobim" "$VERSION" dist $fonts
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-linux
+          path: dist/*
+          if-no-files-found: error
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      # Signing is optional and pluggable: see afrobim/packaging/windows/sign.ps1.
+      WINDOWS_SIGN_COMMAND: ${{ secrets.WINDOWS_SIGN_COMMAND }}
+      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+      WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Rust toolchain
+        shell: bash
+        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            afrobim/target
+          key: release-windows-${{ hashFiles('afrobim/Cargo.lock') }}
+
+      - name: Build release binary
+        working-directory: afrobim
+        run: cargo build --release --locked -p afrobim-app
+
+      # The runner image lists WiX Toolset v3, so this normally does nothing.
+      - name: Ensure WiX v3
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\WiX Toolset v3.14\bin\candle.exe") -and -not ($env:WIX -and (Test-Path "$env:WIX\bin\candle.exe"))) {
+            choco install wixtoolset --version=3.14.1 -y --no-progress
+          }
+
+      # Optional: runs only when a signing method is configured. Signs the executable before it goes into the .msi.
+      - name: Sign the executable (if configured)
+        shell: pwsh
+        run: ./afrobim/packaging/windows/sign.ps1 -Files "afrobim/target/release/afrobim.exe"
+
+      - name: Build the .msi
+        shell: pwsh
+        run: |
+          $fonts = @(); if ($env:BUNDLE_FONTS -ne 'true') { $fonts = @('-NoFonts') }
+          & "$env:PACKAGING/windows/build-msi.ps1" -Version $env:VERSION -Binary "$env:WORKSPACE/target/release/afrobim.exe" -OutDir dist @fonts
+
+      - name: Sign the .msi (if configured)
+        shell: pwsh
+        run: |
+          $msi = (Get-ChildItem dist\*.msi).FullName
+          ./afrobim/packaging/windows/sign.ps1 -Files $msi
+
+      - name: Install and uninstall test
+        shell: pwsh
+        run: |
+          $msi = (Get-ChildItem dist\*.msi).FullName
+          $p = Start-Process msiexec -ArgumentList "/i `"$msi`" /qn /l*v install.log" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content install.log -Tail 60; throw "install failed: $($p.ExitCode)" }
+          $dir = "$env:ProgramFiles\AfroBIM"
+          foreach ($f in 'afrobim.exe', 'packs\UK-TSM-2019.json', 'packs\UG-TSM-2004\pack.xml') {
+            if (-not (Test-Path "$dir\$f")) { throw "missing after install: $f" }
+          }
+          $p = Start-Process msiexec -ArgumentList "/x `"$msi`" /qn /l*v uninstall.log" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content uninstall.log -Tail 60; throw "uninstall failed: $($p.ExitCode)" }
+          if (Test-Path $dir) { throw "install folder still present after uninstall: $dir" }
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-windows
+          path: dist/*.msi
+          if-no-files-found: error
+
+      - name: Upload installer logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-windows-logs
+          path: "*.log"
+          if-no-files-found: ignore
+
+  macos:
+    needs: version
+    # macos-latest is Apple silicon. The x86_64 binary is cross-compiled on it.
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+      # Optional signing and notarisation: every step below checks that these exist.
+      APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            afrobim/target
+          key: release-macos-${{ hashFiles('afrobim/Cargo.lock') }}
+
+      - name: Build release binaries
+        working-directory: afrobim
+        run: |
+          cargo build --release --locked -p afrobim-app --target aarch64-apple-darwin
+          cargo build --release --locked -p afrobim-app --target x86_64-apple-darwin
+
+      # Optional: import the Developer ID certificate into a temporary keychain.
+      - name: Import signing certificate (if configured)
+        id: cert
+        run: |
+          if [ -z "$APPLE_CERT_P12" ] || [ -z "$APPLE_CERT_PASSWORD" ]; then
+            echo "No Apple certificate secrets: the app will be ad hoc signed only."
+            exit 0
+          fi
+          kc="$RUNNER_TEMP/release.keychain-db"
+          kcpw="$(uuidgen)"
+          echo "::add-mask::$kcpw"
+          printf '%s' "$APPLE_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$kcpw" "$kc"
+          security set-keychain-settings -lut 3600 "$kc"
+          security unlock-keychain -p "$kcpw" "$kc"
+          security import "$RUNNER_TEMP/cert.p12" -k "$kc" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$kcpw" "$kc" >/dev/null
+          security list-keychains -d user -s "$kc" login.keychain-db
+          identity="$(security find-identity -v -p codesigning "$kc" | sed -n 's/.*"\(Developer ID Application:.*\)".*/\1/p' | head -1)"
+          if [ -z "$identity" ]; then echo "::error::no Developer ID Application identity in the certificate"; exit 1; fi
+          echo "identity=$identity" >> "$GITHUB_OUTPUT"
+
+      - name: Build the .dmg files (arm64 and x86_64)
+        env:
+          CODESIGN_IDENTITY: ${{ steps.cert.outputs.identity }}
+        run: |
+          fonts=""; [ "$BUNDLE_FONTS" = true ] || fonts="--no-fonts"
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            "$PACKAGING/macos/build-dmg.sh" --version "$VERSION" --out dist $fonts \
+              --bin "$WORKSPACE/target/$t/release/afrobim"
+          done
+          ls -l dist
+
+      # Optional: sign each disk image, send it to Apple's notary service, wait, and staple the ticket.
+      - name: Sign, notarise and staple the .dmg files (if configured)
+        env:
+          IDENTITY: ${{ steps.cert.outputs.identity }}
+        run: |
+          if [ -z "$IDENTITY" ] || [ -z "$APPLE_ID" ] || [ -z "$APPLE_TEAM_ID" ] || [ -z "$APPLE_APP_PASSWORD" ]; then
+            echo "Notarisation secrets or certificate missing: the .dmg files stay un-notarised."
+            exit 0
+          fi
+          for dmg in dist/*.dmg; do
+            codesign --force --timestamp --sign "$IDENTITY" "$dmg"
+            xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+            xcrun stapler staple "$dmg"
+            xcrun stapler validate "$dmg"
+            spctl --assess --type open --context context:primary-signature -v "$dmg" || echo "::warning::spctl did not accept $dmg"
+          done
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-macos
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  release:
+    needs: [version, linux, windows, macos]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: ${{ needs.version.outputs.tag }}
+      # A fine-grained personal access token with Contents: read and write on arihov/afrobim-releases only.
+      GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+      HAS_APPLE: ${{ secrets.APPLE_CERT_P12 != '' && secrets.APPLE_APP_PASSWORD != '' }}
+      HAS_WINDOWS: ${{ secrets.WINDOWS_SIGN_COMMAND != '' || secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+    steps:
+      - name: Check the token
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::secret RELEASES_TOKEN is not set (see docs/release/RELEASING.md)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: dist
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          ls -l
+          sha256sum -- *.dmg *.msi *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Release notes
+        run: |
+          {
+            echo "# AfroBIM ${VERSION}"
+            echo
+            if [ "$HAS_APPLE" != true ] || [ "$HAS_WINDOWS" != true ]; then
+              echo "> **Unsigned beta.** These installers are not yet signed by a recognised publisher, so Windows SmartScreen and macOS Gatekeeper will warn on first run. Check the SHA-256 value against \`SHA256SUMS\` before you install."
+              echo
+            fi
+            notes="docs/release/notes/${TAG}.md"
+            if [ -f "$notes" ]; then
+              cat "$notes"
+            else
+              echo "## Changes"
+              prev="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${TAG}^" 2>/dev/null || true)"
+              range="${prev:+${prev}..}HEAD"
+              git log --no-merges --pretty='- %s' "$range" | head -40
+            fi
+            echo
+            echo "## Files"
+            echo "- Windows: \`.msi\` (64-bit)"
+            echo "- macOS: \`.dmg\` for Apple silicon (arm64) and for Intel (x86_64)"
+            echo "- Linux: \`.tar.gz\` (x86_64)"
+            echo "- \`SHA256SUMS\`: SHA-256 checksums of every file"
+            echo
+            echo "Report bugs under Issues and share ideas under Discussions in this repository."
+          } > notes.md
+          cat notes.md
+
+      - name: Create the release in the public repository
+        run: |
+          if gh release view "$TAG" --repo "$RELEASES_REPO" >/dev/null 2>&1; then
+            echo "::error::release $TAG already exists in $RELEASES_REPO; delete it or bump the version"
+            exit 1
+          fi
+          gh release create "$TAG" dist/* --repo "$RELEASES_REPO" --title "AfroBIM ${VERSION}" --notes-file notes.md --latest
