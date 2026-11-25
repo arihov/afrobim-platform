@@ -265,8 +265,8 @@ impl AfroBimApp {
         }
         let ctx = painter.ctx().clone();
         let now = ctx.input(|i| i.time);
-        let lo = self.view.to_world(Pt::new(rect.left() as f64, rect.bottom() as f64));
-        let hi = self.view.to_world(Pt::new(rect.right() as f64, rect.top() as f64));
+        let win = self.view.world_window(rect.left() as f64, rect.top() as f64, rect.right() as f64, rect.bottom() as f64);
+        let (lo, hi) = (win.min, win.max);
         let (vlo, vhi) = ([lo.x.min(hi.x) / 1000.0, lo.y.min(hi.y) / 1000.0], [lo.x.max(hi.x) / 1000.0, lo.y.max(hi.y) / 1000.0]);
         for (id, _) in clouds {
             let Some(e) = self.doc.find(id) else { continue };

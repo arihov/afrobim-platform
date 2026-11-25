@@ -47,9 +47,16 @@ fn tip(painter: &Painter, at: Pos2, text: &str) {
 
 impl AfroBimApp {
     fn screen_rect(&self, b: &BBox) -> Rect {
-        let a = self.view.to_screen(Pt::new(b.min.x, b.max.y));
-        let c = self.view.to_screen(Pt::new(b.max.x, b.min.y));
-        Rect::from_min_max(p(a), p(c))
+        // The box around all four corners: with a twisted view two opposite ones are not enough.
+        let s = [self.view.to_screen(Pt::new(b.min.x, b.max.y)), self.view.to_screen(Pt::new(b.max.x, b.min.y)), self.view.to_screen(Pt::new(b.min.x, b.min.y)), self.view.to_screen(Pt::new(b.max.x, b.max.y))];
+        let (x0, x1) = s.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |a, q| (a.0.min(q.x), a.1.max(q.x)));
+        let (y0, y1) = s.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |a, q| (a.0.min(q.y), a.1.max(q.y)));
+        Rect::from_min_max(p(Pt::new(x0, y0)), p(Pt::new(x1, y1)))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn screen_rect_for_test(&self, b: &BBox) -> Rect {
+        self.screen_rect(b)
     }
 
     pub(crate) fn paint_scene(&self, painter: &Painter, rect: Rect) {
@@ -59,7 +66,7 @@ impl AfroBimApp {
 
         // The background map and georeferenced images sit under the grid and everything else.
         self.basemap.paint(&self.doc, painter, &self.view, rect, dark);
-        self.imagery.paint(&self.doc, painter, &self.view, rect);
+        self.imagery.paint(&self.doc, painter, &self.view, rect, &self.lay.frozen_now);
 
         if self.grid_on {
             let step = display_spacing_fine(self.grid_spacing, self.view.scale, 14.0);
@@ -96,9 +103,9 @@ impl AfroBimApp {
         }
 
         // DXF underlays sit behind the model.
-        self.under.paint(&self.doc, painter, &self.view, rect, ink);
+        self.under.paint(&self.doc, painter, &self.view, rect, ink, &self.lay.frozen_now);
         // GIS overlays (GeoJSON, KML, GPX, CSV) sit over the images and the underlays, behind the model.
-        self.gis.paint(&self.doc, painter, &self.view, rect);
+        self.gis.paint(&self.doc, painter, &self.view, rect, &self.lay.frozen_now);
 
         let label = if dark { Color32::from_rgb(0xA8, 0xB0, 0xBA) } else { Color32::from_rgb(0x50, 0x55, 0x5C) };
         // Referenced documents and the reference markers (drawn over the objects below).
@@ -108,7 +115,7 @@ impl AfroBimApp {
         // The civil objects: scenes built off the UI thread, painted culled to the view.
         let mut labels = crate::civil_scene::Labels::default();
         for e in self.doc.elements() {
-            if crate::civil::is_civil(&e.category) && !crate::civil::hidden(e) {
+            if crate::civil::is_civil(&e.category) && !crate::civil::hidden(e) && self.doc.layer_visible(&e.layer) {
                 if let Some((_, b)) = self.civil.built.get(&e.id) {
                     b.scene.paint(painter, &mut labels, &self.view, rect, ink, self.doc.is_selected(e.id));
                 }

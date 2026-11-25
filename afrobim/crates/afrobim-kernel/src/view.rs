@@ -114,13 +114,27 @@ impl ViewTransform {
         Pt::new(self.anchor_x + dx / self.scale, self.anchor_y + dy / self.scale)
     }
 
+    /// The model rectangle (mm) that covers a screen rectangle: the box around its four corners,
+    /// which for a twisted view is larger than the box of two opposite corners.
+    pub fn world_window(&self, left: f64, top: f64, right: f64, bottom: f64) -> BBox {
+        let c = [self.to_world(Pt::new(left, top)), self.to_world(Pt::new(right, top)), self.to_world(Pt::new(right, bottom)), self.to_world(Pt::new(left, bottom))];
+        let (mut x0, mut y0, mut x1, mut y1) = (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+        for p in c {
+            x0 = x0.min(p.x);
+            y0 = y0.min(p.y);
+            x1 = x1.max(p.x);
+            y1 = y1.max(p.y);
+        }
+        BBox::new(x0, y0, x1, y1)
+    }
+
     /// Screen to model space (millimetres). Same as [`to_world`](Self::to_world).
     pub fn to_model(&self, screen: Pt) -> Pt {
         self.to_world(screen)
     }
 
     pub fn box_to_world(&self, a: Pt, b: Pt) -> BBox {
-        BBox::from_corners(self.to_world(a), self.to_world(b))
+        self.world_window(a.x.min(b.x), a.y.min(b.y), a.x.max(b.x), a.y.max(b.y))
     }
 
     /// Pans by a pixel delta. A non-finite delta, or one that would make a stored number
@@ -430,6 +444,23 @@ mod tests {
         let (a, b) = (v.to_screen(Pt::new(13.0, 4.0)), v.to_screen_local(Pt::new(10.0, 0.0), 3.0, 4.0));
         close(a.x, b.x);
         close(a.y, b.y);
+    }
+
+    #[test]
+    fn the_world_window_of_a_twisted_view_covers_every_corner() {
+        let v = ViewTransform::centred_on(Pt::new(0.0, 0.0), Pt::new(100.0, 50.0), 1.0).with_twist(45.0);
+        let w = v.world_window(0.0, 0.0, 200.0, 100.0);
+        for (x, y) in [(0.0, 0.0), (200.0, 0.0), (200.0, 100.0), (0.0, 100.0)] {
+            let p = v.to_world(Pt::new(x, y));
+            assert!(p.x >= w.min.x - 1e-9 && p.x <= w.max.x + 1e-9 && p.y >= w.min.y - 1e-9 && p.y <= w.max.y + 1e-9);
+        }
+        // Two opposite corners alone would give a smaller box than the four do.
+        let (a, b) = (v.to_world(Pt::new(0.0, 0.0)), v.to_world(Pt::new(200.0, 100.0)));
+        let two = ((a.x - b.x).abs(), (a.y - b.y).abs());
+        assert!(w.width() > two.0 + 1.0 || w.height() > two.1 + 1.0, "{} x {} against {} x {}", w.width(), w.height(), two.0, two.1);
+        let plain = ViewTransform::centred_on(Pt::new(0.0, 0.0), Pt::new(100.0, 50.0), 1.0);
+        let w = plain.world_window(0.0, 0.0, 200.0, 100.0);
+        assert_eq!((w.min.x, w.min.y, w.max.x, w.max.y), (-100.0, -50.0, 100.0, 50.0));
     }
 
     #[test]

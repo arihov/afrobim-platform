@@ -472,6 +472,7 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "MSPACE", aliases: &["MS"], help: "Work in model space through the selected viewport (double click inside a viewport)", action: Action::Layout(crate::layout_cmds::Lv::Mspace) },
     CommandInfo { name: "PSPACE", aliases: &["PS"], help: "Return to paper space (double click outside the viewport)", action: Action::Layout(crate::layout_cmds::Lv::Pspace) },
     CommandInfo { name: "VPSCALE", aliases: &["VPS", "XPSCALE"], help: "Set the scale of the selected or active viewport from the standard list or a custom 1:n", action: Action::Layout(crate::layout_cmds::Lv::VpScale) },
+    CommandInfo { name: "VPROTATE", aliases: &["VPTWIST", "TWIST"], help: "Turn the view of the selected or active viewport by an angle in degrees, anticlockwise (VPROTATE 30)", action: Action::Layout(crate::layout_cmds::Lv::VpRotate) },
     CommandInfo { name: "VPLOCK", aliases: &["VPL"], help: "Lock or unlock the display of the selected or active viewport (a locked one cannot change scale; pan and zoom move the paper)", action: Action::Layout(crate::layout_cmds::Lv::VpLock) },
     CommandInfo { name: "VPDISPLAY", aliases: &["VPONOFF"], help: "Turn the display of the selected viewport on or off", action: Action::Layout(crate::layout_cmds::Lv::VpDisplay) },
     CommandInfo { name: "VPMAX", aliases: &["MAXVP"], help: "Maximise the selected viewport to the whole canvas", action: Action::Layout(crate::layout_cmds::Lv::VpMax) },

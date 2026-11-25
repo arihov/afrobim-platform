@@ -106,36 +106,24 @@ fn text_anchor(a: u8) -> Align2 {
 impl Scene {
     /// Paints what is in `rect`. `ink` is the canvas ink, used for the point markers.
     pub fn paint(&self, painter: &Painter, labels: &mut Labels, view: &ViewTransform, rect: Rect, ink: Color32, selected: bool) {
-        let lo = view.to_world(Pt::new(rect.left() as f64, rect.bottom() as f64));
-        let hi = view.to_world(Pt::new(rect.right() as f64, rect.top() as f64));
-        let (x0, y0, x1, y1) = (lo.x.min(hi.x), lo.y.min(hi.y), lo.x.max(hi.x), lo.y.max(hi.y));
+        let w = view.world_window(rect.left() as f64, rect.top() as f64, rect.right() as f64, rect.bottom() as f64);
+        let (x0, y0, x1, y1) = (w.min.x, w.min.y, w.max.x, w.max.y);
         let to = |p: [f64; 2]| {
             let s = view.to_screen(Pt::new(p[0], p[1]));
             pos2(s.x as f32, s.y as f32)
         };
-        for f in &self.fills {
-            if f.poly.len() < 3 || !f.poly.iter().any(|p| p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1) && !poly_crosses(&f.poly, x0, y0, x1, y1) {
-                continue;
-            }
+        let win = [x0, y0, x1, y1];
+        for f in self.fills_in(win) {
             let pts: Vec<_> = f.poly.iter().map(|p| to(*p)).collect();
             painter.add(Shape::convex_polygon(pts, Color32::from_rgba_unmultiplied(f.rgba[0], f.rgba[1], f.rgba[2], f.rgba[3]), Stroke::NONE));
         }
-        for l in &self.lines {
-            if l.bbox[2] < x0 || l.bbox[0] > x1 || l.bbox[3] < y0 || l.bbox[1] > y1 || l.pts.len() < 2 {
-                continue;
-            }
-            // A line much smaller than a pixel is not drawn: it would be a smudge.
-            if (l.bbox[2] - l.bbox[0]).max(l.bbox[3] - l.bbox[1]) * view.scale < 0.4 {
-                continue;
-            }
+        // A line much smaller than a pixel is not drawn: it would be a smudge.
+        for l in self.lines_in(win, 0.4 / view.scale) {
             let pts: Vec<_> = l.pts.iter().map(|p| to(*p)).collect();
             let w = if selected { l.width + 1.0 } else { l.width };
             painter.add(Shape::line(pts, Stroke::new(w, col(l.rgb))));
         }
-        for t in &self.texts {
-            if t.at[0] < x0 || t.at[0] > x1 || t.at[1] < y0 || t.at[1] > y1 {
-                continue;
-            }
+        for t in self.texts_in(win) {
             let size = if t.height_mm > 0.0 {
                 let px = (t.height_mm * view.scale) as f32;
                 if !(4.0..=48.0).contains(&px) {
@@ -150,6 +138,28 @@ impl Scene {
         if !self.points.is_empty() {
             self.paint_points(painter, labels, view, (x0, y0, x1, y1), rect, ink, selected);
         }
+    }
+
+    /// The filled polygons that touch the model window `[x0, y0, x1, y1]` (mm), by the box test:
+    /// what the screen and the plot both draw.
+    pub fn fills_in(&self, [x0, y0, x1, y1]: [f64; 4]) -> impl Iterator<Item = &SFill> {
+        self.fills.iter().filter(move |f| f.poly.len() >= 3 && (f.poly.iter().any(|p| p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1) || poly_crosses(&f.poly, x0, y0, x1, y1)))
+    }
+
+    /// The lines that touch the window and are longer than `min_len` model mm in their larger
+    /// dimension.
+    pub fn lines_in(&self, [x0, y0, x1, y1]: [f64; 4], min_len: f64) -> impl Iterator<Item = &SLine> {
+        self.lines.iter().filter(move |l| !(l.bbox[2] < x0 || l.bbox[0] > x1 || l.bbox[3] < y0 || l.bbox[1] > y1 || l.pts.len() < 2) && (l.bbox[2] - l.bbox[0]).max(l.bbox[3] - l.bbox[1]) >= min_len)
+    }
+
+    /// The texts whose anchor is in the window.
+    pub fn texts_in(&self, [x0, y0, x1, y1]: [f64; 4]) -> impl Iterator<Item = &SText> {
+        self.texts.iter().filter(move |t| !(t.at[0] < x0 || t.at[0] > x1 || t.at[1] < y0 || t.at[1] > y1))
+    }
+
+    /// The point markers in the window.
+    pub fn points_in(&self, [x0, y0, x1, y1]: [f64; 4]) -> impl Iterator<Item = &PMark> {
+        self.points.iter().filter(move |p| p.at[0] >= x0 && p.at[0] <= x1 && p.at[1] >= y0 && p.at[1] <= y1)
     }
 
     fn paint_points(&self, painter: &Painter, labels: &mut Labels, view: &ViewTransform, (x0, y0, x1, y1): (f64, f64, f64, f64), rect: Rect, ink: Color32, selected: bool) {

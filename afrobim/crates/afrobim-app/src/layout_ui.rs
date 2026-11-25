@@ -120,6 +120,12 @@ pub struct LayoutUi {
     pub pending: Option<(Option<String>, PaperSize, Orientation)>,
     /// The canvas rectangle (left, top, width, height) the Model tab draws in.
     pub model_rect: (f64, f64, f64, f64),
+    /// The layers frozen in the viewport the model painter is running for (empty on the Model
+    /// tab). The painters of underlays, images and overlays read it: their own layer is off in the
+    /// document, so the layer switch cannot carry the freeze.
+    pub frozen_now: Vec<String>,
+    /// Where the plot gets map tiles: `None` is the network and the disk cache; tests give their own.
+    pub plot_fetcher: Option<std::sync::Arc<dyn afrobim_raster::TileFetcher>>,
 }
 
 impl Default for LayoutUi {
@@ -149,6 +155,8 @@ impl Default for LayoutUi {
             plot_note: String::new(),
             pending: None,
             model_rect: (0.0, 0.0, 0.0, 0.0),
+            frozen_now: Vec::new(),
+            plot_fetcher: None,
         }
     }
 }
@@ -404,6 +412,25 @@ impl AfroBimApp {
         }
     }
 
+    /// Ctrl-drag of a handle: a copy of the viewport where it is, selected, to be dragged.
+    pub(crate) fn copy_vp_in_place(&mut self, ctx: &Context, id: u64) -> Option<u64> {
+        let lid = self.lay.current?;
+        let n = self.doc.layouts_mut().get_mut(lid)?.copy_viewport_in_place(id)?;
+        self.lay.selected = Some(n);
+        self.status = "Copying the viewport: drag to place the copy.".into();
+        self.schedule_commit(ctx);
+        Some(n)
+    }
+
+    /// VPROTATE: turns the view of a viewport. A locked viewport keeps its view.
+    pub(crate) fn set_vp_twist(&mut self, ctx: &Context, id: u64, deg: f64) {
+        match self.with_vp(ctx, id, |v| v.set_twist(deg)) {
+            Some(true) => self.status = format!("Viewport view turned to {} degrees.", afrobim_kernel::layout::trim_mm(self.current_layout().and_then(|l| l.viewport(id)).map(|v| v.twist_deg).unwrap_or(deg))),
+            Some(false) => self.status = "The viewport is locked (or the angle is not a number). Unlock it (VPLOCK) to turn its view.".into(),
+            None => {}
+        }
+    }
+
     pub(crate) fn delete_vp(&mut self, ctx: &Context, id: u64) {
         if let Some(lid) = self.lay.current {
             if self.doc.layouts_mut().get_mut(lid).is_some_and(|l| l.delete_viewport(id)) {
@@ -449,7 +476,7 @@ impl AfroBimApp {
         let (cw, ch) = (cw.max(100.0), ch.max(100.0));
         let (mw, mh) = (v.model_width(), v.height() * v.scale_den);
         let scale = (cw * 0.95 / mw.max(1e-9)).min(ch * 0.95 / mh.max(1e-9));
-        let view = ViewTransform::centred_on(v.centre, Pt::new(l + cw / 2.0, t + ch / 2.0), scale);
+        let view = ViewTransform::centred_on(v.centre, Pt::new(l + cw / 2.0, t + ch / 2.0), scale).with_twist(v.twist_deg);
         self.lay.maximised = Some((id, view));
         self.lay.active = None;
         self.lay.selected = Some(id);
@@ -636,6 +663,12 @@ impl AfroBimApp {
                     self.lay.scale_open = true;
                 }
             }
+            Lv::VpRotate => {
+                if needs_vp(self).is_some() {
+                    self.lay.props_open = true;
+                    self.status = "Set the twist angle under Properties (Twist), or type VPROTATE 30 for 30 degrees anticlockwise.".into();
+                }
+            }
             Lv::VpLock => {
                 if let Some(id) = needs_vp(self) {
                     let now = self.with_vp(ctx, id, |v| {
@@ -768,6 +801,19 @@ impl AfroBimApp {
                 }
                 true
             }
+            Lv::VpRotate => match rest.trim_end_matches(['\u{b0}']).trim().parse::<f64>() {
+                Ok(deg) if deg.is_finite() => match self.target_vp() {
+                    Some(id) => {
+                        self.set_vp_twist(ctx, id, deg);
+                        true
+                    }
+                    None => {
+                        self.status = "Select a viewport first.".into();
+                        true
+                    }
+                },
+                _ => false,
+            },
             Lv::VpScale => match afrobim_kernel::layout::parse_scale(rest) {
                 Some(den) => match self.target_vp() {
                     Some(id) => {
@@ -789,29 +835,15 @@ impl AfroBimApp {
 
     /// The layouts composed at true paper size, with the document's annotation in each viewport.
     pub(crate) fn compose_layouts_for_plot(&self, ids: &[u64]) -> Vec<afrobim_sheets::ComposedSheet> {
-        use afrobim_sheets::geom::{Aff, Rect};
+        use afrobim_sheets::geom::Rect;
         let model = afrobim_sheets::Model { doc: &self.doc, registry: &self.modules };
         let info = afrobim_sheets::project_info(&self.doc);
         let styles = afrobim_sheets::Styles::default();
         let layouts: Vec<&Layout> = ids.iter().filter_map(|id| self.doc.layouts().get(*id)).collect();
-        let doc = &self.doc;
-        let mut extras = |v: &Viewport, rect: &Rect, sheet: &mut afrobim_sheets::ComposedSheet| {
-            if !doc.elements().iter().any(afrobim_annotate::is_annotation) {
-                return;
-            }
-            let k = lp::paper_per_model(v);
-            let pc = v.paper_centre();
-            let corners = [v.to_model(Pt::new(rect.x0, rect.y0)), v.to_model(Pt::new(rect.x1, rect.y1))];
-            let window = afrobim_kernel::BBox::from_corners(corners[0], corners[1]);
-            let offset = Pt::new(pc.x / k - v.centre.x, pc.y / k - v.centre.y);
-            let sd = afrobim_annotate::sheet_drawing(doc, offset, k, Some(&window));
-            afrobim_sheets::draw_drawing(sheet, &styles, &sd.drawing, &Aff::IDENTITY, rect, crate::sheets_glue::ANNOTATION_LAYER);
-            let rgb = styles.pens.pen(crate::sheets_glue::ANNOTATION_LAYER).rgb;
-            for l in &sd.labels {
-                if rect.contains(l.at) {
-                    sheet.text(afrobim_sheets::SheetText { layer: crate::sheets_glue::ANNOTATION_LAYER.into(), at: l.at, height_mm: l.height_mm, text: l.text.clone(), align: l.align, rotation_deg: l.rotation_deg, bold: l.bold, rgb });
-                }
-            }
+        let cache = crate::layout_out::PlotCache::default();
+        let mut extras = |stage: lp::Stage, v: &Viewport, rect: &Rect, sheet: &mut afrobim_sheets::ComposedSheet| match stage {
+            lp::Stage::Under => self.plot_under(&cache, v, rect, sheet),
+            lp::Stage::Over => self.plot_over(v, rect, sheet),
         };
         lp::compose_layouts(&model, &styles, &info, &layouts, &mut extras)
     }
@@ -828,6 +860,10 @@ impl AfroBimApp {
         std::fs::write(path, bytes).map_err(|e| format!("Could not write {}: {e}", path.display()))?;
         let warnings: Vec<String> = sheets.iter().flat_map(|s| s.warnings.iter().map(|w| format!("{}: {w}", s.number))).collect();
         let mut note = format!("Wrote {} page(s) to {}.", sheets.len(), path.display());
+        let skipped = afrobim_sheets::skipped_rasters(&sheets);
+        if !pdf && skipped > 0 {
+            note.push_str(&format!(" {skipped} raster image(s) (map tiles, images) are left out of the DXF, which has no raster: plot to PDF to have them."));
+        }
         if !warnings.is_empty() {
             note.push_str(&format!(" {} warning(s): {}", warnings.len(), warnings.join(" ")));
         }
@@ -1226,7 +1262,25 @@ impl AfroBimApp {
                     ui_kit::f64_field(ui, &mut l.margins[3], "mm", 0.0..=100.0, 1.0);
                 });
                 fm.row("Title block", |ui| {
-                    ui.checkbox(&mut tb, "AfroBIM title block on the right of the frame");
+                    ui.checkbox(&mut tb, "Title block on the right of the frame");
+                });
+                fm.row("Style", |ui| {
+                    ui.add_enabled_ui(tb, |ui| {
+                        egui::ComboBox::from_id_salt("ps-style").selected_text(l.title_style.label()).show_ui(ui, |ui| {
+                            for st in afrobim_kernel::TitleStyle::ALL {
+                                ui.selectable_value(&mut l.title_style, st, st.label());
+                            }
+                        });
+                    });
+                });
+                fm.row("Sheet number", |ui| {
+                    ui.add_enabled(tb, egui::TextEdit::singleline(&mut l.sheet_no).hint_text(l.name.clone()));
+                });
+                fm.row("Drawing title", |ui| {
+                    ui.add_enabled(tb, egui::TextEdit::singleline(&mut l.drawing_title).hint_text(l.name.clone()));
+                });
+                fm.row("Revision", |ui| {
+                    ui.add_enabled(tb, egui::TextEdit::singleline(&mut l.revision).hint_text("the project's latest"));
                 });
             });
             ui_kit::callout(ui, ui_kit::Level::Info, "The dashed line on the layout is the printable area. Viewports stay where they are when the paper changes.");
@@ -1234,7 +1288,7 @@ impl AfroBimApp {
         if (size, orient) != initial {
             lp::set_paper(&mut l, size, orient);
         }
-        l.title_block_mm = if tb { afrobim_sheets::TitleBlockLayout::default().width_mm } else { 0.0 };
+        l.title_block_mm = if tb { lp::title_block_width(l.title_style) } else { 0.0 };
         if l != layout {
             if let Some(slot) = self.doc.layouts_mut().get_mut(form.layout) {
                 *slot = l;
@@ -1251,6 +1305,7 @@ impl AfroBimApp {
         let n = self.doc.layouts().len();
         let name = self.current_layout().map(|l| l.name.clone());
         let mut export: Option<bool> = None;
+        let refusal = self.plot_map_refusal();
         let dlg = ui_kit::Dialog::titled("Plot layouts").subtitle("PDF or DXF at true paper size").width(460.0).show_body(ctx, |ui| {
             ui_kit::heading(ui, "What to plot");
             ui.radio_value(&mut self.lay.plot_all, false, format!("The current layout{}", name.as_ref().map(|n| format!(" ({n})")).unwrap_or_default()));
@@ -1268,7 +1323,10 @@ impl AfroBimApp {
             if !self.lay.plot_note.is_empty() {
                 ui_kit::callout(ui, ui_kit::Level::Info, self.lay.plot_note.clone());
             }
-            ui_kit::callout(ui, ui_kit::Level::Info, "The viewport scale is exact on the paper: at 1:500 one metre is 2 mm. Viewport borders are not plotted. Civil objects, point clouds, images and map tiles are not in the plot yet.");
+            if let Some(why) = &refusal {
+                ui_kit::callout(ui, ui_kit::Level::Warning, format!("The online map is left out of the plot. {why}"));
+            }
+            ui_kit::callout(ui, ui_kit::Level::Info, "The viewport scale is exact on the paper: at 1:500 one metre is 2 mm. A viewport border is plotted only when its plot border option is on. Civil objects, DXF underlays and GIS overlays are plotted as vectors; map tiles and images go into the PDF as pictures (a DXF has no raster and leaves them out). Point clouds are not plotted yet.");
         });
         if let Some(pdf) = export {
             self.plot_ask(pdf);
@@ -1305,8 +1363,17 @@ impl AfroBimApp {
             ui.label("Paper per metre");
             ui.label(RichText::new(format!("{} mm", afrobim_kernel::layout::trim_mm(lp::viewport_scale(&v).paper_mm_per_m()))).monospace());
             ui.end_row();
+            ui.label("Twist");
+            ui.add_enabled(!v.locked, egui::DragValue::new(&mut v.twist_deg).speed(1.0).range(-180.0..=180.0).suffix(" deg"));
+            ui.end_row();
             ui.label("Display locked");
             ui.checkbox(&mut v.locked, "");
+            ui.end_row();
+            ui.label("Zoom");
+            ui.checkbox(&mut v.snap_scale, "Snap to a standard scale when zooming");
+            ui.end_row();
+            ui.label("Plot border");
+            ui.checkbox(&mut v.plot_border, "Plot the boundary of the viewport");
             ui.end_row();
             ui.label("Display on");
             ui.checkbox(&mut v.on, "");
@@ -1324,6 +1391,10 @@ impl AfroBimApp {
         // A locked viewport keeps the scale it had.
         if before.locked {
             v.scale_den = before.scale_den;
+            v.twist_deg = before.twist_deg;
+        }
+        if !v.twist_deg.is_finite() {
+            v.twist_deg = before.twist_deg;
         }
         if v != before {
             self.with_vp(ctx, id, |slot| *slot = v);

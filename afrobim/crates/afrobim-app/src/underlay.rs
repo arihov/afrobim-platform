@@ -325,6 +325,13 @@ impl Default for UnderlayState {
     }
 }
 
+impl Built {
+    /// The segments in model millimetres.
+    pub fn world_segments(&self) -> impl Iterator<Item = (Pt, Pt)> + '_ {
+        self.segs.iter().map(|s| (Pt::new(self.origin[0] + s[0] as f64, self.origin[1] + s[1] as f64), Pt::new(self.origin[0] + s[2] as f64, self.origin[1] + s[3] as f64)))
+    }
+}
+
 impl UnderlayState {
     /// Forgets everything (a different document).
     pub fn reset(&mut self) {
@@ -515,15 +522,25 @@ impl UnderlayState {
         out
     }
 
-    /// Draws the visible underlays behind the model. `ink` is the canvas foreground colour.
-    pub fn paint(&self, doc: &Document, painter: &Painter, view: &ViewTransform, rect: Rect, ink: Color32) {
-        self.left_out.set(0);
-        for e in doc.elements().iter().filter(|e| e.category == CATEGORY) {
-            let Some(def) = def_of(e) else { continue };
+    /// The underlays that show now, for the screen and for the plot alike: switched on, built, and
+    /// not on a document layer in `frozen` (the layers frozen in the viewport being drawn). The
+    /// underlay's own layer is normally off in the document (it only holds the placeholder), so
+    /// the document's layer switch does not count here.
+    pub fn shown<'a>(&'a self, doc: &'a Document, frozen: &'a [String]) -> impl Iterator<Item = (&'a Element, UnderlayDef, &'a Built)> + 'a {
+        doc.elements().iter().filter(|e| e.category == CATEGORY && !frozen.contains(&e.layer)).filter_map(|e| {
+            let def = def_of(e)?;
             if !def.visible {
-                continue;
+                return None;
             }
-            let Some(b) = self.entries.get(&e.id).and_then(|en| en.built.as_ref()) else { continue };
+            let b = self.entries.get(&e.id).and_then(|en| en.built.as_ref())?;
+            Some((e, def, b))
+        })
+    }
+
+    /// Draws the visible underlays behind the model. `ink` is the canvas foreground colour.
+    pub fn paint(&self, doc: &Document, painter: &Painter, view: &ViewTransform, rect: Rect, ink: Color32, frozen: &[String]) {
+        self.left_out.set(0);
+        for (_, def, b) in self.shown(doc, frozen) {
             let colour = ink.gamma_multiply(def.opacity.clamp(0.05, 1.0) * 0.8);
             let stroke = Stroke::new(1.0_f32, colour);
             let mut shapes: Vec<Shape> = Vec::new();

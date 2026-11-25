@@ -302,6 +302,7 @@ fn panels(tab: Tab) -> &'static [Panel] {
             title: "Viewport settings",
             items: &[
                 Small(Icon::Sheets, "Scale", "VPSCALE"),
+                Small(Icon::Sheets, "Rotate view", "VPROTATE"),
                 Small(Icon::Sheets, "Lock", "VPLOCK"),
                 Small(Icon::Sheets, "Display", "VPDISPLAY"),
                 Small(Icon::Sheets, "Maximise", "VPMAX"),

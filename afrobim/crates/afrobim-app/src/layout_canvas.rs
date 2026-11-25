@@ -38,7 +38,7 @@ fn screen_box(pv: &ViewTransform, r: [f64; 4]) -> Rect {
 /// The transform of the model through a viewport at the paper view `pv`.
 pub fn vp_screen_view(pv: &ViewTransform, vp: &Viewport) -> ViewTransform {
     let at = pv.to_screen(vp.paper_centre());
-    ViewTransform::centred_on(vp.centre, at, pv.scale * lp::paper_per_model(vp))
+    ViewTransform::centred_on(vp.centre, at, pv.scale * lp::paper_per_model(vp)).with_twist(vp.twist_deg)
 }
 
 fn dashed_poly(painter: &Painter, pts: &[Pos2], closed: bool, stroke: Stroke) {
@@ -158,6 +158,7 @@ impl AfroBimApp {
         let saved_view = std::mem::replace(&mut self.view, view);
         let saved_grid = std::mem::replace(&mut self.grid_on, false);
         let saved_dark = std::mem::replace(&mut self.dark_canvas, false);
+        let saved_frozen = std::mem::replace(&mut self.lay.frozen_now, frozen.to_vec());
         let mut was: Vec<(usize, bool)> = Vec::new();
         for (i, l) in self.doc.layers_mut().iter_mut().enumerate() {
             if l.visible && frozen.contains(&l.name) {
@@ -174,6 +175,7 @@ impl AfroBimApp {
         }
         self.grid_on = saved_grid;
         self.dark_canvas = saved_dark;
+        self.lay.frozen_now = saved_frozen;
         let after = std::mem::replace(&mut self.view, saved_view);
         (r, after)
     }
@@ -202,7 +204,7 @@ impl AfroBimApp {
         furniture.viewports.clear();
         furniture.shapes.clear();
         let pos = self.doc.layouts().index_of(layout.id).map(|i| i + 1).unwrap_or(1);
-        let sheet = lp::compose_layout(&model, &afrobim_sheets::Styles::default(), &info, &furniture, pos, self.doc.layouts().len().max(1), &mut |_, _, _| {});
+        let sheet = lp::compose_layout(&model, &afrobim_sheets::Styles::default(), &info, &furniture, pos, self.doc.layouts().len().max(1), &mut |_, _, _, _| {});
         paint_items(painter, pv, &sheet.items);
 
         // What was drawn on the paper.
@@ -363,10 +365,21 @@ impl AfroBimApp {
             let moved_px = ((centre.x - vp.centre.x).powi(2) + (centre.y - vp.centre.y).powi(2)).sqrt() * after.scale;
             let rescaled = ((den - vp.scale_den) / vp.scale_den).abs() > 1e-9;
             if (moved_px > 0.01 || rescaled) && den.is_finite() && den > 0.0 {
-                self.with_vp(ctx, vp.id, |v| {
-                    v.centre = centre;
-                    if rescaled {
-                        v.scale_den = den;
+                // With "snap to a standard scale" the wheel steps through the standard list, about
+                // the point under the pointer, instead of making a custom scale.
+                let pointer = ctx.input(|i| i.pointer.latest_pos());
+                let snapped = if rescaled && vp.snap_scale { snap_zoom(pv, &view, vp, den < vp.scale_den, pointer) } else { None };
+                self.with_vp(ctx, vp.id, |v| match snapped {
+                    Some((target, c)) => {
+                        v.scale_den = target;
+                        v.centre = c;
+                    }
+                    None if rescaled && vp.snap_scale => {} // already at the end of the list
+                    None => {
+                        v.centre = centre;
+                        if rescaled {
+                            v.scale_den = den;
+                        }
                     }
                 });
             }
@@ -406,7 +419,12 @@ impl AfroBimApp {
                         v.grips().into_iter().find(|(_, g)| (sp(pv, *g) - pos).length() <= 7.0).map(|(k, g)| (v.id, k, g))
                     });
                     match grip {
-                        Some((id, k, g)) => self.lay.drag = Some((id, k, if k == afrobim_kernel::VpGrip::Move { p } else { g })),
+                        Some((id, k, g)) => {
+                            // Ctrl on a handle copies the viewport and drags the copy.
+                            let ctrl = ctx.input(|i| i.modifiers.ctrl || i.modifiers.command);
+                            let id = if ctrl { self.copy_vp_in_place(ctx, id).unwrap_or(id) } else { id };
+                            self.lay.drag = Some((id, k, if k == afrobim_kernel::VpGrip::Move { p } else { g }));
+                        }
                         None => {
                             self.lay.selected = layout.viewport_at(p);
                             if let (Some(id), true) = (self.lay.selected, true) {
@@ -520,6 +538,8 @@ fn paint_items(painter: &Painter, pv: &ViewTransform, items: &[afrobim_sheets::I
                     painter.add(Shape::convex_polygon(pts, Color32::from_rgb(rgb[0], rgb[1], rgb[2]), Stroke::NONE));
                 }
             }
+            // A raster: drawn as a tinted box, the pictures themselves are in the viewports.
+            Item::Image(_) => {}
             Item::Text(t) => {
                 let size = (t.height_mm * pv.scale / afrobim_sheets::CAP_HEIGHT) as f32;
                 if size < 3.5 {
@@ -576,4 +596,25 @@ fn mask_outside_polygon(painter: &Painter, pv: &ViewTransform, vp: &Viewport, bo
         }
         y += step;
     }
+}
+
+/// The scale and centre a wheel step gives a viewport that snaps to the standard list: the next
+/// standard scale up or down, with the model point under the pointer staying under it. `None` at
+/// the end of the list. `view` is the model view of the viewport before the wheel moved it.
+pub(crate) fn snap_zoom(pv: &ViewTransform, view: &ViewTransform, vp: &Viewport, zoom_in: bool, pointer: Option<Pos2>) -> Option<(f64, Pt)> {
+    let target = afrobim_kernel::layout::step_standard_scale(vp.scale_den, !zoom_in);
+    if target == vp.scale_den {
+        return None;
+    }
+    let mut v2 = vp.clone();
+    v2.scale_den = target;
+    let Some(p) = pointer else { return Some((target, vp.centre)) };
+    if !screen_box(pv, vp.rect).contains(p) {
+        return Some((target, vp.centre));
+    }
+    let s = Pt::new(p.x as f64, p.y as f64);
+    let m = view.to_world(s);
+    let at = pv.to_world(s);
+    let q = v2.to_model(at);
+    Some((target, Pt::new(vp.centre.x + (m.x - q.x), vp.centre.y + (m.y - q.y))))
 }

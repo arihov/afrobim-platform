@@ -25,6 +25,8 @@ pub enum Lv {
     Mspace,
     Pspace,
     VpScale,
+    /// VPROTATE: the twist angle of the view.
+    VpRotate,
     VpLock,
     VpDisplay,
     VpMax,
@@ -64,6 +66,7 @@ pub fn glyph(lv: Lv) -> &'static str {
         Lv::Mspace => ph::CURSOR_CLICK,
         Lv::Pspace => ph::FILE,
         Lv::VpScale => ph::RULER,
+        Lv::VpRotate => ph::ARROW_CLOCKWISE,
         Lv::VpLock => ph::LOCK_SIMPLE,
         Lv::VpDisplay => ph::EYE,
         Lv::VpMax => ph::ARROWS_OUT,
@@ -96,7 +99,7 @@ mod tests {
             assert!(!glyph(lv).is_empty());
             assert!(!c.help.contains('\u{2014}') && !c.help.contains('\u{2013}'), "{}: no dashes of that kind in text", c.name);
         }
-        for name in ["LAYOUT", "MVIEW", "MSPACE", "PSPACE", "VPSCALE", "VPLOCK", "VPMAX", "VPMIN", "VPLAYER", "VPCLIP", "PAGESETUP", "PLOT"] {
+        for name in ["LAYOUT", "MVIEW", "MSPACE", "PSPACE", "VPSCALE", "VPLOCK", "VPROTATE", "VPMAX", "VPMIN", "VPLAYER", "VPCLIP", "PAGESETUP", "PLOT"] {
             assert!(crate::commands::resolve(name).is_some(), "{name}");
         }
     }

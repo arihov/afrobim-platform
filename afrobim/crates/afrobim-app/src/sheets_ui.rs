@@ -1932,6 +1932,7 @@ fn titleblock_editor(ui: &mut Ui, tb: &mut TitleBlockLayout, user_labels: &[Stri
                 Block::Rows(_) => "Rows of cells",
                 Block::RevisionTable { .. } => "Revision table",
                 Block::Logo { .. } => "Logo box",
+                Block::NorthPoint { .. } => "North point space",
                 Block::Spacer { .. } => "Spacer",
             };
             ui.label(RichText::new(format!("{}. {title}", bi + 1)).strong());
@@ -2062,7 +2063,7 @@ fn titleblock_editor(ui: &mut Ui, tb: &mut TitleBlockLayout, user_labels: &[Stri
                     columns.push(RevColumn { header: "Rev".into(), width_mm: 10.0, field: RevField::Rev });
                 }
             }
-            Block::Logo { height_mm } | Block::Spacer { height_mm } => {
+            Block::Logo { height_mm } | Block::NorthPoint { height_mm } | Block::Spacer { height_mm } => {
                 ui.horizontal(|ui| {
                     ui.label("Height (mm)");
                     ui.add(egui::DragValue::new(height_mm).speed(0.5).range(1.0..=200.0));

@@ -95,6 +95,7 @@ mod icons;
 mod ifc_options;
 mod landxml_ui;
 mod layout_canvas;
+mod layout_out;
 mod layout_cmds;
 mod layout_ui;
 mod issues_ui;

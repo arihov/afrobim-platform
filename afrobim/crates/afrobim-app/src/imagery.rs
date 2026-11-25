@@ -366,6 +366,14 @@ struct Entry {
     texture_px: [u32; 2],
 }
 
+/// An image that shows: its record, where it lands on the model, and its texture once read.
+pub struct ShownImage<'a> {
+    pub name: String,
+    pub def: ImageDef,
+    pub placement: &'a Placement,
+    pub tex: Option<&'a TextureHandle>,
+}
+
 /// The runtime side of the image underlays: textures, placements, the reads in flight.
 pub struct ImageryState {
     entries: HashMap<ElementId, Entry>,
@@ -558,17 +566,30 @@ impl ImageryState {
             .reduce(|a, b| a.union(&b))
     }
 
-    /// Draws the visible images behind the model, in document order.
-    pub fn paint(&self, doc: &Document, painter: &Painter, view: &ViewTransform, rect: Rect) {
+    /// The images that show now, in draw order, for the screen and the plot alike: switched on,
+    /// placed, and not on a document layer in `frozen`. The images' own layer is normally off in
+    /// the document (it holds the placeholder), so the layer switch does not count here. The
+    /// texture is there once the picture has been read.
+    pub fn shown<'a>(&'a self, doc: &'a Document, frozen: &[String]) -> Vec<ShownImage<'a>> {
+        let mut out = Vec::new();
         for id in paint_order(doc) {
             let Some(e) = doc.find(id) else { continue };
             let Some(def) = def_of(e) else { continue };
-            if !def.visible {
+            if !def.visible || frozen.contains(&e.layer) {
                 continue;
             }
             let Some(en) = self.entries.get(&e.id) else { continue };
-            let (Some(tex), Some((_, Ok(p)))) = (&en.tex, &en.placed) else { continue };
-            paint_grid(painter, view, rect, tex.id(), p.n, &p.pts, [0.0, 0.0, 1.0, 1.0], Color32::WHITE.gamma_multiply(def.opacity.clamp(0.05, 1.0)));
+            let Some((_, Ok(placement))) = &en.placed else { continue };
+            out.push(ShownImage { name: e.name.clone(), def, placement, tex: en.tex.as_ref() });
+        }
+        out
+    }
+
+    /// Draws the visible images behind the model, in document order.
+    pub fn paint(&self, doc: &Document, painter: &Painter, view: &ViewTransform, rect: Rect, frozen: &[String]) {
+        for img in self.shown(doc, frozen) {
+            let Some(tex) = img.tex else { continue };
+            paint_grid(painter, view, rect, tex.id(), img.placement.n, &img.placement.pts, [0.0, 0.0, 1.0, 1.0], Color32::WHITE.gamma_multiply(img.def.opacity.clamp(0.05, 1.0)));
         }
     }
 

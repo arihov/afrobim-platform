@@ -595,13 +595,19 @@ impl GisState {
 
     /// Draws the visible overlays: lines, outlines, a light fill and crosses for points, in the
     /// colour of the layer.
-    pub fn paint(&self, doc: &Document, painter: &Painter, view: &ViewTransform, rect: Rect) {
-        for e in doc.elements().iter().filter(|e| e.category == CATEGORY) {
-            let (Some(geo), Some(look)) = (self.placed(e.id), look_of(e)) else { continue };
-            if look.visible {
-                paint_geo(geo, &look, painter, view, rect);
-            }
+    pub fn paint(&self, doc: &Document, painter: &Painter, view: &ViewTransform, rect: Rect, frozen: &[String]) {
+        for (_, geo, look) in self.shown(doc, frozen) {
+            paint_geo(geo, &look, painter, view, rect);
         }
+    }
+
+    /// The overlays that show now, for the screen and the plot alike: switched on, placed in the
+    /// project system, and not on a document layer in `frozen`.
+    pub fn shown<'a>(&'a self, doc: &'a Document, frozen: &'a [String]) -> impl Iterator<Item = (&'a Element, &'a Arc<Geo>, Look)> + 'a {
+        doc.elements().iter().filter(|e| e.category == CATEGORY && !frozen.contains(&e.layer)).filter_map(|e| {
+            let (geo, look) = (self.placed(e.id)?, look_of(e)?);
+            look.visible.then_some((e, geo, look))
+        })
     }
 }
 
@@ -647,9 +653,37 @@ fn clip_to_rect(poly: &[[f64; 2]], lo: [f64; 2], hi: [f64; 2]) -> Vec<[f64; 2]> 
     out
 }
 
+/// How a layer's colour is shown: the stroke colour with its alpha, and the alpha of the fill.
+pub fn layer_alphas(look: &Look) -> (u8, u8) {
+    let opacity = look.opacity.clamp(0.05, 1.0);
+    ((255.0 * opacity) as u8, (255.0 * opacity * FILL_ALPHA) as u8)
+}
+
+/// One feature to draw: the feature, its layer and the triangles of its fill.
+pub struct DrawFeature<'a> {
+    pub f: &'a ProjFeature,
+    pub layer: &'a LayerDef,
+    pub tris: &'a [[[f64; 2]; 3]],
+}
+
+impl Geo {
+    /// The features of the visible layers whose box touches the window `[x0, y0, x1, y1]` (mm):
+    /// what the screen and the plot both draw.
+    pub fn features_in<'a>(&'a self, look: &'a Look, [x0, y0, x1, y1]: [f64; 4]) -> impl Iterator<Item = DrawFeature<'a>> + 'a {
+        self.projected.iter().zip(&self.prep).filter_map(move |(f, prep)| {
+            let layer = look.layers.get(f.layer).filter(|l| l.visible)?;
+            if prep.bbox[2] < x0 || prep.bbox[0] > x1 || prep.bbox[3] < y0 || prep.bbox[1] > y1 {
+                return None;
+            }
+            Some(DrawFeature { f, layer, tris: &prep.tris })
+        })
+    }
+}
+
 fn paint_geo(geo: &Geo, look: &Look, painter: &Painter, view: &ViewTransform, rect: Rect) {
     // The view in model millimetres, with room for the size of a cross.
-    let (a, b) = (view.to_world(Pt::new(rect.left() as f64, rect.bottom() as f64)), view.to_world(Pt::new(rect.right() as f64, rect.top() as f64)));
+    let win = view.world_window(rect.left() as f64, rect.top() as f64, rect.right() as f64, rect.bottom() as f64);
+    let (a, b) = (win.min, win.max);
     let pad = 12.0 / view.scale.max(1e-12);
     let (lo, hi) = ([a.x.min(b.x) - pad, a.y.min(b.y) - pad], [a.x.max(b.x) + pad, a.y.max(b.y) + pad]);
     // Screen clip box.
@@ -662,11 +696,7 @@ fn paint_geo(geo: &Geo, look: &Look, painter: &Painter, view: &ViewTransform, re
         [s.x, s.y]
     };
     let mut fill = Mesh::default();
-    for (f, prep) in geo.projected.iter().zip(&geo.prep) {
-        let Some(layer) = look.layers.get(f.layer).filter(|l| l.visible) else { continue };
-        if prep.bbox[2] < lo[0] || prep.bbox[0] > hi[0] || prep.bbox[3] < lo[1] || prep.bbox[1] > hi[1] {
-            continue;
-        }
+    for DrawFeature { f, layer, tris } in geo.features_in(look, [lo[0], lo[1], hi[0], hi[1]]) {
         let [r, g, bl] = layer.colour;
         let ink = Color32::from_rgba_unmultiplied(r, g, bl, alpha);
         let stroke = Stroke::new(1.5_f32, ink);
@@ -715,7 +745,7 @@ fn paint_geo(geo: &Geo, look: &Look, painter: &Painter, view: &ViewTransform, re
                     polyline(ring);
                 }
                 let tint = Color32::from_rgba_unmultiplied(r, g, bl, fill_alpha);
-                for t in &prep.tris {
+                for t in tris {
                     let s = [to_screen(t[0]), to_screen(t[1]), to_screen(t[2])];
                     let (x0, x1) = (s.iter().map(|p| p[0]).fold(f64::MAX, f64::min), s.iter().map(|p| p[0]).fold(f64::MIN, f64::max));
                     let (y0, y1) = (s.iter().map(|p| p[1]).fold(f64::MAX, f64::min), s.iter().map(|p| p[1]).fold(f64::MIN, f64::max));
@@ -1351,7 +1381,7 @@ mod tests {
         let rect = Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(800.0, 600.0));
         let shapes = |doc: &Document, st: &GisState| {
             let ctx = egui::Context::default();
-            ctx.run(egui::RawInput::default(), |ctx| st.paint(doc, &ctx.layer_painter(egui::LayerId::background()), &view, rect)).shapes.len()
+            ctx.run(egui::RawInput::default(), |ctx| st.paint(doc, &ctx.layer_painter(egui::LayerId::background()), &view, rect, &[])).shapes.len()
         };
         assert!(shapes(&doc, &st) > 0);
         edit_look(&mut doc, id, |l| l.layers[0].visible = false);
