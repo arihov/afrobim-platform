@@ -20,9 +20,11 @@ use crate::ui_kit::{self, Check, Col, Dialog, Level, NumRule};
 pub const SETTING_KEY: &str = "defaults.basis";
 /// The basis id that switches every default off.
 pub const NO_BASIS: &str = "none";
+/// The basis of a new project: the Uganda MoWT Road Design Manual (2010).
+pub const DEFAULT_BASIS: &str = afrobim_defaults::UG_MOWT_ID;
 
 thread_local! {
-    static DEFAULTS: RefCell<Defaults> = RefCell::new(Defaults::dmrb());
+    static DEFAULTS: RefCell<Defaults> = RefCell::new(Defaults::standard());
     static NONE: RefCell<bool> = const { RefCell::new(false) };
     static LAST_SYNC: RefCell<Option<std::time::Instant>> = const { RefCell::new(None) };
 }
@@ -54,6 +56,21 @@ pub fn basis_id() -> String {
     }
 }
 
+/// The design vehicles DV-1 to DV-5 (DV-5 the largest). They come from the basis in force when it
+/// holds them; otherwise from the Uganda MoWT pack, which is what the junction dialogs offer.
+/// The second element names the pack they came from.
+pub fn design_vehicles() -> (Vec<afrobim_defaults::DesignVehicle>, String) {
+    let active = with(|d| d.active_set().map(|s| (afrobim_defaults::design_vehicles(s), s.name().to_string())));
+    match active {
+        Some((v, n)) if !v.is_empty() => (v, n),
+        _ => {
+            let p = afrobim_defaults::Pack::ug_mowt();
+            let n = afrobim_defaults::DefaultsSet::name(&p).to_string();
+            (afrobim_defaults::design_vehicles(&p), n)
+        }
+    }
+}
+
 /// The bases offered: id and name.
 pub fn bases() -> Vec<(String, String)> {
     DEFAULTS.with(|d| d.borrow().bases().iter().map(|(a, b)| (a.to_string(), b.to_string())).collect())
@@ -67,7 +84,7 @@ pub fn sync(doc: &Document, force: bool) {
     }
     LAST_SYNC.with(|l| *l.borrow_mut() = Some(std::time::Instant::now()));
     let id = project_setting(doc, SETTING_KEY).and_then(|v| v.as_str().map(str::to_string));
-    set_basis(id.as_deref().unwrap_or("dmrb"));
+    set_basis(id.as_deref().unwrap_or(DEFAULT_BASIS));
 }
 
 /// Chooses the basis (an unknown id leaves the basis as it is).

@@ -1,0 +1,1937 @@
+{
+ "schema_version": 1,
+ "pack": {
+  "id": "ug-mowt-2010",
+  "name": "Uganda MoWT Road Design Manual (2010)",
+  "publisher": "Ministry of Works and Transport, Republic of Uganda",
+  "data_version": 1,
+  "read_on": "2026-11-25",
+  "read_by": "automated reader working from the text of a third-party hosted copy of Volume 1 (Geometric Design); table layouts were jumbled in places and were reassembled and cross-checked by arithmetic and between tables. The Ministry's own copy was not available.",
+  "review_status": "NOT REVIEWED by an engineer. Values must be checked against the Ministry's printed copy of the manual before the product relies on them.",
+  "uganda_caveat": "This is the primary basis for Ugandan work. UK DMRB, SATCC, AASHTO and TRL values are secondary references for items this manual does not cover.",
+  "licence": {
+   "name": "Government of Uganda publication; licence not stated in the copy read",
+   "printed_notice": "Ministry of Works and Transport, Road Design Manual, Volume 1: Geometric Design Manual, January 2010.",
+   "website_notice": "Not stated.",
+   "attribution": "Contains values from the Uganda Ministry of Works and Transport Road Design Manual, Volume 1: Geometric Design Manual (2010). Confirm reuse terms with the Ministry."
+  }
+ },
+ "documents": {
+  "MoWT-GDM-2010": {
+   "reference": "MoWT Road Design Manual Vol 1",
+   "title": "Road Design Manual, Volume 1: Geometric Design Manual",
+   "version": "January 2010",
+   "published": "January 2010",
+   "copyright": "Ministry of Works and Transport, Republic of Uganda",
+   "annex": "Not applicable. Uganda national manual; no national application annex.",
+   "url": "https://kupdf.net/download/uganda-road-design-manuals-volume-1-geometric-design-manual_59132946dc0d60167d959eae_pdf"
+  }
+ },
+ "entries": [
+  {
+   "key": "vehicle.height",
+   "group": "design_vehicle",
+   "title": "Design vehicle height",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 5-1",
+   "page": "49",
+   "pdf_page": 0,
+   "condition": "Design vehicle DV-1 to DV-5; metres",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read from a third-party hosted copy of the manual; verify against the Ministry's printed copy. Overall length equals front overhang plus wheelbase(s) plus rear overhang for every vehicle.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 5.1, Table 5-1: Dimensions of Design Vehicle, p49 (height column)",
+   "table": {
+    "dimension": {
+     "name": "design_vehicle",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "DV-1",
+      "value": 1.3
+     },
+     {
+      "at": "DV-2",
+      "value": 4.1
+     },
+     {
+      "at": "DV-3",
+      "value": 4.1
+     },
+     {
+      "at": "DV-4",
+      "value": 4.1
+     },
+     {
+      "at": "DV-5",
+      "value": 4.1
+     }
+    ]
+   }
+  },
+  {
+   "key": "vehicle.width",
+   "group": "design_vehicle",
+   "title": "Design vehicle width",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 5-1",
+   "page": "49",
+   "pdf_page": 0,
+   "condition": "Design vehicle DV-1 to DV-5; metres",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read from a third-party hosted copy of the manual; verify against the Ministry's printed copy. Overall length equals front overhang plus wheelbase(s) plus rear overhang for every vehicle.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 5.1, Table 5-1: Dimensions of Design Vehicle, p49 (width column)",
+   "table": {
+    "dimension": {
+     "name": "design_vehicle",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "DV-1",
+      "value": 2.1
+     },
+     {
+      "at": "DV-2",
+      "value": 2.6
+     },
+     {
+      "at": "DV-3",
+      "value": 2.6
+     },
+     {
+      "at": "DV-4",
+      "value": 2.6
+     },
+     {
+      "at": "DV-5",
+      "value": 2.6
+     }
+    ]
+   }
+  },
+  {
+   "key": "vehicle.overall_length",
+   "group": "design_vehicle",
+   "title": "Design vehicle overall length",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 5-1",
+   "page": "49",
+   "pdf_page": 0,
+   "condition": "Design vehicle DV-1 to DV-5; metres",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read from a third-party hosted copy of the manual; verify against the Ministry's printed copy. Overall length equals front overhang plus wheelbase(s) plus rear overhang for every vehicle.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 5.1, Table 5-1: Dimensions of Design Vehicle, p49 (overall length column)",
+   "table": {
+    "dimension": {
+     "name": "design_vehicle",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "DV-1",
+      "value": 5.8
+     },
+     {
+      "at": "DV-2",
+      "value": 9.1
+     },
+     {
+      "at": "DV-3",
+      "value": 12.1
+     },
+     {
+      "at": "DV-4",
+      "value": 16.7
+     },
+     {
+      "at": "DV-5",
+      "value": 21.0
+     }
+    ]
+   }
+  },
+  {
+   "key": "vehicle.front_overhang",
+   "group": "design_vehicle",
+   "title": "Design vehicle front overhang",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 5-1",
+   "page": "49",
+   "pdf_page": 0,
+   "condition": "Design vehicle DV-1 to DV-5; metres",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read from a third-party hosted copy of the manual; verify against the Ministry's printed copy. Overall length equals front overhang plus wheelbase(s) plus rear overhang for every vehicle.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 5.1, Table 5-1: Dimensions of Design Vehicle, p49 (front overhang column)",
+   "table": {
+    "dimension": {
+     "name": "design_vehicle",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "DV-1",
+      "value": 0.9
+     },
+     {
+      "at": "DV-2",
+      "value": 1.2
+     },
+     {
+      "at": "DV-3",
+      "value": 2.1
+     },
+     {
+      "at": "DV-4",
+      "value": 0.9
+     },
+     {
+      "at": "DV-5",
+      "value": 1.2
+     }
+    ]
+   }
+  },
+  {
+   "key": "vehicle.rear_overhang",
+   "group": "design_vehicle",
+   "title": "Design vehicle rear overhang",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 5-1",
+   "page": "49",
+   "pdf_page": 0,
+   "condition": "Design vehicle DV-1 to DV-5; metres",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read from a third-party hosted copy of the manual; verify against the Ministry's printed copy. Overall length equals front overhang plus wheelbase(s) plus rear overhang for every vehicle.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 5.1, Table 5-1: Dimensions of Design Vehicle, p49 (rear overhang column)",
+   "table": {
+    "dimension": {
+     "name": "design_vehicle",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "DV-1",
+      "value": 1.5
+     },
+     {
+      "at": "DV-2",
+      "value": 1.8
+     },
+     {
+      "at": "DV-3",
+      "value": 2.4
+     },
+     {
+      "at": "DV-4",
+      "value": 0.6
+     },
+     {
+      "at": "DV-5",
+      "value": 0.9
+     }
+    ]
+   }
+  },
+  {
+   "key": "vehicle.wheelbase_first",
+   "group": "design_vehicle",
+   "title": "Design vehicle wheelbase (single, or first wheelbase of a combination)",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 5-1",
+   "page": "49",
+   "pdf_page": 0,
+   "condition": "Design vehicle DV-1 to DV-5; metres",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read from a third-party hosted copy of the manual; verify against the Ministry's printed copy. Overall length equals front overhang plus wheelbase(s) plus rear overhang for every vehicle.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 5.1, Table 5-1: Dimensions of Design Vehicle, p49 (wheelbase column)",
+   "table": {
+    "dimension": {
+     "name": "design_vehicle",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "DV-1",
+      "value": 3.4
+     },
+     {
+      "at": "DV-2",
+      "value": 6.1
+     },
+     {
+      "at": "DV-3",
+      "value": 7.6
+     },
+     {
+      "at": "DV-4",
+      "value": 6.1
+     },
+     {
+      "at": "DV-5",
+      "value": 6.1
+     }
+    ]
+   }
+  },
+  {
+   "key": "vehicle.min_turning_radius",
+   "group": "design_vehicle",
+   "title": "Design vehicle minimum design turning radius (outer path)",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 5-1",
+   "page": "49",
+   "pdf_page": 0,
+   "condition": "Design vehicle DV-1 to DV-5; metres",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read from a third-party hosted copy of the manual; verify against the Ministry's printed copy. Overall length equals front overhang plus wheelbase(s) plus rear overhang for every vehicle.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 5.1, Table 5-1: Dimensions of Design Vehicle, p49 (minimum design turning radius column)",
+   "table": {
+    "dimension": {
+     "name": "design_vehicle",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "DV-1",
+      "value": 7.3
+     },
+     {
+      "at": "DV-2",
+      "value": 12.8
+     },
+     {
+      "at": "DV-3",
+      "value": 12.8
+     },
+     {
+      "at": "DV-4",
+      "value": 13.7
+     },
+     {
+      "at": "DV-5",
+      "value": 13.7
+     }
+    ]
+   }
+  },
+  {
+   "key": "vehicle.min_inside_radius",
+   "group": "design_vehicle",
+   "title": "Design vehicle minimum inside radius",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 5-1",
+   "page": "49",
+   "pdf_page": 0,
+   "condition": "Design vehicle DV-1 to DV-5; metres",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read from a third-party hosted copy of the manual; verify against the Ministry's printed copy. Overall length equals front overhang plus wheelbase(s) plus rear overhang for every vehicle.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 5.1, Table 5-1: Dimensions of Design Vehicle, p49 (minimum inside radius column)",
+   "table": {
+    "dimension": {
+     "name": "design_vehicle",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "DV-1",
+      "value": 4.2
+     },
+     {
+      "at": "DV-2",
+      "value": 8.5
+     },
+     {
+      "at": "DV-3",
+      "value": 7.4
+     },
+     {
+      "at": "DV-4",
+      "value": 5.8
+     },
+     {
+      "at": "DV-5",
+      "value": 2.9
+     }
+    ]
+   }
+  },
+  {
+   "key": "vehicle.wheelbase_second",
+   "group": "design_vehicle",
+   "title": "Design vehicle second wheelbase (semitrailer combinations only)",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 5-1",
+   "page": "49",
+   "pdf_page": 0,
+   "condition": "DV-4 and DV-5 only; the table prints 6.1 & 9.1 for DV-4 and 6.1 & 12.8 for DV-5",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Reading of the second figure as the trailer wheelbase is the AfroBIM reading of '6.1 & 9.1'; it is supported by the overall length sum. Read from a third-party hosted copy of the manual; verify against the Ministry's printed copy. Overall length equals front overhang plus wheelbase(s) plus rear overhang for every vehicle.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 5.1, Table 5-1: Dimensions of Design Vehicle, p49 (wheelbase column)",
+   "table": {
+    "dimension": {
+     "name": "design_vehicle",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "DV-4",
+      "value": 9.1
+     },
+     {
+      "at": "DV-5",
+      "value": 12.8
+     }
+    ]
+   }
+  },
+  {
+   "key": "vehicle.types",
+   "group": "design_vehicle",
+   "title": "Design vehicle types",
+   "kind": "text",
+   "unit": "none",
+   "text": "DV-1: 4x4 passenger car; DV-2: single unit truck; DV-3: single unit bus; DV-4: semitrailer combination; DV-5: large (interstate) semitrailer",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 5-1",
+   "page": "49",
+   "pdf_page": 0,
+   "condition": "As printed in Table 5-1",
+   "status": "advice",
+   "verb": "table value",
+   "note": "The table header lists the five types in this order; the copy read has the types in a header line, not beside each row, so the pairing follows the order and the dimensions (a 5.8 m car, 9.1 m truck, 12.1 m bus). Read from a third-party hosted copy of the manual; verify against the Ministry's printed copy. Overall length equals front overhang plus wheelbase(s) plus rear overhang for every vehicle.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 5.1, Table 5-1: Dimensions of Design Vehicle, p49"
+  },
+  {
+   "key": "link.design_speed.ia",
+   "group": "link",
+   "title": "Design speed, Ia Paved",
+   "kind": "table",
+   "unit": "km/h",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-3; Table 4-2a",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class Ia Paved; terrain Flat, Rolling, Mountainous or Urban/Peri-urban",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; table layout of Tables 4-3 and 4-4 is garbled in the text read, so Ia and Ib values rest on Table 4-2a and a repeated summary table; verify. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-3 (Table 4-2a for design speed)",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 120
+     },
+     {
+      "at": "Rolling",
+      "value": 100
+     },
+     {
+      "at": "Mountainous",
+      "value": 80
+     },
+     {
+      "at": "Urban",
+      "value": 50
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_desirable_max.ia",
+   "group": "link",
+   "title": "Maximum gradient (desirable), Ia Paved",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-3",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class Ia Paved",
+   "status": "desirable_maximum",
+   "verb": "table value",
+   "note": "Third-party copy; table layout of Tables 4-3 and 4-4 is garbled in the text read, so Ia and Ib values rest on Table 4-2a and a repeated summary table; verify. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-3",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 3
+     },
+     {
+      "at": "Rolling",
+      "value": 4.5
+     },
+     {
+      "at": "Mountainous",
+      "value": 6
+     },
+     {
+      "at": "Urban",
+      "value": 6
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_absolute_max.ia",
+   "group": "link",
+   "title": "Maximum gradient (absolute), Ia Paved",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-3",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class Ia Paved",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; table layout of Tables 4-3 and 4-4 is garbled in the text read, so Ia and Ib values rest on Table 4-2a and a repeated summary table; verify. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-3",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 4
+     },
+     {
+      "at": "Rolling",
+      "value": 6.5
+     },
+     {
+      "at": "Mountainous",
+      "value": 8
+     },
+     {
+      "at": "Urban",
+      "value": 8
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.design_speed.ib",
+   "group": "link",
+   "title": "Design speed, Ib Paved",
+   "kind": "table",
+   "unit": "km/h",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-4; Table 4-2a",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class Ib Paved; terrain Flat, Rolling, Mountainous or Urban/Peri-urban",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; table layout of Tables 4-3 and 4-4 is garbled in the text read, so Ia and Ib values rest on Table 4-2a and a repeated summary table; verify. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-4 (Table 4-2a for design speed)",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 110
+     },
+     {
+      "at": "Rolling",
+      "value": 100
+     },
+     {
+      "at": "Mountainous",
+      "value": 80
+     },
+     {
+      "at": "Urban",
+      "value": 50
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_desirable_max.ib",
+   "group": "link",
+   "title": "Maximum gradient (desirable), Ib Paved",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-4",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class Ib Paved",
+   "status": "desirable_maximum",
+   "verb": "table value",
+   "note": "Third-party copy; table layout of Tables 4-3 and 4-4 is garbled in the text read, so Ia and Ib values rest on Table 4-2a and a repeated summary table; verify. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-4",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 3
+     },
+     {
+      "at": "Rolling",
+      "value": 4.5
+     },
+     {
+      "at": "Mountainous",
+      "value": 6
+     },
+     {
+      "at": "Urban",
+      "value": 6
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_absolute_max.ib",
+   "group": "link",
+   "title": "Maximum gradient (absolute), Ib Paved",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-4",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class Ib Paved",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; table layout of Tables 4-3 and 4-4 is garbled in the text read, so Ia and Ib values rest on Table 4-2a and a repeated summary table; verify. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-4",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 4
+     },
+     {
+      "at": "Rolling",
+      "value": 6.5
+     },
+     {
+      "at": "Mountainous",
+      "value": 8
+     },
+     {
+      "at": "Urban",
+      "value": 8
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.design_speed.ii",
+   "group": "link",
+   "title": "Design speed, II Paved",
+   "kind": "table",
+   "unit": "km/h",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-5; Table 4-2a",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class II Paved; terrain Flat, Rolling, Mountainous or Urban/Peri-urban",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-5 (Table 4-2a for design speed)",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 90
+     },
+     {
+      "at": "Rolling",
+      "value": 70
+     },
+     {
+      "at": "Mountainous",
+      "value": 60
+     },
+     {
+      "at": "Urban",
+      "value": 50
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_desirable_max.ii",
+   "group": "link",
+   "title": "Maximum gradient (desirable), II Paved",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-5",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class II Paved",
+   "status": "desirable_maximum",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-5",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 3.5
+     },
+     {
+      "at": "Rolling",
+      "value": 5.5
+     },
+     {
+      "at": "Mountainous",
+      "value": 6
+     },
+     {
+      "at": "Urban",
+      "value": 6
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_absolute_max.ii",
+   "group": "link",
+   "title": "Maximum gradient (absolute), II Paved",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-5",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class II Paved",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-5",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 5.5
+     },
+     {
+      "at": "Rolling",
+      "value": 7.5
+     },
+     {
+      "at": "Mountainous",
+      "value": 8
+     },
+     {
+      "at": "Urban",
+      "value": 8
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.design_speed.iii",
+   "group": "link",
+   "title": "Design speed, III Paved",
+   "kind": "table",
+   "unit": "km/h",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-6; Table 4-2a",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class III Paved; terrain Flat, Rolling, Mountainous or Urban/Peri-urban",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-6 (Table 4-2a for design speed)",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 80
+     },
+     {
+      "at": "Rolling",
+      "value": 70
+     },
+     {
+      "at": "Mountainous",
+      "value": 50
+     },
+     {
+      "at": "Urban",
+      "value": 50
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_desirable_max.iii",
+   "group": "link",
+   "title": "Maximum gradient (desirable), III Paved",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-6",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class III Paved",
+   "status": "desirable_maximum",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-6",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 4
+     },
+     {
+      "at": "Rolling",
+      "value": 5.5
+     },
+     {
+      "at": "Mountainous",
+      "value": 9
+     },
+     {
+      "at": "Urban",
+      "value": 9
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_absolute_max.iii",
+   "group": "link",
+   "title": "Maximum gradient (absolute), III Paved",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-6",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class III Paved",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-6",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 6
+     },
+     {
+      "at": "Rolling",
+      "value": 7.5
+     },
+     {
+      "at": "Mountainous",
+      "value": 11
+     },
+     {
+      "at": "Urban",
+      "value": 11
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.design_speed.a",
+   "group": "link",
+   "title": "Design speed, A Gravel",
+   "kind": "table",
+   "unit": "km/h",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-7; Table 4-2a",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class A Gravel; terrain Flat, Rolling, Mountainous or Urban/Peri-urban",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-7 (Table 4-2a for design speed)",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 90
+     },
+     {
+      "at": "Rolling",
+      "value": 80
+     },
+     {
+      "at": "Mountainous",
+      "value": 70
+     },
+     {
+      "at": "Urban",
+      "value": 50
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_desirable_max.a",
+   "group": "link",
+   "title": "Maximum gradient (desirable), A Gravel",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-7",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class A Gravel",
+   "status": "desirable_maximum",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-7",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 3.5
+     },
+     {
+      "at": "Rolling",
+      "value": 5
+     },
+     {
+      "at": "Mountainous",
+      "value": 7
+     },
+     {
+      "at": "Urban",
+      "value": 7
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_absolute_max.a",
+   "group": "link",
+   "title": "Maximum gradient (absolute), A Gravel",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-7",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class A Gravel",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-7",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 5.5
+     },
+     {
+      "at": "Rolling",
+      "value": 7
+     },
+     {
+      "at": "Mountainous",
+      "value": 9
+     },
+     {
+      "at": "Urban",
+      "value": 9
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.design_speed.b",
+   "group": "link",
+   "title": "Design speed, B Gravel",
+   "kind": "table",
+   "unit": "km/h",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-8; Table 4-2a",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class B Gravel; terrain Flat, Rolling, Mountainous or Urban/Peri-urban",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-8 (Table 4-2a for design speed)",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 80
+     },
+     {
+      "at": "Rolling",
+      "value": 60
+     },
+     {
+      "at": "Mountainous",
+      "value": 50
+     },
+     {
+      "at": "Urban",
+      "value": 50
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_desirable_max.b",
+   "group": "link",
+   "title": "Maximum gradient (desirable), B Gravel",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-8",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class B Gravel",
+   "status": "desirable_maximum",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-8",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 4
+     },
+     {
+      "at": "Rolling",
+      "value": 6
+     },
+     {
+      "at": "Mountainous",
+      "value": 9
+     },
+     {
+      "at": "Urban",
+      "value": 9
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_absolute_max.b",
+   "group": "link",
+   "title": "Maximum gradient (absolute), B Gravel",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-8",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class B Gravel",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-8",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 6
+     },
+     {
+      "at": "Rolling",
+      "value": 8
+     },
+     {
+      "at": "Mountainous",
+      "value": 11
+     },
+     {
+      "at": "Urban",
+      "value": 11
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.design_speed.c",
+   "group": "link",
+   "title": "Design speed, C Gravel",
+   "kind": "table",
+   "unit": "km/h",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-9; Table 4-2a",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class C Gravel; terrain Flat, Rolling, Mountainous or Urban/Peri-urban",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-9 (Table 4-2a for design speed)",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 60
+     },
+     {
+      "at": "Rolling",
+      "value": 50
+     },
+     {
+      "at": "Mountainous",
+      "value": 40
+     },
+     {
+      "at": "Urban",
+      "value": 50
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_desirable_max.c",
+   "group": "link",
+   "title": "Maximum gradient (desirable), C Gravel",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-9",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class C Gravel",
+   "status": "desirable_maximum",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-9",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 5
+     },
+     {
+      "at": "Rolling",
+      "value": 7
+     },
+     {
+      "at": "Mountainous",
+      "value": 10
+     },
+     {
+      "at": "Urban",
+      "value": 7
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.gradient_absolute_max.c",
+   "group": "link",
+   "title": "Maximum gradient (absolute), C Gravel",
+   "kind": "table",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-9",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design class C Gravel",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; verify against the printed manual. Printed page given as the range of the Section 4 tables (pages 44 to 48); the single page was not confirmed.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-9",
+   "table": {
+    "dimension": {
+     "name": "terrain",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Flat",
+      "value": 7
+     },
+     {
+      "at": "Rolling",
+      "value": 9
+     },
+     {
+      "at": "Mountainous",
+      "value": 12
+     },
+     {
+      "at": "Urban",
+      "value": 9
+     }
+    ]
+   }
+  },
+  {
+   "key": "xs.lane_width",
+   "group": "cross_section",
+   "title": "Lane width",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-2b",
+   "page": "44",
+   "pdf_page": 0,
+   "condition": "By design class",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; the table text is jumbled and was reassembled by arithmetic (carriageway plus two shoulders equals roadway width); verify.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-2b: Road Design Classes (continued), p44",
+   "table": {
+    "dimension": {
+     "name": "design_class",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Ia",
+      "value": 3.65
+     },
+     {
+      "at": "Ib",
+      "value": 3.5
+     },
+     {
+      "at": "II",
+      "value": 3.0
+     },
+     {
+      "at": "III",
+      "value": 2.8
+     },
+     {
+      "at": "A",
+      "value": 3.0
+     },
+     {
+      "at": "B",
+      "value": 2.8
+     },
+     {
+      "at": "C",
+      "value": 4.0
+     }
+    ]
+   }
+  },
+  {
+   "key": "xs.carriageway_width",
+   "group": "cross_section",
+   "title": "Carriageway width",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-2b",
+   "page": "44",
+   "pdf_page": 0,
+   "condition": "By design class",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; the table text is jumbled and was reassembled by arithmetic (carriageway plus two shoulders equals roadway width); verify.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-2b: Road Design Classes (continued), p44",
+   "table": {
+    "dimension": {
+     "name": "design_class",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Ia",
+      "value": 14.6
+     },
+     {
+      "at": "Ib",
+      "value": 7.0
+     },
+     {
+      "at": "II",
+      "value": 6.0
+     },
+     {
+      "at": "III",
+      "value": 5.6
+     },
+     {
+      "at": "A",
+      "value": 6.0
+     },
+     {
+      "at": "B",
+      "value": 5.6
+     },
+     {
+      "at": "C",
+      "value": 4.0
+     }
+    ]
+   }
+  },
+  {
+   "key": "xs.shoulder_width",
+   "group": "cross_section",
+   "title": "Shoulder width, each side",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-2b",
+   "page": "44",
+   "pdf_page": 0,
+   "condition": "By design class",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; the table text is jumbled and was reassembled by arithmetic (carriageway plus two shoulders equals roadway width); verify.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-2b: Road Design Classes (continued), p44",
+   "table": {
+    "dimension": {
+     "name": "design_class",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Ia",
+      "value": 2.5
+     },
+     {
+      "at": "Ib",
+      "value": 2.0
+     },
+     {
+      "at": "II",
+      "value": 2.0
+     },
+     {
+      "at": "III",
+      "value": 1.5
+     },
+     {
+      "at": "A",
+      "value": 2.0
+     },
+     {
+      "at": "B",
+      "value": 1.5
+     },
+     {
+      "at": "C",
+      "value": 1.2
+     }
+    ]
+   }
+  },
+  {
+   "key": "xs.right_of_way_width",
+   "group": "cross_section",
+   "title": "Right of way width",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-2b",
+   "page": "44",
+   "pdf_page": 0,
+   "condition": "By design class",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; the table text is jumbled and was reassembled by arithmetic (carriageway plus two shoulders equals roadway width); verify.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-2b: Road Design Classes (continued), p44",
+   "table": {
+    "dimension": {
+     "name": "design_class",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Ia",
+      "value": 60
+     },
+     {
+      "at": "Ib",
+      "value": 60
+     },
+     {
+      "at": "II",
+      "value": 50
+     },
+     {
+      "at": "III",
+      "value": 50
+     },
+     {
+      "at": "A",
+      "value": 40
+     },
+     {
+      "at": "B",
+      "value": 30
+     },
+     {
+      "at": "C",
+      "value": 30
+     }
+    ]
+   }
+  },
+  {
+   "key": "xs.roadway_width",
+   "group": "cross_section",
+   "title": "Roadway width (rural), classes Ib to C",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Table 4-2b",
+   "page": "44",
+   "pdf_page": 0,
+   "condition": "By design class; class Ia is printed as 20.80 to 24.60 m and is not stored as a single value",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Third-party copy; the table text is jumbled and was reassembled by arithmetic (carriageway plus two shoulders equals roadway width); verify.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Table 4-2b: Road Design Classes (continued), p44",
+   "table": {
+    "dimension": {
+     "name": "design_class",
+     "unit": "label"
+    },
+    "lookup": "exact",
+    "monotonic": "none",
+    "rows": [
+     {
+      "at": "Ib",
+      "value": 11.0
+     },
+     {
+      "at": "II",
+      "value": 10.0
+     },
+     {
+      "at": "III",
+      "value": 8.6
+     },
+     {
+      "at": "A",
+      "value": 10.0
+     },
+     {
+      "at": "B",
+      "value": 8.6
+     },
+     {
+      "at": "C",
+      "value": 6.4
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.ssd.min",
+   "group": "link",
+   "title": "Minimum stopping sight distance by design speed",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Tables 4-3 to 4-9",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design speed in km/h",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read across the class tables, where the same speed gives the same value except where noted. Third-party copy; verify. Tables 4-4 and 4-5 print 58 m at 50 km/h (urban); all other tables print 60 m.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Tables 4-3 to 4-9 (design parameters by class and terrain)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 40,
+      "value": 45
+     },
+     {
+      "at": 50,
+      "value": 60
+     },
+     {
+      "at": 60,
+      "value": 75
+     },
+     {
+      "at": 70,
+      "value": 95
+     },
+     {
+      "at": 80,
+      "value": 115
+     },
+     {
+      "at": 90,
+      "value": 135
+     },
+     {
+      "at": 100,
+      "value": 160
+     },
+     {
+      "at": 110,
+      "value": 180
+     },
+     {
+      "at": 120,
+      "value": 205
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.horizontal.min_radius_superelevation_7",
+   "group": "link",
+   "title": "Minimum horizontal curve radius by design speed, maximum superelevation 7 %",
+   "kind": "table",
+   "unit": "m",
+   "document": "MoWT-GDM-2010",
+   "clause": "Tables 4-3 to 4-9",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design speed in km/h, rural, 7 % maximum superelevation",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read across the class tables, where the same speed gives the same value except where noted. Third-party copy; verify. At 50 km/h the urban rows give 100 m at 4 % maximum superelevation.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Tables 4-3 to 4-9 (design parameters by class and terrain)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 40,
+      "value": 55
+     },
+     {
+      "at": 50,
+      "value": 85
+     },
+     {
+      "at": 60,
+      "value": 130
+     },
+     {
+      "at": 70,
+      "value": 185
+     },
+     {
+      "at": 80,
+      "value": 240
+     },
+     {
+      "at": 90,
+      "value": 320
+     },
+     {
+      "at": 100,
+      "value": 415
+     },
+     {
+      "at": 110,
+      "value": 530
+     },
+     {
+      "at": 120,
+      "value": 710
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.vertical.crest_k_stopping_min",
+   "group": "link",
+   "title": "Crest vertical curve K for stopping sight distance, minimum, by design speed",
+   "kind": "table",
+   "unit": "m/%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Tables 4-5 to 4-9",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design speed in km/h",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read across the class tables, where the same speed gives the same value except where noted. Third-party copy; verify. Values at 100 km/h and above differ between Tables 4-3 and 4-4 (80 and 62) and are not stored.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Tables 4-3 to 4-9 (design parameters by class and terrain)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 40,
+      "value": 5
+     },
+     {
+      "at": 50,
+      "value": 9
+     },
+     {
+      "at": 60,
+      "value": 14
+     },
+     {
+      "at": 70,
+      "value": 22
+     },
+     {
+      "at": 80,
+      "value": 32
+     },
+     {
+      "at": 90,
+      "value": 43
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.vertical.sag_k_min",
+   "group": "link",
+   "title": "Sag vertical curve K for stopping sight distance, minimum, by design speed",
+   "kind": "table",
+   "unit": "m/%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Tables 4-3 to 4-9",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Design speed in km/h",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "Read across the class tables, where the same speed gives the same value except where noted. Third-party copy; verify.",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Tables 4-3 to 4-9 (design parameters by class and terrain)",
+   "table": {
+    "dimension": {
+     "name": "design_speed_kmh",
+     "unit": "km/h"
+    },
+    "lookup": "exact",
+    "monotonic": "increasing_with_dimension",
+    "rows": [
+     {
+      "at": 40,
+      "value": 8
+     },
+     {
+      "at": 50,
+      "value": 11
+     },
+     {
+      "at": 60,
+      "value": 15
+     },
+     {
+      "at": 70,
+      "value": 20
+     },
+     {
+      "at": 80,
+      "value": 25
+     },
+     {
+      "at": 90,
+      "value": 30
+     },
+     {
+      "at": 100,
+      "value": 37
+     },
+     {
+      "at": 110,
+      "value": 50
+     },
+     {
+      "at": 120,
+      "value": 50
+     }
+    ]
+   }
+  },
+  {
+   "key": "link.superelevation.max_rural",
+   "group": "link",
+   "title": "Maximum superelevation, rural",
+   "kind": "scalar",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Tables 4-3 to 4-9",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Rural, all classes and terrains",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Tables 4-3 to 4-9 (design parameters by class and terrain)",
+   "value": 7
+  },
+  {
+   "key": "link.superelevation.max_urban",
+   "group": "link",
+   "title": "Maximum superelevation, urban and peri-urban",
+   "kind": "scalar",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Tables 4-3 to 4-9",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "Urban or peri-urban, all classes",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Tables 4-3 to 4-9 (design parameters by class and terrain)",
+   "value": 4
+  },
+  {
+   "key": "link.crossfall.normal_paved",
+   "group": "link",
+   "title": "Normal crossfall, paved classes",
+   "kind": "scalar",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Tables 4-3 to 4-6",
+   "page": "44 to 46",
+   "pdf_page": 0,
+   "condition": "Classes Ia, Ib, II, III",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Tables 4-3 to 4-9 (design parameters by class and terrain)",
+   "value": 2.5
+  },
+  {
+   "key": "link.crossfall.normal_gravel",
+   "group": "link",
+   "title": "Normal crossfall, gravel classes",
+   "kind": "scalar",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Tables 4-7 to 4-9",
+   "page": "46 to 47",
+   "pdf_page": 0,
+   "condition": "Classes A, B, C",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Tables 4-3 to 4-9 (design parameters by class and terrain)",
+   "value": 4
+  },
+  {
+   "key": "link.crossfall.shoulder",
+   "group": "link",
+   "title": "Shoulder crossfall",
+   "kind": "scalar",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Tables 4-3 to 4-9",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "All classes",
+   "status": "requirement",
+   "verb": "table value",
+   "note": "",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Tables 4-3 to 4-9 (design parameters by class and terrain)",
+   "value": 4
+  },
+  {
+   "key": "link.gradient.min_in_cut",
+   "group": "link",
+   "title": "Minimum gradient in cut",
+   "kind": "scalar",
+   "unit": "%",
+   "document": "MoWT-GDM-2010",
+   "clause": "Tables 4-3 to 4-9",
+   "page": "44 to 48",
+   "pdf_page": 0,
+   "condition": "All classes",
+   "status": "absolute_minimum",
+   "verb": "table value",
+   "note": "",
+   "source": "Uganda MoWT Road Design Manual, Volume 1: Geometric Design Manual (January 2010), Section 4, Tables 4-3 to 4-9 (design parameters by class and terrain)",
+   "value": 0.5
+  }
+ ]
+}

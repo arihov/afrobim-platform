@@ -24,6 +24,12 @@ pub use wanted::WANTED;
 /// The embedded DMRB pack.
 pub const DMRB_JSON: &str = include_str!("../data/dmrb.json");
 
+/// The embedded Uganda MoWT Road Design Manual (2010) pack.
+pub const UG_MOWT_JSON: &str = include_str!("../data/ug-mowt-2010.json");
+
+/// The id of the Uganda MoWT pack, the default basis for new projects.
+pub const UG_MOWT_ID: &str = "ug-mowt-2010";
+
 #[derive(Debug, thiserror::Error)]
 pub enum DefaultsError {
     #[error("pack JSON could not be read: {0}")]
@@ -229,6 +235,9 @@ pub struct Entry {
     pub note: String,
     #[serde(default)]
     pub national_annex: Option<String>,
+    /// Where the value was read: document, section and table, in one sentence.
+    #[serde(default)]
+    pub source: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -393,6 +402,10 @@ impl Pack {
         Pack::from_json(DMRB_JSON).expect("embedded DMRB pack is valid; the self-test checks it")
     }
 
+    pub fn ug_mowt() -> Pack {
+        Pack::from_json(UG_MOWT_JSON).expect("embedded Uganda MoWT pack is valid; the self-test checks it")
+    }
+
     pub fn documents(&self) -> &BTreeMap<String, DocumentRecord> {
         &self.documents
     }
@@ -541,6 +554,12 @@ impl Defaults {
         Defaults { sets: vec![Box::new(Pack::dmrb())], basis: 0 }
     }
 
+    /// The standard set of packs: Uganda MoWT (chosen as the basis, the default for new projects)
+    /// and the UK DMRB (selectable).
+    pub fn standard() -> Defaults {
+        Defaults { sets: vec![Box::new(Pack::ug_mowt()), Box::new(Pack::dmrb())], basis: 0 }
+    }
+
     /// No packs: every lookup returns `None` (a project with no basis chosen).
     pub fn empty() -> Defaults {
         Defaults { sets: Vec::new(), basis: 0 }
@@ -600,6 +619,52 @@ impl Defaults {
             None => WANTED.iter().map(|(k, r)| Missing { key: k.to_string(), reason: r.to_string() }).collect(),
         }
     }
+}
+
+/// One design vehicle (DV-1 to DV-5) as held by a defaults set.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct DesignVehicle {
+    pub symbol: String,
+    pub height_m: f64,
+    pub width_m: f64,
+    pub overall_length_m: f64,
+    pub front_overhang_m: f64,
+    pub rear_overhang_m: f64,
+    /// One wheelbase, or the first of two for a semitrailer combination.
+    pub wheelbase_first_m: f64,
+    pub wheelbase_second_m: Option<f64>,
+    /// Minimum design turning radius, outer path.
+    pub min_turning_radius_m: f64,
+    pub min_inside_radius_m: f64,
+    /// Source sentence of the dimensions.
+    pub source: String,
+}
+
+/// The symbols of the Ugandan design vehicles, DV-5 the largest.
+pub const DESIGN_VEHICLE_SYMBOLS: [&str; 5] = ["DV-1", "DV-2", "DV-3", "DV-4", "DV-5"];
+
+/// The design vehicles a set holds (empty when it holds none, as the DMRB pack does).
+pub fn design_vehicles(set: &dyn DefaultsSet) -> Vec<DesignVehicle> {
+    let mut out = Vec::new();
+    for sym in DESIGN_VEHICLE_SYMBOLS {
+        let c = Conditions::none().label("design_vehicle", sym);
+        let g = |k: &str| set.get(k, &c).and_then(|v| v.number());
+        let (Some(h), Some(w), Some(l), Some(fo), Some(ro), Some(wb), Some(r), Some(ri)) = (
+            g("vehicle.height"),
+            g("vehicle.width"),
+            g("vehicle.overall_length"),
+            g("vehicle.front_overhang"),
+            g("vehicle.rear_overhang"),
+            g("vehicle.wheelbase_first"),
+            g("vehicle.min_turning_radius"),
+            g("vehicle.min_inside_radius"),
+        ) else {
+            continue;
+        };
+        let source = set.all().iter().find(|e| e.key == "vehicle.overall_length").map(|e| e.source.clone()).unwrap_or_default();
+        out.push(DesignVehicle { symbol: sym.to_string(), height_m: h, width_m: w, overall_length_m: l, front_overhang_m: fo, rear_overhang_m: ro, wheelbase_first_m: wb, wheelbase_second_m: g("vehicle.wheelbase_second"), min_turning_radius_m: r, min_inside_radius_m: ri, source });
+    }
+    out
 }
 
 /// Format a number without a trailing `.0`.
