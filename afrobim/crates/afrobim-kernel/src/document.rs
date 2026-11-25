@@ -5,6 +5,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::layout::LayoutList;
 use crate::{BBox, Pt};
 
 /// File extension of an AfroBIM document.
@@ -120,6 +121,17 @@ struct FileDto {
     standard: String,
     layers: Vec<Layer>,
     elements: Vec<Element>,
+    /// Layout tabs (paper space). Absent in files written before layouts existed: no layouts.
+    #[serde(default, skip_serializing_if = "LayoutList::is_empty")]
+    layouts: LayoutList,
+}
+
+/// What undo and redo keep: the elements and the layouts. Layer flags and the selection are not
+/// part of it.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct DocState {
+    pub elements: Vec<Element>,
+    pub layouts: LayoutList,
 }
 
 /// The model: elements in draw order (last is on top), layers and the selection set.
@@ -129,6 +141,7 @@ pub struct Document {
     layers: Vec<Layer>,
     selection: Vec<ElementId>,
     next_id: u64,
+    layouts: LayoutList,
     /// The design standard the document was authored against, e.g. a rule pack id.
     pub standard: String,
 }
@@ -140,6 +153,7 @@ impl Default for Document {
             layers: vec![Layer { name: "0".into(), visible: true, locked: false }],
             selection: Vec::new(),
             next_id: 1,
+            layouts: LayoutList::default(),
             standard: String::new(),
         }
     }
@@ -153,6 +167,15 @@ impl Document {
 
     pub fn elements(&self) -> &[Element] {
         &self.elements
+    }
+
+    /// The layout tabs (paper space), in tab order.
+    pub fn layouts(&self) -> &LayoutList {
+        &self.layouts
+    }
+
+    pub fn layouts_mut(&mut self) -> &mut LayoutList {
+        &mut self.layouts
     }
 
     pub fn layers(&self) -> &[Layer] {
@@ -373,6 +396,17 @@ impl Document {
         self.selection.clear();
     }
 
+    /// Elements and layouts, for the undo history.
+    pub fn state(&self) -> DocState {
+        DocState { elements: self.elements.clone(), layouts: self.layouts.clone() }
+    }
+
+    /// Puts back what [`Document::state`] took (undo, redo).
+    pub fn restore_state(&mut self, state: DocState) {
+        self.restore(state.elements);
+        self.layouts = state.layouts;
+    }
+
     pub fn to_json(&self) -> String {
         let dto = FileDto {
             format: FORMAT_NAME.into(),
@@ -381,6 +415,7 @@ impl Document {
             standard: self.standard.clone(),
             layers: self.layers.clone(),
             elements: self.elements.clone(),
+            layouts: self.layouts.clone(),
         };
         serde_json::to_string_pretty(&dto).expect("a document always serialises")
     }
@@ -396,7 +431,7 @@ impl Document {
         if dto.units != "mm" {
             return Err(DocumentError::Format(format!("units '{}' are not supported; expected mm", dto.units)));
         }
-        let mut doc = Document { layers: dto.layers, standard: dto.standard, ..Document::default() };
+        let mut doc = Document { layers: dto.layers, standard: dto.standard, layouts: dto.layouts, ..Document::default() };
         if doc.layers.is_empty() {
             doc.layers.push(Layer { name: "0".into(), visible: true, locked: false });
         }
@@ -565,6 +600,52 @@ mod tests {
         let back = Document::from_json(&d.to_json()).unwrap();
         assert_eq!(back.elements(), d.elements());
         assert_eq!(back.find(ElementId(2)).unwrap().host, Some(ElementId(1)));
+    }
+
+    #[test]
+    fn layouts_round_trip_and_old_files_load_with_none() {
+        use crate::layout::{Layout, PaperShape};
+        let mut d = three();
+        // A file without layouts writes no layouts key, and reads back with none.
+        assert!(!d.to_json().contains("layouts"));
+        let old = d.to_json();
+        assert!(Document::from_json(&old).unwrap().layouts().is_empty());
+        // A file written before layouts existed is a plain document: strip the key to be sure.
+        let mut v: serde_json::Value = serde_json::from_str(&old).unwrap();
+        v.as_object_mut().unwrap().remove("layouts");
+        let loaded = Document::from_json(&v.to_string()).unwrap();
+        assert!(loaded.layouts().is_empty());
+        assert_eq!(loaded.elements(), d.elements());
+
+        let mut l = Layout::new("Plan A3", "A3", true, 420.0, 297.0);
+        l.title_block_mm = 70.0;
+        l.add_viewport(Pt::new(10.0, 10.0), Pt::new(300.0, 200.0), Pt::new(5000.0, 6000.0), 500.0).unwrap();
+        let vid = l.add_viewport(Pt::new(20.0, 20.0), Pt::new(90.0, 90.0), Pt::new(0.0, 0.0), 1000.0).unwrap();
+        let v = l.viewport_mut(vid).unwrap();
+        v.locked = true;
+        v.on = false;
+        v.freeze("Survey");
+        v.title = "Key plan".into();
+        v.show_label = true;
+        assert!(v.set_clip(vec![Pt::new(20.0, 20.0), Pt::new(90.0, 20.0), Pt::new(50.0, 90.0)]));
+        l.add_shape_circle(Pt::new(100.0, 100.0), 25.0).unwrap();
+        l.new_viewport_frozen = vec!["Basemap".into()];
+        d.layouts_mut().add(l).unwrap();
+        d.layouts_mut().add(Layout::new("Detail", "A4", false, 210.0, 297.0)).unwrap();
+        let back = Document::from_json(&d.to_json()).unwrap();
+        assert_eq!(back.layouts(), d.layouts());
+        assert_eq!(back.layouts().names(), ["Plan A3", "Detail"]);
+        let lv = &back.layouts().by_name("plan a3").unwrap().viewports[1];
+        assert!(lv.locked && !lv.on && lv.show_label && lv.clip.as_ref().is_some_and(|c| c.len() == 3));
+        assert!(matches!(back.layouts().by_name("Plan A3").unwrap().shapes[0], PaperShape::Circle { .. }));
+        // Undo state carries the layouts and the elements.
+        let before = d.state();
+        let id = d.layouts().by_name("Detail").unwrap().id;
+        d.layouts_mut().delete(id).unwrap();
+        assert_ne!(d.state(), before);
+        d.restore_state(before.clone());
+        assert_eq!(d.state(), before);
+        assert_eq!(d.layouts().len(), 2);
     }
 
     #[test]
