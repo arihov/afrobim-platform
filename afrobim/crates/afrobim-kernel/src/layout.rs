@@ -312,6 +312,12 @@ pub fn scale_label(den: f64) -> String {
     }
 }
 
+/// A length in mm with at most two decimals and no trailing zeros.
+pub fn trim_mm(v: f64) -> String {
+    let s = format!("{v:.2}");
+    s.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
 /// The scale "1:500" or "500" typed by a person, as the denominator.
 pub fn parse_scale(text: &str) -> Option<f64> {
     let t = text.trim();

@@ -14,6 +14,8 @@ mod u3_tests;
 mod u4_tests;
 #[cfg(test)]
 mod u4_dialogs_test;
+#[cfg(test)]
+mod layout_tests;
 mod civil_assembly;
 mod civil_targets;
 mod civil_cmds;
@@ -92,6 +94,9 @@ mod glyphs;
 mod icons;
 mod ifc_options;
 mod landxml_ui;
+mod layout_canvas;
+mod layout_cmds;
+mod layout_ui;
 mod issues_ui;
 mod lighting_inputs;
 mod markings_glue;

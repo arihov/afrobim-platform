@@ -204,6 +204,7 @@ pub fn glyph(action: Action) -> Option<&'static str> {
         A::Autosave => ph::CLOCK_COUNTER_CLOCKWISE,
         A::Palette => ph::COMMAND,
         A::Civil(c) => crate::civil_cmds::glyph(c),
+        A::Layout(l) => crate::layout_cmds::glyph(l),
     })
 }
 

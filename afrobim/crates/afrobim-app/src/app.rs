@@ -47,6 +47,8 @@ pub struct AfroBimApp {
     /// The drawing sheets: project information, the sheet-set manager, the title block editor and
     /// the preview.
     pub(crate) sheets: crate::sheets_ui::SheetsUi,
+    /// Layout tabs (paper space): the current tab, the viewport being worked in, the windows.
+    pub(crate) lay: crate::layout_ui::LayoutUi,
     /// Clash tests and results, the programme and the estimate: windows and copies of the
     /// document elements that hold them.
     pub(crate) coord: CoordUi,
@@ -96,7 +98,7 @@ pub struct AfroBimApp {
     fonts_dir: PathBuf,
     pub(crate) cache: HashMap<ElementId, Cached>,
 
-    history: UndoHistory<Vec<Element>>,
+    history: UndoHistory<afrobim_kernel::DocState>,
     commit_due: Option<f64>,
     clipboard: Vec<Element>,
     paste_count: u32,
@@ -187,7 +189,7 @@ pub struct AfroBimApp {
     frames: u32,
 }
 
-const CMD_ID: &str = "afrobim-command-line";
+pub(crate) const CMD_ID: &str = "afrobim-command-line";
 
 impl AfroBimApp {
     /// The options the application runs with (the headless dialog test sets `run` through this).
@@ -226,6 +228,7 @@ impl AfroBimApp {
             ctl: CanvasController::default(),
             modules,
             sheets: crate::sheets_ui::SheetsUi::default(),
+            lay: crate::layout_ui::LayoutUi::default(),
             coord: CoordUi::default(),
             sched: SchedUi::default(),
             cost: CostUi::default(),
@@ -259,7 +262,7 @@ impl AfroBimApp {
             engine,
             fonts_dir,
             cache: HashMap::new(),
-            history: UndoHistory::new(Vec::new(), 100),
+            history: UndoHistory::new(afrobim_kernel::DocState::default(), 100),
             commit_due: None,
             clipboard: Vec::new(),
             paste_count: 0,
@@ -561,7 +564,7 @@ impl AfroBimApp {
         for name in app.options.layers_on.clone().unwrap_or_default().split(',').filter(|n| !n.is_empty()) {
             let _ = afrobim_annotate::layers::set_visible(&mut app.doc, name, true);
         }
-        app.history.reset(app.doc.snapshot());
+        app.history.reset(app.doc.state());
         app.view_3d = app.options.view3d;
         if let Some(dir) = app.options.export_sheets.clone() {
             app.doc.clear_selection(); // an unattended export covers the whole model
@@ -810,13 +813,13 @@ impl AfroBimApp {
         if std::mem::take(&mut self.civil_ui.shortcuts.bypass) {
             // The operation that set this is the one change that may touch references.
         } else {
-            let notes = crate::shortcuts_ui::guard(&mut self.doc, self.history.current());
+            let notes = crate::shortcuts_ui::guard(&mut self.doc, &self.history.current().elements);
             if let Some(first) = notes.first() {
                 self.status = first.clone();
             }
         }
         self.sync_generated();
-        self.history.commit(self.doc.snapshot());
+        self.history.commit(self.doc.state());
         self.recovery.note_edit();
     }
 
@@ -824,7 +827,8 @@ impl AfroBimApp {
         self.flush_commit();
         match self.history.undo().cloned() {
             Some(state) => {
-                self.doc.restore(state);
+                self.doc.restore_state(state);
+                self.lay_after_restore();
                 self.design.invalidate();
                 self.log("Undo");
             }
@@ -832,11 +836,12 @@ impl AfroBimApp {
         }
     }
 
-    fn redo(&mut self) {
+    pub(crate) fn redo(&mut self) {
         self.flush_commit();
         match self.history.redo().cloned() {
             Some(state) => {
-                self.doc.restore(state);
+                self.doc.restore_state(state);
+                self.lay_after_restore();
                 self.design.invalidate();
                 self.log("Redo");
             }
@@ -901,7 +906,8 @@ impl AfroBimApp {
             self.set_standard(&wanted);
         }
         self.sync_generated();
-        self.history.reset(self.doc.snapshot());
+        self.history.reset(self.doc.state());
+        self.lay = crate::layout_ui::LayoutUi::default();
         self.fitted = false;
     }
 
@@ -1144,7 +1150,8 @@ impl AfroBimApp {
                 self.doc = Document::default();
                 self.cache.clear();
                 self.reset_records();
-                self.history.reset(Vec::new());
+                self.history.reset(afrobim_kernel::DocState::default());
+                self.lay = crate::layout_ui::LayoutUi::default();
                 self.path = None;
                 self.drops.saved = Some(crate::background::fingerprint(&self.doc));
                 self.fitted = false;
@@ -1627,6 +1634,7 @@ impl AfroBimApp {
             }
             Action::CoordSystem => self.open_crs_tab(),
             Action::Civil(cv) => self.civil_run(ctx, cv),
+            Action::Layout(lv) => self.layout_run(ctx, lv),
             Action::ProjectSettings => {
                 self.projset.open = true;
                 self.projset.tab = 0;
@@ -1762,6 +1770,10 @@ impl AfroBimApp {
             self.ctl.submit_text(&mut self.doc, &mut self.view, &text);
             return;
         }
+        if text.trim().is_empty() && self.lay.tool_wants_enter() {
+            self.tool_finish(ctx);
+            return;
+        }
         if text.trim().is_empty() {
             if let Some(a) = self.last_action {
                 self.run(ctx, a);
@@ -1769,6 +1781,16 @@ impl AfroBimApp {
             return;
         }
         self.log(format!("Command: {}", text.trim()));
+        // Layout commands with words after them: LAYOUT NEW name, LAYOUT SET name, VPSCALE 1:500.
+        if let Some((head, rest)) = text.trim().split_once(char::is_whitespace) {
+            if let Some(commands::CommandInfo { action: Action::Layout(lv), .. }) = commands::resolve(head) {
+                if self.layout_cli(ctx, *lv, rest) {
+                    return;
+                }
+                self.log(format!("{head}: \"{}\" is not understood. Type ? for the list.", rest.trim()));
+                return;
+            }
+        }
         match commands::resolve(&text) {
             Some(c) => self.run(ctx, c.action),
             None => self.log(format!("Unknown command \"{}\". Type ? for the list.", text.trim())),
@@ -1823,6 +1845,12 @@ impl AfroBimApp {
                 self.run(ctx, a);
             }
         }
+        // Ctrl+PageDown and Ctrl+PageUp cycle the Model and layout tabs.
+        for (k, d) in [(Key::PageDown, 1), (Key::PageUp, -1)] {
+            if ctx.input_mut(|i| i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, k))) {
+                self.cycle_layout_tab(d);
+            }
+        }
         // These belong to a text field while one is being edited.
         if !in_field {
             for (k, a) in [(Key::Z, Action::Undo), (Key::A, Action::SelectAll)] {
@@ -1844,7 +1872,12 @@ impl AfroBimApp {
                 if paste {
                     self.run(ctx, Action::PasteClip);
                 }
-                if delete && !self.ctl.is_busy() && !self.doc.selection().is_empty() {
+                if delete && self.lay.in_paper_space() && self.lay.tool.is_none() {
+                    // On the paper, Delete removes the selected viewport.
+                    if let Some(id) = self.lay.selected {
+                        self.delete_vp(ctx, id);
+                    }
+                } else if delete && !self.ctl.is_busy() && !self.doc.selection().is_empty() {
                     self.ctl.start_erase(&mut self.doc);
                 }
             }
@@ -1857,7 +1890,9 @@ impl AfroBimApp {
             // Esc in a Properties field belongs to that field; it only cancels an active command.
             if !in_field || self.ctl.is_busy() {
                 self.cmd_input.clear();
-                if !self.anno_cancel() {
+                if self.layout_escape() {
+                    // A paper tool was ended.
+                } else if !self.anno_cancel() {
                     self.ctl.escape(&mut self.doc);
                 }
                 self.design_escape();
@@ -1919,6 +1954,10 @@ impl AfroBimApp {
                 // Easting and northing in metres of the project system, at true magnitude; the
                 // model's own numbers when the document has no coordinate system.
                 let position = match &crs {
+                    _ if self.lay.in_paper_space() => match self.lay.cursor_paper {
+                        Some(p) => format!("{:.1} , {:.1} mm", p.x, p.y),
+                        None => "paper, mm".to_string(),
+                    },
                     Some(_) => crate::crs_ui::en_text(w, crs.as_ref()),
                     None => format!("{} , {}", units.length(w.x), units.length_u(w.y)),
                 };
@@ -1949,6 +1988,10 @@ impl AfroBimApp {
                     self.fit_3d();
                 }
                 ui.separator();
+                if self.lay.current.is_some() {
+                    self.layout_status_controls(ctx, ui);
+                    ui.separator();
+                }
                 ui.selectable_value(&mut self.rep, Representation::Real, "Real");
                 ui.selectable_value(&mut self.rep, Representation::Outlined, "Outlined");
                 ui.separator();
@@ -2115,6 +2158,10 @@ impl AfroBimApp {
                 self.run(ctx, a);
             }
             egui::ScrollArea::vertical().id_salt("props").max_height(props_h).auto_shrink([false, false]).show(ui, |ui| {
+                if self.lay.current.is_some() && self.lay.selected.is_some() && (self.lay.active.is_none() || self.doc.selection().is_empty()) {
+                    self.viewport_props_ui(ctx, ui);
+                    return;
+                }
                 let selected = self.doc.selection().len();
                 let Some(id) = self.doc.primary() else {
                     ui.label(RichText::new("Nothing selected. Click an element in the model.").weak());
@@ -2325,10 +2372,23 @@ impl AfroBimApp {
                 self.canvas_plan(ui);
                 return;
             }
+            if self.lay.current.is_some() {
+                self.canvas_layout(ctx, ui);
+                return;
+            }
             let (response, painter) = ui.allocate_painter(ui.available_size(), Sense::click_and_drag());
             let rect = response.rect;
+            self.canvas_model_pass(ctx, &response, &painter, rect, true);
+        });
+    }
+
+    /// The model drawing and its pointer handling in `rect`: the whole canvas on the Model tab, or
+    /// the area of a viewport on a layout (the caller has put the viewport's transform in
+    /// `self.view`). `nav` false leaves pan and zoom to the caller (a locked viewport).
+    pub(crate) fn canvas_model_pass(&mut self, ctx: &egui::Context, response: &egui::Response, painter: &egui::Painter, rect: egui::Rect, nav: bool) {
+        {
             self.ctl.viewport = (rect.left() as f64, rect.top() as f64, rect.width() as f64, rect.height() as f64);
-            if !self.fitted && rect.width() > 50.0 {
+            if !self.fitted && rect.width() > 50.0 && self.lay.current.is_none() {
                 self.fitted = true;
                 self.zoom_extents_visible();
                 // `--zoom-to x,y,width`: the centre and the width to show, millimetres.
@@ -2344,7 +2404,7 @@ impl AfroBimApp {
             let was_busy = self.ctl.is_busy();
             let anno_active = self.anno.active();
             let over = response.contains_pointer();
-            let input = ui.input(|i| {
+            let input = ctx.input(|i| {
                 (
                     i.pointer.latest_pos(),
                     i.pointer.button_pressed(PointerButton::Primary),
@@ -2363,7 +2423,7 @@ impl AfroBimApp {
             if let Some(pos) = pos {
                 let s = Pt::new(pos.x as f64, pos.y as f64);
                 if over || self.canvas_drag {
-                    if mid_down {
+                    if mid_down && nav {
                         self.view.pan(delta.x as f64, delta.y as f64);
                     }
                     self.ctl_object_snap(s);
@@ -2371,12 +2431,12 @@ impl AfroBimApp {
                     self.anno_pointer(s);
                 }
                 if over {
-                    if scroll != 0.0 {
+                    if scroll != 0.0 && nav {
                         self.view.zoom_about(s, (scroll as f64 * 0.0025).exp());
                         self.ctl_object_snap(s);
                         self.ctl.pointer_move(&mut self.doc, &self.view, s);
                     }
-                    if mid_double {
+                    if mid_double && nav {
                         self.zoom_extents_visible();
                     }
                     if pressed {
@@ -2430,9 +2490,9 @@ impl AfroBimApp {
             if over {
                 ctx.set_cursor_icon(egui::CursorIcon::None); // the canvas draws its own crosshair
             }
-            self.paint_scene(&painter, rect);
-            self.paint_overlay(&painter, rect, over && !mid_down);
-            self.paint_anno(&painter, over && !mid_down);
+            self.paint_scene(painter, rect);
+            self.paint_overlay(painter, rect, over && !mid_down);
+            self.paint_anno(painter, over && !mid_down);
 
             if !was_busy {
                 let mut pick = None;
@@ -2446,7 +2506,7 @@ impl AfroBimApp {
                     self.run(ctx, a);
                 }
             }
-        });
+        }
     }
 
     fn windows(&mut self, ctx: &egui::Context) {
@@ -2480,6 +2540,7 @@ impl AfroBimApp {
         self.construction_windows(ctx);
         self.check_windows(ctx);
         self.sheets_windows(ctx);
+        self.layout_windows(ctx);
         self.design_windows(ctx);
         let mut help = self.show_help;
         if help {
@@ -3330,6 +3391,7 @@ impl AfroBimApp {
         self.right_panel(ctx);
         lap.mark("right");
         self.command_line(ctx);
+        self.layout_tabs(ctx);
         self.canvas(ctx);
         lap.mark("canvas");
         self.windows(ctx);

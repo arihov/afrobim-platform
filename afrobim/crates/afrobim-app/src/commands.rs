@@ -181,6 +181,8 @@ pub enum Action {
     Palette,
     /// A civil object command (see `civil_cmds`).
     Civil(crate::civil_cmds::Cv),
+    /// Layout tabs, viewports and plotting.
+    Layout(crate::layout_cmds::Lv),
 }
 
 pub struct CommandInfo {
@@ -452,6 +454,39 @@ pub const COMMANDS: &[CommandInfo] = &[
     CommandInfo { name: "SHORTCUTUNDERLAY", aliases: &["ATTACHDOCUMENT","DOCUMENTUNDERLAY"], help: "Attach a whole AfroBIM document as an underlay reference, drawn at its own coordinates", action: Action::Civil(crate::civil_cmds::Cv::ShortcutUnderlay) },
     CommandInfo { name: "ROUNDABOUTDESIGN", aliases: &["RBDESIGN", "CIVILROUNDABOUT"], help: "Roundabout design (ROUNDABOUT inserts the map sign): arms on alignments: inscribed circle, entry and exit geometry, entry angle and entry path radius against the basis limits", action: Action::Civil(crate::civil_cmds::Cv::Roundabout) },
     CommandInfo { name: "CIVILDEMO", aliases: &["DEMOCIVIL"], help: "Build a small set of demonstration civil data at UTM-sized coordinates (example values, not a design)", action: Action::Civil(crate::civil_cmds::Cv::CivilDemo) },
+    // Layouts (paper space) and viewports
+    CommandInfo { name: "LAYOUT", aliases: &["LAYOUTS", "LO"], help: "Layout tabs: list, create, rename, delete and switch (LAYOUT NEW name, LAYOUT SET name, LAYOUT RENAME name, LAYOUT DELETE, LAYOUT LIST)", action: Action::Layout(crate::layout_cmds::Lv::Layout) },
+    CommandInfo { name: "LAYOUTNEW", aliases: &["NEWLAYOUT"], help: "Add a layout tab (A3 landscape with the title block) and switch to it", action: Action::Layout(crate::layout_cmds::Lv::LayoutNew) },
+    CommandInfo { name: "LAYOUTRENAME", aliases: &["RENAMELAYOUT"], help: "Rename the current layout tab", action: Action::Layout(crate::layout_cmds::Lv::LayoutRename) },
+    CommandInfo { name: "LAYOUTDELETE", aliases: &["DELETELAYOUT"], help: "Delete the current layout tab, after asking", action: Action::Layout(crate::layout_cmds::Lv::LayoutDelete) },
+    CommandInfo { name: "LAYOUTCOPY", aliases: &["COPYLAYOUT", "LAYOUTDUP"], help: "Duplicate the current layout tab with its viewports", action: Action::Layout(crate::layout_cmds::Lv::LayoutDuplicate) },
+    CommandInfo { name: "MODEL", aliases: &["MODELTAB"], help: "Switch to the Model tab", action: Action::Layout(crate::layout_cmds::Lv::Model) },
+    CommandInfo { name: "MVIEW", aliases: &["MV", "VPORTS"], help: "Make a rectangular viewport on the layout: pick two corners", action: Action::Layout(crate::layout_cmds::Lv::Mview) },
+    CommandInfo { name: "MVIEWPOLY", aliases: &["MVP", "MVIEWP"], help: "Make a polygonal viewport: pick the corners, Enter or right click to finish", action: Action::Layout(crate::layout_cmds::Lv::MviewPoly) },
+    CommandInfo { name: "MVIEWOBJECT", aliases: &["MVO", "MVIEWO"], help: "Make a viewport from a closed polyline or a circle drawn on the layout", action: Action::Layout(crate::layout_cmds::Lv::MviewObject) },
+    CommandInfo { name: "MVIEWFIT", aliases: &["MVF", "MVIEWF"], help: "Make a viewport that fills the printable area", action: Action::Layout(crate::layout_cmds::Lv::MviewFit) },
+    CommandInfo { name: "MVIEW1", aliases: &["VP1"], help: "One viewport filling the printable area", action: Action::Layout(crate::layout_cmds::Lv::MviewPreset(1)) },
+    CommandInfo { name: "MVIEW2", aliases: &["VP2"], help: "Two viewports side by side", action: Action::Layout(crate::layout_cmds::Lv::MviewPreset(2)) },
+    CommandInfo { name: "MVIEW3", aliases: &["VP3"], help: "Three viewports: one tall on the left, two stacked on the right", action: Action::Layout(crate::layout_cmds::Lv::MviewPreset(3)) },
+    CommandInfo { name: "MVIEW4", aliases: &["VP4"], help: "Four viewports in a grid", action: Action::Layout(crate::layout_cmds::Lv::MviewPreset(4)) },
+    CommandInfo { name: "MSPACE", aliases: &["MS"], help: "Work in model space through the selected viewport (double click inside a viewport)", action: Action::Layout(crate::layout_cmds::Lv::Mspace) },
+    CommandInfo { name: "PSPACE", aliases: &["PS"], help: "Return to paper space (double click outside the viewport)", action: Action::Layout(crate::layout_cmds::Lv::Pspace) },
+    CommandInfo { name: "VPSCALE", aliases: &["VPS", "XPSCALE"], help: "Set the scale of the selected or active viewport from the standard list or a custom 1:n", action: Action::Layout(crate::layout_cmds::Lv::VpScale) },
+    CommandInfo { name: "VPLOCK", aliases: &["VPL"], help: "Lock or unlock the display of the selected or active viewport (a locked one cannot change scale; pan and zoom move the paper)", action: Action::Layout(crate::layout_cmds::Lv::VpLock) },
+    CommandInfo { name: "VPDISPLAY", aliases: &["VPONOFF"], help: "Turn the display of the selected viewport on or off", action: Action::Layout(crate::layout_cmds::Lv::VpDisplay) },
+    CommandInfo { name: "VPMAX", aliases: &["MAXVP"], help: "Maximise the selected viewport to the whole canvas", action: Action::Layout(crate::layout_cmds::Lv::VpMax) },
+    CommandInfo { name: "VPMIN", aliases: &["MINVP"], help: "Return the maximised viewport to the layout", action: Action::Layout(crate::layout_cmds::Lv::VpMin) },
+    CommandInfo { name: "VPLAYER", aliases: &["VPLAYERS"], help: "Freeze or thaw layers in the current viewport, and set the layers frozen in new viewports", action: Action::Layout(crate::layout_cmds::Lv::VpLayer) },
+    CommandInfo { name: "VPCLIP", aliases: &["CLIPVP"], help: "Reshape the selected viewport boundary to a polygon you pick", action: Action::Layout(crate::layout_cmds::Lv::VpClip) },
+    CommandInfo { name: "VPUNCLIP", aliases: &["VPCLIPOFF"], help: "Remove the clip from the selected viewport", action: Action::Layout(crate::layout_cmds::Lv::VpUnclip) },
+    CommandInfo { name: "VPDELETE", aliases: &["DELVP"], help: "Delete the selected viewport", action: Action::Layout(crate::layout_cmds::Lv::VpDelete) },
+    CommandInfo { name: "VPCOPY", aliases: &["COPYVP"], help: "Copy the selected viewport", action: Action::Layout(crate::layout_cmds::Lv::VpCopy) },
+    CommandInfo { name: "VPPROPS", aliases: &["VPPROPERTIES"], help: "Properties of the selected viewport: scale, lock, display, title and the scale label", action: Action::Layout(crate::layout_cmds::Lv::VpProps) },
+    CommandInfo { name: "PRECT", aliases: &["PAPERRECT"], help: "Draw a rectangle on the layout (a boundary for MVIEWOBJECT)", action: Action::Layout(crate::layout_cmds::Lv::PaperRect) },
+    CommandInfo { name: "PCIRCLE", aliases: &["PAPERCIRCLE"], help: "Draw a circle on the layout (a boundary for MVIEWOBJECT)", action: Action::Layout(crate::layout_cmds::Lv::PaperCircle) },
+    CommandInfo { name: "PPOLY", aliases: &["PAPERPOLY"], help: "Draw a closed polyline on the layout (a boundary for MVIEWOBJECT)", action: Action::Layout(crate::layout_cmds::Lv::PaperPoly) },
+    CommandInfo { name: "PAGESETUP", aliases: &["PAGESET"], help: "Page setup of the current layout: paper size, orientation, margins and title block", action: Action::Layout(crate::layout_cmds::Lv::PageSetup) },
+    CommandInfo { name: "PLOT", aliases: &["PRINT", "PLOTLAYOUT"], help: "Plot the current layout, or all layouts, to PDF or DXF at true paper size", action: Action::Layout(crate::layout_cmds::Lv::Plot) },
 ];
 
 /// Resolves typed text to a command by name or alias, case-insensitively.
